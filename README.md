@@ -13,6 +13,7 @@ The Graphics Gremlin project from TubeTimeUS (@schlae) has also been integrated 
 
 * Check the PIC8259 module and check the INTs trigger.
 * Loading ROMs from the OSD menu
+* Use SDRAM as system memory. Currently BRAM is used for everything, providing the system with 256Kb of RAM, 64Kb for the BIOS and 32Kb for VRAM.
 * IDE module implementation
 * VHD support for easy integration with [XTIDE Universal BIOS](https://www.xtideuniversalbios.org/)
 * Addition of other modules:
