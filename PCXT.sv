@@ -205,6 +205,7 @@ localparam CONF_STR = {
 	"-;",
 	"O3,Splash Screen,Yes,No;",
 	"O4,CPU Speed,4.77Mhz,7.16Mhz;",
+	"O5,IRQ 0,Disabled,Enabled;",
 	"-;",
 	"O12,Video,Color,Green,Amber,B/W;",	
 	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
@@ -383,7 +384,7 @@ clk_div3 clk_normal // 4.77MHz
 		
 		.reset(reset),
 		.disable_splashscreen(status[3]),
-		//.disable_splashscreen(1'b0),
+		.IRQ0(status[5]),
 		
 		.VGA_R(r),
 		.VGA_G(g),

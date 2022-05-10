@@ -9,6 +9,7 @@ module system
 		 input clk_sys2,
 		 input clk_cpu,
 		 input disable_splashscreen,
+		 input IRQ0,
 
 		 input reset,
 		 output wire de_o,
@@ -74,7 +75,8 @@ module system
 	wire SPEAKER_PORT = ADDR[15:0] == 16'h0061;
 	wire LED_PORT = ADDR[15:0] == 16'h03bc;
 	wire KB_OE = ADDR[15:4] == 12'h006 && {ADDR[3], ADDR[1:0]} == 3'b000; // 60h, 64h
-	wire PIC_OE = ADDR[15:8] == 8'h00 && ADDR[6:1] == 6'b010000;	// 20h, 21h, a0h, a1h
+	//wire PIC_OE = ADDR[15:8] == 8'h00 && ADDR[6:1] == 6'b010000;	// 20h, 21h, a0h, a1h
+	wire PIC_OE = ADDR[15:8] == 8'h00 && ADDR[6:0] == 7'b0100001;	// 21h, a1h
 
     // Sets up the card to generate a video signal
     // that will work with a standard VGA monitor
@@ -276,21 +278,18 @@ module system
 	wire [7:0]PIC_IVECT;
 	wire INT;
 	wire timer_int;
-	wire I_COM1;
+	wire I_COM1; 
 	PIC_8259 PIC 
 	(
-		 .RST(!rstcount[4]),
-		 .CS(IOM && PIC_OE), // 20h, 21h, a0h, a1h
-		 .A(ADDR[0]),
-		 .WR(~WR_n), 
-		 .din(CPU_DIN), 
-		 .slave(ADDR[7]),
-		 .dout(PIC_DOUT), 
-		 .ivect(PIC_IVECT), 
+		 .CS(IOM && PIC_OE), // 20h, 21h
+		 .WR(~WR_n),
+		 .din(CPU_DIN),
+		 .dout(PIC_DOUT),
+		 .ivect(PIC_IVECT),
 		 .clk(clk_cpu),
-		 .INT(INT), 
-		 .IACK(~INTA), 
-		 .I({I_COM1, I_MOUSE, 1'b0, I_KB, timer_int})
+		 .INT(INT),
+		 .IACK(~INTA),
+		 .I({I_MOUSE, 1'b0, I_KB, IRQ0 & timer_int})
     );
 
 	wire timer_spk;

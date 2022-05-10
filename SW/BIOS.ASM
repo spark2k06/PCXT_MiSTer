@@ -226,7 +226,7 @@ nomousemsg:
             int     19h
 
 msgmouse    db 'PS2 Mouse detected', 13, 10, 0
-bioscont    db 13, 10, 13, 10, 'CPU: 8088 @ 4.77Mhz [9.58Mhz Turbo]', 13, 10, 0            
+bioscont    db 13, 10, 13, 10, 'CPU: 8088 @ 4.77Mhz', 13, 10, 0            
                         
 bioscont512 db 13, 10, 'RAM: 256KB', 13, 10, 0           
 bioscont2   db 13, 10, 'RAM: 2MB (1MB available + 1MB EMS)', 13, 10, 0
@@ -274,19 +274,10 @@ int07 endp
 int08 proc near
         push    ds
         push    bx
-	push	ax
+        push    ax
         mov     ax, 40h
         mov     ds, ax
-	pop	ax
-	mov     bx, 40h
-	cmp     word ptr [bx], 0
-	jz      int08_nodec
-	dec     word ptr [bx]
-int08_nodec:
-	push    ax
-	mov     al, 20h
-	out     20h, al
-	pop     ax
+        pop     ax        
         mov     bx, 6ch
         add     word ptr [bx], 1
         adc     word ptr [bx+2], 0

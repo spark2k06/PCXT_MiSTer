@@ -23,6 +23,11 @@ The Graphics Gremlin project from TubeTimeUS (@schlae) has also been integrated 
 
 # ChangeLog
 
+### Beta 0.2
+
+* PIC module downgraded to the first versions of the Next186 project, more basic and without ISR
+* Possibility to activate and deactivate IRQ0 from the OSD menu, temporary feature.
+
 ### Beta 0.1
 
 * Monochrome monitor simulation option (green, amber, B&W)
