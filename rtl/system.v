@@ -19,6 +19,10 @@ module system
 		 output wire [5:0]VGA_B,
 		 output wire VGA_HSYNC,
 		 output wire VGA_VSYNC,
+
+		 output wire HBlank,
+		 output wire VBlank,
+
 		 input PS2_CLK1_I,
 		 output PS2_CLK1_O,
 		 input PS2_CLK2_I,
@@ -27,12 +31,17 @@ module system
 		 output PS2_DATA1_O,
 		 input PS2_DATA2_I,
 		 output PS2_DATA2_O,
-		 output LED
+		 output LED,
 		 //output reg SD_n_CS = 1,
 		 //output wire SD_DI,
 		 //output reg SD_CK = 0,
 		 //input SD_DO
 
+		input ioctl_download,
+		input ioctl_index,
+		input ioctl_wr,
+		input ioctl_addr,
+		input ioctl_dout	
     );
 
 	wire [7:0] DOUT;
@@ -109,10 +118,10 @@ module system
         .blue(VGA_B)
     );    
 
-	     cga cga1 (
+	cga cga1 (
         .clk(clk_vga),
-		  .bus_a(ADDR[15:0]),
-		  .bus_ior_l(RD_n),
+		.bus_a(ADDR[15:0]),
+		.bus_ior_l(RD_n),
         .bus_iow_l(WR_n),
         .bus_memr_l(1'd0),
         .bus_memw_l(1'd0),
@@ -124,13 +133,17 @@ module system
         .ram_a(VRAM_ADDR),
         .ram_d(VRAM_DOUT),
 //      .dbl_hsync(VGA_HSYNC), 
-		  .hsync(VGA_HSYNC), //Mister Test without Scandouble
+		.hsync(VGA_HSYNC), //Mister Test without Scandouble
         .vsync(VGA_VSYNC),
-		  .de_o(de_o),
+		.de_o(de_o),
+
+		.hdisp(HBlank),
+		.vdisp(VBlank),
+
         .video(video),
         //.dbl_video(vga_video),
         .comp_video(comp_video),
-		  .splashscreen(splashscreen),
+		.splashscreen(splashscreen),
         .thin_font(thin_font)
     );
 
@@ -151,8 +164,7 @@ module system
 	//reg [7:0]SDI;
 	//assign SD_DI = CPU_DIN[7];
 
-	assign CPU_DIN = 	 IOM ?
-
+	assign CPU_DIN = IOM ?
 							 (
 							 SPEAKER_PORT && ~RD_n ? {6'd0, speaker_on} :							 
 							 //SD_OE_HI && ~RD_n ? SDI :
@@ -182,14 +194,21 @@ module system
 	  .douta(bios_cpu_dout)
 	);
 
-	ram ram
+	dpr #(.AW(18)) ram
 	(
-	  .clka(clk_sys), // clk_sys or clk_cpu?
-	  .ena(~IOM && RAM),
-	  .wea(~WR_n),
-	  .addra(ADDR[17:0]),
-	  .dina(DOUT),
-	  .douta(ram_cpu_dout)
+		.clock(clk_sys),
+		// Port A
+		.ce1(~IOM && RAM),
+		.we1(~WR_n),
+		.di1(DOUT),
+		.do1(ram_cpu_dout),
+		.a1(ADDR[17:0]),
+		// Port B
+		.ce2(),
+		.we2(),
+		.di2(),
+		.do2(),
+		.a2()
 	);
 
 	vram vram
@@ -206,7 +225,6 @@ module system
 	  .addrb(VRAM_ADDR[14:0]),
 	  .dinb(8'h0),
 	  .doutb(VRAM_DOUT)
-
 	);
 	
 	always @ (posedge clk_sys) begin

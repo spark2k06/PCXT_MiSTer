@@ -195,7 +195,6 @@ assign BUTTONS = 0;
 //////////////////////////////////////////////////////////////////
 
 wire [1:0] ar = status[9:8];
-
 assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
 assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 
@@ -209,8 +208,10 @@ localparam CONF_STR = {
 	"-;",
 	"O12,Video,Color,Green,Amber,B/W;",	
 	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
+	"O78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",	
 	"-;",
-	"S,VHDDSKIMG;",
+	//"F1,ROM,Load ROM;",	
+	"S0,VHDDSKIMG;",
 	"OE,Reset after Mount,No,Yes;",
 	"-;",
 	"T0,Reset;",
@@ -221,9 +222,7 @@ localparam CONF_STR = {
 wire forced_scandoubler;
 wire  [1:0] buttons;
 wire [31:0] status;
-wire [10:0] ps2_key;
-
-
+//wire [10:0] ps2_key;
 
 //VHD	
 wire[ 0:0] usdRd = { vsdRd };
@@ -249,21 +248,27 @@ wire        ps2_mouse_data_out;
 wire        ps2_mouse_clk_in;
 wire        ps2_mouse_data_in;
 
-// PS2DIV : la mitad del divisor que necesitas para dividir el clk_sys que le das al hpio, para que te de entre 10Khz y 16Kzh
+wire        ioctl_download;
+wire  [7:0] ioctl_index;
+wire        ioctl_wr;
+wire [24:0] ioctl_addr;
+wire  [7:0] ioctl_data;
 
+wire [21:0] gamma_bus;
+
+// PS2DIV : la mitad del divisor que necesitas para dividir el clk_sys que le das al hpio, para que te de entre 10Khz y 16Kzh
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 (
 	.clk_sys(CLK_50M),
 	.HPS_BUS(HPS_BUS),
 	.EXT_BUS(),
-	.gamma_bus(),
+	.gamma_bus(gamma_bus),
 
-//	.forced_scandoubler(forced_scandoubler),
+	.forced_scandoubler(forced_scandoubler),
 
 	.buttons(buttons),
 	.status(status),
-//	.status_menumask({status[5]}),
-	
+	.status_menumask({status[5]}),
 	
 //VHD	
 	.sd_rd         (usdRd),
@@ -274,19 +279,26 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 	.sd_buff_addr  (usdBuffA),
 	.sd_buff_din   (usdBuffD),
 	.sd_buff_dout  (usdBuffQ),
-	.img_mounted	(usdImgMtd),
-	.img_size		(usdImgSz),	
+	.img_mounted   (usdImgMtd),
+	.img_size	   (usdImgSz),	
 	
-   .ps2_kbd_clk_in	(ps2_kbd_clk_out),
+    .ps2_kbd_clk_in		(ps2_kbd_clk_out),
 	.ps2_kbd_data_in	(ps2_kbd_data_out),
 	.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 	.ps2_kbd_data_out	(ps2_kbd_data_in),
-//   .ps2_mouse_clk_in	(ps2_mouse_clk_out),
-//	.ps2_mouse_data_in(ps2_mouse_data_out),
-//	.ps2_mouse_clk_out(ps2_mouse_clk_in),
-//	.ps2_mouse_data_out(ps2_mouse_data_in),
-	
-	.ps2_key(ps2_key)
+//  .ps2_mouse_clk_in	(ps2_mouse_clk_out),
+//	.ps2_mouse_data_in	(ps2_mouse_data_out),
+//	.ps2_mouse_clk_out	(ps2_mouse_clk_in),
+//	.ps2_mouse_data_out	(ps2_mouse_data_in),
+
+	//.ps2_key(ps2_key),
+
+	//ioctl
+	.ioctl_download(ioctl_download),
+	.ioctl_index(ioctl_index),
+	.ioctl_wr(ioctl_wr),
+	.ioctl_addr(ioctl_addr),
+	.ioctl_dout(ioctl_data)	
 );
 
 ///////////////////////   CLOCKS   ///////////////////////////////
@@ -313,11 +325,8 @@ pll pll
 	.locked(pll_locked)
 );
 
-
-
 //wire reset = RESET | status[0] | buttons[1];
 wire reset = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd);
-
 
 //////////////////////////////////////////////////////////////////
 
@@ -326,7 +335,7 @@ wire HSync;
 wire VBlank;
 wire VSync;
 wire ce_pix;
-wire [7:0] video;
+//wire [7:0] video;
 
 assign CLK_VIDEO = clk_28_636;
 assign CE_PIXEL = 1'b1;
@@ -347,6 +356,7 @@ clk_div3 clk_normal // 4.77MHz
 	.clk_out(clk_4_77)
 );
 
+//////////////////////////////////////////////////////////////////
 
 	wire [5:0] r, g, b;	
 	reg [5:0] raux, gaux, baux;	
@@ -372,7 +382,8 @@ clk_div3 clk_normal // 4.77MHz
 	6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05
 	};
 
-	 
+	wire de_o;
+
 	system sys_inst
 	(	
 		.clk_100(clk_100),
@@ -391,18 +402,27 @@ clk_div3 clk_normal // 4.77MHz
 		.VGA_B(b),
 		.VGA_HSYNC(VGA_HS),
 		.VGA_VSYNC(VGA_VS),
+
+		//.HBlank(HBlank),
+		//.VBlank(VBlank),
+
 		.de_o(VGA_DE),
+
 //		.SRAM_ADDR(sramA),
 //		.SRAM_DATA(sramDQ),
 //		.SRAM_WE_n(sramWe),
+
 //		.LED(LED),
+
 		//.SD_n_CS(usdCs),
 		//.SD_DI(usdDo),
 		//.SD_CK(usdCk),
 		//.SD_DO(usdDi),
+
 //		.AUD_L(AUDIO_L),
 //		.AUD_R(AUDIO_R),
 //		.audio_o(AUDIO_R),
+
 //	 	.PS2_CLK1(ps2_kbd_clk_in),
 //		.PS2_CLK2(PS2CLKB),
 //		.PS2_DATA1(ps2_kbd_data_in),
@@ -415,9 +435,29 @@ clk_div3 clk_normal // 4.77MHz
 		.PS2_DATA1_O(ps2_kbd_data_out),
 		.PS2_DATA2_I(ps2_mouse_data_in),
 		.PS2_DATA2_O(ps2_mouse_data_out),
-		
+
+		.ioctl_download(ioctl_download),
+		.ioctl_index(ioctl_index),
+		.ioctl_wr(ioctl_wr),
+		.ioctl_addr(ioctl_addr),
+		.ioctl_dout(ioctl_data)	
 	);	
 	
+	/*
+	wire [1:0] scale = status[8:7];
+	assign VGA_SL = scale;
+	wire freeze_sync;	
+	video_mixer #(640, 1) mixer
+	(
+		.*,
+        .hq2x(scale),
+        .scandoubler (scale || forced_scandoubler),
+        .R({raux, 2'b0}), 
+        .G({gaux, 2'b0}), 
+        .B({baux, 2'b0})
+	);
+	*/
+
 	always @ (status[2:1], r, g, b) begin
 		case(status[2:1])
 			// Verde
@@ -446,11 +486,10 @@ clk_div3 clk_normal // 4.77MHz
 			end
 		endcase
 	end
-	assign VGA_R = {raux,2'b0};
-	assign VGA_G = {gaux,2'b0};
-	assign VGA_B = {baux,2'b0};
-//
-//endmodule
+
+	assign VGA_R = {raux, 2'b0};
+	assign VGA_G = {gaux, 2'b0};
+	assign VGA_B = {baux, 2'b0};
 
 /*
 // SRAM management
@@ -458,7 +497,6 @@ wire sramOe = ~sramWe;
 wire sramWe;
 wire [20:0] sramA;
 wire [ 7:0] sramDQ;
-
 
 Mister_sRam sRam
 ( // .*,
@@ -478,10 +516,6 @@ Mister_sRam sRam
   .SRAM_nWE    (sramWe) 
 );
 */
-
-
-
-
 
 reg vsd = 0;
 always @(posedge CLK_50M) if(usdImgMtd[0]) vsd <= |usdImgSz;
@@ -534,6 +568,5 @@ sd_card sd_card
 	.miso        (vsdMiso  )
 );
 */
-
 
 endmodule

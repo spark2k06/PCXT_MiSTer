@@ -32,12 +32,16 @@ module cga(
     output hsync,
     output dbl_hsync,
     output vsync,
-	 output de_o,
+
+    output hdisp,   // HBlank
+    output vdisp,   // VBlank
+
+	output de_o,
     output[3:0] video,
     output[3:0] dbl_video,
     output[6:0] comp_video,
 
-	 input splashscreen,
+	input splashscreen,
     input thin_font
     );
 
@@ -263,7 +267,9 @@ endgenerate
         .cursor(cursor),
         .mem_addr(crtc_addr),
         .row_addr(row_addr),
-        .line_reset(line_reset)
+        .line_reset(line_reset),
+        .vdisp(vdisp),
+        .hdisp(hdisp)
     );
 
     // CGA 80 column timings

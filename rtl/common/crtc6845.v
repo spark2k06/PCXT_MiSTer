@@ -28,7 +28,11 @@ module crtc6845(
     output cursor,
     output [13:0] mem_addr,
     output [4:0] row_addr,
-    output line_reset);
+    output line_reset,
+    
+    output reg vdisp,   // VBlank
+    output reg hdisp    // HBlank
+);
 
     parameter H_TOTAL = 0;
     parameter H_DISP = 0;
@@ -136,8 +140,8 @@ module crtc6845(
 
     reg vs = 1'b0;
     reg hs = 1'b0;
-    reg hdisp = 1'b1;
-    reg vdisp = 1'b1;
+    //reg hdisp = 1'b1;
+    //reg vdisp = 1'b1;
 
     wire cur_on;
     wire blink;
