@@ -39,7 +39,7 @@
 .model tiny
 .code
 
-SCANCODE1   equ 1
+;SCANCODE1   equ 1
     
         org 0e000h        
 bios:        
@@ -653,11 +653,21 @@ int09 endp
 ELSE    ; SCANCODE2
 
 int09 proc near
-        pusha
+
+        push    ax
+        push    bx
+        push    cx
+        push    dx
         push    ds
         push    es
-        push    40h
-        pop     ds
+        push    ss 
+        
+        push    ds
+        push    es
+ 
+        mov     dx, 40h
+        mov     ds, dx
+        
         in      al, 60h         ; al contains the scan code
         mov     dx, KbdFlags1
         mov     cx, KbdFlags3
@@ -883,7 +893,12 @@ noCtrl:
         mov     bl, 6
 noAlt:
         cbw
-        shl     ax, 3
+        
+        push    cx
+        mov     cl, 3
+        shl     ax, cl
+        pop     cx
+        
         add     bx, ax
         mov     ax, cs:KeyCode[bx]
         cmp     ax, 000ah
@@ -911,7 +926,12 @@ SetFlagsKey:
         and     cl, not (LastE0 or LastE1 or LastF0)    ; not prefix key code, clear all prefixes
 SetFlags:
         mov     al, dl
-        shr     al, 4
+
+        push    cx
+        mov     cl, 4
+        shr     al, cl
+        pop     cx
+        
         xor     al, ch
         and     al, 7
         jz      short SF1   ; no LEDs to update
@@ -927,11 +947,19 @@ SF1:
         mov     KbdFlags3, cx
         
 int09Exit:
-	mov     al, 20h
-	out     20h, al
+        mov     al, 20h
+        out     20h, al
         pop     es
         pop     ds
-        popa
+
+        pop    ss
+        pop    es
+        pop    ds
+        pop    dx
+        pop    cx
+        pop    bx
+        pop    ax
+
         iret
 int09 endp
 
