@@ -27,7 +27,7 @@ The Graphics Gremlin project from TubeTimeUS (@schlae) has also been integrated 
 ### Beta 0.3
 
 * Change to XTPC-XT. The use of MCL86 and Graphics Gremlin are maintained.
-* Use of Sergey Kiselev's (@skiselev) XT 8088 BIOS proyect.
+* Use of Sergey Kiselev's (@skiselev) XT 8088 BIOS project.
 * Turbo mode enabled, 4.77Mhz or 7.16Mhz selectable from OSD.
 
 ### Beta 0.2
