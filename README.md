@@ -7,7 +7,7 @@ The Graphics Gremlin project from TubeTimeUS (@schlae) has also been integrated 
 
 ### Demo
 
-![alt text](/demo/MiSTer_PCXT.png "MiSTer PCXT")
+![alt text](/demo/MiSTer_PCXT.gif "MiSTer PCXT")
 
 # TODO
 
