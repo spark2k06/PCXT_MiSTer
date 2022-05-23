@@ -11,7 +11,6 @@ The Graphics Gremlin project from TubeTimeUS (@schlae) has also been integrated 
 
 # TODO
 
-* Check the Keyboard, at the moment it does not seem to be working.
 * Refactor Graphics Gremlin module, the new KFPC-XT system will make this refactor possible.
 * Loading ROMs from the OSD menu or fixed from MiSTer config folder (boot0.rom)
 * Use SDRAM as system memory. Currently BRAM is used for everything, providing the system with 256Kb of RAM, 64Kb for the BIOS and 32Kb for VRAM.

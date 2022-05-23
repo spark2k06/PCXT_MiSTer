@@ -203,8 +203,7 @@ localparam CONF_STR = {
 	"PCXT;;",
 	"-;",
 	"O3,Splash Screen,Yes,No;",
-	"O4,CPU Speed,4.77Mhz,7.16Mhz;",
-	"O5,IRQ 0,Disabled,Enabled;",
+	"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
 	"-;",
 	"O12,Video,Color,Green,Amber,B/W;",	
 	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
@@ -237,8 +236,8 @@ wire[63:0] usdImgSz;
 wire[ 0:0] usdImgMtd;
 
 //Keyboard Ps2
-wire        ps2_kbd_clk_out;
-wire        ps2_kbd_data_out;
+//wire        ps2_kbd_clk_out;
+//wire        ps2_kbd_data_out;
 wire        ps2_kbd_clk_in;
 wire        ps2_kbd_data_in;
 
@@ -282,8 +281,8 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 	.img_mounted   (usdImgMtd),
 	.img_size	   (usdImgSz),	
 	
-    .ps2_kbd_clk_in		(ps2_kbd_clk_out),
-	.ps2_kbd_data_in	(ps2_kbd_data_out),
+   .ps2_kbd_clk_in	(1'b1),
+	.ps2_kbd_data_in	(1'b1),
 	.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 	.ps2_kbd_data_out	(ps2_kbd_data_in),
 //  .ps2_mouse_clk_in	(ps2_mouse_clk_out),
