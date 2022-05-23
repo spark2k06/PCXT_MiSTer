@@ -7,7 +7,7 @@ The Graphics Gremlin project from TubeTimeUS (@schlae) has also been integrated 
 
 ### Demo
 
-![alt text](/demo/MiSTer_PCXT.png "MiSTer PCXT")
+![alt text](/demo/MiSTer_PCXT.gif "MiSTer PCXT")
 
 # TODO
 
@@ -25,8 +25,8 @@ The Graphics Gremlin project from TubeTimeUS (@schlae) has also been integrated 
 
 ### Beta 0.3
 
-* Change to XTPC-XT. The use of MCL86 and Graphics Gremlin are maintained.
-* Use of Sergey Kiselev's (@skiselev) XT 8088 project.
+* Change to KFPC-XT. The use of MCL86 and Graphics Gremlin are maintained.
+* Use of Sergey Kiselev's (@skiselev) XT 8088 BIOS project.
 * Turbo mode enabled, 4.77Mhz or 7.16Mhz selectable from OSD.
 
 ### Beta 0.2
