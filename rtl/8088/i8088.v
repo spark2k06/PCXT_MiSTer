@@ -10,30 +10,25 @@ module i8088
     input               INTR,
     input               NMI,
 
-    output reg [19:0]   addr,
-    output reg [7:0]    dout,
-    input [7:0]         din,
+    output [19:0]       ad_out,
+    output [7:0]    		dout,
+    input  [7:0]        din,
 
-    output              ALE,
-    output              INTA_n,
-    output              RD_n,
-    output              WR_n,
-    output              IOM,
-    output              DTR,
-    output              DEN
+    output              lock_n,
+    output              s6_3_mux,
+    output [2:0]        s2_s0_out,
+    output [2:0]        SEGMENT
 
   );
 
 //------------------------------------------------------------------------
 
-
+assign dout = ad_out[7:0];
 
 // Internal Signals
 
-reg  t_biu_lock_n_d;
 wire t_eu_prefix_lock;
 wire t_eu_flag_i;
-wire t_biu_lock_n;
 wire t_pfq_empty;
 wire t_biu_done;
 wire t_biu_clk_counter_zero;
@@ -41,9 +36,6 @@ wire t_biu_ad_oe;
 wire t_biu_nmi_caught;
 wire t_biu_nmi_debounce;
 wire t_biu_intr;
-wire [19:0] t_biu_ad_out;
-wire [7:0]  t_biu_ad_in;
-wire [2:0]  t_s2_s0_out;
 wire [15:0] t_eu_biu_command;
 wire [15:0] t_eu_biu_dataout;
 wire [15:0] t_eu_register_r3;
@@ -57,21 +49,10 @@ wire [15:0] t_biu_register_rm;
 wire [15:0] t_biu_register_reg;
 wire [15:0] t_biu_return_data;
 
-always @(posedge CORE_CLK) begin
-
-  if (ALE == 1'b0)
-    dout <= t_biu_ad_out[7:0];
-  else
-    addr <= t_biu_ad_out;
-
-end
-
-
 //------------------------------------------------------------------------
 // BIU Core
-//------------------------------------------------------------------------
-
-biu_min                     BIU_CORE
+//------------------------------------------------------------------------ 
+biu_max                     BIU_CORE
   (
     .CORE_CLK_INT           (CORE_CLK),
     .RESET_INT              (RESET),
@@ -79,23 +60,19 @@ biu_min                     BIU_CORE
     .READY_IN               (READY),
     .NMI                    (NMI),
     .INTR                   (INTR),
-    .INTA_n                 (INTA_n),
-    .ALE                    (ALE),
-    .RD_n                   (RD_n),
-    .WR_n                   (WR_n),
-    .IOM                    (IOM),
-    .DTR                    (DTR),
-    .DEN                    (DEN),
     .AD_OE                  (t_biu_ad_oe),
-    .AD_OUT                 (t_biu_ad_out),
+    .AD_OUT                 (ad_out),
     .AD_IN                  (din),
+    .LOCK_n                 (lock_n),
+    .S6_3_MUX               (s6_3_mux),
+    .S2_S0_OUT              (s2_s0_out),
     .EU_BIU_COMMAND         (t_eu_biu_command),
     .EU_BIU_DATAOUT         (t_eu_biu_dataout),
     .EU_REGISTER_R3         (t_eu_register_r3),
     .EU_PREFIX_LOCK         (t_eu_prefix_lock),
     .BIU_DONE               (t_biu_done),
     .BIU_CLK_COUNTER_ZERO   (t_biu_clk_counter_zero),
-    .BIU_SEGMENT            ( ),
+    .BIU_SEGMENT            (SEGMENT),
     .BIU_NMI_CAUGHT         (t_biu_nmi_caught),
     .BIU_NMI_DEBOUNCE       (t_biu_nmi_debounce),
     .BIU_INTR               (t_biu_intr),
@@ -111,7 +88,6 @@ biu_min                     BIU_CORE
     .BIU_RETURN_DATA        (t_biu_return_data)
 
   );
-
 
 //------------------------------------------------------------------------
 // EU Core

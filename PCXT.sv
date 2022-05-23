@@ -207,7 +207,7 @@ localparam CONF_STR = {
 	"O5,IRQ 0,Disabled,Enabled;",
 	"-;",
 	"O12,Video,Color,Green,Amber,B/W;",	
-	//"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
+	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
 	//"O78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",	
 	"-;",
 	//"F1,ROM,Load ROM;",	
@@ -309,10 +309,9 @@ wire pll_locked;
 wire clk_100;
 wire clk_28_636;
 wire clk_25;
-wire clk_14_318;
-wire clk_7_16;
+reg clk_14_318 = 1'b0;
+reg clk_7_16 = 1'b0;
 wire clk_4_77;
-wire clk_9_58;
 wire clk_cpu;
 
 pll pll
@@ -383,65 +382,156 @@ clk_div3 clk_normal // 4.77MHz
 	};
 
 	wire de_o;
+	
 
-	system sys_inst
-	(	
-		.clk_100(clk_100),
-		.clk_vga(clk_28_636),
-		.clk_25(clk_25),
-		.clk_sys(clk_14_318),
-		.clk_sys2(clk_7_16),
-		.clk_cpu(clk_cpu),
-		
-		.reset(reset),
-		.disable_splashscreen(status[3]),
-		.IRQ0(status[5]),
-		
-		.VGA_R(r),
-		.VGA_G(g),
-		.VGA_B(b),
-		.VGA_HSYNC(VGA_HS),
-		.VGA_VSYNC(VGA_VS),
+	reg [24:0] splash_cnt = 0;
+	reg [3:0] splash_cnt2 = 0;
+	reg splashscreen = 1;
+	
+	always @ (posedge clk_14_318) begin
+	
+		if (splashscreen) begin
+			if (status[3])
+				splashscreen <= 0;
+			else if(splash_cnt2 == 5) // 5 seconds delay
+				splashscreen <= 0;
+			else if (splash_cnt == 14318000) begin // 1 second at 14.318Mhz
+					splash_cnt2 <= splash_cnt2 + 1;				
+					splash_cnt <= 0;
+				end
+			else
+				splash_cnt <= splash_cnt + 1;			
+		end
+	
+	end
+	
+    //
+    // Input F/F PS2_CLK
+    //
+    logic   device_clock_ff;
+    logic   device_clock;
 
-		//.HBlank(HBlank),
-		//.VBlank(VBlank),
+    always_ff @(negedge clk_cpu, posedge reset)
+    begin
+        if (reset) begin
+            device_clock_ff <= 1'b0;
+            device_clock    <= 1'b0;
+        end
+        else begin
+            device_clock_ff <= ps2_kbd_clk_in;
+            device_clock    <= device_clock_ff ;
+        end
+    end
 
-		.de_o(VGA_DE),
 
-//		.SRAM_ADDR(sramA),
-//		.SRAM_DATA(sramDQ),
-//		.SRAM_WE_n(sramWe),
+    //
+    // Input F/F PS2_DAT
+    //
+    logic   device_data_ff;
+    logic   device_data;
 
-//		.LED(LED),
+    always_ff @(negedge clk_cpu, posedge reset)
+    begin
+        if (reset) begin
+            device_data_ff <= 1'b0;
+            device_data    <= 1'b0;
+        end
+        else begin
+            device_data_ff <= ps2_kbd_data_in;
+            device_data    <= device_data_ff;
+        end
+    end
+	
+    wire [7:0] data_bus;
+    wire INTA_n;	
+    wire [19:0] cpu_ad_out;
+    reg  [19:0] cpu_address;
+    wire [7:0] cpu_data_bus;    
+    wire processor_ready;	
+    wire interrupt_to_cpu;
+    wire address_latch_enable;
 
-		//.SD_n_CS(usdCs),
-		//.SD_DI(usdDo),
-		//.SD_CK(usdCk),
-		//.SD_DO(usdDi),
+    wire lock_n;
+    wire [2:0]processor_status;	 
 
-//		.AUD_L(AUDIO_L),
-//		.AUD_R(AUDIO_R),
-//		.audio_o(AUDIO_R),
+   CHIPSET u_CHIPSET (
+        .clock                              (clk_cpu),
+		  .peripheral_clock                   (clk_4_77),
+        .reset                              (reset || splashscreen),
+        .cpu_address                        (cpu_address),
+        .cpu_data_bus                       (cpu_data_bus),
+        .processor_status                   (processor_status),
+        .processor_lock_n                   (lock_n),
+ //     .processor_transmit_or_receive_n    (processor_transmit_or_receive_n),
+		  .processor_ready                    (processor_ready),
+        .interrupt_to_cpu                   (interrupt_to_cpu),
+        .splashscreen                       (splashscreen),
+        .clk_vga                            (clk_28_636),
+        .enable_cga                         (1'b1),
+        .de_o                               (VGA_DE),
+        .VGA_R                              (r),
+        .VGA_G                              (g),
+        .VGA_B                              (b),
+        .VGA_HSYNC                          (VGA_HS),
+        .VGA_VSYNC                          (VGA_VS),
+//      .address                            (address),
+        .address_ext                        (0),
+//      .address_direction                  (address_direction),
+        .data_bus                           (data_bus),
+//      .data_bus_ext                       (data_bus_ext),
+//      .data_bus_direction                 (data_bus_direction),
+        .address_latch_enable               (address_latch_enable),
+//      .io_channel_check                   (),
+        .io_channel_ready                   (1'b1),
+        .interrupt_request                  (0),    // use?	-> It does not seem to be necessary.
+//      .io_read_n                          (io_read_n),
+        .io_read_n_ext                      (1'b1),
+//      .io_read_n_direction                (io_read_n_direction),
+//      .io_write_n                         (io_write_n),
+        .io_write_n_ext                     (1'b1),
+//      .io_write_n_direction               (io_write_n_direction),
+//      .memory_read_n                      (memory_read_n),
+        .memory_read_n_ext                  (1'b1),
+//      .memory_read_n_direction            (memory_read_n_direction),
+//      .memory_write_n                     (memory_write_n),
+        .memory_write_n_ext                 (1'b1),
+//      .memory_write_n_direction           (memory_write_n_direction),
+        .dma_request                        (0),    // use?	-> I don't know if it will ever be necessary, at least not during testing.
+//      .dma_acknowledge_n                  (dma_acknowledge_n),
+//      .address_enable_n                   (address_enable_n),
+//      .terminal_count_n                   (terminal_count_n)		  
+		  .ps2_clock                          (ps2_kbd_clk_in),
+		  .ps2_data                           (ps2_kbd_data_in),
+		  .enable_sdram                       (0)	   // -> During the first tests, it shall not be used.
 
-//	 	.PS2_CLK1(ps2_kbd_clk_in),
-//		.PS2_CLK2(PS2CLKB),
-//		.PS2_DATA1(ps2_kbd_data_in),
-//		.PS2_DATA2(PS2DATB),
-		.PS2_CLK1_I(ps2_kbd_clk_in),
-		.PS2_CLK1_O(ps2_kbd_clk_out),
-		.PS2_CLK2_I(ps2_mouse_clk_in),
-		.PS2_CLK2_O(ps2_mouse_clk_out),
-		.PS2_DATA1_I(ps2_kbd_data_in),
-		.PS2_DATA1_O(ps2_kbd_data_out),
-		.PS2_DATA2_I(ps2_mouse_data_in),
-		.PS2_DATA2_O(ps2_mouse_data_out),
+    );
+	 
+	 
+	i8088 B1(
+	  .CORE_CLK(clk_100),
+	  .CLK(clk_cpu),
 
-		.ioctl_download(ioctl_download),
-		.ioctl_index(ioctl_index),
-		.ioctl_wr(ioctl_wr),
-		.ioctl_addr(ioctl_addr),
-		.ioctl_dout(ioctl_data)	
-	);	
+	  .RESET(reset || splashscreen),
+	  .READY(processor_ready),	  
+	  .NMI(1'b0),
+	  .INTR(interrupt_to_cpu),
+
+	  .ad_out(cpu_ad_out),
+	  .dout(cpu_data_bus),
+	  .din(data_bus),
+	  
+	  .lock_n(lock_n),
+	  .s6_3_mux(s6_3_mux),
+	  .s2_s0_out(processor_status),
+	  .SEGMENT(SEGMENT)
+	);
+
+always @(posedge clk_cpu) begin
+	if (address_latch_enable)
+		cpu_address <= cpu_ad_out;
+	else
+		cpu_address <= cpu_address;
+end	
 	
 	/*
 	wire [1:0] scale = status[8:7];

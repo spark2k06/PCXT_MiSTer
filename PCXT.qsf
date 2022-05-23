@@ -279,9 +279,55 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED_*
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BTN_*
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to BTN_*
 source files.qip
-set_global_assignment -name VERILOG_FILE rtl/common/dpr.v
 
-set_global_assignment -name VERILOG_FILE rtl/common/vram.v
+set_global_assignment -name LAST_QUARTUS_VERSION "17.1.0 Standard Edition"
+set_global_assignment -name TOP_LEVEL_ENTITY sys_top
+set_global_assignment -name EDA_SIMULATION_TOOL "Active-HDL (SystemVerilog)"
+set_global_assignment -name EDA_TIME_SCALE "1 ps" -section_id eda_simulation
+set_global_assignment -name EDA_OUTPUT_DATA_FORMAT "SYSTEMVERILOG HDL" -section_id eda_simulation
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_timing
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+set_global_assignment -name EDA_RUN_TOOL_AUTOMATICALLY OFF -section_id eda_simulation
+set_global_assignment -name VERILOG_FILE rtl/video/vram.v
+set_global_assignment -name VERILOG_FILE rtl/video/crtc6845.v
+set_global_assignment -name VERILOG_FILE rtl/video/cga_vram.v
+set_global_assignment -name VERILOG_FILE rtl/video/cga_vgaport.v
+set_global_assignment -name VERILOG_FILE rtl/video/cga_sequencer.v
+set_global_assignment -name VERILOG_FILE rtl/video/cga_scandoubler.v
+set_global_assignment -name VERILOG_FILE rtl/video/cga_pixel.v
+set_global_assignment -name VERILOG_FILE rtl/video/cga_composite.v
+set_global_assignment -name VERILOG_FILE rtl/video/cga_attrib.v
+set_global_assignment -name VERILOG_FILE rtl/video/cga.v
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFSDRAM/HDL/KFSDRAM.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB_Shift_Register.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8288/HDL/KF8288.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Priority_Resolver.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Interrupt_Request.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_In_Service.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Control_Logic.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Bus_Control_Logic.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Port_C.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Port.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Group.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Control_Logic.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253_Counter.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253_Control_Logic.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237_Timing_And_Control.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237_Priority_Encoder.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237_Bus_Control_Logic.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237_Address_And_Count_Registers.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Ready.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/RAM.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Peripherals.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Chipset.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Bus_Arbiter.sv"
 set_global_assignment -name VERILOG_FILE rtl/common/ram.v
 set_global_assignment -name VERILOG_FILE rtl/common/clk_div3.v
 set_global_assignment -name SDC_FILE PCXT_MiSTer.sdc
@@ -295,21 +341,7 @@ set_global_assignment -name CDF_FILE jtag.cdf
 set_global_assignment -name QIP_FILE sys/sys.qip
 set_global_assignment -name SDC_FILE PCXT.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE PCXT.sv
-set_global_assignment -name VERILOG_FILE rtl/system.v
-set_global_assignment -name VERILOG_FILE rtl/common/cga.v
-set_global_assignment -name VERILOG_FILE rtl/common/cga_attrib.v
-set_global_assignment -name VERILOG_FILE rtl/common/cga_pixel.v
-set_global_assignment -name VERILOG_FILE rtl/common/cga_scandoubler.v
-set_global_assignment -name VERILOG_FILE rtl/common/cga_sequencer.v
-set_global_assignment -name VERILOG_FILE rtl/common/cga_vgaport.v
-set_global_assignment -name VERILOG_FILE rtl/common/crtc6845.v
-set_global_assignment -name VERILOG_FILE rtl/common/KB_8042.v
-set_global_assignment -name VERILOG_FILE rtl/common/PIC_8259.v
-set_global_assignment -name VERILOG_FILE rtl/common/timer8253.v
-set_global_assignment -name VERILOG_FILE rtl/common/vga.v
 set_global_assignment -name SIP_FILE pll.sip
 set_global_assignment -name QIP_FILE rtl/pll.qip
 set_global_assignment -name SIP_FILE rtl/pll.sip
-set_global_assignment -name LAST_QUARTUS_VERSION "17.1.0 Standard Edition"
-set_global_assignment -name TOP_LEVEL_ENTITY sys_top
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
