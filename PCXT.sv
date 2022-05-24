@@ -504,7 +504,8 @@ clk_div3 clk_normal // 4.77MHz
 		  .enable_sdram                       (0)	   // -> During the first tests, it shall not be used.
 
     );
-	 
+	
+	assign AUDIO_R = speaker_out << 15;	 
 	 
 	i8088 B1(
 	  .CORE_CLK(clk_100),
