@@ -498,10 +498,11 @@ clk_div3 clk_normal // 4.77MHz
         .dma_request                        (0),    // use?	-> I don't know if it will ever be necessary, at least not during testing.
 //      .dma_acknowledge_n                  (dma_acknowledge_n),
 //      .address_enable_n                   (address_enable_n),
-//      .terminal_count_n                   (terminal_count_n)		  
-		  .ps2_clock                          (ps2_kbd_clk_in),
-		  .ps2_data                           (ps2_kbd_data_in),
-		  .enable_sdram                       (0)	   // -> During the first tests, it shall not be used.
+//      .terminal_count_n                   (terminal_count_n)
+	.speaker_out                        (speaker_out),   
+        .ps2_clock                          (ps2_kbd_clk_in),
+	.ps2_data                           (ps2_kbd_data_in),
+	.enable_sdram                       (0)	   // -> During the first tests, it shall not be used.
 
     );
 	
