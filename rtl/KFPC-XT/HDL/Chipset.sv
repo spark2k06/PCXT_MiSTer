@@ -65,6 +65,15 @@ module CHIPSET (
     output  logic   [7:0]   port_c_io,
     input   logic           ps2_clock,
     input   logic           ps2_data,
+	 // Flopply
+	 input   logic   [15:0]  mgmt_address,
+	 input   logic           mgmt_read,
+	 output  logic   [15:0]  mgmt_readdata,
+	 input   logic           mgmt_write,
+	 input   logic   [15:0]  mgmt_writedata,
+	 input   logic   [27:0]  clock_rate,
+	 input   logic   [1:0]   floppy_wp,
+	 output  logic   [1:0]   fdd_request,
     // SDRAM
     input   logic           enable_sdram,
     input   logic           sdram_clock,    // 50MHz
@@ -175,6 +184,14 @@ module CHIPSET (
         .memory_read_n                      (memory_read_n),
         .memory_write_n                     (memory_write_n),
         .address_enable_n                   (address_enable_n),
+		  
+		  .mgmt_address                       (mgmt_address),
+	     .mgmt_write                         (mgmt_write),
+	     .mgmt_read                          (mgmt_read),
+		  .clock_rate                         (clock_rate),
+		  .floppy_wp                          (floppy_wp),
+		  .fdd_request                        (fdd_request),
+		  
         .timer_counter_out                  (timer_counter_out),
         .speaker_out                        (speaker_out),
         .port_a_out                         (port_a_out),

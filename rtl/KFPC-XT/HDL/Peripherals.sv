@@ -36,6 +36,15 @@ module PERIPHERALS #(
     input   logic           memory_read_n,
     input   logic           memory_write_n,
     input   logic           address_enable_n,
+	 // Flopply
+	 input   logic   [15:0]  mgmt_address,
+	 input   logic           mgmt_read,
+	 output  logic   [15:0]  mgmt_readdata,
+	 input   logic           mgmt_write,
+	 input   logic   [15:0]  mgmt_writedata,
+	 input   logic   [27:0]  clock_rate,
+	 input   logic   [1:0]   floppy_wp,
+	 output  logic   [1:0]   fdd_request,
     // Peripherals
     output  logic   [2:0]   timer_counter_out,
     output  logic           speaker_out,
@@ -80,16 +89,19 @@ module PERIPHERALS #(
     wire    ppi_chip_select_n       = chip_select_n[3];
     assign  dma_page_chip_select_n  = chip_select_n[4];
 	 
-    wire    cga_chip_select_n      = ~(enable_cga & (address[19:14] == 6'b1011_10)); // B8000 - BFFFF (32 KB)	
-	 wire    rom_select_n           = ~(address[19:16] == 5'b1111); // F0000 - FFFFF (64 KB)
-	 wire    ram_select_n           = ~(address[19:18] == 3'b00); // 00000 - 3FFFF (256 KB)
+    wire    cga_chip_select_n       = ~(enable_cga & (address[19:14] == 6'b1011_10)); // B8000 - BFFFF (32 KB)	
+	 wire    rom_select_n            = ~(address[19:16] == 5'b1111); // F0000 - FFFFF (64 KB)
+	 wire    ram_select_n            = ~(address[19:18] == 3'b00); // 00000 - 3FFFF (256 KB)
 	 
+	 wire    floppy0_select_n        = ~({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7) ;
+	 wire    mgmt_fdd_select_n       = ~(mgmt_address[15:8] == 8'hF2);
 
     //
     // 8259
     //
     logic           timer_interrupt;
     logic           keybord_interrupt;
+	 logic           fdd_interrupt;
     logic   [7:0]   interrupt_data_bus_out;
 
     KF8259 u_KF8259 (
@@ -112,8 +124,9 @@ module PERIPHERALS #(
         //.slave_program_or_enable_buffer     (),
         .interrupt_acknowledge_n    (interrupt_acknowledge_n),
         .interrupt_to_cpu           (interrupt_to_cpu),
-        .interrupt_request          ({interrupt_request[7:2],
-                                        keybord_interrupt, timer_interrupt})
+		  .interrupt_request          ({1'b0, fdd_interrupt, 4'b0000, keybord_interrupt, timer_interrupt})
+        //.interrupt_request          ({interrupt_request[7:2],
+        //                                keybord_interrupt, timer_interrupt})
     );
 
     //
@@ -267,6 +280,7 @@ module PERIPHERALS #(
 	 wire [7:0] ram_cpu_dout;
 	 wire [7:0] bios_cpu_dout;
 	 wire [7:0] vram_cpu_dout;
+	 wire [7:0] fdd_cpu_dout;
 
     vram vram
 	 (
@@ -303,6 +317,42 @@ module PERIPHERALS #(
         .dina(internal_data_bus),
         .douta(bios_cpu_dout)
 	);
+
+
+floppy floppy
+(
+	.clk               (clock),
+	.rst_n             (~reset),
+
+	.clock_rate        (clock_rate),
+
+	.io_address        (address[2:0]),
+	.io_writedata      (fdd_cpu_dout),
+	.io_read           (~io_read_n & ~floppy0_select_n),
+	.io_write          (~io_write_n & ~floppy0_select_n),
+	.io_readdata       (internal_data_bus),
+	
+//	.fdd0_inserted     (fdd0_inserted),
+
+//	.dma_req           (dma_floppy_req),
+//	.dma_ack           (dma_floppy_ack),
+//	.dma_tc            (dma_floppy_tc),
+//	.dma_readdata      (dma_floppy_readdata),
+//	.dma_writedata     (dma_floppy_writedata),
+
+	.mgmt_address      (mgmt_address[3:0]),
+	.mgmt_fddn         (mgmt_address[7]),
+	.mgmt_writedata    (mgmt_writedata),
+	.mgmt_readdata     (mgmt_readdata),
+	.mgmt_write        (mgmt_write & ~mgmt_fdd_select_n),
+	.mgmt_read         (mgmt_read & ~mgmt_fdd_select_n),
+
+	.wp                (floppy_wp),
+
+	.request           (fdd_request),
+	.irq               (fdd_interrupt)
+);
+
 	
 	 
     //
@@ -352,6 +402,10 @@ module PERIPHERALS #(
         else if ((~ppi_chip_select_n) && (~io_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = ppi_data_bus_out;
+        end
+        else if ((~floppy0_select_n) && (~io_read_n)) begin
+            data_bus_out_from_chipset = 1'b1;
+            data_bus_out = fdd_cpu_dout;
         end
         else if ((~cga_chip_select_n) && (~memory_read_n)) begin
             data_bus_out_from_chipset = 1'b1;

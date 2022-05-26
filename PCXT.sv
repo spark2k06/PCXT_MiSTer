@@ -192,6 +192,8 @@ assign LED_DISK = 0;
 assign LED_POWER = 0;
 assign BUTTONS = 0;
 
+
+led fdd_led(clk_cpu, |mgmt_req[7:6], LED_USER);
 //////////////////////////////////////////////////////////////////
 
 wire [1:0] ar = status[9:8];
@@ -200,7 +202,10 @@ assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 
 `include "build_id.v" 
 localparam CONF_STR = {
-	"PCXT;;",
+	"AO486;;", // PCXT (The only thing left to do is to prepare the project in Main_MiSTer)
+	"S0,IMGIMAVFD,Floppy A:;",
+	"S1,IMGIMAVFD,Floppy B:;",
+	"O12,Write Protect,None,A:,B:,A: & B:;",
 	"-;",
 	"O3,Splash Screen,Yes,No;",
 	"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
@@ -220,7 +225,7 @@ localparam CONF_STR = {
 
 wire forced_scandoubler;
 wire  [1:0] buttons;
-wire [31:0] status;
+wire [63:0] status;
 //wire [10:0] ps2_key;
 
 //VHD	
@@ -236,11 +241,11 @@ wire[63:0] usdImgSz;
 wire[ 0:0] usdImgMtd;
 
 //Keyboard Ps2
-//wire        ps2_kbd_clk_out;
-//wire        ps2_kbd_data_out;
+wire        ps2_kbd_clk_out;
+wire        ps2_kbd_data_out;
 wire        ps2_kbd_clk_in;
 wire        ps2_kbd_data_in;
-
+wire [10:0] ps2_key;
 //Mouse PS2
 wire        ps2_mouse_clk_out;
 wire        ps2_mouse_data_out;
@@ -256,11 +261,10 @@ wire  [7:0] ioctl_data;
 wire [21:0] gamma_bus;
 
 // PS2DIV : la mitad del divisor que necesitas para dividir el clk_sys que le das al hpio, para que te de entre 10Khz y 16Kzh
-hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .CONF_STR_BRAM(0), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io
 (
-	.clk_sys(CLK_50M),
-	.HPS_BUS(HPS_BUS),
-	.EXT_BUS(),
+	.clk_sys(CLK_50M), // clk_cpu
+	.HPS_BUS(HPS_BUS),	
 	.gamma_bus(gamma_bus),
 
 	.forced_scandoubler(forced_scandoubler),
@@ -285,7 +289,7 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 	.ps2_kbd_data_in	(1'b1),
 	.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 	.ps2_kbd_data_out	(ps2_kbd_data_in),
-//  .ps2_mouse_clk_in	(ps2_mouse_clk_out),
+// .ps2_mouse_clk_in	(ps2_mouse_clk_out),
 //	.ps2_mouse_data_in	(ps2_mouse_data_out),
 //	.ps2_mouse_clk_out	(ps2_mouse_clk_in),
 //	.ps2_mouse_data_out	(ps2_mouse_data_in),
@@ -297,7 +301,31 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 	.ioctl_index(ioctl_index),
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
-	.ioctl_dout(ioctl_data)	
+	.ioctl_dout(ioctl_data),	
+	.EXT_BUS(EXT_BUS)
+);
+
+wire [15:0] mgmt_din;
+wire [15:0] mgmt_dout;
+wire [15:0] mgmt_addr;
+wire        mgmt_rd;
+wire        mgmt_wr;
+wire  [7:0] mgmt_req;
+
+wire [35:0] EXT_BUS;
+hps_ext hps_ext
+(
+	.clk_sys(CLK_50M), // clk_cpu
+	.EXT_BUS(EXT_BUS),
+
+	.ext_din(mgmt_din),
+	.ext_dout(mgmt_dout),
+	.ext_addr(mgmt_addr),
+	.ext_rd(mgmt_rd),
+	.ext_wr(mgmt_wr),
+
+	.ext_req(mgmt_req),
+	.ext_hotswap(status[39:38])
 );
 
 ///////////////////////   CLOCKS   ///////////////////////////////
@@ -307,9 +335,10 @@ wire pll_locked;
 
 wire clk_100;
 wire clk_28_636;
-wire clk_25;
+//wire clk_25;
 reg clk_14_318 = 1'b0;
 reg clk_7_16 = 1'b0;
+//wire clk_7_16;
 wire clk_4_77;
 wire clk_cpu;
 
@@ -319,8 +348,30 @@ pll pll
 	.rst(0),
 	.outclk_0(clk_100),
 	.outclk_1(clk_28_636),
-	.outclk_2(clk_25),
-	.locked(pll_locked)
+	.locked(pll_locked),
+	.reconfig_to_pll(reconfig_to_pll),
+	.reconfig_from_pll(reconfig_from_pll)
+);
+
+wire [63:0] reconfig_to_pll;
+wire [63:0] reconfig_from_pll;
+wire        cfg_waitrequest;
+reg         cfg_write;
+reg   [5:0] cfg_address;
+reg  [31:0] cfg_data;
+
+pll_cfg pll_cfg
+(
+	.mgmt_clk(CLK_50M),
+	.mgmt_reset(0),
+	.mgmt_waitrequest(cfg_waitrequest),
+	.mgmt_read(0),
+	.mgmt_readdata(),
+	.mgmt_write(cfg_write),
+	.mgmt_address(cfg_address),
+	.mgmt_writedata(cfg_data),
+	.reconfig_to_pll(reconfig_to_pll),
+	.reconfig_from_pll(reconfig_from_pll)
 );
 
 //wire reset = RESET | status[0] | buttons[1];
@@ -353,6 +404,10 @@ clk_div3 clk_normal // 4.77MHz
 	.clk(clk_14_318),
 	.clk_out(clk_4_77)
 );
+
+reg [27:0] cur_rate;
+always @(posedge CLK_50M) cur_rate <= 30000000;
+
 
 //////////////////////////////////////////////////////////////////
 
@@ -387,14 +442,14 @@ clk_div3 clk_normal // 4.77MHz
 	reg [3:0] splash_cnt2 = 0;
 	reg splashscreen = 1;
 	
-	always @ (posedge clk_14_318) begin
+	always @ (posedge clk_7_16) begin
 	
 		if (splashscreen) begin
 			if (status[3])
 				splashscreen <= 0;
 			else if(splash_cnt2 == 5) // 5 seconds delay
 				splashscreen <= 0;
-			else if (splash_cnt == 14318000) begin // 1 second at 14.318Mhz
+			else if (splash_cnt == 7160000) begin // 1 second at 7.16Mhz
 					splash_cnt2 <= splash_cnt2 + 1;				
 					splash_cnt <= 0;
 				end
@@ -403,43 +458,6 @@ clk_div3 clk_normal // 4.77MHz
 		end
 	
 	end
-	
-    //
-    // Input F/F PS2_CLK
-    //
-    logic   device_clock_ff;
-    logic   device_clock;
-
-    always_ff @(negedge clk_cpu, posedge reset)
-    begin
-        if (reset) begin
-            device_clock_ff <= 1'b0;
-            device_clock    <= 1'b0;
-        end
-        else begin
-            device_clock_ff <= ps2_kbd_clk_in;
-            device_clock    <= device_clock_ff ;
-        end
-    end
-
-
-    //
-    // Input F/F PS2_DAT
-    //
-    logic   device_data_ff;
-    logic   device_data;
-
-    always_ff @(negedge clk_cpu, posedge reset)
-    begin
-        if (reset) begin
-            device_data_ff <= 1'b0;
-            device_data    <= 1'b0;
-        end
-        else begin
-            device_data_ff <= ps2_kbd_data_in;
-            device_data    <= device_data_ff;
-        end
-    end
 	
     wire [7:0] data_bus;
     wire INTA_n;	
@@ -499,14 +517,22 @@ clk_div3 clk_normal // 4.77MHz
 //      .dma_acknowledge_n                  (dma_acknowledge_n),
 //      .address_enable_n                   (address_enable_n),
 //      .terminal_count_n                   (terminal_count_n)
-	.speaker_out                        (speaker_out),   
-        .ps2_clock                          (ps2_kbd_clk_in),
-	.ps2_data                           (ps2_kbd_data_in),
-	.enable_sdram                       (0)	   // -> During the first tests, it shall not be used.
+        .speaker_out                        (speaker_out),		  
+		  .ps2_clock                          (ps2_kbd_clk_in),
+		  .ps2_data                           (ps2_kbd_data_in),
+		  .mgmt_readdata                      (mgmt_din),
+	     .mgmt_writedata                     (mgmt_dout),
+	     .mgmt_address                       (mgmt_addr),
+	     .mgmt_write                         (mgmt_wr),
+	     .mgmt_read                          (mgmt_rd),
+		  .clock_rate                         (cur_rate),
+		  .floppy_wp                          (status[2:1]),
+		  .fdd_request                        (mgmt_req[7:6]),
+		  .enable_sdram                       (0)	   // -> During the first tests, it shall not be used.
 
     );
-	
-	assign AUDIO_R = speaker_out << 15;	 
+	 
+   assign AUDIO_R = speaker_out << 15;
 	 
 	i8088 B1(
 	  .CORE_CLK(clk_100),
@@ -659,5 +685,25 @@ sd_card sd_card
 	.miso        (vsdMiso  )
 );
 */
+
+endmodule
+
+module led
+(
+	input      clk,
+	input      in,
+	output reg out
+);
+
+integer counter = 0;
+always @(posedge clk) begin
+	if(!counter) out <= 0;
+	else begin
+		counter <= counter - 1'b1;
+		out <= 1;
+	end
+	
+	if(in) counter <= 4500000;
+end
 
 endmodule
