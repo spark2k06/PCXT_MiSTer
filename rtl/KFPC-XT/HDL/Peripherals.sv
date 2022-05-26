@@ -331,10 +331,10 @@ floppy floppy
 	.clock_rate        (clock_rate),
 
 	.io_address        (address[2:0]),
-	.io_writedata      (fdd_cpu_dout),
+	.io_writedata      (internal_data_bus),
 	.io_read           (~io_read_n & ~floppy0_select_n),
 	.io_write          (~io_write_n & ~floppy0_select_n),
-	.io_readdata       (internal_data_bus),
+	.io_readdata       (fdd_cpu_dout),
 	
 //	.fdd0_inserted     (fdd0_inserted),
 
