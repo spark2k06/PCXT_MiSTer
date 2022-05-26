@@ -105,6 +105,8 @@ module CHIPSET (
     logic           data_bus_out_from_chipset;
     logic           internal_data_bus_direction;
 
+    logic           dma_floppy_req;
+
     READY u_READY (
         .clock                              (clock),
         .reset                              (reset),
@@ -151,7 +153,7 @@ module CHIPSET (
         .memory_write_n                     (memory_write_n),
         .memory_write_n_ext                 (memory_write_n_ext),
         .memory_write_n_direction           (memory_write_n_direction),
-        .dma_request                        (dma_request),
+        .dma_request                        ({dma_request[3], dma_floppy_req, dma_request[1:0]}),
         .dma_acknowledge_n                  (dma_acknowledge_n),
         .address_enable_n                   (address_enable_n),
         .terminal_count_n                   (terminal_count_n)
@@ -184,6 +186,7 @@ module CHIPSET (
         .memory_read_n                      (memory_read_n),
         .memory_write_n                     (memory_write_n),
         .address_enable_n                   (address_enable_n),
+        .terminal_count_n                   (terminal_count_n),
 		  
 		  .mgmt_address                       (mgmt_address),
 	     .mgmt_write                         (mgmt_write),
@@ -191,6 +194,8 @@ module CHIPSET (
 		  .clock_rate                         (clock_rate),
 		  .floppy_wp                          (floppy_wp),
 		  .fdd_request                        (fdd_request),
+        .dma_floppy_req                     (dma_floppy_req),
+        .dma_floppy_ack                     (~dma_acknowledge_n[2]),
 		  
         .timer_counter_out                  (timer_counter_out),
         .speaker_out                        (speaker_out),

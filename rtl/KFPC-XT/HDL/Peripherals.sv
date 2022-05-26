@@ -36,6 +36,7 @@ module PERIPHERALS #(
     input   logic           memory_read_n,
     input   logic           memory_write_n,
     input   logic           address_enable_n,
+    input   logic           terminal_count_n,
 	 // Flopply
 	 input   logic   [15:0]  mgmt_address,
 	 input   logic           mgmt_read,
@@ -45,6 +46,8 @@ module PERIPHERALS #(
 	 input   logic   [27:0]  clock_rate,
 	 input   logic   [1:0]   floppy_wp,
 	 output  logic   [1:0]   fdd_request,
+    output  logic           dma_floppy_req,
+    input   logic           dma_floppy_ack,
     // Peripherals
     output  logic   [2:0]   timer_counter_out,
     output  logic           speaker_out,
@@ -281,6 +284,7 @@ module PERIPHERALS #(
 	 wire [7:0] bios_cpu_dout;
 	 wire [7:0] vram_cpu_dout;
 	 wire [7:0] fdd_cpu_dout;
+	 wire [7:0] dma_floppy_writedata;
 
     vram vram
 	 (
@@ -334,11 +338,11 @@ floppy floppy
 	
 //	.fdd0_inserted     (fdd0_inserted),
 
-//	.dma_req           (dma_floppy_req),
-//	.dma_ack           (dma_floppy_ack),
-//	.dma_tc            (dma_floppy_tc),
-//	.dma_readdata      (dma_floppy_readdata),
-//	.dma_writedata     (dma_floppy_writedata),
+	.dma_req           (dma_floppy_req),
+	.dma_ack           (dma_floppy_ack),
+	.dma_tc            (terminal_count_n),
+	.dma_readdata      (internal_data_bus),
+	.dma_writedata     (dma_floppy_writedata),
 
 	.mgmt_address      (mgmt_address[3:0]),
 	.mgmt_fddn         (mgmt_address[7]),
@@ -390,6 +394,10 @@ floppy floppy
         if (~interrupt_acknowledge_n) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = interrupt_data_bus_out;
+        end
+        if ((dma_floppy_ack) && (~io_read_n)) begin
+            data_bus_out_from_chipset = 1'b1;
+            data_bus_out = dma_floppy_writedata;
         end
         else if ((~interrupt_chip_select_n) && (~io_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
