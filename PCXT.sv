@@ -192,6 +192,9 @@ assign LED_DISK = 0;
 assign LED_POWER = 0;
 assign BUTTONS = 0;
 
+
+//led fdd_led(clk_cpu, |mgmt_req[7:6], LED_USER);
+
 //////////////////////////////////////////////////////////////////
 
 wire [1:0] ar = status[9:8];
@@ -204,6 +207,8 @@ localparam CONF_STR = {
 	"-;",
 	"O3,Splash Screen,Yes,No;",
 	"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
+	"-;",
+	"OA,Adlib,On,Invisible;",
 	"-;",
 	"O12,Video,Color,Green,Amber,B/W;",	
 	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
@@ -254,6 +259,7 @@ wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_data;
 
 wire [21:0] gamma_bus;
+wire        adlibhide = status[10];
 
 // PS2DIV : la mitad del divisor que necesitas para dividir el clk_sys que le das al hpio, para que te de entre 10Khz y 16Kzh
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
@@ -319,7 +325,7 @@ pll pll
 	.rst(0),
 	.outclk_0(clk_100),
 	.outclk_1(clk_28_636),
-	.outclk_2(clk_25),
+	.outclk_2(cen_opl2),
 	.locked(pll_locked)
 );
 
@@ -456,6 +462,7 @@ clk_div3 clk_normal // 4.77MHz
    CHIPSET u_CHIPSET (
         .clock                              (clk_cpu),
 		  .peripheral_clock                   (clk_4_77),
+		  
         .reset                              (reset || splashscreen),
         .cpu_address                        (cpu_address),
         .cpu_data_bus                       (cpu_data_bus),
@@ -499,15 +506,22 @@ clk_div3 clk_normal // 4.77MHz
 //      .dma_acknowledge_n                  (dma_acknowledge_n),
 //      .address_enable_n                   (address_enable_n),
 //      .terminal_count_n                   (terminal_count_n)
-	.speaker_out                        (speaker_out),   
+	     .speaker_out                        (speaker_out),   
         .ps2_clock                          (ps2_kbd_clk_in),
-	.ps2_data                           (ps2_kbd_data_in),
-	.enable_sdram                       (0)	   // -> During the first tests, it shall not be used.
+	     .ps2_data                           (ps2_kbd_data_in),
+	     .enable_sdram                       (0),	   // -> During the first tests, it shall not be used.		  
+		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
+		  .jtopl2_snd_e                       (jtopl2_snd_e),
+		  .adlibhide                          (adlibhide),
+		  .tandy_snd_e                        (tandy_snd_e)
 
     );
-	
-	assign AUDIO_R = speaker_out << 15;	 
 	 
+	wire [15:0] jtopl2_snd_e;	
+	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + (tandy_snd_e << 8); // signed mixer
+		
+	assign AUDIO_R = sndmix >> 1;
+		 
 	i8088 B1(
 	  .CORE_CLK(clk_100),
 	  .CLK(clk_cpu),
@@ -659,5 +673,25 @@ sd_card sd_card
 	.miso        (vsdMiso  )
 );
 */
+
+endmodule
+
+module led
+(
+	input      clk,
+	input      in,
+	output reg out
+);
+
+integer counter = 0;
+always @(posedge clk) begin
+	if(!counter) out <= 0;
+	else begin
+		counter <= counter - 1'b1;
+		out <= 1;
+	end
+	
+	if(in) counter <= 4500000;
+end
 
 endmodule

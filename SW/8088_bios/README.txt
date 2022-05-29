@@ -1,5 +1,5 @@
-README file for Micro 8088 / Xi 8088 / Sergey's XT BIOS
-=======================================================
+README file for Micro 8088 / Xi 8088 / Sergey's XT BIOS (alternative version)
+=============================================================================
 
 BIOS Images
 -----------
@@ -15,6 +15,16 @@ bios-sergey-xt-xtide.bin  - BIOS image for Sergey's XT Version 1.0 with XT-IDE
 TODO:
 - Xi 8088: Debug mouse issue with Intel 8242
 - Xi 8088: Debug issues with Microsoft and Logitech mouse drivers
+
+Changes - Version 0.9.8a
+------------------------
+
+- Initial delay before BIOS starts, to allow time for some ISA cards to be initialized (#define INIT_DELAY in config.inc)
+- POST code visualization in debug mode (#define DEBUG in config.inc)
+- The Intel Inside tune is moved until just before the video card initializes.
+- Short beep once the video card has been initialized, and prior to the copyright message.
+- OPL Sound Card detection
+	- In addition to identifying the type of card installed in the equipment, if it is available on port 388h, the Intel Inside symphony will play through it instead of through the PC-Speaker.
 
 Changes - Version 0.9.8
 -----------------------

@@ -290,6 +290,45 @@ set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
 set_global_assignment -name EDA_RUN_TOOL_AUTOMATICALLY OFF -section_id eda_simulation
+set_global_assignment -name VHDL_FILE rtl/sn76489/sn76489_top.vhd
+set_global_assignment -name VHDL_FILE rtl/sn76489/sn76489_tone.vhd
+set_global_assignment -name VHDL_FILE rtl/sn76489/sn76489_noise.vhd
+set_global_assignment -name VHDL_FILE rtl/sn76489/sn76489_latch_ctrl.vhd
+set_global_assignment -name VHDL_FILE rtl/sn76489/sn76489_clock_div.vhd
+set_global_assignment -name VHDL_FILE rtl/sn76489/sn76489_attenuator.vhd
+set_global_assignment -name QIP_FILE rtl/sn76489/sn76489.qip
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl2.v
+set_global_assignment -name QIP_FILE rtl/jtopl/hdl/jtopl2.qip
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_timers.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_single_acc.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_sh_rst.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_sh.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_reg.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_pm.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_pg_sum.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_pg_rhy.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_pg_inc.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_pg_comb.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_pg.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_op.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_noise.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_mmr.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_logsin.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_lfo.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_exprom.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_eg_step.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_eg_pure.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_eg_final.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_eg_ctrl.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_eg_comb.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_eg_cnt.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_eg.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_div.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_csr.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_acc.v
+set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl.v
+set_global_assignment -name QIP_FILE rtl/jtopl/hdl/jt26.qip
+set_global_assignment -name VERILOG_FILE rtl/common/dpr.v
 set_global_assignment -name VERILOG_FILE rtl/video/vram.v
 set_global_assignment -name VERILOG_FILE rtl/video/crtc6845.v
 set_global_assignment -name VERILOG_FILE rtl/video/cga_vram.v

@@ -228,6 +228,7 @@ fdc_media_state	equ	90h	; byte[4] - drive media state (drives 0 - 3)
 fdc_cylinder	equ	94h	; byte[2] - current cylinder (drives 0 - 1)
 kbd_flags_3	equ	96h	; byte - keyboard status flags 3
 kbd_flags_4	equ	97h	; byte - keyboard status flags 4
+opl_type	equ	98h ; byte - OPL type card
 prt_scrn_flags	equ	100h	; byte - print screen flags
 prt_scrn_ready	equ	00h	;	print screen is not in progress
 prt_scrn_run	equ	01h	; 	print screen is in progress
@@ -276,6 +277,7 @@ mouse_data	equ	28h	; 8 bytes - mouse data buffer
 %endif ; SECOND_PIC
 %include	"ps2aux.inc"
 %endif
+%include	"opl.inc"		; check OPL2/3 FM boards
 %include	"sound.inc"		; sound test
 %include	"cpu.inc"		; CPU and FPU detection
 
@@ -350,8 +352,12 @@ boot_os:
 	call	set_cpu_clk		; set CPU clock
 %endif ; TURBO_MODE
 
-	mov	al,e_boot		; boot the OS POST code
+	mov	al,e_boot		; boot the OS POST code	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
+%endif ; DEBUG
 
 	mov	si,msg_boot
 	call	print
@@ -476,6 +482,88 @@ print_digit:
 	pop	bx
 	pop	ax
 	ret
+
+%ifdef DEBUG
+;=========================================================================
+; code_post
+; Input:
+;	AL - byte to print
+; Output:
+;	none
+;-------------------------------------------------------------------------
+code_post:
+	
+	out	post_reg,al
+	push es
+	push di
+	push dx	
+	push cx
+	push ax
+	
+	mov	al,byte [equipment_list] 	; get equipment - low byte
+	and	al,equip_video				; get video adapter type
+	
+	mov dx,0b000h
+	mov di,13Ch 					; (Position 1, 77)
+	cmp	al,equip_mono				; monochrome?
+	jz	.print_post
+	
+	mov dx,0b800h
+	mov di,9Ch 						; (Position 1, 37)
+	cmp	al,equip_color_40			; CGA 40x25?
+	jz	.print_post
+	
+	mov di,13Ch 					; (Position 1, 77)
+	
+.print_post:	
+	pop ax
+	push ax
+	mov es,dx
+	mov ah,01Fh ; Attribute Bright White over Blue	
+	rol	al,1
+	rol	al,1
+	rol	al,1
+	rol	al,1
+	push ax	
+	call get_digit	
+	es	mov	word [di],ax
+	
+	pop ax	
+	rol	al,1
+	rol	al,1
+	rol	al,1
+	rol	al,1	
+	call get_digit	
+	es	mov	word [di + 2],ax
+		
+	mov cx, 0E000h ; A bit delay to visualization
+.delay
+	nop
+	loop .delay
+	
+	pop ax
+	pop cx	
+	pop dx
+	pop di
+	pop es	
+	ret
+	
+;=========================================================================
+; get_digit - get hexadecimal digit
+; Input:
+;	AL - bits 3...0
+; Output:
+;	AL - digit to print (0...F)
+;-------------------------------------------------------------------------
+get_digit:	
+	and	al,0Fh
+	add	al,'0'			; convert to ASCII
+	cmp	al,'9'			; less or equal 9?
+	jna	.2
+	add	al,'A'-'9'-1		; a hex digit
+.2:
+	ret
+%endif ; DEBUG
 
 %ifdef EBDA_SIZE
 ;=========================================================================
@@ -897,13 +985,6 @@ low_ram_ok:
 	out	pit_ctl_reg,al		; FIXME - not needed?
 
 ;-------------------------------------------------------------------------
-; Play "power on" sound - also tests PIT functionality
-
-	mov     al,e_pit_init
-	out	post_reg,al
-	call	sound
-
-;-------------------------------------------------------------------------
 ; Initialize PIC (8259)
 
 	mov	al,e_pic_init
@@ -1004,6 +1085,16 @@ low_ram_ok:
 	shl	al,cl		; move video mode to bits 5-4
 	or	[equipment_list],al
 %endif ; MACHINE_FE2010A or MACHINE_XT
+
+;-------------------------------------------------------------------------
+; Play "power on" sound - also tests PIT functionality
+
+	mov     al,e_pit_init	
+	out	post_reg,al	
+	call	opl_init
+	mov [opl_type], al
+	call	sound
+
 ; 
 ;-------------------------------------------------------------------------
 ; look for video BIOS, initialize it if present
@@ -1045,11 +1136,14 @@ low_ram_ok:
 
 .video_initialized:
 
+	mov	bl,1			; 0.1 second beep
+	call	beep
+
 ;-------------------------------------------------------------------------
 ; print the copyright message
 
 	mov	si,msg_copyright
-	call	print
+	call	print	
 
 %ifdef AT_RTC
 
@@ -1075,6 +1169,8 @@ low_ram_ok:
 	call	print_rtc		; print current RTC time
 %endif ; AT_RTC
 	call	print_display		; print display type
+	mov al, [opl_type]
+	call 	opl_print			; print OPL card type
 %ifdef PS2_MOUSE
 	call	print_mouse		; print mouse presence
 %endif ; PS2_MOUSE
@@ -1116,7 +1212,7 @@ low_ram_ok:
 %endif ; EBDA_SIZE
 
 	call	detect_rom_ext		; detect and initialize extension ROMs
-
+		
 	jmp boot_os
 
 ;=========================================================================
@@ -1271,8 +1367,12 @@ config_table:
 ;-------------------------------------------------------------------------
 
 detect_rom_ext:
-	mov	al,e_ext_start		; ROM extension scan start
+	mov	al,e_ext_start		; ROM extension scan start	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
+%endif ; DEBUG
 
 	mov	dx,0C800h
 	mov	bx,0F800h
@@ -1287,8 +1387,12 @@ detect_rom_ext:
 	call	extension_scan
 	cmp	word [67h],0
 	jz	.ext_scan_done		; No ROM extension found
-	mov	al,e_ext_detect		; ROM extension found
+	mov	al,e_ext_detect		; ROM extension found	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
+%endif ; DEBUG
 	mov	si,msg_rom_found
 	call	print
 	mov	ax,word [69h]		; ROM extension's segment
@@ -1300,15 +1404,23 @@ detect_rom_ext:
 	call	far [67h]
 	mov	ax,biosdseg		; DS = BIOS data area
 	mov	ds,ax
-	mov	al,e_ext_init_ok	; ROM extension initialized
+	mov	al,e_ext_init_ok	; ROM extension initialized	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
+%endif ; DEBUG
 	pop	dx
 	pop	bx
 	jmp	.ext_scan_loop
 
 .ext_scan_done:
-	mov	al,e_ext_complete	; ROM extension scan complete
+	mov	al,e_ext_complete	; ROM extension scan complete	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
+%endif ; DEBUG
 
 	ret
 
@@ -1470,8 +1582,12 @@ ipl:
 ;	CX, SI - trashed
 ;-------------------------------------------------------------------------
 detect_ram:
-	mov	al,e_ram_start		; RAM scan start
+	mov	al,e_ram_start		; RAM scan start	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
+%endif ; DEBUG
 
 	push	ds
 	mov	cl,6			; for SHL - converting KiB to segment
@@ -1547,8 +1663,12 @@ detect_ram:
 	jb	.test_loop
 
 	push	ax
-	mov	al,e_ram_complete	; RAM scan complete
+	mov	al,e_ram_complete	; RAM scan complete	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
+%endif ; DEBUG
 	pop	ax
 
 	jmp	.test_done
@@ -1558,8 +1678,12 @@ detect_ram:
 	mov	ax,word [memory_size]
 
 	push	ax
-	mov	al,e_ram_esc		; RAM scan canceled
+	mov	al,e_ram_esc		; RAM scan canceled	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
+%endif ; DEBUG
 	pop	ax
 
 	jmp	.test_done
@@ -1575,8 +1699,12 @@ detect_ram:
 	call	print
 
 	push	ax
-	mov	al,e_ram_fail		; RAM scan failed
+	mov	al,e_ram_fail		; RAM scan failed	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
+%endif ; DEBUG
 	pop	ax
 
 .test_done:

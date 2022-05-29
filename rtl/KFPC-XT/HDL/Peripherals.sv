@@ -48,7 +48,14 @@ module PERIPHERALS #(
     output  logic   [7:0]   port_c_out,
     output  logic   [7:0]   port_c_io,
     input   logic           ps2_clock,
-    input   logic           ps2_data
+    input   logic           ps2_data,
+	 // JTOPL	 
+	 input   logic           clk_en_opl2,
+	 output  logic   [15:0]  jtopl2_snd_e,
+	 input   logic           adlibhide,
+	 // TANDY SND
+	 output  logic   [7:0]   tandy_snd_e
+	 
 );
     //
     // chip select
@@ -80,10 +87,12 @@ module PERIPHERALS #(
     wire    ppi_chip_select_n       = chip_select_n[3];
     assign  dma_page_chip_select_n  = chip_select_n[4];
 	 
+	 wire    tandy_chip_select_n    = ~(address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
+	 wire    opl_chip_select_n      = ~(address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
     wire    cga_chip_select_n      = ~(enable_cga & (address[19:14] == 6'b1011_10)); // B8000 - BFFFF (32 KB)	
 	 wire    rom_select_n           = ~(address[19:16] == 5'b1111); // F0000 - FFFFF (64 KB)
 	 wire    ram_select_n           = ~(address[19:18] == 3'b00); // 00000 - 3FFFF (256 KB)
-	 
+    
 
     //
     // 8259
@@ -204,6 +213,41 @@ module PERIPHERALS #(
         .keycode                    (port_a_in),
         .clear_keycode              (port_b_out[7])
     );
+
+   wire [7:0] jtopl2_dout;
+	wire [7:0]opl32_data;	
+   assign opl32_data = adlibhide ? 8'hFF : jtopl2_dout;
+	 
+	jtopl2 jtopl2_inst
+	(
+		.rst(reset),
+		.clk(peripheral_clock),
+		.cen(clk_en_opl2),
+		.din(internal_data_bus),
+		.dout(jtopl2_dout),
+		.addr(address[0]),
+		.cs_n(opl_chip_select_n),
+		.wr_n(io_write_n),
+		.irq_n(),
+		.snd(jtopl2_snd_e),
+		.sample()
+	);	
+	
+	wire TANDY_SND_RDY;
+	
+	// Tandy sound
+	sn76489_top sn76489
+	(
+		.clock_i(peripheral_clock),
+		.clock_en_i(clk_en_opl2), // 3.579MHz
+		.res_n_i(reset),
+		.ce_n_i(tandy_chip_select_n),
+		.we_n_i(io_write_n),
+		.ready_o(TANDY_SND_RDY),
+		.d_i(internal_data_bus),
+		.aout_o(tandy_snd_e)
+	);
+	 
 	 
 	 wire VRAM_ENABLE;
 	 wire [18:0] VRAM_ADDR;
@@ -368,6 +412,10 @@ module PERIPHERALS #(
 		  else if (CRTC_OE) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = CRTC_DOUT;			
+        end
+		  else if ((~opl_chip_select_n) && (~io_read_n)) begin
+            data_bus_out_from_chipset = 1'b1;
+            data_bus_out = opl32_data;			
         end
         else begin
             data_bus_out_from_chipset = 1'b0;

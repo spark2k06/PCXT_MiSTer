@@ -203,8 +203,12 @@ rtc_init:
 	push	cx
 	push	dx
 	push	si
-	mov	al,e_rtc_init
+	mov	al,e_rtc_init	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
+%endif ; DEBUG
 	mov	al,cmos_control_a	; select control A register
 	mov	ah,26h			; turn on oscillator and time keeping
 					; set SQW frequency to 1.024 KHz

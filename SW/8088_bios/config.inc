@@ -22,12 +22,14 @@
 ;
 ;=========================================================================
 
-%define DATE		'05/20/20'	; BIOS release date MM/DD/YY
-%define VERSION		'0.9.8'		; BIOS version
+%define DATE		'11/07/21'	; BIOS release date MM/DD/YY
+%define VERSION		'0.9.8a'	; BIOS version alternative to the Sergey's project 
+;%define DEBUG				; POST codes will be visible after initialization of the video card.
+%define INIT_DELAY	100		; Initial delay in miliseconds before BIOS starts, to allow time for some ISA cards to be initialized.
 
 ; Machine type is defined in the Makefile
 ;%define MACHINE_XI8088			; Xi 8088
-;%define MACHINE_FE2010A 		; Faraday FE2010A
+;%define MACHINE_FE2010A		; Faraday FE2010A
 ;%define MACHINE_XT			; IBM PC/XT or highly compatible board
 					; FIXME: not implemented yet
 

@@ -5,6 +5,10 @@ The purpose of this core is to implement a PCXT as reliable as possible. For thi
 
 The Graphics Gremlin project from TubeTimeUS (@schlae) has also been integrated in this first stage.
 
+JTOPL by Jose Tejada (@topapate)
+
+SN76489AN Compatible Implementation in VHDL Copyright (c) 2005, 2006, Arnim Laeuger (arnim.laeuger@gmx.net)
+
 ### Demo
 
 ![alt text](/demo/MiSTer_PCXT.gif "MiSTer PCXT")
@@ -17,11 +21,16 @@ The Graphics Gremlin project from TubeTimeUS (@schlae) has also been integrated 
 * IDE module implementation
 * VHD support for easy integration with [XTIDE Universal BIOS](https://www.xtideuniversalbios.org/)
 * Addition of other modules:
-    * EMS
-    * Adlib (JTOPL2)
+    * EMS    
     * Others...
 
 # ChangeLog
+
+### Beta 0.4
+
+* Added Adlib FM (JTOPL2)
+* Added SN76489AN (PCjr Sound)
+* Change to alternative BIOS from PCXT version 0.9.8 developed by Sergey Kiselev, with OPL FM sound card detector
 
 ### Beta 0.3
 

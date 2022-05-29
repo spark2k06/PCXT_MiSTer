@@ -38,10 +38,12 @@ msg_copyright	db	0Dh, 0Ah
 		db	"Copyright (C) 2010 - 2020 Sergey Kiselev", 0Dh, 0Ah
 		db	"Distributed under the terms of "
 		db	"the GNU General Public License", 0Dh, 0Ah
-msg_crlf	db      0Dh, 0Ah, 00h
-msg_none	db	'none', 00h
-msg_colon	db	': ', 00h
+msg_crlf		db      0Dh, 0Ah, 00h
+msg_none		db	'none', 00h
+msg_colon		db	': ', 00h
 msg_semicolon	db	'; ', 00h
+msg_comma		db		', ', 00h
+
 %ifdef TURBO_MODE
 msg_cpu_clk	db	'CPU clock frequency:        ', 00h
 msg_at		db	' @ ', 00h
@@ -164,8 +166,21 @@ msg_disabled	db	'disabled', 00h
 msg_saving	db	0Dh, 0Ah, 'Saving configuration to Flash ROM... ', 00h
 msg_save_ok	db	'OK', 0Dh, 0Ah, 00h
 msg_save_error	db	'ERROR', 0Dh, 0Ah, 00h
+
 %endif ; FLASH_NVRAM
 %endif ; BIOS_SETUP
+
+msg_opl_none	db		'None or unknown', 0Dh, 0Ah, 00h
+msg_oplcard		db      'OPL Sound Card:             ', 00h
+msg_adlib		db		'Adlib FM compatible', 0Dh, 0Ah, 00h
+msg_adlibgold	db		'Adlib Gold FM compatible', 0Dh, 0Ah, 00h
+msg_sbpro		db		'Sound Blaster 2.0/PRO FM compatible', 0Dh, 0Ah, 00h
+msg_sbpro2		db		'Sound Blaster PRO II/+ FM compatible', 0Dh, 0Ah, 00h
+msg_opl2_220h	db		'220h OPL2', 0Dh, 0Ah, 00h
+msg_opl2_240h	db		'240h OPL2', 0Dh, 0Ah, 00h
+msg_opl3_220h	db		'220h OPL3', 0Dh, 0Ah, 00h
+msg_opl3_240h	db		'240h OPL3', 0Dh, 0Ah, 00h
+
 tbl_floppy	dw	msg_none
 		dw	msg_floppy_360
 		dw	msg_floppy_1200

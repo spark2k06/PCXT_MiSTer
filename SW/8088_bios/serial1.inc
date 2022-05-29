@@ -212,9 +212,12 @@ detect_serial:
 	push	bx
 	push	dx
 	push	si
-	mov	al,e_serial_scan
+	mov	al,e_serial_scan	
+%ifdef DEBUG	
+	call code_post
+%else
 	out	post_reg,al
-
+%endif ; DEBUG
 	mov	si,msg_serial
 	call	print
 	mov	bx,0101h		; the default timeout is 1 sec

@@ -65,6 +65,12 @@ module CHIPSET (
     output  logic   [7:0]   port_c_io,
     input   logic           ps2_clock,
     input   logic           ps2_data,
+	 // JTOPL	 
+	 input   logic           clk_en_opl2,
+	 output  logic   [15:0]  jtopl2_snd_e,
+	 input   logic           adlibhide,
+	 // TANDY SND
+	 output  logic   [7:0]   tandy_snd_e,	 
     // SDRAM
     input   logic           enable_sdram,
     input   logic           sdram_clock,    // 50MHz
@@ -186,7 +192,12 @@ module CHIPSET (
         .port_c_out                         (port_c_out),
         .port_c_io                          (port_c_io),
         .ps2_clock                          (ps2_clock),
-        .ps2_data                           (ps2_data)
+        .ps2_data                           (ps2_data),
+		  .clk_en_opl2                        (clk_en_opl2),
+		  .jtopl2_snd_e                       (jtopl2_snd_e),
+		  .adlibhide                          (adlibhide),
+		  .tandy_snd_e                        (tandy_snd_e)
+		  
     );
 
     RAM u_RAM (
