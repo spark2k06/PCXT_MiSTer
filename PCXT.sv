@@ -173,11 +173,12 @@ module emu
 ///////// Default values for ports not used in this core /////////
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
+//assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 //assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
-assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
+//assign SDRAM_CLK = CLK_50M;
+//assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
 
 assign VGA_SL = 0;
 assign VGA_F1 = 0;
@@ -258,10 +259,11 @@ wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_data;
 
+wire        clk_uart;
+
 wire [21:0] gamma_bus;
 wire        adlibhide = status[10];
 
-// PS2DIV : la mitad del divisor que necesitas para dividir el clk_sys que le das al hpio, para que te de entre 10Khz y 16Kzh
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 (
 	.clk_sys(CLK_50M),
@@ -326,10 +328,15 @@ pll pll
 	.outclk_0(clk_100),
 	.outclk_1(clk_28_636),
 	.outclk_2(cen_opl2),
+	.outclk_3(clk_uart),
 	.locked(pll_locked)
 );
 
 //wire reset = RESET | status[0] | buttons[1];
+<<<<<<< Updated upstream
+=======
+//wire reset = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd) | (ioctl_download && ioctl_index == 0);
+>>>>>>> Stashed changes
 wire reset = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd);
 
 //////////////////////////////////////////////////////////////////
@@ -461,6 +468,7 @@ clk_div3 clk_normal // 4.77MHz
 
    CHIPSET u_CHIPSET (
         .clock                              (clk_cpu),
+		  .clk_sys                            (CLK_50M),
 		  .peripheral_clock                   (clk_4_77),
 		  
         .reset                              (reset || splashscreen),
@@ -513,8 +521,27 @@ clk_div3 clk_normal // 4.77MHz
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
+<<<<<<< Updated upstream
 		  .tandy_snd_e                        (tandy_snd_e)
 
+=======
+		  .tandy_snd_e                        (tandy_snd_e),
+		  .ioctl_download                     (ioctl_download),
+		  .ioctl_index                        (ioctl_index),
+		  .ioctl_wr                           (ioctl_wr),
+		  .ioctl_addr                         (ioctl_addr),
+		  .ioctl_data                         (ioctl_data),
+		  
+		  .clk_uart                           (clk_uart),
+	     .uart_rx                           (uart_rx),
+	     .uart_tx                           (uart_tx),
+	     .uart_cts_n                        (uart_cts),
+	     .uart_dcd_n                        (uart_dcd),
+	     .uart_dsr_n                        (uart_dsr),
+	     .uart_rts_n                        (uart_rts),
+	     .uart_dtr_n                        (uart_dtr)
+		  
+>>>>>>> Stashed changes
     );
 	 
 	wire [15:0] jtopl2_snd_e;	
@@ -540,13 +567,37 @@ clk_div3 clk_normal // 4.77MHz
 	  .s2_s0_out(processor_status),
 	  .SEGMENT(SEGMENT)
 	);
+	
+	/// UART
 
-always @(posedge clk_cpu) begin
-	if (address_latch_enable)
-		cpu_address <= cpu_ad_out;
-	else
-		cpu_address <= cpu_address;
-end	
+
+	assign USER_OUT = {1'b1, 1'b1, uart_dtr, 1'b1, uart_rts, uart_tx, 1'b1};
+
+	//
+	// Pin | USB Name |   |Signal
+	// ----+----------+---+-------------
+	// 0   | D+       | I |RX
+	// 1   | D-       | O |TX
+	// 2   | TX-      | O |RTS
+	// 3   | GND_d    | I |CTS
+	// 4   | RX+      | O |DTR
+	// 5   | RX-      | I |DSR
+	// 6   | TX+      | I |DCD
+	//
+
+	wire uart_tx, uart_rts, uart_dtr;
+
+	wire uart_rx  = USER_IN[0];
+	wire uart_cts = USER_IN[3];
+	wire uart_dsr = USER_IN[5];
+	wire uart_dcd = USER_IN[6];
+
+	always @(posedge clk_cpu) begin
+		if (address_latch_enable)
+			cpu_address <= cpu_ad_out;
+		else
+			cpu_address <= cpu_address;
+	end	
 	
 	/*
 	wire [1:0] scale = status[8:7];

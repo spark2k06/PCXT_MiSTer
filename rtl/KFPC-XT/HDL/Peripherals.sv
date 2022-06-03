@@ -6,6 +6,7 @@ module PERIPHERALS #(
     parameter ps2_over_time = 16'd1000
 ) (
     input   logic           clock,
+	 input   logic           clk_sys,
     input   logic           peripheral_clock,
     input   logic           reset,
     // CPU
@@ -54,7 +55,26 @@ module PERIPHERALS #(
 	 output  logic   [15:0]  jtopl2_snd_e,
 	 input   logic           adlibhide,
 	 // TANDY SND
+<<<<<<< Updated upstream
 	 output  logic   [7:0]   tandy_snd_e
+=======
+	 output  logic   [7:0]   tandy_snd_e,
+	 // IOCTL
+    input   logic           ioctl_download,
+    input   logic   [7:0]   ioctl_index,
+    input   logic           ioctl_wr,
+    input   logic   [24:0]  ioctl_addr,
+    input   logic   [7:0]   ioctl_data,
+	 // UART
+	 input   logic           clk_uart,
+	 input   logic           uart_rx,
+	 output  logic           uart_tx,
+	 input   logic           uart_cts_n,
+	 input   logic           uart_dcd_n,
+	 input   logic           uart_dsr_n,
+	 output  logic           uart_rts_n,
+	 output  logic           uart_dtr_n
+>>>>>>> Stashed changes
 	 
 );
     //
@@ -92,13 +112,15 @@ module PERIPHERALS #(
     wire    cga_chip_select_n      = ~(enable_cga & (address[19:14] == 6'b1011_10)); // B8000 - BFFFF (32 KB)	
 	 wire    rom_select_n           = ~(address[19:16] == 5'b1111); // F0000 - FFFFF (64 KB)
 	 wire    ram_select_n           = ~(address[19:18] == 3'b00); // 00000 - 3FFFF (256 KB)
-    
+	 wire    uart_cs                = ({address[15:3], 3'd0} == 16'h03F8);
+	 
 
     //
     // 8259
     //
     logic           timer_interrupt;
     logic           keybord_interrupt;
+	 logic           uart_interrupt;
     logic   [7:0]   interrupt_data_bus_out;
 
     KF8259 u_KF8259 (
@@ -121,7 +143,7 @@ module PERIPHERALS #(
         //.slave_program_or_enable_buffer     (),
         .interrupt_acknowledge_n    (interrupt_acknowledge_n),
         .interrupt_to_cpu           (interrupt_to_cpu),
-        .interrupt_request          ({interrupt_request[7:2],
+        .interrupt_request          ({interrupt_request[7:5], uart_interrupt, interrupt_request[3:2],
                                         keybord_interrupt, timer_interrupt})
     );
 
@@ -143,7 +165,7 @@ module PERIPHERALS #(
 
     KF8253 u_KF8253 (
         // Bus
-        .clock                      (clock),
+        .clock                      (peripheral_clock),
         .reset                      (reset),
         .chip_select_n              (timer_chip_select_n),
         .read_enable_n              (io_read_n),
@@ -246,7 +268,35 @@ module PERIPHERALS #(
 		.ready_o(TANDY_SND_RDY),
 		.d_i(internal_data_bus),
 		.aout_o(tandy_snd_e)
+	);	
+	
+	wire  [7:0] uart_readdata;
+	
+	uart uart1
+	(
+		.clk               (peripheral_clock),
+		.br_clk            (clk_uart),
+		.reset             (reset),
+
+		.address           (address[2:0]),
+		.writedata         (internal_data_bus),
+		.read              (~io_read_n),
+		.write             (~io_write_n),
+		.readdata          (uart_readdata),
+		.cs                (uart_cs),
+
+		.rx                (uart_rx),
+		.tx                (uart_tx),
+		.cts_n             (uart_cts_n),
+		.dcd_n             (uart_dcd_n),
+		.dsr_n             (uart_dsr_n),
+		.rts_n             (uart_rts_n),
+		.dtr_n             (uart_dtr_n),
+		.ri_n              (1),
+
+		.irq               (uart_interrupt)
 	);
+
 	 
 	 
 	 wire VRAM_ENABLE;
@@ -327,8 +377,9 @@ module PERIPHERALS #(
         .dinb                       (8'h0),
         .doutb                      (VRAM_DOUT)
 	);
+
 	
-	ram ram
+	ram #(.AW(18)) mram
 	(
 	  .clka(clock),
 	  .ena(~address_enable_n && ~ram_select_n),
@@ -338,13 +389,22 @@ module PERIPHERALS #(
 	  .douta(ram_cpu_dout)
 	);
 	
+	
 	bios bios
 	(
+<<<<<<< Updated upstream
         .clka(clock),
         .ena(~address_enable_n && ~rom_select_n),
         .wea(~memory_write_n),
         .addra(address[15:0]),
         .dina(internal_data_bus),
+=======
+        .clka(ioctl_download ? clk_sys : clock),
+        .ena((~address_enable_n && ~rom_select_n) || ioctl_download),
+        .wea(ioctl_download && ioctl_wr),
+        .addra(ioctl_download ? ioctl_addr[15:0] : address[15:0]),
+        .dina(ioctl_data),
+>>>>>>> Stashed changes
         .douta(bios_cpu_dout)
 	);
 	
@@ -416,6 +476,10 @@ module PERIPHERALS #(
 		  else if ((~opl_chip_select_n) && (~io_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = opl32_data;			
+        end
+		  else if ((uart_cs) && (~io_read_n)) begin
+            data_bus_out_from_chipset = 1'b1;
+            data_bus_out = uart_readdata;			
         end
         else begin
             data_bus_out_from_chipset = 1'b0;

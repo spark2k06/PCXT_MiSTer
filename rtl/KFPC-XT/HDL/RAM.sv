@@ -46,7 +46,8 @@ module RAM (
     //
     // RAM Address Select (0x00000-0x9FFFF)
     //
-    assign  ram_address_select_n =  ~((enable_sdram) && ((~address[19]) || ((address[19]) && ((address[18]) || (address[17])))));
+    assign  ram_address_select_n =  ~((enable_sdram) && ((~address[19]) || ((address[19]) && ~((address[18]) || (address[17])))));
+	 //assign  ram_address_select_n =  ~((enable_sdram) && (address >= 20'h010000 && address < 20'h0A0000));
 
 
     //

@@ -290,6 +290,27 @@ set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
 set_global_assignment -name EDA_RUN_TOOL_AUTOMATICALLY OFF -section_id eda_simulation
+set_global_assignment -name VERILOG_FILE rtl/uart/uart.v
+set_global_assignment -name QIP_FILE rtl/uart/uart.qip
+set_global_assignment -name VHDL_FILE rtl/uart/gh_uart_Tx_8bit.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_uart_Rx_8bit.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_uart_16550.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_shift_reg_se_sl.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_shift_reg_PL_sl.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_register_ce.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_parity_gen_Serial.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_jkff.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_gray2binary.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_fifo_async16_rcsr_wf.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_fifo_async_sr.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_edge_det_XCD.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_edge_det.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_DECODE_3to8.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_counter_integer_down.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_counter_down_ce_ld_tc.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_counter_down_ce_ld.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_binary2gray.vhd
+set_global_assignment -name VHDL_FILE rtl/uart/gh_baud_rate_gen.vhd
 set_global_assignment -name VHDL_FILE rtl/sn76489/sn76489_top.vhd
 set_global_assignment -name VHDL_FILE rtl/sn76489/sn76489_tone.vhd
 set_global_assignment -name VHDL_FILE rtl/sn76489/sn76489_noise.vhd
@@ -328,7 +349,6 @@ set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_csr.v
 set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl_acc.v
 set_global_assignment -name VERILOG_FILE rtl/jtopl/hdl/jtopl.v
 set_global_assignment -name QIP_FILE rtl/jtopl/hdl/jt26.qip
-set_global_assignment -name VERILOG_FILE rtl/common/dpr.v
 set_global_assignment -name VERILOG_FILE rtl/video/vram.v
 set_global_assignment -name VERILOG_FILE rtl/video/crtc6845.v
 set_global_assignment -name VERILOG_FILE rtl/video/cga_vram.v

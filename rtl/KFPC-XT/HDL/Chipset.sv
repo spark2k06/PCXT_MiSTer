@@ -4,6 +4,7 @@
 //
 module CHIPSET (
     input   logic           clock,
+	 input   logic           clk_sys,
     input   logic           peripheral_clock,
     input   logic           reset,
     // CPU
@@ -70,7 +71,26 @@ module CHIPSET (
 	 output  logic   [15:0]  jtopl2_snd_e,
 	 input   logic           adlibhide,
 	 // TANDY SND
+<<<<<<< Updated upstream
 	 output  logic   [7:0]   tandy_snd_e,	 
+=======
+	 output  logic   [7:0]   tandy_snd_e,
+	 // IOCTL
+    input   logic           ioctl_download,
+    input   logic   [7:0]   ioctl_index,
+    input   logic           ioctl_wr,
+    input   logic   [24:0]  ioctl_addr,
+    input   logic   [7:0]   ioctl_data,
+	 // UART
+	 input   logic           clk_uart,
+	 input   logic           uart_rx,
+	 output  logic           uart_tx,
+	 input   logic           uart_cts_n,
+	 input   logic           uart_dcd_n,
+	 input   logic           uart_dsr_n,
+	 output  logic           uart_rts_n,
+	 output  logic           uart_dtr_n,
+>>>>>>> Stashed changes
     // SDRAM
     input   logic           enable_sdram,
     input   logic           sdram_clock,    // 50MHz
@@ -156,6 +176,8 @@ module CHIPSET (
 
     PERIPHERALS u_PERIPHERALS (
         .clock                              (clock),
+		  .clk_sys                            (clk_sys),
+		  .clk_uart                           (clk_uart),
         .peripheral_clock                   (peripheral_clock),
         .reset                              (reset),
         .interrupt_to_cpu                   (interrupt_to_cpu),
@@ -196,7 +218,23 @@ module CHIPSET (
 		  .clk_en_opl2                        (clk_en_opl2),
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
+<<<<<<< Updated upstream
 		  .tandy_snd_e                        (tandy_snd_e)
+=======
+		  .tandy_snd_e                        (tandy_snd_e),
+		  .ioctl_download                     (ioctl_download),
+		  .ioctl_index                        (ioctl_index),
+		  .ioctl_wr                           (ioctl_wr),
+		  .ioctl_addr                         (ioctl_addr),
+		  .ioctl_data                         (ioctl_data),
+	     .uart_rx                           (uart_rx),
+	     .uart_tx                           (uart_tx),
+	     .uart_cts_n                        (uart_cts),
+	     .uart_dcd_n                        (uart_dcd),
+	     .uart_dsr_n                        (uart_dsr),
+	     .uart_rts_n                        (uart_rts),
+	     .uart_dtr_n                        (uart_dtr)
+>>>>>>> Stashed changes
 		  
     );
 

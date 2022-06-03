@@ -55,7 +55,7 @@ module KFSDRAM #(
     `define BANK_ADDRESS_TOP        (sdram_col_width + sdram_row_width + sdram_bank_width - 1)
     `define BANK_ADDRESS_BOTTOM     (sdram_col_width + sdram_row_width)
 
-    typedef enum { INIT, PALL, INIT_CBR_1, INIT_CBR_2, MRS, REFRESH, IDLE, WRITE_ACT, WRITE, PRECHARGE_WAIT, READ_ACT, READ, PRECHARGE } state_t;
+    typedef enum { INIT, PALL, INIT_CBR_1, INIT_CBR_2, MRS, REFRESH_PALL, REFRESH, IDLE, WRITE_ACT, WRITE, PRECHARGE_WAIT, READ_ACT, READ, PRECHARGE } state_t;
 
     state_t                             state;
     state_t                             next_state;
@@ -94,6 +94,10 @@ module KFSDRAM #(
                 if (state_counter == sdram_tmrd)
                     next_state = IDLE;
             end
+            REFRESH_PALL: begin
+                if (state_counter == sdram_trp)
+                    next_state = REFRESH;
+            end
             REFRESH: begin
                 if (state_counter == sdram_trc)
                     next_state = IDLE;
@@ -104,7 +108,7 @@ module KFSDRAM #(
                 else if (read_request)
                     next_state = READ_ACT;
                 else if ((~sdram_no_refresh) && (refresh_counter == sdram_refresh_cycle))
-                    next_state = REFRESH;
+                    next_state = REFRESH_PALL;
             end
             WRITE_ACT: begin
                 if (state_counter == sdram_trcd)
@@ -284,6 +288,19 @@ module KFSDRAM #(
                     sdram_dq_out    <= 0;
                     sdram_dq_io     <= 1'b1;
                 end
+                REFRESH_PALL: begin
+                    sdram_address[9:0]  <= 0;
+                    sdram_address[10]   <= 1'b1;
+                    sdram_address[sdram_row_width-1:11] <= 0;
+                    sdram_cke       <= 1'b1;
+                    sdram_cs        <= 1'b0;
+                    sdram_ras       <= (send_cmd_timing) ? 1'b0 : 1'b1;
+                    sdram_cas       <= 1'b1;
+                    sdram_we        <= (send_cmd_timing) ? 1'b0 : 1'b1;
+                    sdram_ba        <= 0;
+                    sdram_dq_out    <= 0;
+                    sdram_dq_io     <= 1'b1;
+                end
                 REFRESH: begin
                     sdram_address   <= 0;
                     sdram_cke       <= 1'b1;
@@ -418,4 +435,3 @@ module KFSDRAM #(
     end
 
 endmodule
-
