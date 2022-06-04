@@ -271,7 +271,7 @@ module PERIPHERALS #(
 	
 	uart uart1
 	(
-		.clk               (peripheral_clock),
+		.clk               (clock),
 		.br_clk            (clk_uart),
 		.reset             (reset),
 

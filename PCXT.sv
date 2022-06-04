@@ -578,10 +578,10 @@ clk_div3 clk_normal // 4.77MHz
 
 	wire uart_tx, uart_rts, uart_dtr;
 
-	wire uart_rx  = 1'b1 | USER_IN[0];
-	wire uart_cts = 1'b1 | USER_IN[3];
-	wire uart_dsr = 1'b1 | USER_IN[5];
-	wire uart_dcd = 1'b1 | USER_IN[6];
+	wire uart_rx  = USER_IN[0];
+	wire uart_cts = USER_IN[3];
+	wire uart_dsr = USER_IN[5];
+	wire uart_dcd = USER_IN[6];
 
 	always @(posedge clk_cpu) begin
 		if (address_latch_enable)
