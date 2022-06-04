@@ -71,9 +71,6 @@ module CHIPSET (
 	 output  logic   [15:0]  jtopl2_snd_e,
 	 input   logic           adlibhide,
 	 // TANDY SND
-<<<<<<< Updated upstream
-	 output  logic   [7:0]   tandy_snd_e,	 
-=======
 	 output  logic   [7:0]   tandy_snd_e,
 	 // IOCTL
     input   logic           ioctl_download,
@@ -90,7 +87,6 @@ module CHIPSET (
 	 input   logic           uart_dsr_n,
 	 output  logic           uart_rts_n,
 	 output  logic           uart_dtr_n,
->>>>>>> Stashed changes
     // SDRAM
     input   logic           enable_sdram,
     input   logic           sdram_clock,    // 50MHz
@@ -218,9 +214,6 @@ module CHIPSET (
 		  .clk_en_opl2                        (clk_en_opl2),
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
-<<<<<<< Updated upstream
-		  .tandy_snd_e                        (tandy_snd_e)
-=======
 		  .tandy_snd_e                        (tandy_snd_e),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
@@ -234,7 +227,6 @@ module CHIPSET (
 	     .uart_dsr_n                        (uart_dsr),
 	     .uart_rts_n                        (uart_rts),
 	     .uart_dtr_n                        (uart_dtr)
->>>>>>> Stashed changes
 		  
     );
 

@@ -9,11 +9,6 @@ module bios(
 
 reg [7:0] bios[65535:0];
 
-<<<<<<< Updated upstream
-initial $readmemh("bios.hex", bios);
-
-=======
->>>>>>> Stashed changes
 always @(posedge clka)
   if (ena)
 		if (wea)

@@ -333,10 +333,7 @@ pll pll
 );
 
 //wire reset = RESET | status[0] | buttons[1];
-<<<<<<< Updated upstream
-=======
 //wire reset = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd) | (ioctl_download && ioctl_index == 0);
->>>>>>> Stashed changes
 wire reset = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd);
 
 //////////////////////////////////////////////////////////////////
@@ -521,10 +518,6 @@ clk_div3 clk_normal // 4.77MHz
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
-<<<<<<< Updated upstream
-		  .tandy_snd_e                        (tandy_snd_e)
-
-=======
 		  .tandy_snd_e                        (tandy_snd_e),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
@@ -532,7 +525,7 @@ clk_div3 clk_normal // 4.77MHz
 		  .ioctl_addr                         (ioctl_addr),
 		  .ioctl_data                         (ioctl_data),
 		  
-		  .clk_uart                           (clk_uart),
+		  .clk_uart                          (clk_uart),
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
 	     .uart_cts_n                        (uart_cts),
@@ -540,8 +533,6 @@ clk_div3 clk_normal // 4.77MHz
 	     .uart_dsr_n                        (uart_dsr),
 	     .uart_rts_n                        (uart_rts),
 	     .uart_dtr_n                        (uart_dtr)
-		  
->>>>>>> Stashed changes
     );
 	 
 	wire [15:0] jtopl2_snd_e;	
@@ -587,10 +578,10 @@ clk_div3 clk_normal // 4.77MHz
 
 	wire uart_tx, uart_rts, uart_dtr;
 
-	wire uart_rx  = USER_IN[0];
-	wire uart_cts = USER_IN[3];
-	wire uart_dsr = USER_IN[5];
-	wire uart_dcd = USER_IN[6];
+	wire uart_rx  = 1'b1 | USER_IN[0];
+	wire uart_cts = 1'b1 | USER_IN[3];
+	wire uart_dsr = 1'b1 | USER_IN[5];
+	wire uart_dcd = 1'b1 | USER_IN[6];
 
 	always @(posedge clk_cpu) begin
 		if (address_latch_enable)

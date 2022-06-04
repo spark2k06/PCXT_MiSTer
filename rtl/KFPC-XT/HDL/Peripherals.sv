@@ -55,9 +55,6 @@ module PERIPHERALS #(
 	 output  logic   [15:0]  jtopl2_snd_e,
 	 input   logic           adlibhide,
 	 // TANDY SND
-<<<<<<< Updated upstream
-	 output  logic   [7:0]   tandy_snd_e
-=======
 	 output  logic   [7:0]   tandy_snd_e,
 	 // IOCTL
     input   logic           ioctl_download,
@@ -74,7 +71,7 @@ module PERIPHERALS #(
 	 input   logic           uart_dsr_n,
 	 output  logic           uart_rts_n,
 	 output  logic           uart_dtr_n
->>>>>>> Stashed changes
+
 	 
 );
     //
@@ -392,19 +389,11 @@ module PERIPHERALS #(
 	
 	bios bios
 	(
-<<<<<<< Updated upstream
-        .clka(clock),
-        .ena(~address_enable_n && ~rom_select_n),
-        .wea(~memory_write_n),
-        .addra(address[15:0]),
-        .dina(internal_data_bus),
-=======
         .clka(ioctl_download ? clk_sys : clock),
         .ena((~address_enable_n && ~rom_select_n) || ioctl_download),
         .wea(ioctl_download && ioctl_wr),
         .addra(ioctl_download ? ioctl_addr[15:0] : address[15:0]),
         .dina(ioctl_data),
->>>>>>> Stashed changes
         .douta(bios_cpu_dout)
 	);
 	
