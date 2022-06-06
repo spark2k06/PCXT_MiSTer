@@ -147,10 +147,10 @@ module sys_top
 
 	////////// MB LED ///////////
 	//output  [7:0] LED
-	output LED0
+	output LED0,
 
 	///////// USER IO ///////////
-	//inout   [6:0] USER_IO
+	inout   [6:0] USER_IO
 );
 
 // DE10-Standard / DE1-SoC / Arrow SoCKit VGA mode
@@ -197,7 +197,7 @@ wire   [3:0] SDIO_DAT;
 wire         SDIO_CMD;
 wire         SDIO_CLK;
 
-wire   [6:0] USER_IO;
+//wire   [6:0] USER_IO;
 
 wire   [7:0] LED;
 

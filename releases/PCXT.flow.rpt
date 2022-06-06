@@ -1,0 +1,162 @@
+Flow report for PCXT
+Mon Jun  6 13:52:01 2022
+Quartus Prime Version 17.1.0 Build 590 10/25/2017 SJ Lite Edition
+
+
+---------------------
+; Table of Contents ;
+---------------------
+  1. Legal Notice
+  2. Flow Summary
+  3. Flow Settings
+  4. Flow Non-Default Global Settings
+  5. Flow Elapsed Time
+  6. Flow OS Summary
+  7. Flow Log
+  8. Flow Messages
+  9. Flow Suppressed Messages
+
+
+
+----------------
+; Legal Notice ;
+----------------
+Copyright (C) 2017  Intel Corporation. All rights reserved.
+Your use of Intel Corporation's design tools, logic functions 
+and other software and tools, and its AMPP partner logic 
+functions, and any output files from any of the foregoing 
+(including device programming or simulation files), and any 
+associated documentation or information are expressly subject 
+to the terms and conditions of the Intel Program License 
+Subscription Agreement, the Intel Quartus Prime License Agreement,
+the Intel FPGA IP License Agreement, or other applicable license
+agreement, including, without limitation, that your use is for
+the sole purpose of programming logic devices manufactured by
+Intel and sold by Intel or its authorized distributors.  Please
+refer to the applicable agreement for further details.
+
+
+
++-------------------------------------------------------------------------------+
+; Flow Summary                                                                  ;
++---------------------------------+---------------------------------------------+
+; Flow Status                     ; Successful - Mon Jun  6 13:52:01 2022       ;
+; Quartus Prime Version           ; 17.1.0 Build 590 10/25/2017 SJ Lite Edition ;
+; Revision Name                   ; PCXT                                        ;
+; Top-level Entity Name           ; sys_top                                     ;
+; Family                          ; Cyclone V                                   ;
+; Device                          ; 5CSXFC6D6F31C6                              ;
+; Timing Models                   ; Final                                       ;
+; Logic utilization (in ALMs)     ; 10,258 / 41,910 ( 24 % )                    ;
+; Total registers                 ; 13228                                       ;
+; Total pins                      ; 93 / 499 ( 19 % )                           ;
+; Total virtual pins              ; 0                                           ;
+; Total block memory bits         ; 3,627,494 / 5,662,720 ( 64 % )              ;
+; Total DSP Blocks                ; 29 / 112 ( 26 % )                           ;
+; Total HSSI RX PCSs              ; 0 / 9 ( 0 % )                               ;
+; Total HSSI PMA RX Deserializers ; 0 / 9 ( 0 % )                               ;
+; Total HSSI TX PCSs              ; 0 / 9 ( 0 % )                               ;
+; Total HSSI PMA TX Serializers   ; 0 / 9 ( 0 % )                               ;
+; Total PLLs                      ; 3 / 15 ( 20 % )                             ;
+; Total DLLs                      ; 0 / 4 ( 0 % )                               ;
++---------------------------------+---------------------------------------------+
+
+
++-----------------------------------------+
+; Flow Settings                           ;
++-------------------+---------------------+
+; Option            ; Setting             ;
++-------------------+---------------------+
+; Start date & time ; 06/06/2022 13:37:35 ;
+; Main task         ; Compilation         ;
+; Revision Name     ; PCXT                ;
++-------------------+---------------------+
+
+
++-------------------------------------------------------------------------------------------------------------------------------------------------+
+; Flow Non-Default Global Settings                                                                                                                ;
++--------------------------------------+----------------------------------------+---------------+-------------+-----------------------------------+
+; Assignment Name                      ; Value                                  ; Default Value ; Entity Name ; Section Id                        ;
++--------------------------------------+----------------------------------------+---------------+-------------+-----------------------------------+
+; COMPILER_SIGNATURE_ID                ; 963354559481.165451545428736           ; --            ; --          ; --                                ;
+; EDA_GENERATE_FUNCTIONAL_NETLIST      ; Off                                    ; --            ; --          ; eda_board_design_timing           ;
+; EDA_GENERATE_FUNCTIONAL_NETLIST      ; Off                                    ; --            ; --          ; eda_board_design_boundary_scan    ;
+; EDA_GENERATE_FUNCTIONAL_NETLIST      ; Off                                    ; --            ; --          ; eda_board_design_signal_integrity ;
+; EDA_GENERATE_FUNCTIONAL_NETLIST      ; Off                                    ; --            ; --          ; eda_board_design_symbol           ;
+; EDA_OUTPUT_DATA_FORMAT               ; Systemverilog Hdl                      ; --            ; --          ; eda_simulation                    ;
+; EDA_RUN_TOOL_AUTOMATICALLY           ; Off                                    ; --            ; --          ; eda_simulation                    ;
+; EDA_SIMULATION_TOOL                  ; Active-HDL (SystemVerilog)             ; <None>        ; --          ; --                                ;
+; EDA_TIME_SCALE                       ; 1 ps                                   ; --            ; --          ; eda_simulation                    ;
+; FITTER_EFFORT                        ; Standard Fit                           ; Auto Fit      ; --          ; --                                ;
+; MAX_CORE_JUNCTION_TEMP               ; 85                                     ; --            ; --          ; --                                ;
+; MIN_CORE_JUNCTION_TEMP               ; 0                                      ; --            ; --          ; --                                ;
+; MISC_FILE                            ; sys/pll_hdmi.cmp                       ; --            ; --          ; --                                ;
+; MISC_FILE                            ; sys/pll_audio.cmp                      ; --            ; --          ; --                                ;
+; MISC_FILE                            ; sys/pll_cfg.cmp                        ; --            ; --          ; --                                ;
+; MISC_FILE                            ; rtl/pll.cmp                            ; --            ; --          ; --                                ;
+; NUM_PARALLEL_PROCESSORS              ; All                                    ; --            ; --          ; --                                ;
+; OPTIMIZATION_MODE                    ; High Performance Effort                ; Balanced      ; --          ; --                                ;
+; OUTPUT_IO_TIMING_FAR_END_VMEAS       ; Half Signal Swing                      ; --            ; --          ; --                                ;
+; OUTPUT_IO_TIMING_FAR_END_VMEAS       ; Half Signal Swing                      ; --            ; --          ; --                                ;
+; OUTPUT_IO_TIMING_NEAR_END_VMEAS      ; Half Vccio                             ; --            ; --          ; --                                ;
+; OUTPUT_IO_TIMING_NEAR_END_VMEAS      ; Half Vccio                             ; --            ; --          ; --                                ;
+; PARTITION_COLOR                      ; -- (Not supported for targeted family) ; --            ; sys_top     ; Top                               ;
+; PARTITION_FITTER_PRESERVATION_LEVEL  ; -- (Not supported for targeted family) ; --            ; sys_top     ; Top                               ;
+; PARTITION_NETLIST_TYPE               ; -- (Not supported for targeted family) ; --            ; sys_top     ; Top                               ;
+; PHYSICAL_SYNTHESIS_COMBO_LOGIC       ; On                                     ; Off           ; --          ; --                                ;
+; PHYSICAL_SYNTHESIS_REGISTER_RETIMING ; On                                     ; Off           ; --          ; --                                ;
+; PLACEMENT_EFFORT_MULTIPLIER          ; 4.0                                    ; 1.0           ; --          ; --                                ;
+; POWER_BOARD_THERMAL_MODEL            ; None (CONSERVATIVE)                    ; --            ; --          ; --                                ;
+; POWER_PRESET_COOLING_SOLUTION        ; 23 MM HEAT SINK WITH 200 LFPM AIRFLOW  ; --            ; --          ; --                                ;
+; PRE_FLOW_SCRIPT_FILE                 ; quartus_sh:sys/build_id.tcl            ; --            ; --          ; --                                ;
+; PROJECT_OUTPUT_DIRECTORY             ; output_files                           ; --            ; --          ; --                                ;
+; ROUTER_TIMING_OPTIMIZATION_LEVEL     ; MAXIMUM                                ; Normal        ; --          ; --                                ;
+; SAVE_DISK_SPACE                      ; Off                                    ; On            ; --          ; --                                ;
+; SMART_RECOMPILE                      ; On                                     ; Off           ; --          ; --                                ;
+; SYNTHESIS_ONLY_QIP                   ; On                                     ; --            ; --          ; --                                ;
+; SYNTHESIS_ONLY_QIP                   ; On                                     ; --            ; --          ; --                                ;
+; SYNTHESIS_ONLY_QIP                   ; On                                     ; --            ; --          ; --                                ;
+; SYNTHESIS_ONLY_QIP                   ; On                                     ; --            ; --          ; --                                ;
+; TIMEQUEST_MULTICORNER_ANALYSIS       ; Off                                    ; On            ; --          ; --                                ;
+; TOP_LEVEL_ENTITY                     ; sys_top                                ; PCXT          ; --          ; --                                ;
++--------------------------------------+----------------------------------------+---------------+-------------+-----------------------------------+
+
+
++-------------------------------------------------------------------------------------------------------------------------------+
+; Flow Elapsed Time                                                                                                             ;
++---------------------------+--------------+-------------------------+---------------------+------------------------------------+
+; Module Name               ; Elapsed Time ; Average Processors Used ; Peak Virtual Memory ; Total CPU Time (on all processors) ;
++---------------------------+--------------+-------------------------+---------------------+------------------------------------+
+; Analysis & Synthesis      ; 00:03:15     ; 1.2                     ; 2545 MB             ; 00:04:01                           ;
+; Fitter                    ; 00:10:14     ; 1.1                     ; 3061 MB             ; 00:17:48                           ;
+; Assembler                 ; 00:00:21     ; 1.0                     ; 1172 MB             ; 00:00:21                           ;
+; TimeQuest Timing Analyzer ; 00:00:09     ; 1.1                     ; 1305 MB             ; 00:00:09                           ;
+; EDA Netlist Writer        ; 00:00:09     ; 1.0                     ; 1420 MB             ; 00:00:09                           ;
+; Total                     ; 00:14:08     ; --                      ; --                  ; 00:22:28                           ;
++---------------------------+--------------+-------------------------+---------------------+------------------------------------+
+
+
++---------------------------------------------------------------------------------------------+
+; Flow OS Summary                                                                             ;
++---------------------------+------------------+----------------+------------+----------------+
+; Module Name               ; Machine Hostname ; OS Name        ; OS Version ; Processor type ;
++---------------------------+------------------+----------------+------------+----------------+
+; Analysis & Synthesis      ; jordi-TM1613     ; Ubuntu 20.04.4 ; 20         ; x86_64         ;
+; Fitter                    ; jordi-TM1613     ; Ubuntu 20.04.4 ; 20         ; x86_64         ;
+; Assembler                 ; jordi-TM1613     ; Ubuntu 20.04.4 ; 20         ; x86_64         ;
+; TimeQuest Timing Analyzer ; jordi-TM1613     ; Ubuntu 20.04.4 ; 20         ; x86_64         ;
+; EDA Netlist Writer        ; jordi-TM1613     ; Ubuntu 20.04.4 ; 20         ; x86_64         ;
++---------------------------+------------------+----------------+------------+----------------+
+
+
+------------
+; Flow Log ;
+------------
+quartus_map --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+quartus_fit --read_settings_files=off --write_settings_files=off PCXT -c PCXT
+quartus_asm --read_settings_files=off --write_settings_files=off PCXT -c PCXT
+quartus_sta PCXT -c PCXT
+quartus_eda --read_settings_files=off --write_settings_files=off PCXT -c PCXT
+
+
+

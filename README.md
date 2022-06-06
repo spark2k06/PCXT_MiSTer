@@ -2,7 +2,9 @@
 
 Port to SoCkit by Somhic from original MiSTer port  https://github.com/spark2k06/PCXT_MiSTer
 
-Place boot.rom (in SW folder) inside PCXT folder at root of SD card.
+Place boot.rom (in SW folder) inside games/PCXT folder at root of SD card.
+
+Now can be loaded SO through serial at GPIO addon. See pinout at sys.tcl.  Only needs Rx/Tx signals.
 
 Follow core discussion at https://misterfpga.org/viewtopic.php?t=4680
 

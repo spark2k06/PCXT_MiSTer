@@ -3,6 +3,7 @@ find output_files/ -type f \( ! -iname "*.rbf" ! -iname "*.flow.rpt" \) -delete
 find software/spl_bsp/ -type f -not -name '*.bin' -delete
 #rm -rf output_files
 #rm -rf software
+rm -rf simulation
 rm -rf software/spl_bsp/generated
 rm -rf software/spl_bsp/uboot-socfpga
 find soc_hps/synthesis -type f -not -name '*.qip' -delete

@@ -35,16 +35,34 @@ set_global_assignment -name DEVICE 5CSXFC6D6F31C6
 #============================================================
 # USER PORT
 #============================================================
-#set_location_assignment PIN_AF17 -to USER_IO[6]
-#set_location_assignment PIN_AF15 -to USER_IO[5]
-#set_location_assignment PIN_AG16 -to USER_IO[4]
-#set_location_assignment PIN_AH11 -to USER_IO[3]
-#set_location_assignment PIN_AH12 -to USER_IO[2]
-#set_location_assignment PIN_AH9 -to USER_IO[1]
-#set_location_assignment PIN_AG11 -to USER_IO[0]
-#set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to USER_IO[*]
-#set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to USER_IO[*]
-#set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to USER_IO[*]
+# assign GPIO0_D[19] = PMOD3[0];          //HSMC_RX _n[4] PIN_K8        pin 16
+# assign GPIO0_D[20] = PMOD3[1];          //HSMC_TX _p[5] PIN_E3        pin 17
+# assign GPIO0_D[21] = PMOD3[2];          //HSMC_RX _p[4] PIN_K7        pin 18
+# assign GPIO0_D[22] = PMOD3[3];          //HSMC_CLKOUT_n1  PIN_E6      pin 19
+# assign GPIO0_D[23] = PMOD3[4];          //HSMC_RX _n[3] PIN_J9        pin 20
+# assign GPIO0_D[24] = PMOD3[5];          //HSMC_CLKOUT_p1  PIN_E7      pin 21
+# assign GPIO0_D[25] = PMOD3[6];          //HSMC_RX _p[3] PIN_J10       pin 22
+set_location_assignment PIN_J10 -to USER_IO[6]
+set_location_assignment PIN_E7 -to USER_IO[5]
+set_location_assignment PIN_J9 -to USER_IO[4]
+set_location_assignment PIN_E6 -to USER_IO[3]
+set_location_assignment PIN_K7 -to USER_IO[2]
+set_location_assignment PIN_E3 -to USER_IO[1]
+set_location_assignment PIN_K8 -to USER_IO[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to USER_IO[*]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to USER_IO[*]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to USER_IO[*]
+
+# // Pin | USB Name |   |Signal
+# // ----+----------+---+-------------
+# // 0   | D+       | I |RX
+# // 1   | D-       | O |TX
+# // 2   | TX-      | O |RTS
+# // 3   | GND_d    | I |CTS
+# // 4   | RX+      | O |DTR
+# // 5   | RX-      | I |DSR
+# // 6   | TX+      | I |DCD
+# //
 
 #============================================================
 # SDIO_CD or SPDIF_OUT
