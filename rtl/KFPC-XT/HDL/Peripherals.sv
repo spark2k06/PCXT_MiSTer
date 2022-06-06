@@ -147,12 +147,26 @@ module PERIPHERALS #(
     //
     // 8253
     //
-    logic   timer_clock;
+    // Clock domain crossing
+    logic   timer_clock_ff_1;
     always_ff @(negedge peripheral_clock, posedge reset) begin
         if (reset)
-            timer_clock <= 1'b0;
+            timer_clock_ff_1 <= 1'b0;
         else
-            timer_clock <= ~timer_clock;
+            timer_clock_ff_1 <= ~timer_clock_ff_1;
+    end
+
+    logic   timer_clock_ff_2;
+    logic   timer_clock;
+    always_ff @(negedge clock, posedge reset) begin
+        if (reset) begin
+            timer_clock_ff_2    <= 1'b0;
+            timer_clock         <= 1'b0;
+        end
+        else begin
+            timer_clock_ff_2    <= timer_clock_ff_1;
+            timer_clock         <= timer_clock_ff_2;
+        end
     end
 
     logic   [7:0]   timer_data_bus_out;
@@ -162,7 +176,7 @@ module PERIPHERALS #(
 
     KF8253 u_KF8253 (
         // Bus
-        .clock                      (peripheral_clock),
+        .clock                      (clock),
         .reset                      (reset),
         .chip_select_n              (timer_chip_select_n),
         .read_enable_n              (io_read_n),
@@ -218,6 +232,24 @@ module PERIPHERALS #(
     //
     // KFPS2KB
     //
+
+    // Clock domain crossing
+    logic   clear_keycode_ff;
+    logic   clear_keycode;
+    always_ff @(negedge peripheral_clock, posedge reset) begin
+        if (reset) begin
+            clear_keycode_ff    <= 1'b0;
+            clear_keycode       <= 1'b0;
+        end
+        else begin
+            clear_keycode_ff    <= port_b_out[7];
+            clear_keycode       <= clear_keycode_ff;
+        end
+    end
+
+    logic           keybord_irq;
+    logic   [7:0]   keycode;
+
     KFPS2KB u_KFPS2KB (
         // Bus
         .clock                      (peripheral_clock),
@@ -228,9 +260,9 @@ module PERIPHERALS #(
         .device_data                (ps2_data),
 
         // I/O
-        .irq                        (keybord_interrupt),
-        .keycode                    (port_a_in),
-        .clear_keycode              (port_b_out[7])
+        .irq                        (keybord_irq),
+        .keycode                    (keycode),
+        .clear_keycode              (clear_keycode)
     );
 
    wire [7:0] jtopl2_dout;
@@ -267,19 +299,59 @@ module PERIPHERALS #(
 		.aout_o(tandy_snd_e)
 	);	
 	
-	wire  [7:0] uart_readdata;
+	    logic   keybord_interrupt_ff;
+    always_ff @(negedge clock, posedge reset) begin
+        if (reset) begin
+            keybord_interrupt_ff    <= 1'b0;
+            keybord_interrupt       <= 1'b0;
+        end
+        else begin
+            keybord_interrupt_ff    <= keybord_irq;
+            keybord_interrupt       <= keybord_interrupt_ff;
+        end
+	end
 	
+	logic	prev_io_read_n;
+	logic	prev_io_write_n;
+	logic	[7:0]	write_to_uart;
+	logic [7:0] uart_readdata_1;
+	logic [7:0] uart_readdata_2;
+	logic [7:0] uart_readdata;
+
+	always_ff @(negedge clock) begin
+		prev_io_read_n <= io_read_n;
+		prev_io_write_n <= io_write_n;
+	end
+
+    logic   [7:0]   keycode_ff;
+    always_ff @(negedge clock, posedge reset) begin
+        if (reset) begin
+            keycode_ff  <= 8'h00;
+            port_a_in   <= 8'h00;
+        end
+        else begin
+            keycode_ff  <= keycode;
+            port_a_in   <= keycode_ff;
+        end
+    end
+	always_ff @(negedge clock) begin
+		if (~io_write_n)
+			write_to_uart <= internal_data_bus;
+		else
+			write_to_uart <= write_to_uart;
+	end
+
 	uart uart1
 	(
-		.clk               (peripheral_clock),
+		.clk               (clock),
 		.br_clk            (clk_uart),
 		.reset             (reset),
 
 		.address           (address[2:0]),
-		.writedata         (internal_data_bus),
-		.read              (~io_read_n),
-		.write             (~io_write_n),
-		.readdata          (uart_readdata),
+		.writedata         (write_to_uart),
+		.read              (~io_read_n & prev_io_read_n),
+		.write             (io_write_n & ~prev_io_write_n),
+		.readdata          (uart_readdata_1),
 		.cs                (uart_cs),
 
 		.rx                (uart_rx),
@@ -294,6 +366,13 @@ module PERIPHERALS #(
 		.irq               (uart_interrupt)
 	);
 
+	// Timing of the readings may need to be reviewed.
+	always_ff @(negedge clock) begin
+		if (~io_read_n & prev_io_read_n)
+			uart_readdata <= uart_readdata_1;
+		else
+			uart_readdata <= uart_readdata;
+	end
 	 
 	 
 	 wire VRAM_ENABLE;
