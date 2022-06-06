@@ -1278,45 +1278,11 @@ msg_iochk_nmi:
 ;	Prints an error message since we don't have ROM BASIC
 ;-------------------------------------------------------------------------
 int_18:
-	;mov	si,msg_no_basic
-	;call	print
-    push    ds
-    mov     ax, 0f000h
-    mov     ds, ax
-    mov     ax, [0]
-    xchg    al, ah
-    pop     ds
-    call    print_hex
-    
-    push    ds
-    mov     ax, 0d000h
-    mov     ds, ax    
-    mov     ax, [0]
-    xchg    al, ah
-    pop     ds
-    call    print_hex
-    
-    push    ds
-    mov     ax, 0e000h
-    mov     ds, ax    
-    mov     ax, [0]
-    xchg    al, ah
-    pop     ds
-    call    print_hex
-    
-    mov     ax, 0e375h
-    mov     ss, ax
-    mov     sp, 100h
-    xor     ax, ax
-    mov     es, ax
-    es mov word [84h], 98h
-    es mov word [86h], 0d000h
-    db      0eah,
-    dw      100h, 0d000h
-
-;.1:
-;	hlt
-;	jmp	.1
+    mov	    si,msg_no_basic
+    call    print
+.1:
+	hlt
+	jmp	.1
 
 ;=========================================================================
 ; int_19 - load and execute the boot sector
