@@ -16,15 +16,26 @@ SN76489AN Compatible Implementation in VHDL Copyright (c) 2005, 2006, Arnim Laeu
 # TODO
 
 * Refactor Graphics Gremlin module, the new KFPC-XT system will make this refactor possible.
-* Loading ROMs from the OSD menu or fixed from MiSTer config folder (boot0.rom)
 * Use SDRAM as system memory. Currently BRAM is used for everything, providing the system with 256Kb of RAM, 64Kb for the BIOS and 32Kb for VRAM.
 * IDE module implementation
+* Floppy implementation
 * VHD support for easy integration with [XTIDE Universal BIOS](https://www.xtideuniversalbios.org/)
 * Addition of other modules:
     * EMS    
     * Others...
 
 # ChangeLog
+
+### Beta 0.6
+
+* UART module implementation fix, thanks to @kitune-san
+
+### Beta 0.5
+
+* Added UART module from ao486 project (COM1 assigned to USER I/O pins)
+* Automatic loading of the BIOS ROM from /games/PCXT directory
+* BIOS ROM hot swapping from the OSD menu
+* Updated the code to the latest version of the SDRAM module of KFPC-XT, but not yet implemented in the core... needs to be revised and improved, it does not work properly
 
 ### Beta 0.4
 
