@@ -1,5 +1,8 @@
 //============================================================================
 //
+//  DE10-Standard / DE1-SoC / Arrow SoCKit MiSTer hardware abstraction module 
+//  Ported 2022 by Somhic https://github.com/somhi
+//
 //  MiSTer hardware abstraction module
 //  (c)2017-2020 Alexey Melnikov
 //
@@ -27,21 +30,21 @@ module sys_top
 	input         FPGA_CLK3_50,
 
 	//////////// HDMI //////////
-	output        HDMI_I2C_SCL,
-	inout         HDMI_I2C_SDA,
+	// output        HDMI_I2C_SCL,
+	// inout         HDMI_I2C_SDA,
 
-	output        HDMI_MCLK,
-	output        HDMI_SCLK,
-	output        HDMI_LRCLK,
-	output        HDMI_I2S,
+	// output        HDMI_MCLK,
+	// output        HDMI_SCLK,
+	// output        HDMI_LRCLK,
+	// output        HDMI_I2S,
 
-	output        HDMI_TX_CLK,
-	output        HDMI_TX_DE,
-	output [23:0] HDMI_TX_D,
-	output        HDMI_TX_HS,
-	output        HDMI_TX_VS,
+	// output        HDMI_TX_CLK,
+	// output        HDMI_TX_DE,
+	// output [23:0] HDMI_TX_D,
+	// output        HDMI_TX_HS,
+	// output        HDMI_TX_VS,
 	
-	input         HDMI_TX_INT,
+	// input         HDMI_TX_INT,
 
 	//////////// SDR ///////////
 	output [12:0] SDRAM_A,
@@ -69,22 +72,45 @@ module sys_top
 
 `else
 	//////////// VGA ///////////
-	output  [5:0] VGA_R,
-	output  [5:0] VGA_G,
-	output  [5:0] VGA_B,
+	//DE10-nano board implementation contained 6 / color
+	//output  [5:0] VGA_R,
+	//output  [5:0] VGA_G,
+	//output  [5:0] VGA_B,
+	//SoCkit, DE10-standard, DE1-SoC implementation need to contain 8 bit color otherwise the brightness is low on the DAC
+	output  [7:0] VGA_R,
+	output  [7:0] VGA_G,
+	output  [7:0] VGA_B,
 	inout         VGA_HS,  // VGA_HS is secondary SD card detect when VGA_EN = 1 (inactive)
 	output		  VGA_VS,
-	input         VGA_EN,  // active low
+	//input      VGA_EN,  // active low
+	//SoCkit, DE10-standard, DE1-SoC implementation for on-board VGA DAC route - additional pins
+	output 		  VGA_CLK,
+	output 		  VGA_BLANK_N,
+	output 		  VGA_SYNC_N,
 
 	/////////// AUDIO //////////
-	output		  AUDIO_L,
-	output		  AUDIO_R,
-	output		  AUDIO_SPDIF,
+	// output		  AUDIO_L,
+	// output		  AUDIO_R,
+	// output		  AUDIO_SPDIF,
+
+	//SoCkit, DE10-standard, DE1-SoC implementation for on-board Audio CODEC
+	// Audio CODEC
+	inout wire    AUD_ADCLRCK,  // Audio CODEC ADC LR Clock
+	input wire    AUD_ADCDAT,   // Audio CODEC ADC Data
+	inout wire    AUD_DACLRCK,  // Audio CODEC DAC LR Clock
+	output wire   AUD_DACDAT,   // Audio CODEC DAC Data
+    inout wire    AUD_BCLK,     // Audio CODEC Bit-Stream Clock
+    output wire   AUD_XCK,      // Audio CODEC Chip Clock
+    output wire   AUD_MUTE,		// Audio CODEC Mute (active low)
+
+	// I2C Audio CODEC
+    inout wire    AUD_I2C_SDAT,     // I2C Data
+    output wire   AUD_I2C_SCLK,     // I2C Clock
 
 	//////////// SDIO ///////////
-	inout   [3:0] SDIO_DAT,
-	inout         SDIO_CMD,
-	output        SDIO_CLK,
+	// inout   [3:0] SDIO_DAT,
+	// inout         SDIO_CMD,
+	// output        SDIO_CLK,
 
 	//////////// I/O ///////////
 	output        LED_USER,
@@ -96,33 +122,87 @@ module sys_top
 `endif
 
 	////////// I/O ALT /////////
-	output        SD_SPI_CS,
-	input         SD_SPI_MISO,
-	output        SD_SPI_CLK,
-	output        SD_SPI_MOSI,
+	// output        SD_SPI_CS,
+	// input         SD_SPI_MISO,
+	// output        SD_SPI_CLK,
+	// output        SD_SPI_MOSI,
 
-	inout         SDCD_SPDIF,
-	output        IO_SCL,
-	inout         IO_SDA,
+	// inout         SDCD_SPDIF,
+	// output        IO_SCL,
+	// inout         IO_SDA,
 
 	////////// ADC //////////////
-	output        ADC_SCK,
-	input         ADC_SDO,
-	output        ADC_SDI,
-	output        ADC_CONVST,
+	// output        ADC_SCK,
+	// input         ADC_SDO,
+	// output        ADC_SDI,
+	// output        ADC_CONVST,
 
 	////////// MB KEY ///////////
 	input   [1:0] KEY,
 
 	////////// MB SWITCH ////////
-	input   [3:0] SW,
+	//SoCkit, DE10-standard, DE1-SoC board implementation
+	//input   [3:0] SW,
+	inout   [3:0] SW,				// TO BE FIXED
 
 	////////// MB LED ///////////
-	output  [7:0] LED,
+	//output  [7:0] LED
+	output LED0
 
 	///////// USER IO ///////////
-	inout   [6:0] USER_IO
+	//inout   [6:0] USER_IO
 );
+
+// DE10-Standard / DE1-SoC / Arrow SoCKit VGA mode
+assign SW[3] = 1'b0;		//necessary for VGA mode
+
+// DE10-Standard / DE1-SoC / SoCKit implementation for on-board VGA DAC route - this will be overrided by code to set value to 0
+wire   VGA_EN;  // active low
+assign VGA_EN = 1'b0;		//enable VGA mode when VGA_EN is low
+
+wire        HDMI_TX_CLK;
+wire        HDMI_TX_DE;
+wire [23:0] HDMI_TX_D;
+wire        HDMI_TX_HS;
+wire        HDMI_TX_VS;
+wire        HDMI_TX_INT;
+
+
+wire        HDMI_I2C_SCL;
+wire        HDMI_I2C_SDA;
+wire        HDMI_MCLK;
+wire        HDMI_SCLK;
+wire        HDMI_LRCLK;
+wire        HDMI_I2S;
+
+wire        ADC_SCK;
+wire        ADC_SDO;
+wire        ADC_SDI;
+wire        ADC_CONVST;
+
+wire		AUDIO_L;
+wire		AUDIO_R;
+wire		AUDIO_SPDIF;
+
+wire        SD_SPI_CS;
+wire        SD_SPI_MISO;
+wire        SD_SPI_CLK;
+wire        SD_SPI_MOSI;
+
+wire        SDCD_SPDIF;
+wire        IO_SCL;
+wire        IO_SDA;
+
+wire   [3:0] SDIO_DAT;
+wire         SDIO_CMD;
+wire         SDIO_CLK;
+
+wire   [6:0] USER_IO;
+
+wire   [7:0] LED;
+
+assign LED0 = LED[0];
+
 
 //////////////////////  Secondary SD  ///////////////////////////////////
 wire SD_CS, SD_CLK, SD_MOSI;
@@ -1309,9 +1389,17 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 
 	assign VGA_VS = (VGA_EN | SW[3]) ? 1'bZ      : ((vga_fb | vga_scaler) ? ~vgas_vs : ~vga_vs) | csync_en;
 	assign VGA_HS = (VGA_EN | SW[3]) ? 1'bZ      :  (vga_fb | vga_scaler) ? (csync_en ? ~vgas_cs : ~vgas_hs) : (csync_en ? ~vga_cs : ~vga_hs);
-	assign VGA_R  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :  (vga_fb | vga_scaler) ? vgas_o[23:18] : vga_o[23:18];
-	assign VGA_G  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :  (vga_fb | vga_scaler) ? vgas_o[15:10] : vga_o[15:10];
-	assign VGA_B  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :  (vga_fb | vga_scaler) ? vgas_o[7:2]   : vga_o[7:2]  ;
+	//assign VGA_R  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :  (vga_fb | vga_scaler) ? vgas_o[23:18] : vga_o[23:18];
+	//assign VGA_G  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :  (vga_fb | vga_scaler) ? vgas_o[15:10] : vga_o[15:10];
+	//assign VGA_B  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :  (vga_fb | vga_scaler) ? vgas_o[7:2]   : vga_o[7:2]  ;
+	assign VGA_R  = (VGA_EN | SW[3]) ? 8'bZZZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[23:16] : vga_o[23:16];
+	assign VGA_G  = (VGA_EN | SW[3]) ? 8'bZZZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[15:8]  : vga_o[15:8] ;
+	assign VGA_B  = (VGA_EN | SW[3]) ? 8'bZZZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[7:0]   : vga_o[7:0]  ;
+	//DE10-standard / DE1-SoC / SoCkit implementation for on-board VGA DAC route - additional pins
+	assign VGA_BLANK_N = VGA_HS && VGA_VS;  //VGA DAC additional required pin
+	assign VGA_SYNC_N = 0; 					//VGA DAC additional required pin
+	assign VGA_CLK = HDMI_TX_CLK; 			//has to define a clock to VGA DAC clock otherwise the picture is noisy
+ 
 `endif
 
 reg video_sync = 0;
@@ -1424,6 +1512,64 @@ alsa alsa
 	.pcm_l(alsa_l),
 	.pcm_r(alsa_r)
 );
+
+//// DE10-Standard / DE1-SoC / SoCkit Audio CODEC
+
+assign AUD_MUTE    = 1'b1;
+assign AUD_XCK     = HDMI_MCLK;
+assign AUD_DACLRCK = HDMI_LRCLK;
+assign AUD_BCLK    = HDMI_SCLK;
+assign AUD_DACDAT  = HDMI_I2S;
+
+// I2C audio config
+I2C_AV_Config audio_config (
+  // host side
+  .iCLK         (clk_audio        ),
+  .iRST_N       (!reset           ),
+  // i2c side
+  .oI2C_SCLK    (AUD_I2C_SCLK         ),
+  .oI2C_SDAT    (AUD_I2C_SDAT         )
+);
+
+
+// // Alternative I2S module used in Neptuno / Deca
+// audio_top audio_i2s (
+// 	.clk_50MHz  (clk_audio  ),
+// 	.dac_MCLK   (AUD_XCK    ),
+// 	.dac_LRCK   (AUD_DACLRCK),
+// 	.dac_SCLK   (AUD_BCLK   ),
+// 	.dac_SDIN   (AUD_DACDAT ),
+// 	.L_data     (audio_l    ),
+// 	.R_data     (audio_r    )
+// );		
+
+
+// //Alternative modernhackers Audio implementation
+//
+// wire exchan;
+// wire mix;
+// assign exchan = 1'b0;
+// assign mix = 1'b0;
+// assign AUD_MUTE = 1'b1;
+//
+// audio_top audio_top (
+//   .clk          (clk_audio),  // input clock
+//   .rst_n        (!reset),		// active low reset (from reset button)
+//   // config
+//   .exchan       (exchan),		// switch audio left / right channel
+//   .mix          (mix),			// normal / centered mix (play some left channel on the right channel and vise-versa)
+//   // audio shifter
+//   .rdata        (audio_r),		// right channel sample data
+//   .ldata        (audio_l),		// left channel sample data
+//   .aud_bclk     (AUD_BCLK),	// CODEC data clock
+//   .aud_daclrck  (AUD_DACLRCK),// CODEC data clock
+//   .aud_dacdat   (AUD_DACDAT),	// CODEC data
+//   .aud_xck      (AUD_XCK),  	// CODEC data clock
+//   // I2C audio config
+//   .i2c_sclk     (I2C_SCLK),  	// CODEC config clock
+//   .i2c_sdat     (I2C_SDAT)   // CODEC config data
+// );
+
 
 ////////////////  User I/O (USB 3.0 connector) /////////////////////////
 

@@ -1,4 +1,15 @@
+# PCXT SoCkit
+
+Port to SoCkit by Somhic from original MiSTer port  https://github.com/spark2k06/PCXT_MiSTer
+
+Place boot.rom (in SW folder) inside PCXT folder at root of SD card.
+
+Follow core discussion at https://misterfpga.org/viewtopic.php?t=4680
+
+Follows original readme.
+
 # PCXT_MiSTer
+
 PCXT port for MiSTer by spark2k06.
 
 The purpose of this core is to implement a PCXT as reliable as possible. For this purpose, the MCL86 core from @MicroCoreLabs and KTPC-XT from @kitune-san are used.
@@ -11,7 +22,7 @@ SN76489AN Compatible Implementation in VHDL Copyright (c) 2005, 2006, Arnim Laeu
 
 ### Demo
 
-![alt text](/demo/MiSTer_PCXT.gif "MiSTer PCXT")
+https://github.com/spark2k06/PCXT_MiSTer/blob/main/demo/MiSTer_PCXT.gif
 
 # TODO
 
