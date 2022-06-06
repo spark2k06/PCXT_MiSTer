@@ -1,3 +1,4 @@
 db/
 incremental_db/compiled_partitions/
 output_files/
+upd.sh
