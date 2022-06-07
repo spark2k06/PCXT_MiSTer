@@ -9,6 +9,8 @@ JTOPL by Jose Tejada (@topapate)
 
 SN76489AN Compatible Implementation in VHDL Copyright (c) 2005, 2006, Arnim Laeuger (arnim.laeuger@gmx.net)
 
+Place boot.rom (in SW folder) inside games/PCXT folder at root of SD card.
+
 ### Demo
 
 ![alt text](/demo/MiSTer_PCXT.gif "MiSTer PCXT")
