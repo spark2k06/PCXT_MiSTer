@@ -24,7 +24,15 @@ SN76489AN Compatible Implementation in VHDL Copyright (c) 2005, 2006, Arnim Laeu
     * EMS    
     * Others...
 
+* Turbo mode (7.16Mhz)
+
 # ChangeLog
+
+### Beta 0.7
+
+* 4.77Mhz CPU clock with 33% duty cycle, thanks to @MicroCoreLabs
+* Peripheral clock now works at half cpu clock, for correct synchronisation with the 8253 timer, thanks to @kitune-san
+* Turbo option is disabled for the moment, requires a redesign of the BIU... for the to-do list
 
 ### Beta 0.6
 
