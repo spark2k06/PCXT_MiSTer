@@ -50,6 +50,7 @@ module PERIPHERALS #(
     output  logic   [7:0]   port_c_io,
     input   logic           ps2_clock,
     input   logic           ps2_data,
+    output  logic           ps2_busy,
 	 // JTOPL	 
 	 input   logic           clk_en_opl2,
 	 output  logic   [15:0]  jtopl2_snd_e,
@@ -264,6 +265,7 @@ module PERIPHERALS #(
         .keycode                    (keycode),
         .clear_keycode              (clear_keycode)
     );
+    assign ps2_busy = keybord_irq;
 
    wire [7:0] jtopl2_dout;
 	wire [7:0]opl32_data;	
