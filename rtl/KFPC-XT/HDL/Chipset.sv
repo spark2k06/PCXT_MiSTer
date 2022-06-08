@@ -66,6 +66,7 @@ module CHIPSET (
     output  logic   [7:0]   port_c_io,
     input   logic           ps2_clock,
     input   logic           ps2_data,
+    output  logic           ps2_busy,
 	 // JTOPL	 
 	 input   logic           clk_en_opl2,
 	 output  logic   [15:0]  jtopl2_snd_e,
@@ -211,6 +212,7 @@ module CHIPSET (
         .port_c_io                          (port_c_io),
         .ps2_clock                          (ps2_clock),
         .ps2_data                           (ps2_data),
+	.ps2_busy                           (ps2_busy),
 		  .clk_en_opl2                        (clk_en_opl2),
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
