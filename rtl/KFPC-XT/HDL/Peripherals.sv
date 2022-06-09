@@ -50,6 +50,7 @@ module PERIPHERALS #(
     output  logic   [7:0]   port_c_io,
     input   logic           ps2_clock,
     input   logic           ps2_data,
+    output  logic           ps2_busy,
 	 // JTOPL	 
 	 input   logic           clk_en_opl2,
 	 output  logic   [15:0]  jtopl2_snd_e,
@@ -264,6 +265,7 @@ module PERIPHERALS #(
         .keycode                    (keycode),
         .clear_keycode              (clear_keycode)
     );
+    assign ps2_busy = keybord_irq;
 
    wire [7:0] jtopl2_dout;
 	wire [7:0]opl32_data;	
@@ -272,7 +274,7 @@ module PERIPHERALS #(
 	jtopl2 jtopl2_inst
 	(
 		.rst(reset),
-		.clk(peripheral_clock),
+		.clk(clock),
 		.cen(clk_en_opl2),
 		.din(internal_data_bus),
 		.dout(jtopl2_dout),
@@ -289,7 +291,7 @@ module PERIPHERALS #(
 	// Tandy sound
 	sn76489_top sn76489
 	(
-		.clock_i(peripheral_clock),
+		.clock_i(clock),
 		.clock_en_i(clk_en_opl2), // 3.579MHz
 		.res_n_i(reset),
 		.ce_n_i(tandy_chip_select_n),

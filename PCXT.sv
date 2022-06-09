@@ -207,7 +207,7 @@ localparam CONF_STR = {
 	"PCXT;;",
 	"-;",
 	"O3,Splash Screen,Yes,No;",
-	"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
+	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
 	"-;",
 	"OA,Adlib,On,Invisible;",
 	"-;",
@@ -244,6 +244,7 @@ wire[ 0:0] usdImgMtd;
 //wire        ps2_kbd_data_out;
 wire        ps2_kbd_clk_in;
 wire        ps2_kbd_data_in;
+wire        ps2_kbd_busy;
 
 //Mouse PS2
 wire        ps2_mouse_clk_out;
@@ -287,7 +288,7 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 	.img_mounted   (usdImgMtd),
 	.img_size	   (usdImgSz),	
 	
-   .ps2_kbd_clk_in	(1'b1),
+   .ps2_kbd_clk_in	(~ps2_kbd_busy),
 	.ps2_kbd_data_in	(1'b1),
 	.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 	.ps2_kbd_data_out	(ps2_kbd_data_in),
@@ -315,9 +316,10 @@ wire clk_100;
 wire clk_28_636;
 wire clk_25;
 reg clk_14_318 = 1'b0;
-reg clk_7_16 = 1'b0;
+//reg clk_7_16 = 1'b0;
 wire clk_4_77;
 wire clk_cpu;
+wire peripheral_clock;
 
 pll pll
 (
@@ -344,14 +346,15 @@ wire ce_pix;
 assign CLK_VIDEO = clk_28_636;
 assign CE_PIXEL = 1'b1;
 
-assign clk_cpu = status[4] ? clk_7_16 : clk_4_77;
+//assign clk_cpu = status[4] ? clk_7_16 : clk_4_77;
+assign clk_cpu = clk_4_77;
 
 always @(posedge clk_28_636)
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
 	
 
-always @(posedge clk_14_318)
-	clk_7_16 <= ~clk_7_16; // 7.16Mhz
+//always @(posedge clk_14_318)
+//	clk_7_16 <= ~clk_7_16; // 7.16Mhz
 	
 	
 clk_div3 clk_normal // 4.77MHz
@@ -359,6 +362,10 @@ clk_div3 clk_normal // 4.77MHz
 	.clk(clk_14_318),
 	.clk_out(clk_4_77)
 );
+
+always @(posedge clk_4_77)
+	peripheral_clock <= ~peripheral_clock; // 2.385Mhz
+
 
 //////////////////////////////////////////////////////////////////
 
@@ -462,7 +469,7 @@ clk_div3 clk_normal // 4.77MHz
    CHIPSET u_CHIPSET (
         .clock                              (clk_cpu),
 		  .clk_sys                            (CLK_50M),
-		  .peripheral_clock                   (clk_4_77),
+		  .peripheral_clock                   (peripheral_clock),
 		  
         .reset                              (reset || splashscreen),
         .cpu_address                        (cpu_address),
@@ -510,6 +517,7 @@ clk_div3 clk_normal // 4.77MHz
 	     .speaker_out                        (speaker_out),   
         .ps2_clock                          (ps2_kbd_clk_in),
 	     .ps2_data                           (ps2_kbd_data_in),
+	     .ps2_busy                           (ps2_kbd_busy),
 	     .enable_sdram                       (0),	   // -> During the first tests, it shall not be used.		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
