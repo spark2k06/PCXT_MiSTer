@@ -1,8 +1,6 @@
 # PCXT SoCkit
 
-Port to SoCkit by Somhic from original MiSTer port  https://github.com/spark2k06/PCXT_MiSTer
-
-Place boot.rom (in SW folder) inside games/PCXT folder at root of SD card.
+Port to SoCkit by Somhic from original MiSTer port currently in development  https://github.com/spark2k06/PCXT_MiSTer
 
 Now can be loaded SO through serial at GPIO addon. See pinout at sys.tcl.  Only needs Rx/Tx signals.
 

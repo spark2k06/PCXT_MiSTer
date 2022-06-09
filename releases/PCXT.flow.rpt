@@ -1,5 +1,5 @@
 Flow report for PCXT
-Mon Jun  6 13:52:01 2022
+Thu Jun  9 20:42:49 2022
 Quartus Prime Version 17.1.0 Build 590 10/25/2017 SJ Lite Edition
 
 
@@ -40,16 +40,16 @@ refer to the applicable agreement for further details.
 +-------------------------------------------------------------------------------+
 ; Flow Summary                                                                  ;
 +---------------------------------+---------------------------------------------+
-; Flow Status                     ; Successful - Mon Jun  6 13:52:01 2022       ;
+; Flow Status                     ; Successful - Thu Jun  9 20:42:49 2022       ;
 ; Quartus Prime Version           ; 17.1.0 Build 590 10/25/2017 SJ Lite Edition ;
 ; Revision Name                   ; PCXT                                        ;
 ; Top-level Entity Name           ; sys_top                                     ;
 ; Family                          ; Cyclone V                                   ;
 ; Device                          ; 5CSXFC6D6F31C6                              ;
 ; Timing Models                   ; Final                                       ;
-; Logic utilization (in ALMs)     ; 10,258 / 41,910 ( 24 % )                    ;
-; Total registers                 ; 13228                                       ;
-; Total pins                      ; 93 / 499 ( 19 % )                           ;
+; Logic utilization (in ALMs)     ; 10,257 / 41,910 ( 24 % )                    ;
+; Total registers                 ; 13207                                       ;
+; Total pins                      ; 100 / 499 ( 20 % )                          ;
 ; Total virtual pins              ; 0                                           ;
 ; Total block memory bits         ; 3,627,494 / 5,662,720 ( 64 % )              ;
 ; Total DSP Blocks                ; 29 / 112 ( 26 % )                           ;
@@ -67,7 +67,7 @@ refer to the applicable agreement for further details.
 +-------------------+---------------------+
 ; Option            ; Setting             ;
 +-------------------+---------------------+
-; Start date & time ; 06/06/2022 13:37:35 ;
+; Start date & time ; 06/09/2022 20:28:23 ;
 ; Main task         ; Compilation         ;
 ; Revision Name     ; PCXT                ;
 +-------------------+---------------------+
@@ -78,7 +78,7 @@ refer to the applicable agreement for further details.
 +--------------------------------------+----------------------------------------+---------------+-------------+-----------------------------------+
 ; Assignment Name                      ; Value                                  ; Default Value ; Entity Name ; Section Id                        ;
 +--------------------------------------+----------------------------------------+---------------+-------------+-----------------------------------+
-; COMPILER_SIGNATURE_ID                ; 963354559481.165451545428736           ; --            ; --          ; --                                ;
+; COMPILER_SIGNATURE_ID                ; 190135458541196.165479930319219        ; --            ; --          ; --                                ;
 ; EDA_GENERATE_FUNCTIONAL_NETLIST      ; Off                                    ; --            ; --          ; eda_board_design_timing           ;
 ; EDA_GENERATE_FUNCTIONAL_NETLIST      ; Off                                    ; --            ; --          ; eda_board_design_boundary_scan    ;
 ; EDA_GENERATE_FUNCTIONAL_NETLIST      ; Off                                    ; --            ; --          ; eda_board_design_signal_integrity ;
@@ -127,12 +127,12 @@ refer to the applicable agreement for further details.
 +---------------------------+--------------+-------------------------+---------------------+------------------------------------+
 ; Module Name               ; Elapsed Time ; Average Processors Used ; Peak Virtual Memory ; Total CPU Time (on all processors) ;
 +---------------------------+--------------+-------------------------+---------------------+------------------------------------+
-; Analysis & Synthesis      ; 00:03:15     ; 1.2                     ; 2545 MB             ; 00:04:01                           ;
-; Fitter                    ; 00:10:14     ; 1.1                     ; 3061 MB             ; 00:17:48                           ;
-; Assembler                 ; 00:00:21     ; 1.0                     ; 1172 MB             ; 00:00:21                           ;
-; TimeQuest Timing Analyzer ; 00:00:09     ; 1.1                     ; 1305 MB             ; 00:00:09                           ;
-; EDA Netlist Writer        ; 00:00:09     ; 1.0                     ; 1420 MB             ; 00:00:09                           ;
-; Total                     ; 00:14:08     ; --                      ; --                  ; 00:22:28                           ;
+; Analysis & Synthesis      ; 00:02:56     ; 1.2                     ; 2547 MB             ; 00:03:39                           ;
+; Fitter                    ; 00:10:28     ; 1.1                     ; 3050 MB             ; 00:18:19                           ;
+; Assembler                 ; 00:00:23     ; 1.0                     ; 1171 MB             ; 00:00:22                           ;
+; TimeQuest Timing Analyzer ; 00:00:10     ; 1.1                     ; 1303 MB             ; 00:00:11                           ;
+; EDA Netlist Writer        ; 00:00:11     ; 1.0                     ; 1420 MB             ; 00:00:10                           ;
+; Total                     ; 00:14:08     ; --                      ; --                  ; 00:22:41                           ;
 +---------------------------+--------------+-------------------------+---------------------+------------------------------------+
 
 
