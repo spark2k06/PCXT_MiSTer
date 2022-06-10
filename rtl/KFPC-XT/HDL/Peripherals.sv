@@ -265,7 +265,7 @@ module PERIPHERALS #(
         .keycode                    (keycode),
         .clear_keycode              (clear_keycode)
     );
-    assign ps2_busy = keybord_irq;
+    assign ps2_busy = keybord_irq | (~port_b_io & ~port_b_out[6]);
 
    wire [7:0] jtopl2_dout;
 	wire [7:0]opl32_data;	
