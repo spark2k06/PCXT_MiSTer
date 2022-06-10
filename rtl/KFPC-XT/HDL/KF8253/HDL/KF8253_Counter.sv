@@ -89,7 +89,8 @@ module KF8253_Counter (
         end
     end
 
-    assign update_select_read_write = (select_read_write != internal_data_bus[5:4]) & write_control;
+    assign update_counter_config = (internal_data_bus[5:4] != `RL_COUNTER_LATCH) & write_control;
+    assign update_select_read_write = (select_read_write != internal_data_bus[5:4]) & update_counter_config;
 
     // Read latch
     always_ff @(negedge clock, posedge reset) begin
@@ -97,7 +98,7 @@ module KF8253_Counter (
             count_latched_flag <= 1'b0;
         else if ((write_control) && (internal_data_bus[5:4] == `RL_COUNTER_LATCH))
             count_latched_flag <= 1'b1;
-        else if ((count_latched_flag == 1'b1) && (read_counter)) begin
+        else if ((count_latched_flag == 1'b1) && (read_negedge)) begin
             if (select_read_write != `RL_SELECT_LSB_MSB)
                 count_latched_flag <= 1'b0;
             else
@@ -111,19 +112,19 @@ module KF8253_Counter (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             select_mode <= `KF8253_CONTROL_MODE_0;
-        else if (write_control)
+        else if (update_counter_config)
             select_mode <= internal_data_bus[3:1];
         else
             select_mode <= select_mode;
     end
 
-    assign update_select_mode = (select_mode != internal_data_bus[3:1]) & write_control;
+    assign update_select_mode = (select_mode != internal_data_bus[3:1]) & update_counter_config;
 
     // BCD
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             select_bcd <= 1'b0;
-        else if (write_control)
+        else if (update_counter_config)
             select_bcd <= internal_data_bus[0];
         else
             select_bcd <= select_bcd;
