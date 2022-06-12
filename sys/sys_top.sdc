@@ -19,15 +19,14 @@ set_clock_groups -exclusive \
    -group [get_clocks { FPGA_CLK1_50 }] \
    -group [get_clocks { FPGA_CLK2_50 }] \
    -group [get_clocks { FPGA_CLK3_50 }]
-#  -group [get_clocks { hdmi_sck}] \
 
 set_false_path -from [get_ports {KEY*}]
 set_false_path -from [get_ports {BTN_*}]
 set_false_path -to   [get_ports {LED_*}]
 set_false_path -to   [get_ports {VGA_*}]
-#set_false_path -to   [get_ports {AUDIO_SPDIF}]
-#set_false_path -to   [get_ports {AUDIO_L}]
-#set_false_path -to   [get_ports {AUDIO_R}]
+set_false_path -to   [get_ports {AUDIO_SPDIF}]
+set_false_path -to   [get_ports {AUDIO_L}]
+set_false_path -to   [get_ports {AUDIO_R}]
 set_false_path -to   {cfg[*]}
 set_false_path -from {cfg[*]}
 set_false_path -from {VSET[*]}

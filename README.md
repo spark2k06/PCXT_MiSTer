@@ -4,6 +4,10 @@ Port to SoCkit by Somhic from original MiSTer port currently in development  htt
 
 Now can be loaded SO through serial at GPIO addon. See pinout at sys.tcl.  Only needs Rx/Tx signals.
 
+```
+serdrive.exe -c <port> -d 115.2KB <image>
+```
+
 Follow core discussion at https://misterfpga.org/viewtopic.php?t=4680
 
 Follows original readme.
