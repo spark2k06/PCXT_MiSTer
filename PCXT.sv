@@ -464,7 +464,13 @@ always @(posedge clk_4_77)
     wire address_latch_enable;
 
     wire lock_n;
-    wire [2:0]processor_status;	 
+    wire [2:0]processor_status;
+	 
+	 logic   [7:0]   port_b_out;
+    logic   [7:0]   port_c_in;	 
+	 logic   [7:0]   sw = 8'b00101101; // PCXT DIP Switches
+	 
+	 assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
    CHIPSET u_CHIPSET (
         .clock                              (clk_cpu),
@@ -514,6 +520,8 @@ always @(posedge clk_4_77)
 //      .dma_acknowledge_n                  (dma_acknowledge_n),
 //      .address_enable_n                   (address_enable_n),
 //      .terminal_count_n                   (terminal_count_n)
+        .port_b_out                         (port_b_out),
+		  .port_c_in                          (port_c_in),
 	     .speaker_out                        (speaker_out),   
         .ps2_clock                          (ps2_kbd_clk_in),
 	     .ps2_data                           (ps2_kbd_data_in),

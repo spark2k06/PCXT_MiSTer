@@ -107,9 +107,10 @@ module PERIPHERALS #(
 	 
 	 wire    tandy_chip_select_n    = ~(address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
 	 wire    opl_chip_select_n      = ~(address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
-    wire    cga_chip_select_n      = ~(enable_cga & (address[19:14] == 6'b1011_10)); // B8000 - BFFFF (32 KB)	
-	 wire    rom_select_n           = ~(address[19:16] == 5'b1111); // F0000 - FFFFF (64 KB)
-	 wire    ram_select_n           = ~(address[19:18] == 3'b00); // 00000 - 3FFFF (256 KB)
+    wire    cga_chip_select_n      = ~(enable_cga & (address[19:14] == 6'b1011_10)); // B8000 - BFFFF (32 KB)
+	 wire    mda_chip_select_n      = ~(enable_cga & (address[19:14] == 6'b1011_00)); // B0000 - B7FFF (32 KB)
+	 wire    rom_select_n           = ~(address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
+	 wire    ram_select_n           = ~(address[19:18] == 2'b00); // 00000 - 3FFFF (256 KB)
 	 wire    uart_cs                = ({address[15:3], 3'd0} == 16'h03F8);
 	 
 
@@ -265,7 +266,7 @@ module PERIPHERALS #(
         .keycode                    (keycode),
         .clear_keycode              (clear_keycode)
     );
-    assign ps2_busy = keybord_irq;
+    assign ps2_busy = keybord_irq | (~port_b_io & ~port_b_out[6]);
 
    wire [7:0] jtopl2_dout;
 	wire [7:0]opl32_data;	
@@ -443,7 +444,7 @@ module PERIPHERALS #(
     vram vram
 	 (
         .clka                       (clock),
-        .ena                        (~address_enable_n && ~cga_chip_select_n),
+        .ena                        (~address_enable_n && (~mda_chip_select_n || ~cga_chip_select_n)),
         .wea                        (~memory_write_n),
         .addra                      (address[14:0]),
         .dina                       (internal_data_bus),
@@ -527,7 +528,7 @@ module PERIPHERALS #(
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = ppi_data_bus_out;
         end
-        else if ((~cga_chip_select_n) && (~memory_read_n)) begin
+        else if ((~cga_chip_select_n || ~mda_chip_select_n) && (~memory_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = vram_cpu_dout;
         end
