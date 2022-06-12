@@ -145,6 +145,7 @@ module KF8259 (
         .level_or_edge_toriggered_config    (level_or_edge_toriggered_config),
         .freeze                             (freeze),
         .clear_interrupt_request            (clear_interrupt_request),
+        .interrupt_mask                     (interrupt_mask),
 
         // External inputs
         .interrupt_request_pin              (interrupt_request),

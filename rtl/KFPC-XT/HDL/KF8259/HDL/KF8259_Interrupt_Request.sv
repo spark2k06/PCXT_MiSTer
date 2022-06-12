@@ -11,6 +11,7 @@ module KF8259_Interrupt_Request (
     input   logic           level_or_edge_toriggered_config,
     input   logic           freeze,
     input   logic   [7:0]   clear_interrupt_request,
+    input   logic   [7:0]   interrupt_mask,
 
     // External inputs
     input   logic   [7:0]   interrupt_request_pin,
@@ -47,6 +48,8 @@ module KF8259_Interrupt_Request (
                 interrupt_request_register[ir_bit_no] <= 1'b0;
             else if (freeze)
                 interrupt_request_register[ir_bit_no] <= interrupt_request_register[ir_bit_no];
+            else if (interrupt_mask[ir_bit_no])
+                interrupt_request_register[ir_bit_no] <= 1'b0;
             else if (interrupt_request_register[ir_bit_no])
                 interrupt_request_register[ir_bit_no] <= 1'b1;
             else if (level_or_edge_toriggered_config)
