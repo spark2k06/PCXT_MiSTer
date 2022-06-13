@@ -242,11 +242,10 @@ wire[63:0] usdImgSz;
 wire[ 0:0] usdImgMtd;
 
 //Keyboard Ps2
-//wire        ps2_kbd_clk_out;
-//wire        ps2_kbd_data_out;
+wire        ps2_kbd_clk_out;
+wire        ps2_kbd_data_out;
 wire        ps2_kbd_clk_in;
 wire        ps2_kbd_data_in;
-wire        ps2_kbd_busy;
 
 //Mouse PS2
 wire        ps2_mouse_clk_out;
@@ -290,8 +289,8 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 	.img_mounted   (usdImgMtd),
 	.img_size	   (usdImgSz),	
 	
-   .ps2_kbd_clk_in	(~ps2_kbd_busy),
-	.ps2_kbd_data_in	(1'b1),
+   .ps2_kbd_clk_in	(ps2_kbd_clk_out),
+	.ps2_kbd_data_in	(ps2_kbd_data_out),
 	.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 	.ps2_kbd_data_out	(ps2_kbd_data_in),
 //  .ps2_mouse_clk_in	(ps2_mouse_clk_out),
@@ -533,7 +532,8 @@ always @(posedge clk_4_77)
 	     .speaker_out                        (speaker_out),   
         .ps2_clock                          (ps2_kbd_clk_in),
 	     .ps2_data                           (ps2_kbd_data_in),
-	     .ps2_busy                           (ps2_kbd_busy),
+	     .ps2_clock_out                      (ps2_kbd_clk_out),
+	     .ps2_data_out                       (ps2_kbd_data_out),
 	     .enable_sdram                       (0),	   // -> During the first tests, it shall not be used.		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
 		  .jtopl2_snd_e                       (jtopl2_snd_e),

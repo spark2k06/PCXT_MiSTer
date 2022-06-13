@@ -365,6 +365,7 @@ set_global_assignment -name VERILOG_FILE rtl/video/cga_attrib.v
 set_global_assignment -name VERILOG_FILE rtl/video/cga.v
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFSDRAM/HDL/KFSDRAM.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB_Shift_Register.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB_Send_Data.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8288/HDL/KF8288.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Priority_Resolver.sv"
