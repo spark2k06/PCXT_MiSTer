@@ -295,8 +295,8 @@ reg [31:0] cfg_custom_p2;
 reg  [4:0] vol_att;
 initial vol_att = 5'b11111;
 
-reg  [8:0] coef_addr;
-reg  [8:0] coef_data;
+reg  [11:0] coef_addr;
+reg  [9:0] coef_data;
 reg        coef_wr = 0;
 
 wire[12:0] ARX, ARY;
@@ -377,14 +377,14 @@ always@(posedge clk_sys) begin
 				cfg_set <= 0;
 				if(cnt<8) begin
 					case(cnt[2:0])
-						0: if(WIDTH  != io_din[11:0]) WIDTH  <= io_din[11:0];
-						1: if(HFP    != io_din[11:0]) HFP    <= io_din[11:0];
-						2: if(HS     != io_din[11:0]) HS     <= io_din[11:0];
-						3: if(HBP    != io_din[11:0]) HBP    <= io_din[11:0];
-						4: if(HEIGHT != io_din[11:0]) HEIGHT <= io_din[11:0];
-						5: if(VFP    != io_din[11:0]) VFP    <= io_din[11:0];
-						6: if(VS     != io_din[11:0]) VS     <= io_din[11:0];
-						7: if(VBP    != io_din[11:0]) VBP    <= io_din[11:0];
+						0: WIDTH      <= io_din[11:0];
+						1: HFP        <= io_din[11:0];
+						2: HS         <= {io_din[15], io_din[11:0]};
+						3: HBP        <= io_din[11:0];
+						4: HEIGHT     <= io_din[11:0];
+						5: VFP        <= io_din[11:0];
+						6: VS         <= {io_din[15],io_din[11:0]};
+						7: VBP        <= io_din[11:0];
 					endcase
 `ifndef MISTER_DEBUG_NOHDMI
 					if(cnt == 1) begin
@@ -423,8 +423,8 @@ always@(posedge clk_sys) begin
 			if(cmd == 'h26) vol_att <= io_din[4:0];
 			if(cmd == 'h27) VSET <= io_din[11:0];
 			if(cmd == 'h2A) begin
-				if(cnt[0]) {coef_wr,coef_data} <= {1'b1,io_din[8:0]};
-				else coef_addr <= io_din[8:0];
+				if(cnt[0]) {coef_wr,coef_data} <= {1'b1,io_din[9:0]};
+				else coef_addr <= io_din[11:0];
 			end
 			if(cmd == 'h2B) scaler_flt <= io_din[2:0];
 			if(cmd == 'h37) {FREESCALE,HSET} <= {io_din[15],io_din[11:0]};
@@ -641,7 +641,13 @@ ascal
 		.PALETTE2("false"),
 	`endif
 `endif
-	.FRAC(6),
+`ifdef MISTER_DISABLE_ADAPTIVE
+	.ADAPTIVE("false"),
+`endif
+`ifdef MISTER_DOWNSCALE_NN
+	.DOWNSCALE_NN("true"),
+`endif
+	.FRAC(8),
 	.N_DW(128),
 	.N_AW(28)
 )
@@ -677,15 +683,15 @@ ascal
 	.o_vbl    (hdmi_vbl),
 	.o_brd    (hdmi_brd),
 	.o_lltune (lltune),
-	.htotal   (WIDTH + HFP + HBP + HS),
+	.htotal   (WIDTH + HFP + HBP + HS[11:0]),
 	.hsstart  (WIDTH + HFP),
-	.hsend    (WIDTH + HFP + HS),
+	.hsend    (WIDTH + HFP + HS[11:0]),
 	.hdisp    (WIDTH),
 	.hmin     (hmin),
 	.hmax     (hmax),
-	.vtotal   (HEIGHT + VFP + VBP + VS),
+	.vtotal   (HEIGHT + VFP + VBP + VS[11:0]),
 	.vsstart  (HEIGHT + VFP),
-	.vsend    (HEIGHT + VFP + VS),
+	.vsend    (HEIGHT + VFP + VS[11:0]),
 	.vdisp    (HEIGHT),
 	.vmin     (vmin),
 	.vmax     (vmax),
@@ -951,11 +957,11 @@ pll_hdmi pll_hdmi
 //1920x1080@60 PCLK=148.5MHz CEA
 reg  [11:0] WIDTH  = 1920;
 reg  [11:0] HFP    = 88;
-reg  [11:0] HS     = 48;
+reg  [12:0] HS     = 48;
 reg  [11:0] HBP    = 148;
 reg  [11:0] HEIGHT = 1080;
 reg  [11:0] VFP    = 4;
-reg  [11:0] VS     = 5;
+reg  [12:0] VS     = 5;
 reg  [11:0] VBP    = 36;
 
 wire [63:0] reconfig_to_pll;
@@ -1208,13 +1214,21 @@ reg hdmi_out_de;
 reg [23:0] hdmi_out_d;
 
 always @(posedge hdmi_tx_clk) begin
+	reg [23:0] hdmi_dv_data;
+	reg        hdmi_dv_hs, hdmi_dv_vs, hdmi_dv_de;
+
 	reg hs,vs,de;
 	reg [23:0] d;
 	
-	hs <= (~vga_fb & direct_video) ? dv_hs   : (direct_video & csync_en) ? hdmi_cs_osd : hdmi_hs_osd;
-	vs <= (~vga_fb & direct_video) ? dv_vs   : hdmi_vs_osd;
-	de <= (~vga_fb & direct_video) ? dv_de   : hdmi_de_osd;
-	d  <= (~vga_fb & direct_video) ? dv_data : hdmi_data_osd;
+	hdmi_dv_data <= dv_data;
+	hdmi_dv_hs   <= dv_hs;
+	hdmi_dv_vs   <= dv_vs;
+	hdmi_dv_de   <= dv_de;
+	
+	hs <= (~vga_fb & direct_video) ? hdmi_dv_hs   : (direct_video & csync_en) ? hdmi_cs_osd : hdmi_hs_osd;
+	vs <= (~vga_fb & direct_video) ? hdmi_dv_vs   : hdmi_vs_osd;
+	de <= (~vga_fb & direct_video) ? hdmi_dv_de   : hdmi_de_osd;
+	d  <= (~vga_fb & direct_video) ? hdmi_dv_data : hdmi_data_osd;
 
 	hdmi_out_hs <= hs;
 	hdmi_out_vs <= vs;
@@ -1230,7 +1244,7 @@ assign HDMI_TX_D  = hdmi_out_d;
 /////////////////////////  VGA output  //////////////////////////////////
 
 wire [23:0] vga_data_sl;
-wire        vga_de_sl, vga_vs_sl, vga_hs_sl;
+wire        vga_de_sl, vga_ce_sl, vga_vs_sl, vga_hs_sl;
 scanlines #(0) VGA_scanlines
 (
 	.clk(clk_vid),
@@ -1240,11 +1254,13 @@ scanlines #(0) VGA_scanlines
 	.hs_in(hs_fix),
 	.vs_in(vs_fix),
 	.de_in(de_emu),
+	.ce_in(ce_pix),
 
 	.dout(vga_data_sl),
 	.hs_out(vga_hs_sl),
 	.vs_out(vga_vs_sl),
-	.de_out(vga_de_sl)
+	.de_out(vga_de_sl),
+	.ce_out(vga_ce_sl)
 );
 
 wire [23:0] vga_data_osd;
@@ -1307,11 +1323,11 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 
 	wire cs1 = (vga_fb | vga_scaler) ? vgas_cs : vga_cs;
 
-	assign VGA_VS = (VGA_EN | SW[3]) ? 1'bZ      : ((vga_fb | vga_scaler) ? ~vgas_vs : ~vga_vs) | csync_en;
-	assign VGA_HS = (VGA_EN | SW[3]) ? 1'bZ      :  (vga_fb | vga_scaler) ? (csync_en ? ~vgas_cs : ~vgas_hs) : (csync_en ? ~vga_cs : ~vga_hs);
-	assign VGA_R  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :  (vga_fb | vga_scaler) ? vgas_o[23:18] : vga_o[23:18];
-	assign VGA_G  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :  (vga_fb | vga_scaler) ? vgas_o[15:10] : vga_o[15:10];
-	assign VGA_B  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :  (vga_fb | vga_scaler) ? vgas_o[7:2]   : vga_o[7:2]  ;
+	assign VGA_VS = (VGA_EN | SW[3]) ? 1'bZ      :((((vga_fb | vga_scaler) ? ~vgas_vs : ~vga_vs) | csync_en) ^ VS[12]);
+	assign VGA_HS = (VGA_EN | SW[3]) ? 1'bZ      : (((vga_fb | vga_scaler) ? (csync_en ? ~vgas_cs : ~vgas_hs) : (csync_en ? ~vga_cs : ~vga_hs)) ^ HS[12]);
+	assign VGA_R  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[23:18] : vga_o[23:18];
+	assign VGA_G  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[15:10] : vga_o[15:10];
+	assign VGA_B  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_o[7:2]   : vga_o[7:2]  ;
 `endif
 
 reg video_sync = 0;
@@ -1479,7 +1495,7 @@ sync_fix sync_h(clk_vid, hs_emu, hs_fix);
 wire  [6:0] user_out, user_in;
 
 assign clk_ihdmi= clk_vid;
-assign ce_hpix  = ce_pix;
+assign ce_hpix  = vga_ce_sl;
 assign hr_out   = vga_data_sl[23:16];
 assign hg_out   = vga_data_sl[15:8];
 assign hb_out   = vga_data_sl[7:0];
@@ -1522,11 +1538,15 @@ wire [13:0] fb_stride;
 	assign fb_stride = 0;
 `endif
 
+reg  [1:0] sl_r;
+wire [1:0] sl = sl_r;
+always @(posedge clk_sys) sl_r <= FB_EN ? 2'b00 : scanlines;
+
 emu emu
 (
 	.CLK_50M(FPGA_CLK2_50),
 	.RESET(reset),
-	.HPS_BUS({scanlines,f1, HDMI_TX_VS, 
+	.HPS_BUS({fb_en, sl, f1, HDMI_TX_VS, 
 				 clk_100m, clk_ihdmi,
 				 ce_hpix, hde_emu, hhs_fix, hvs_fix, 
 				 io_wait, clk_sys, io_fpga, io_uio, io_strobe, io_wide, io_din, io_dout}),
