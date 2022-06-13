@@ -54,7 +54,8 @@ module PERIPHERALS #(
     output  logic   [7:0]   port_c_io,
     input   logic           ps2_clock,
     input   logic           ps2_data,
-    output  logic           ps2_busy,
+    output  logic           ps2_clock_out,
+    output  logic           ps2_data_out,
 	 // JTOPL	 
 	 input   logic           clk_en_opl2,
 	 output  logic   [15:0]  jtopl2_snd_e,
@@ -242,19 +243,35 @@ module PERIPHERALS #(
     // Clock domain crossing
     logic   clear_keycode_ff;
     logic   clear_keycode;
+    logic   ps2_reset_n_ff;
+    logic   ps2_reset_n;
     always_ff @(negedge peripheral_clock, posedge reset) begin
         if (reset) begin
             clear_keycode_ff    <= 1'b0;
             clear_keycode       <= 1'b0;
+            ps2_reset_n_ff      <= 1'b0;
+            ps2_reset_n         <= 1'b0;
         end
         else begin
             clear_keycode_ff    <= port_b_out[7];
             clear_keycode       <= clear_keycode_ff;
+            ps2_reset_n_ff      <= port_b_out[6];
+            ps2_reset_n         <= ps2_reset_n_ff;
         end
     end
 
+    logic           ps2_send_clock;
     logic           keybord_irq;
     logic   [7:0]   keycode;
+    logic           prev_ps2_reset;
+    logic           lock_recv_clock;
+
+    always_ff @(negedge peripheral_clock, posedge reset) begin
+        if (reset)
+            prev_ps2_reset_n <= 1'b0;
+        else
+            prev_ps2_reset_n <= ps2_reset_n;
+    end
 
     KFPS2KB u_KFPS2KB (
         // Bus
@@ -262,7 +279,7 @@ module PERIPHERALS #(
         .reset                      (reset),
 
         // PS/2 I/O
-        .device_clock               (ps2_clock),
+        .device_clock               (ps2_clock | lock_recv_clock),
         .device_data                (ps2_data),
 
         // I/O
@@ -270,7 +287,31 @@ module PERIPHERALS #(
         .keycode                    (keycode),
         .clear_keycode              (clear_keycode)
     );
-    assign ps2_busy = keybord_irq | (~port_b_io & ~port_b_out[6]);
+
+    // Keybord reset
+    KFPS2KB_Send_Data u_KFPS2KB_Send_Data (
+        // Bus
+        .clock                      (peripheral_clock),
+        .reset                      (reset),
+
+        // PS/2 I/O
+        .device_clock               (ps2_clock),
+        .device_clock_out           (ps2_send_clock),
+        .device_data_out            (ps2_data_out),
+        .sending_data_flag          (lock_recv_clock),
+
+        // I/O
+        .send_request               (~prev_ps2_reset_n & ps2_reset_n),
+        .send_data                  (8'hFF),
+    );
+
+    always_ff @(negedge peripheral_clock, posedge reset) begin
+        if (reset)
+            ps2_clock_out = 1'b1;
+        else
+            ps2_clock_out = ~(keybord_irq | ~ps2_send_clock | ~ps2_reset_n);
+    end
+
 
    wire [7:0] jtopl2_dout;
 	wire [7:0]opl32_data;	

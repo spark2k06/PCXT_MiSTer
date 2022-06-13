@@ -233,6 +233,12 @@ module KFPS2KB #(
                 keycode     <= 8'hFF;
                 break_flag  <= 1'b0;
             end
+            else if (register == 8'hFA) begin
+                // ACK (ignore)
+                irq         <= 1'b0;
+                keycode     <= 8'h00;
+                break_flag  <= 1'b0;
+            end
             else if (register == 8'hF0) begin
                 irq         <= 1'b0;
                 keycode     <= 8'h00;
