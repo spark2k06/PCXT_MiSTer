@@ -1,0 +1,5 @@
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mcl86_eu_core.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) i8088.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) eu_rom.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) biu_min.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) biu_max.v ]
