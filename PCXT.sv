@@ -211,7 +211,9 @@ localparam CONF_STR = {
 	"-;",
 	"OA,Adlib,On,Invisible;",
 	"-;",
-	"O12,Video,Color,Green,Amber,B/W;",	
+	"O4,Video Output,Tandy/CGA,MDA;",
+	"O12,CGA RGB,Color,Green,Amber,B/W;",
+	"O56,MDA RGB,Green,Amber,B/W;",
 	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
 	//"O78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",	
 	"-;",
@@ -240,11 +242,10 @@ wire[63:0] usdImgSz;
 wire[ 0:0] usdImgMtd;
 
 //Keyboard Ps2
-//wire        ps2_kbd_clk_out;
-//wire        ps2_kbd_data_out;
+wire        ps2_kbd_clk_out;
+wire        ps2_kbd_data_out;
 wire        ps2_kbd_clk_in;
 wire        ps2_kbd_data_in;
-wire        ps2_kbd_busy;
 
 //Mouse PS2
 wire        ps2_mouse_clk_out;
@@ -288,8 +289,8 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 	.img_mounted   (usdImgMtd),
 	.img_size	   (usdImgSz),	
 	
-   .ps2_kbd_clk_in	(~ps2_kbd_busy),
-	.ps2_kbd_data_in	(1'b1),
+   .ps2_kbd_clk_in	(ps2_kbd_clk_out),
+	.ps2_kbd_data_in	(ps2_kbd_data_out),
 	.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 	.ps2_kbd_data_out	(ps2_kbd_data_in),
 //  .ps2_mouse_clk_in	(ps2_mouse_clk_out),
@@ -314,7 +315,7 @@ wire pll_locked;
 
 wire clk_100;
 wire clk_28_636;
-wire clk_25;
+wire clk_56_875;
 reg clk_14_318 = 1'b0;
 //reg clk_7_16 = 1'b0;
 wire clk_4_77;
@@ -329,6 +330,7 @@ pll pll
 	.outclk_1(clk_28_636),	
 	.outclk_2(clk_uart),
 	.outclk_3(cen_opl2),
+	.outclk_4(clk_56_875),
 	.locked(pll_locked)
 );
 
@@ -468,8 +470,9 @@ always @(posedge clk_4_77)
 	 
 	 logic   [7:0]   port_b_out;
     logic   [7:0]   port_c_in;	 
-	 logic   [7:0]   sw = 8'b00101101; // PCXT DIP Switches
+	 reg     [7:0]   sw;
 	 
+	 assign  sw = status[4] ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (MDA or CGA 80)
 	 assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
    CHIPSET u_CHIPSET (
@@ -486,8 +489,12 @@ always @(posedge clk_4_77)
 		  .processor_ready                    (processor_ready),
         .interrupt_to_cpu                   (interrupt_to_cpu),
         .splashscreen                       (splashscreen),
-        .clk_vga                            (clk_28_636),
+		  .video_output                       (status[4]),
+        .clk_vga_cga                        (clk_28_636),
         .enable_cga                         (1'b1),
+        .clk_vga_mda                        (clk_56_875),
+        .enable_mda                         (1'b1),
+		  .mda_rgb                            (status[6:5]),
         .de_o                               (VGA_DE),
         .VGA_R                              (r),
         .VGA_G                              (g),
@@ -525,7 +532,8 @@ always @(posedge clk_4_77)
 	     .speaker_out                        (speaker_out),   
         .ps2_clock                          (ps2_kbd_clk_in),
 	     .ps2_data                           (ps2_kbd_data_in),
-	     .ps2_busy                           (ps2_kbd_busy),
+	     .ps2_clock_out                      (ps2_kbd_clk_out),
+	     .ps2_data_out                       (ps2_kbd_data_out),
 	     .enable_sdram                       (0),	   // -> During the first tests, it shall not be used.		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
@@ -617,7 +625,7 @@ always @(posedge clk_4_77)
 	);
 	*/
 
-	always @ (status[2:1], r, g, b) begin
+	always @ (status[2:1], r, g, b) begin		
 		case(status[2:1])
 			// Verde
 			2'b01	: begin
@@ -646,9 +654,9 @@ always @(posedge clk_4_77)
 		endcase
 	end
 
-	assign VGA_R = {raux, 2'b0};
-	assign VGA_G = {gaux, 2'b0};
-	assign VGA_B = {baux, 2'b0};
+	assign VGA_R = {status[4] ? r : raux, 2'b0};
+	assign VGA_G = {status[4] ? g : gaux, 2'b0};
+	assign VGA_B = {status[4] ? b : baux, 2'b0};
 
 /*
 // SRAM management

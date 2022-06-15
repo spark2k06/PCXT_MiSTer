@@ -18,8 +18,12 @@ module PERIPHERALS #(
 	 // SplashScreen
     input   logic           splashscreen,
     // VGA
-    input   logic           clk_vga,	 
+	 input   logic           video_output,
+    input   logic           clk_vga_cga,
     input   logic           enable_cga,
+	 input   logic           clk_vga_mda,
+    input   logic           enable_mda,
+    input   logic   [1:0]   mda_rgb,	 
     output  logic           de_o,
     output  logic   [5:0]   VGA_R,
     output  logic   [5:0]   VGA_G,
@@ -50,7 +54,8 @@ module PERIPHERALS #(
     output  logic   [7:0]   port_c_io,
     input   logic           ps2_clock,
     input   logic           ps2_data,
-    output  logic           ps2_busy,
+    output  logic           ps2_clock_out,
+    output  logic           ps2_data_out,
 	 // JTOPL	 
 	 input   logic           clk_en_opl2,
 	 output  logic   [15:0]  jtopl2_snd_e,
@@ -108,7 +113,7 @@ module PERIPHERALS #(
 	 wire    tandy_chip_select_n    = ~(address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
 	 wire    opl_chip_select_n      = ~(address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
     wire    cga_chip_select_n      = ~(enable_cga & (address[19:14] == 6'b1011_10)); // B8000 - BFFFF (32 KB)
-	 wire    mda_chip_select_n      = ~(enable_cga & (address[19:14] == 6'b1011_00)); // B0000 - B7FFF (32 KB)
+	 wire    mda_chip_select_n      = ~(enable_mda & (address[19:14] == 6'b1011_00)); // B0000 - B7FFF (32 KB)
 	 wire    rom_select_n           = ~(address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
 	 wire    ram_select_n           = ~(address[19:18] == 2'b00); // 00000 - 3FFFF (256 KB)
 	 wire    uart_cs                = ({address[15:3], 3'd0} == 16'h03F8);
@@ -238,19 +243,35 @@ module PERIPHERALS #(
     // Clock domain crossing
     logic   clear_keycode_ff;
     logic   clear_keycode;
+    logic   ps2_reset_n_ff;
+    logic   ps2_reset_n;
     always_ff @(negedge peripheral_clock, posedge reset) begin
         if (reset) begin
             clear_keycode_ff    <= 1'b0;
             clear_keycode       <= 1'b0;
+            ps2_reset_n_ff      <= 1'b0;
+            ps2_reset_n         <= 1'b0;
         end
         else begin
             clear_keycode_ff    <= port_b_out[7];
             clear_keycode       <= clear_keycode_ff;
+            ps2_reset_n_ff      <= port_b_out[6];
+            ps2_reset_n         <= ps2_reset_n_ff;
         end
     end
 
+    logic           ps2_send_clock;
     logic           keybord_irq;
     logic   [7:0]   keycode;
+    logic           prev_ps2_reset;
+    logic           lock_recv_clock;
+
+    always_ff @(negedge peripheral_clock, posedge reset) begin
+        if (reset)
+            prev_ps2_reset_n <= 1'b0;
+        else
+            prev_ps2_reset_n <= ps2_reset_n;
+    end
 
     KFPS2KB u_KFPS2KB (
         // Bus
@@ -258,7 +279,7 @@ module PERIPHERALS #(
         .reset                      (reset),
 
         // PS/2 I/O
-        .device_clock               (ps2_clock),
+        .device_clock               (ps2_clock | lock_recv_clock),
         .device_data                (ps2_data),
 
         // I/O
@@ -266,7 +287,31 @@ module PERIPHERALS #(
         .keycode                    (keycode),
         .clear_keycode              (clear_keycode)
     );
-    assign ps2_busy = keybord_irq | (~port_b_io & ~port_b_out[6]);
+
+    // Keybord reset
+    KFPS2KB_Send_Data u_KFPS2KB_Send_Data (
+        // Bus
+        .clock                      (peripheral_clock),
+        .reset                      (reset),
+
+        // PS/2 I/O
+        .device_clock               (ps2_clock),
+        .device_clock_out           (ps2_send_clock),
+        .device_data_out            (ps2_data_out),
+        .sending_data_flag          (lock_recv_clock),
+
+        // I/O
+        .send_request               (~prev_ps2_reset_n & ps2_reset_n),
+        .send_data                  (8'hFF),
+    );
+
+    always_ff @(negedge peripheral_clock, posedge reset) begin
+        if (reset)
+            ps2_clock_out = 1'b1;
+        else
+            ps2_clock_out = ~(keybord_irq | ~ps2_send_clock | ~ps2_reset_n);
+    end
+
 
    wire [7:0] jtopl2_dout;
 	wire [7:0]opl32_data;	
@@ -377,21 +422,84 @@ module PERIPHERALS #(
 			uart_readdata <= uart_readdata;
 	end
 	 
+    reg   [5:0]   R_CGA;
+    reg   [5:0]   G_CGA;
+    reg   [5:0]   B_CGA;
+    reg           HSYNC_CGA;
+    reg           VSYNC_CGA;
 	 
-	 wire VRAM_ENABLE;
-	 wire [18:0] VRAM_ADDR;
-	 wire [7:0] VRAM_DOUT;
-	 wire CRTC_OE;
-	 wire [7:0] CRTC_DOUT;	 
-	
+    reg   [5:0]   R_MDA;
+    reg   [5:0]   G_MDA;
+    reg   [5:0]   B_MDA;
+    reg           HSYNC_MDA;
+    reg           VSYNC_MDA;
+	 
+	 reg           de_o_cga;
+	 reg           de_o_mda;
+	 	 
+	 wire[3:0] video_cga;
+	 wire[3:0] video_mda;
+	 
+	 assign VGA_R = video_output ? R_MDA : R_CGA;
+	 assign VGA_G = video_output ? G_MDA : G_CGA;
+	 assign VGA_B = video_output ? B_MDA : B_CGA;	 
+	 assign VGA_HSYNC = video_output ? HSYNC_MDA : HSYNC_CGA;
+	 assign VGA_VSYNC = video_output ? VSYNC_MDA : VSYNC_CGA;
+	 assign de_o = video_output ? de_o_mda : de_o_cga;
+	 
+	 wire MDA_VRAM_ENABLE;
+	 wire [18:0] MDA_VRAM_ADDR;
+	 wire [7:0] MDA_VRAM_DOUT;
+	 wire MDA_CRTC_OE;
+	 wire [7:0] MDA_CRTC_DOUT;
+	 
+	 wire intensity;
+	 
+
+	 
+    mda_vgaport vga_mda (
+        .clk(clk_vga_mda),
+        .video(video_mda),
+        .intensity(intensity),
+        .red(R_MDA),
+        .green(G_MDA),
+        .blue(B_MDA),
+		  .mda_rgb(mda_rgb)
+    );
+	 
+    mda mda1 (
+        .clk                        (clk_vga_mda),
+        .bus_a                      (address[15:0]),
+        .bus_ior_l                  (io_read_n),
+        .bus_iow_l                  (io_write_n),
+        .bus_memr_l                 (1'd0),
+        .bus_memw_l                 (1'd0),
+        .bus_d                      (internal_data_bus),
+        .bus_out                    (MDA_CRTC_DOUT),
+        .bus_dir                    (MDA_CRTC_OE),
+        .bus_aen                    (address_enable_n),
+        .ram_we_l                   (MDA_VRAM_ENABLE),
+        .ram_a                      (MDA_VRAM_ADDR),
+        .ram_d                      (MDA_VRAM_DOUT),
+        .hsync                      (HSYNC_MDA),
+        .vsync                      (VSYNC_MDA),
+        .intensity                  (intensity),
+        .video                      (video_mda),
+		  .de_o                       (de_o_mda)		  
+    );
+	 
+	 
+	 wire CGA_VRAM_ENABLE;
+	 wire [18:0] CGA_VRAM_ADDR;
+	 wire [7:0] CGA_VRAM_DOUT;
+	 wire CGA_CRTC_OE;
+	 wire [7:0] CGA_CRTC_DOUT;
+	 	
     // Sets up the card to generate a video signal
     // that will work with a standard VGA monitor
     // connected to the VGA port.
     parameter MDA_70HZ = 0;
-
-    wire[3:0] vga_video;
-	 wire[3:0] video;
-
+	 
     // wire composite_on;
     wire thin_font;
 
@@ -401,61 +509,79 @@ module PERIPHERALS #(
     // Thin font switch (TODO: switchable with Keyboard shortcut)
 	 assign thin_font = 1'b0; // Default: No thin font
 
+
+	 
     // CGA digital to analog converter
-    cga_vgaport vga (
-        .clk(clk_vga),
-//      .video(vga_video),		  
-        .video(video),		  //Mister Test without Scandouble
-        .red(VGA_R),
-        .green(VGA_G),
-        .blue(VGA_B)
+    cga_vgaport vga_cga (
+        .clk(clk_vga_cga),		  
+        .video(video_cga),
+        .red(R_CGA),
+        .green(G_CGA),
+        .blue(B_CGA)
     );   
 
 	 cga cga1 (
-	     .clk                        (clk_vga),
+	     .clk                        (clk_vga_cga),
 		  .bus_a                      (address[15:0]),
 		  .bus_ior_l                  (io_read_n),
 		  .bus_iow_l                  (io_write_n),
         .bus_memr_l                 (1'd0),
         .bus_memw_l                 (1'd0),  
 		  .bus_d                      (internal_data_bus),
-		  .bus_out                    (CRTC_DOUT),
-		  .bus_dir                    (CRTC_OE),
+		  .bus_out                    (CGA_CRTC_DOUT),
+		  .bus_dir                    (CGA_CRTC_OE),
 		  .bus_aen                    (address_enable_n),
-        .ram_we_l                   (VRAM_ENABLE),
-        .ram_a                      (VRAM_ADDR),
-        .ram_d                      (VRAM_DOUT),
-//      .dbl_hsync                  (VGA_HSYNC), 
-		  .hsync                      (VGA_HSYNC), //Mister Test without Scandouble
-        .vsync                      (VGA_VSYNC),
-		  .de_o                       (de_o),
-        .video                      (video),
-//      .dbl_video                  (vga_video),
-//      .comp_video                 (comp_video),
+        .ram_we_l                   (CGA_VRAM_ENABLE),
+        .ram_a                      (CGA_VRAM_ADDR),
+        .ram_d                      (CGA_VRAM_DOUT),
+		  .hsync                      (HSYNC_CGA),
+        .vsync                      (VSYNC_CGA),
+		  .de_o                       (de_o_cga),
+        .video                      (video_cga),
 		  .splashscreen               (splashscreen),
         .thin_font                  (thin_font)
     );
-	 
+
     defparam cga1.BLINK_MAX = 24'd4772727;
+	 defparam mda1.BLINK_MAX = 24'd9100000;
 	 wire [7:0] ram_cpu_dout;
 	 wire [7:0] bios_cpu_dout;
-	 wire [7:0] vram_cpu_dout;
+	 wire [7:0] cga_vram_cpu_dout;
+	 wire [7:0] mda_vram_cpu_dout;
 
-    vram vram
+    vram cga_vram
 	 (
         .clka                       (clock),
-        .ena                        (~address_enable_n && (~mda_chip_select_n || ~cga_chip_select_n)),
+        .ena                        (~address_enable_n && ~cga_chip_select_n),
         .wea                        (~memory_write_n),
         .addra                      (address[14:0]),
         .dina                       (internal_data_bus),
-        .douta                      (vram_cpu_dout),
-        .clkb                       (clk_vga),
+        .douta                      (cga_vram_cpu_dout),
+        .clkb                       (clk_vga_cga),
         .web                        (1'b0),
-        .enb                        (VRAM_ENABLE),
-        .addrb                      (VRAM_ADDR[14:0]),
+        .enb                        (CGA_VRAM_ENABLE),
+        .addrb                      (CGA_VRAM_ADDR[14:0]),
         .dinb                       (8'h0),
-        .doutb                      (VRAM_DOUT)
+        .doutb                      (CGA_VRAM_DOUT)
 	);
+	
+	 
+    vram mda_vram
+	 (
+        .clka                       (clock),
+        .ena                        (~address_enable_n && ~mda_chip_select_n),
+        .wea                        (~memory_write_n),
+        .addra                      (address[14:0]),
+        .dina                       (internal_data_bus),
+        .douta                      (mda_vram_cpu_dout),
+        .clkb                       (clk_vga_mda),
+        .web                        (1'b0),
+        .enb                        (MDA_VRAM_ENABLE),
+        .addrb                      (MDA_VRAM_ADDR[14:0]),
+        .dinb                       (8'h0),
+        .doutb                      (MDA_VRAM_DOUT)
+	);
+	
 
 	
 	ram #(.AW(18)) mram
@@ -528,9 +654,13 @@ module PERIPHERALS #(
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = ppi_data_bus_out;
         end
-        else if ((~cga_chip_select_n || ~mda_chip_select_n) && (~memory_read_n)) begin
+        else if ((~cga_chip_select_n) && (~memory_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
-            data_bus_out = vram_cpu_dout;
+            data_bus_out = cga_vram_cpu_dout;
+        end
+        else if ((~mda_chip_select_n) && (~memory_read_n)) begin
+            data_bus_out_from_chipset = 1'b1;
+            data_bus_out = mda_vram_cpu_dout;
         end
 		  else if ((~rom_select_n) && (~memory_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
@@ -540,9 +670,13 @@ module PERIPHERALS #(
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = ram_cpu_dout;			
         end
-		  else if (CRTC_OE) begin
+		  else if (CGA_CRTC_OE) begin
             data_bus_out_from_chipset = 1'b1;
-            data_bus_out = CRTC_DOUT;			
+            data_bus_out = CGA_CRTC_DOUT;			
+        end
+		  else if (MDA_CRTC_OE) begin
+            data_bus_out_from_chipset = 1'b1;
+            data_bus_out = MDA_CRTC_DOUT;			
         end
 		  else if ((~opl_chip_select_n) && (~io_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
