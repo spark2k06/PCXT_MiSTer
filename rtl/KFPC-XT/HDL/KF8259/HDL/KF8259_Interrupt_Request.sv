@@ -11,7 +11,6 @@ module KF8259_Interrupt_Request (
     input   logic           level_or_edge_toriggered_config,
     input   logic           freeze,
     input   logic   [7:0]   clear_interrupt_request,
-    input   logic   [7:0]   interrupt_mask,
 
     // External inputs
     input   logic   [7:0]   interrupt_request_pin,
@@ -20,7 +19,7 @@ module KF8259_Interrupt_Request (
     output  logic   [7:0]   interrupt_request_register
 );
 
-    logic   [7:0]   prev_interrupt_request_pin;
+    logic   [7:0]   low_input_latch;
     wire    [7:0]   interrupt_request_edge;
 
     genvar ir_bit_no;
@@ -31,12 +30,16 @@ module KF8259_Interrupt_Request (
         //
         always_ff @(negedge clock, posedge reset) begin
         if (reset)
-            prev_interrupt_request_pin[ir_bit_no] <= 1'b1;
+            low_input_latch[ir_bit_no] <= 1'b0;
+        else if (clear_interrupt_request[ir_bit_no])
+            low_input_latch[ir_bit_no] <= 1'b0;
+        else if (~interrupt_request_pin[ir_bit_no])
+            low_input_latch[ir_bit_no] <= 1'b1;
         else
-            prev_interrupt_request_pin[ir_bit_no] <= interrupt_request_pin[ir_bit_no];
+            low_input_latch[ir_bit_no] <= low_input_latch[ir_bit_no];
         end
 
-        assign interrupt_request_edge[ir_bit_no] = (prev_interrupt_request_pin[ir_bit_no] == 1'b0) & (interrupt_request_pin[ir_bit_no] == 1'b1);
+        assign interrupt_request_edge[ir_bit_no] = (low_input_latch[ir_bit_no] == 1'b1) & (interrupt_request_pin[ir_bit_no] == 1'b1);
 
         //
         // Request Latch
@@ -48,8 +51,6 @@ module KF8259_Interrupt_Request (
                 interrupt_request_register[ir_bit_no] <= 1'b0;
             else if (freeze)
                 interrupt_request_register[ir_bit_no] <= interrupt_request_register[ir_bit_no];
-            else if (interrupt_mask[ir_bit_no])
-                interrupt_request_register[ir_bit_no] <= 1'b0;
             else if (interrupt_request_register[ir_bit_no])
                 interrupt_request_register[ir_bit_no] <= 1'b1;
             else if (level_or_edge_toriggered_config)
