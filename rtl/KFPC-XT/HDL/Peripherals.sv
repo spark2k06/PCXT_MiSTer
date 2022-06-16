@@ -339,7 +339,7 @@ module PERIPHERALS #(
 	(
 		.clock_i(clock),
 		.clock_en_i(clk_en_opl2), // 3.579MHz
-		.res_n_i(reset),
+		.res_n_i(~reset),
 		.ce_n_i(tandy_chip_select_n),
 		.we_n_i(io_write_n),
 		.ready_o(TANDY_SND_RDY),
