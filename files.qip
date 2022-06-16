@@ -1,5 +1,37 @@
-# -------------------------------------------------------------------------- #
-#
-# Copyright (C) 2017  Intel Corporation. All rights reserved.
-# Your use of Intel Corporation's design tools, logic functions 
-# and other software and tools, and its AMPP partner logic 
+set_global_assignment -name SDC_FILE PCXT.sdc
+set_global_assignment -name SYSTEMVERILOG_FILE PCXT.sv
+set_global_assignment -name QIP_FILE rtl/common/common.qip
+set_global_assignment -name QIP_FILE rtl/video/video.qip
+set_global_assignment -name QIP_FILE rtl/uart/uart.qip
+set_global_assignment -name QIP_FILE rtl/sn76489/sn76489.qip
+set_global_assignment -name QIP_FILE rtl/jtopl/hdl/jtopl2.qip
+set_global_assignment -name QIP_FILE rtl/8088/8088.qip
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFSDRAM/HDL/KFSDRAM.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB_Shift_Register.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB_Send_Data.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8288/HDL/KF8288.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Priority_Resolver.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Interrupt_Request.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_In_Service.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Control_Logic.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Bus_Control_Logic.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Port_C.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Port.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Group.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Control_Logic.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253_Counter.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253_Control_Logic.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237_Timing_And_Control.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237_Priority_Encoder.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237_Bus_Control_Logic.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237_Address_And_Count_Registers.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Ready.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/RAM.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Peripherals.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Chipset.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Bus_Arbiter.sv"
