@@ -556,7 +556,7 @@ always @(posedge clk_4_77)
     );
 	 
 	wire [15:0] jtopl2_snd_e;	
-	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + (tandy_snd_e << 15); // signed mixer
+	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + {tandy_snd_e, 6'd0}; // signed mixer
 	
 		
 	assign AUDIO_R = sndmix >> 1;
