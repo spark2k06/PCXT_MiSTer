@@ -115,7 +115,6 @@ module PERIPHERALS #(
     wire    cga_chip_select_n      = ~(enable_cga & (address[19:14] == 6'b1011_10)); // B8000 - BFFFF (32 KB)
 	 wire    mda_chip_select_n      = ~(enable_mda & (address[19:14] == 6'b1011_00)); // B0000 - B7FFF (32 KB)
 	 wire    rom_select_n           = ~(address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
-	 wire    ram_select_n           = ~(address[19:18] == 2'b00); // 00000 - 3FFFF (256 KB)
 	 wire    uart_cs                = ({address[15:3], 3'd0} == 16'h03F8);
 	 
 
@@ -544,7 +543,6 @@ module PERIPHERALS #(
 
     defparam cga1.BLINK_MAX = 24'd4772727;
 	 defparam mda1.BLINK_MAX = 24'd9100000;
-	 wire [7:0] ram_cpu_dout;
 	 wire [7:0] bios_cpu_dout;
 	 wire [7:0] cga_vram_cpu_dout;
 	 wire [7:0] mda_vram_cpu_dout;
@@ -583,18 +581,6 @@ module PERIPHERALS #(
 	);
 	
 
-	
-	ram #(.AW(18)) mram
-	(
-	  .clka(clock),
-	  .ena(~address_enable_n && ~ram_select_n),
-	  .wea(~memory_write_n),
-	  .addra(address[17:0]),
-	  .dina(internal_data_bus),
-	  .douta(ram_cpu_dout)
-	);
-	
-	
 	bios bios
 	(
         .clka(ioctl_download ? clk_sys : clock),
@@ -665,10 +651,6 @@ module PERIPHERALS #(
 		  else if ((~rom_select_n) && (~memory_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = bios_cpu_dout;
-        end
-		  else if ((~ram_select_n) && (~memory_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = ram_cpu_dout;			
         end
 		  else if (CGA_CRTC_OE) begin
             data_bus_out_from_chipset = 1'b1;

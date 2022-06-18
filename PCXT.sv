@@ -176,9 +176,9 @@ assign ADC_BUS  = 'Z;
 //assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 //assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
-//assign SDRAM_CLK = CLK_50M;
-//assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
+//assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
+assign SDRAM_CLK = CLK_50M;
+assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
 
 assign VGA_SL = 0;
 assign VGA_F1 = 0;
@@ -534,7 +534,6 @@ always @(posedge clk_4_77)
 	     .ps2_data                           (ps2_kbd_data_in),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
-	     .enable_sdram                       (0),	   // -> During the first tests, it shall not be used.		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
@@ -552,15 +551,35 @@ always @(posedge clk_4_77)
 	     .uart_dcd_n                        (uart_dcd),
 	     .uart_dsr_n                        (uart_dsr),
 	     .uart_rts_n                        (uart_rts),
-	     .uart_dtr_n                        (uart_dtr)
+	     .uart_dtr_n                        (uart_dtr),
+		  .enable_sdram                       (1'b1),
+		  .sdram_clock                        (SDRAM_CLK),
+		  .sdram_address                      (SDRAM_A),
+        .sdram_cke                          (SDRAM_CKE),
+        .sdram_cs                           (SDRAM_nCS),
+        .sdram_ras                          (SDRAM_nRAS),
+        .sdram_cas                          (SDRAM_nCAS),
+        .sdram_we                           (SDRAM_nWE),
+        .sdram_ba                           (SDRAM_BA),
+        .sdram_dq_in                        (SDRAM_DQ_IN),
+        .sdram_dq_out                       (SDRAM_DQ_OUT),
+        .sdram_dq_io                        (SDRAM_DQ_IO),
+        .sdram_ldqm                         (SDRAM_DQML),
+        .sdram_udqm                         (SDRAM_DQMH)   
+    
     );
-	 
 	wire [15:0] jtopl2_snd_e;	
 	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + {tandy_snd_e, 6'd0}; // signed mixer
 	
-		
+	wire [15:0] SDRAM_DQ_IN;
+	wire [15:0] SDRAM_DQ_OUT;
+	wire        SDRAM_DQ_IO;
+	
+	assign SDRAM_DQ_IN = SDRAM_DQ;
+	assign SDRAM_DQ = ~SDRAM_DQ_IO ? SDRAM_DQ_OUT : 16'hZZZZ;			
+	
 	assign AUDIO_R = sndmix >> 1;
-		 
+	 
 	i8088 B1(
 	  .CORE_CLK(clk_100),
 	  .CLK(clk_cpu),

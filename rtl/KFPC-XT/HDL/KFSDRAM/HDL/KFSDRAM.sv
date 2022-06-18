@@ -6,7 +6,7 @@
 //
 module KFSDRAM #(
     // IS42S16320F-7TL (32Mx16)
-    parameter sdram_col_width       = 10,
+    parameter sdram_col_width       = 9,
     parameter sdram_row_width       = 13,
     parameter sdram_bank_width      = 2,
     parameter sdram_data_width      = 16,
@@ -19,7 +19,7 @@ module KFSDRAM #(
     parameter sdram_tdpl            = 16'd2-16'd1,
     parameter cas_latency           = 3'b011,
     parameter sdram_init_wait       = 16'd10000,
-    parameter sdram_refresh_cycle   = 16'd00750
+    parameter sdram_refresh_cycle   = 16'd00100
 ) (
     input   logic                               sdram_clock,
     input   logic                               sdram_reset,
