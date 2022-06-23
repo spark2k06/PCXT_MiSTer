@@ -46,6 +46,7 @@ module KF8237 (
     logic   [3:0]   write_base_and_current_address;
     logic   [3:0]   write_base_and_current_word_count;
     logic           clear_byte_pointer;
+    logic           set_byte_pointer;
     logic           master_clear;
     logic           clear_mask_register;
     logic           read_temporary_register;
@@ -78,6 +79,7 @@ module KF8237 (
         .write_base_and_current_word_count  (write_base_and_current_word_count),
         // -- software command
         .clear_byte_pointer                 (clear_byte_pointer),
+        .set_byte_pointer                   (set_byte_pointer),
         .master_clear                       (master_clear),
         .clear_mask_register                (clear_mask_register),
         // -- read
@@ -150,6 +152,7 @@ module KF8237 (
         .write_base_and_current_word_count  (write_base_and_current_word_count),
         // -- software command
         .clear_byte_pointer                 (clear_byte_pointer),
+        .set_byte_pointer                   (set_byte_pointer),
         .master_clear                       (master_clear),
         // -- read
         .read_current_address               (read_current_address),

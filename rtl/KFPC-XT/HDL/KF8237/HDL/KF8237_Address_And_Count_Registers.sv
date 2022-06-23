@@ -19,6 +19,7 @@ module KF8237_Address_And_Count_Registers (
     input   logic   [3:0]   write_base_and_current_word_count,
     // -- software command
     input   logic           clear_byte_pointer,
+    input   logic           set_byte_pointer,
     input   logic           master_clear,
     // -- read
     input   logic   [3:0]   read_current_address,
@@ -74,6 +75,8 @@ module KF8237_Address_And_Count_Registers (
             byte_pointer <= 1'b0;
         else if ((master_clear) || (clear_byte_pointer))
             byte_pointer <= 1'b0;
+        else if (set_byte_pointer)
+            byte_pointer <= 1'b1;
         else if (update_byte_pointer)
              if (byte_pointer)
                  byte_pointer <= 1'b0;

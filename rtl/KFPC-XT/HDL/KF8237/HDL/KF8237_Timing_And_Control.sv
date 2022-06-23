@@ -86,8 +86,10 @@ module KF8237_Timing_And_Control (
     logic   [1:0]   dma_select;
     logic   [3:0]   dma_acknowledge_ff;
     logic           terminal_count;
+    logic           terminal_count_internal;
     logic           reoutput_high_address;
     logic           external_end_of_process;
+    logic           prev_read_status_register;
 
     //
     // Command Register
@@ -516,16 +518,26 @@ module KF8237_Timing_And_Control (
     // Terminal Count Signal (NOTE:Posedge)
     //
     always_ff @(posedge clock, posedge reset) begin
-        if (reset)
+        if (reset) begin
             terminal_count <= 1'b0;
-        else if (master_clear)
+            terminal_count_internal <= 1'b0;
+        end
+        else if (master_clear) begin
             terminal_count <= 1'b0;
-        else if (state == S4)
+            terminal_count_internal <= 1'b0;
+        end
+        else if (state == S4) begin
             terminal_count <= 1'b0;
-        else if (next_word)
+            terminal_count_internal <= 1'b0;
+        end
+        else if (next_word) begin
             terminal_count <= underflow;
-        else
+            terminal_count_internal <= underflow;
+        end
+        else begin
             terminal_count <= 1'b0;
+            terminal_count_internal <= terminal_count_internal;
+        end
     end
 
     assign  end_of_process_n_out = ~terminal_count;
@@ -552,7 +564,7 @@ module KF8237_Timing_And_Control (
         else if (master_clear)
             end_of_process_internal <= 1'b0;
         else if (next_state == S4)
-            end_of_process_internal <= terminal_count | external_end_of_process;
+            end_of_process_internal <= terminal_count_internal | external_end_of_process;
         else
             end_of_process_internal <= 1'b0;
     end
@@ -562,13 +574,20 @@ module KF8237_Timing_And_Control (
     //
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
+            prev_read_status_register <= 1'b0;
+        else
+            prev_read_status_register <= read_status_register;
+    end
+
+    always_ff @(negedge clock, posedge reset) begin
+        if (reset)
             terminal_count_state <= 0;
         else if (master_clear)
             terminal_count_state <= 0;
-        else if (read_status_register)
+        else if (prev_read_status_register & ~read_status_register)
             terminal_count_state <= 0;
         else if (end_of_process_internal)
-            terminal_count_state <= dma_acknowledge_internal;
+            terminal_count_state <= terminal_count_state | dma_acknowledge_internal;
         else
             terminal_count_state <= terminal_count_state;
     end
