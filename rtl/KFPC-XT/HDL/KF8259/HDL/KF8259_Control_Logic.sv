@@ -537,7 +537,9 @@ module KF8259_Control_Logic (
             interrupt_to_cpu <= 1'b0;
         else if (interrupt != 8'b00000000)
             interrupt_to_cpu <= 1'b1;
-        else if (next_control_state == CTL_READY)
+        else if (end_of_acknowledge_sequence == 1'b1)
+            interrupt_to_cpu <= 1'b0;
+        else if (end_of_poll_command == 1'b1)
             interrupt_to_cpu <= 1'b0;
         else
             interrupt_to_cpu <= interrupt_to_cpu;

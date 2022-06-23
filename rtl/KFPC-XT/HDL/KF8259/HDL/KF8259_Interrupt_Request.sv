@@ -51,8 +51,6 @@ module KF8259_Interrupt_Request (
                 interrupt_request_register[ir_bit_no] <= 1'b0;
             else if (freeze)
                 interrupt_request_register[ir_bit_no] <= interrupt_request_register[ir_bit_no];
-            else if (interrupt_request_register[ir_bit_no])
-                interrupt_request_register[ir_bit_no] <= 1'b1;
             else if (level_or_edge_toriggered_config)
                 interrupt_request_register[ir_bit_no] <= interrupt_request_pin[ir_bit_no];
             else
