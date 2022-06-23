@@ -30,7 +30,7 @@ Place boot.rom (in SW folder) inside games/PCXT folder at root of SD card.
 
 # Mounting the disk image
 
-Beta 1.0 opens a new beta phase in which any user can participate and give feedback. Just copy the script "pcxt_uart_hdd.sh" to the scripts folder and "serdrive" to the core working folder, i.e. "./games/PCXT", these files are located in the SW folder of this project. Also, place in this same folder (./games/PCXT) a bootable image with the corresponding OS and under the name "hd.img". 
+Beta 1.0 opens a new beta phase in which any user can participate and give feedback. Just copy the script "pcxt_uart_hdd.sh" to the scripts folder and "serdrive" to the core working folder, i.e. "./games/PCXT", these files are located in the SW folder of this project. Also, place in this same folder (./games/PCXT) a bootable image with the corresponding OS and under the name "hdd.img". 
 
 That's all that is needed, just launch the script and boot the core.
 
