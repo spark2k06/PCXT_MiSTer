@@ -124,6 +124,24 @@ module CHIPSET (
     logic           data_bus_out_from_chipset;
     logic           internal_data_bus_direction;
 
+    logic           prev_timer_count_1;
+    logic           DRQ0;
+
+    always_ff @(negedge clock) begin
+        prev_timer_count_1 <= timer_counter_out[1];
+    end
+
+    always_ff @(negedge clock, posedge reset) begin
+        if (reset)
+            DRQ0 <= 1'b0;
+        else if (~dma_acknowledge_n[0])
+            DRQ0 <= 1'b0;
+        else if (~prev_timer_count_1 & timer_counter_out[1])
+            DRQ0 <= 1'b1;
+        else
+            DRQ0 <= DRQ0;
+    end
+
     READY u_READY (
         .clock                              (clock),
         .reset                              (reset),
@@ -170,7 +188,7 @@ module CHIPSET (
         .memory_write_n                     (memory_write_n),
         .memory_write_n_ext                 (memory_write_n_ext),
         .memory_write_n_direction           (memory_write_n_direction),
-        .dma_request                        (dma_request),
+        .dma_request                        ({dma_request[3:1], DRQ0}),
         .dma_acknowledge_n                  (dma_acknowledge_n),
         .address_enable_n                   (address_enable_n),
         .terminal_count_n                   (terminal_count_n)
