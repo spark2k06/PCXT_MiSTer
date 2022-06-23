@@ -28,7 +28,38 @@ Place boot.rom (in SW folder) inside games/PCXT folder at root of SD card.
 
 * Turbo mode (7.16Mhz)
 
+# Mounting the disk image
+
+Beta 1.0 opens a new beta phase in which any user can participate and give feedback. Just copy the script "pcxt_uart_hdd.sh" to the scripts folder and "serdrive" to the core working folder, i.e. "./games/PCXT", these files are located in the SW folder of this project. Also, place in this same folder (./games/PCXT) a bootable image with the corresponding OS and under the name "hd.img". 
+
+That's all that is needed, just launch the script and boot the core.
+
+In the SW folder there is also a file called "boot.rom" which contains Sergey Kiselev's open source 8088 BIOS, along with the XTIDE UniversalBIOS ready to boot from the serial port. However, Sergey Kiselev's BIOS has some problems with the keyboard and is a bit slow... while this issue is being solved, you can run the python script "make_boot_with_jukost.py" from inside the SW folder, which will generate a boot.rom file with the Juko ST BIOS in place, much more stable and with good performance.
+
 # ChangeLog
+
+### Beta 1.0
+
+* The UART port is changed to the internal MiSTer port, now it is possible to use the core without using a USB cable
+
+### Beta 0.10
+
+* Increased RAM mapping in SDRAM: 0x00000-0xAFFFF and 0xC0000-0xEFFFF
+
+Segments 0xB0000 (VRAM) and 0xF0000 (BIOS) are still assigned to BRAM
+
+### Beta 0.9
+
+* Add SDRAM module, by @kitune-san
+
+### Beta 0.8
+
+* MDA and CGA/Tandy now work at the same time. It is possible to switch from one to the other from the OSD menu, as well as their monochrome simulation independently.
+* Fixed problem with INT0 test failing
+* Fixed a bug that caused the timer counter to be cleared on latch.
+* PCXT DIP switches and access to MDA memory
+* Add port_b[6] to lock PS/2 CLK.
+* PS/2 CLK to drop LOW after receiving the key code.
 
 ### Beta 0.7
 

@@ -173,8 +173,8 @@ module emu
 ///////// Default values for ports not used in this core /////////
 
 assign ADC_BUS  = 'Z;
-//assign USER_OUT = '1;
-assign {UART_RTS, UART_TXD, UART_DTR} = 0;
+assign USER_OUT = '1;
+//assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 //assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 //assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 assign SDRAM_CLK = CLK_50M;
@@ -602,8 +602,8 @@ always @(posedge clk_4_77)
 	/// UART
 
 
-	assign USER_OUT = {1'b1, 1'b1, uart_dtr, 1'b1, uart_rts, uart_tx, 1'b1};
-
+	//assign USER_OUT = {1'b1, 1'b1, uart_dtr, 1'b1, uart_rts, uart_tx, 1'b1};
+	
 	//
 	// Pin | USB Name |   |Signal
 	// ----+----------+---+-------------
@@ -617,11 +617,15 @@ always @(posedge clk_4_77)
 	//
 
 	wire uart_tx, uart_rts, uart_dtr;
+	
+	assign UART_TXD = uart_tx;
+	assign UART_RTS = uart_rts;
+	assign UART_DTR = uart_dtr;
 
-	wire uart_rx  = USER_IN[0];
-	wire uart_cts = USER_IN[3];
-	wire uart_dsr = USER_IN[5];
-	wire uart_dcd = USER_IN[6];
+	wire uart_rx  = UART_RXD;
+	wire uart_cts = UART_CTS;
+	wire uart_dsr = UART_DSR;
+	wire uart_dcd = UART_DTR;
 
 	always @(posedge clk_cpu) begin
 		if (address_latch_enable)
