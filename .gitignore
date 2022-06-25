@@ -1,7 +1,6 @@
 db/
 incremental_db/compiled_partitions/
 output_files/
-simulation/
 build_id.v
 jtag.cdf
 upd.sh

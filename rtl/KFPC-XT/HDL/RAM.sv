@@ -44,11 +44,11 @@ module RAM (
     logic           access_ready;
 
     //
-    // RAM Address Select (0x00000-0x9FFFF)
+    // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xEFFFF)
     //
-    assign  ram_address_select_n =  ~((enable_sdram) && ((~address[19]) || ((address[19]) && ~((address[18]) || (address[17])))));
-	 //assign  ram_address_select_n =  ~((enable_sdram) && (address >= 20'h010000 && address < 20'h0A0000));
-
+	 assign  ram_address_select_n =  ~(enable_sdram && (address < 20'h0B0000 ||
+	                                 (~(address[19:16] == 4'b1111)       // B0000h reserved for VRAM
+												&& ~(address[19:16] == 4'b1011)))); // F0000h reserved for BIOS
 
     //
     // Latch I/O Ports
