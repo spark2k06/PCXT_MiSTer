@@ -301,7 +301,7 @@ module PERIPHERALS #(
 
         // I/O
         .send_request               (~prev_ps2_reset_n & ps2_reset_n),
-        .send_data                  (8'hFF),
+        .send_data                  (8'hFF)
     );
 
     always_ff @(negedge peripheral_clock, posedge reset) begin
@@ -437,7 +437,8 @@ module PERIPHERALS #(
 	 reg           de_o_mda;
 	 	 
 	 wire[3:0] video_cga;
-	 wire[3:0] video_mda;
+     wire[3:0] vga_video;
+	 wire video_mda;
 	 
 	 assign VGA_R = video_output ? R_MDA : R_CGA;
 	 assign VGA_G = video_output ? G_MDA : G_CGA;
@@ -514,6 +515,7 @@ module PERIPHERALS #(
     cga_vgaport vga_cga (
         .clk(clk_vga_cga),		  
         .video(video_cga),
+    //  .video(vga_video),      // scandoubler
         .red(R_CGA),
         .green(G_CGA),
         .blue(B_CGA)
@@ -533,10 +535,12 @@ module PERIPHERALS #(
         .ram_we_l                   (CGA_VRAM_ENABLE),
         .ram_a                      (CGA_VRAM_ADDR),
         .ram_d                      (CGA_VRAM_DOUT),
-		  .hsync                      (HSYNC_CGA),
+		  .hsync                      (HSYNC_CGA),       
+    //    .dbl_hsync                  (HSYNC_CGA),              // scandoubler
         .vsync                      (VSYNC_CGA),
 		  .de_o                       (de_o_cga),
         .video                      (video_cga),
+        .dbl_video                  (vga_video),                // scandoubler
 		  .splashscreen               (splashscreen),
         .thin_font                  (thin_font)
     );

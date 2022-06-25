@@ -43,7 +43,6 @@ module crtc6845(
     parameter C_END = 0;
 
     reg[4:0] cur_addr;
-//    reg[7:0] bus_out; //Mister
 
     // Address register
     always @ (posedge clk) begin
@@ -126,7 +125,7 @@ module crtc6845(
     reg [3:0] h_synccount = 4'd1; // Must start at 1
     reg [4:0] v_scancount = 5'd0;
     reg [6:0] v_rowcount = 7'd0;
-    reg [5:0] v_synccount = 6'd0;
+    reg [3:0] v_synccount = 4'd0;
     reg [4:0] cursor_counter = 5'd0; // Cursor blink
 
 
@@ -227,8 +226,8 @@ module crtc6845(
             // Vertical sync pulse is fixed at 16 scan line times
             // Vsync pulse turns off after 16 lines
             if (vs) begin
-                if (v_synccount == 6'd37) begin // 15
-                    v_synccount <= 6'd0;
+                if (v_synccount == 4'd15) begin
+                    v_synccount <= 4'd0;
                     vs <= 0;
                 end else begin
                     v_synccount <= v_synccount + 1'b1;

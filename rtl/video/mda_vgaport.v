@@ -16,7 +16,7 @@ module mda_vgaport(
     output reg [5:0] red,
     output reg [5:0] green,
     output reg [5:0] blue,
-	 input wire [2:0] mda_rgb
+	 input wire [1:0] mda_rgb
     );
 
     always @(posedge clk)
