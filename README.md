@@ -37,6 +37,10 @@ In the SW folder there is also a file called "boot.rom" which contains Sergey Ki
 
 # ChangeLog
 
+### PRE Beta 1.2
+
+* Preliminary test version before the next beta
+
 ### Beta 1.1
 
 * Lo-Tech 2Mb EMS
