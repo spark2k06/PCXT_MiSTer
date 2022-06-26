@@ -1,0 +1,108 @@
+
+================================================================================
+         DOSMAX.EXE :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+        STOPMAX.SYS :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+       FREELOAD.SYS :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+       SHELLMAX.COM :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+        ENVIMAX.COM :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+================================================================================
+
+  I'll keep this short and sweet.  Orginally DOSMAX, STOPMAX, FREELOAD,
+  SHELLMAX, and ENVIMAX were produced as tools for my own use.  The goal was
+  to configure my computer for the optimum balance between low and high
+  memory.  I have since extended the programs to support all the conditions
+  I could think of and thereby achieve this balance in as many configurations
+  as possible.
+
+  Though I have made every effort to thoroughly test these programs under
+  a variety of demanding configurations, the basic algorithum relies on
+  unofficial features of MS-DOS and memory managers, and I do not accept
+  liability for any damage incurred to your computer or data resulting
+  from the use of these programs.
+
+  You are free to try the DOSMAX package until you are satisfied that
+  it performs its functions properly and you decide the package is useful
+  and desired in your configuration.  If you make the decision to continue
+  to use these programs, please pay for them.  Your $15.00 will help
+  defray my costs to produce them.
+
+  Registered user's of earlier versions of DOSMAX are not obligated to
+  repeat their previous contribution.  (Unless you really, really, really
+  appreciate the effort and want to...).
+
+  If you register, I will be happy to answer any technical questions you
+  have about these products.
+
+  Send your name, address, phone#, or whatever information is appropriate,
+  and remit $15.00 to:
+
+                    Philip B. Gardner
+                    10461 Lever St.
+                    Circle Pines, MN 55014
+                    (612) 785-9439
+
+  If more than 3 computers at your site use DOSMAX (additional computers
+  you personally own and use are covered by the 1 registration fee), you
+  may reduce the registration as follows:
+
+                  1 ->   3   :   $15.00 per unit
+                  4 ->   9   :   $13.00 per unit
+                 10 ->  24   :   $10.00 per unit
+                 25 ->  49   :   $ 8.00 per unit
+                 50 ->  99   :   $ 6.00 per unit
+                100 -> +++   :   $ 5.00 per unit
+
+  You may distribute the DOSMAX package only in its original form as
+  DOSMAX17.ZIP (the version # is optional but recommended), and all files
+  must be intact.
+
+     DOSMAX.EXE
+     DOSMAX.DOC
+     STOPMAX.SYS
+     STOPMAX.DOC
+     FREELOAD.SYS
+     FREELOAD.DOC
+     SHELLMAX.COM
+     SHELLMAX.DOC
+     ENVIMAX.COM
+     ENVIMAX.DOC
+     README.MAX
+     EXAMPLES.DOC
+     FW3.BAT
+     FW4-6.BAT
+
+  Please support Shareware.
+
+================================================================================
+
+(Packed File is Corrupt::)
+
+    This message is issued by programs linked with /EXEPACK option of earlier
+    versions of Microsoft's Link when they are loaded so low in memory that
+    the unpacking crosses the first 64k boundary and the /A20 line is on.
+    This is a bug in the unpacking code and not a problem in DOSMAX.  After
+    installing DOSMAX, the load address is "lower" than any of your previous
+    configurations and you may encounter this bug even inside a DESQView
+    window, or from a program overlay.
+
+    The simple solution to the problem is to use LOADFIX.COM supplied with 
+    MS-DOS 5.0.  This program eats up low memory and loads the trouble program
+    above the 1st 64k boundary.  Another solution to the problem is to
+    contact the program's developer for an update.  Finally, there are several
+    programs on the market which unpack the executeable or overlay and may
+    then repack the code with a better algorithum.  An excellent program which
+    is even freeware, is LZEXE.ZIP (or LZEX91.ZIP)
+
+    LZEXE.EXE v0.91 (c) 1989 Fabrice BELLARD
+    UPACKEXE.EXE v1.00 (c) 1989 Fabrice BELLARD
+
+    This program is available on many BBS's including COMPUSERVE in IBMSYS
+    Lib 6 as LZEX91.ZIP.
+
+(Hint)::
+
+    If you DOS is in a UMB, and you use SHELLMAX.COM and /A0, or 4DOS.COM,
+    your A20 line should be off.  Starting up DESQView, or using an XMS disk
+    cache may turn on the A20 again.
+
+================================================================================

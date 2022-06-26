@@ -1,0 +1,8 @@
+----------------------------------------
+DOSMAX 2.1 frees conventional memory by
+loading FILES,FCBS,BUFFERS,LASTDRIV, and
+STACKS into upper memory, get 628K free
+with your memory manager.  Also load the
+DOS 5/6 kernel or COMMAND.COM in a UMB.
+DOS 3 - 6, DR-DOS, Shareware $15.
+----------------------------------------

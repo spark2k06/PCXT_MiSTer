@@ -1,0 +1,739 @@
+
+================================================================================
+       DOSMAX.EXE :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+================================================================================
+
+  DOSMAX.EXE is a device driver which will maximize the use of low memory
+  by moving MS-DOS 3.1 and above system data to upper memory blocks provided
+  by your upper memory manager.  It is not necessary to use any other
+  programs to create upper memory data types like FILES, BUFFERS, FCBS,
+  or LASTDRIV from Quarterdeck's QEMM386.  These data types are referred
+  to as "sub-segments" in the rest of this document.
+
+  In addition, if you are a DOS 5.0 or above user and are loading DOS high,
+  then DOSMAX can prevent DOS from loading into the HMA and move the DOS
+  kernel to an upper memory block.  This improves performance and allows
+  programs which use the HMA more efficiently to utilize the HMA instead.
+  Such programs include Microsoft WINDOWS and Quarterdeck's DESQVIEW.
+
+  Version 2.0 now requires the device driver STOPMAX.SYS to prevent DOS from
+  loading into the HMA (see STOPMAX.DOC).  The DOSMAX driver then moves
+  the kernel into upper memory at the proper time.
+
+  DOSMAX can also move a portion of COMMAND.COM into an upper memory block
+  instead of the HMA.  This feature recovers space in low memory which is
+  available when DOS is in the HMA.  Version 2.0 now requires the /C+ switch
+  to enable this feature rather than /A0 to disable it.
+
+  Support is automatically provided for Microsoft WINDOWS 3.x so that all
+  FILES in your CONFIG.SYS can be loaded high.  Normally this would prevent
+  WINDOWS from running, but the problem is circumvented.  Version 2.0 has
+  changed the support algorithum significantly, see /W+ option below.
+
+  Support is provided for:
+
+    * moving all DOS's sub-segments types into upper memory
+    * moving DOS's SYSTEM block (kernel) into upper memory (STOPMAX installed)
+    * supporting WINDOWS start-up even if all FILES= are in upper memory
+    * moving a portion of COMMAND.COM into high memory instead of the HMA
+    * DOS Versions 3.1 - 3.31, DOS 4.x, DOS 5.x, and DOS 6.x (or better?)
+
+  DOSMAX automatically moves all the data that can be moved dependent only
+  upon the availability of upper memory.  It will automatically stop moving
+  data when it determines that memory would be fragmented if the move were
+  completed.
+
+  Finally, a command line mode is provided to control Windows support, and
+  check and report on the status of the high memory area reserved for
+  COMMAND.COM.  Version 2.0 moves the Master Environment moving feature
+  into a separate program, see ENVIMAX.DOC.
+
+================================================================================
+
+(Requirements)::
+
+        * Requires MS-DOS Version 3.10 or better
+        * Now supports DR-DOS 6.0
+          
+================================================================================
+
+(Installation)::
+
+        (CONFIG.SYS)::
+
+        Installation of DOSMAX.EXE requires modifying the contents of
+        your CONFIG.SYS file.
+
+(Generic Configuration)::
+
+        This configuration should work and be the most efficient in 95%
+        of all configurations.  For a few real world examples see
+        EXAMPLES.DOC
+       
+        DOS=HIGH[,UMB]                    (DOS 5.x or 6.x only)
+        REM DEVICE=STOPMAX.SYS [options]  (Stops kernel from loading in HMA)
+        DEVICE=(xms/umb memory manager)
+        DEVICE=DOSMAX.EXE [options]       (DOSMAX loads high automatically)
+        SHELL=SHELLMAX.COM COMMAND.COM /P
+        BUFFERS=20
+        FILES=40
+        LASTDRIVE=Z
+
+        For DESQView users, it is recommended that the DEVICE=STOPMAX.SYS is
+        installed.  This enables DOSMAX's kernel moving feature.
+
+        DOS 5.x and 6.x users should configure DOS to load high into the
+        HMA.  The UMB parameter is optional, since both DOS 5.x and 6.x
+        upper memory management and XMS upper memory blocks are supported.
+
+        DOS=HIGH[,[UMB][NOUMB]] (Both DOS UMB's and XMS UMB's supported)
+
+        Insert a DEVICE= line for DOSMAX.EXE in your config.sys.  Ver. 1.5
+        of DOSMAX recommended that DOSMAX be loaded before the XMS and UMB
+        memory manager, but DOSMAX should now be loaded after the XMS manager
+        (DOSMAX will automatically load itself high if UMB's are available
+        or you may use your memory manager's device loader).  Version 1.7
+        provided another way to ensure that the DOS 5.0 or above kernel
+        is moved into a UMB by DOSMAX.  The driver STOPMAX.SYS is inserted
+        "before" the XMS manager and DOSMAX is inserted "after" the XMS
+        manager (see STOPMAX.DOC).
+
+        Version 2.0 now requires that STOPMAX.SYS is used to stop DOS from
+        loading into the HMA, support for /B+,/I+ and /V+ have been removed
+        from DOSMAX.EXE because these options caused confusion.
+
+        Version 2.0 now requires /C+ to enable the upper memory support
+        option for COMMAND.COM.  This option was provided by default in
+        earlier versions and was disabled with /A0.  Normally you will
+        want to use SHELLMAX.COM to load all of COMMAND.COM into upper
+        memory (see SHELLMAX.DOC).  The /A0 option also caused confusion.
+
+        REM DEVICE=STOPMAX.SYS [options]
+        DEVICE=(Memory Manager)
+        DEVICE=DOSMAX.EXE [/C:+][other options]
+
+        One advantage of using DOSMAX.EXE, is that the STACKS=, BUFFERS=,
+        FCBS=, FILES=, and LASTDRIVE= parameters may be configured normally.
+
+        STACKS=9,256            (or =0,0 or default 9,128...etc...)
+        BUFFERS=XX[,YY]         (XX = # of buffers, YY = lookahead cache)
+        FCBS=XX,YY              (XX = # of FCBS, YY = # of protected FCBS)
+        FILES=NN                (NN = # of system files)
+        LASTDRIVE=Z             ( Z = Last reserved drive)
+
+        Version 2.0 of DOSMAX now allows INSTALL=, you no longer have to
+        remove these statements from your CONFIG.SYS.
+
+        By default, DOSMAX.EXE Version 2.0 will not generate report messages
+        for each successful operation or event, unless you enable the report
+        with /R+.  You must also use /P+ to pause after this report.  Use
+        /R+ and /P+ until you are satisfied with the configuration then
+        remove these switches.
+
+        DEVICE=DOSMAX.EXE /R+ /P+ 
+        or DEVICE=DOSMAX.EXE /REPORT:+ /PAUSE:+ 
+
+        (AUTOEXEC.BAT)::
+
+        It is not necessary to modify the contents of AUTOEXEC.BAT, but
+        since DOS data creators like FILES and BUFFERS are no longer
+        required, it is recommended that these lines be removed
+
+        REM BUFFERS=XX          (Remove FILE and BUFFER creator TSR's)
+        REM FILES=NN
+
+        (From the Command Line)::
+
+        By default, DOSMAX.EXE, invoked from the command line, will generate
+        a message for each successful operation or event.  The display will
+        not pause in the command line mode unless the /P+ switch is used.
+        After you are satisfied with the configuration and you want to disable
+        the REPORT feature, use:
+
+        DOSMAX.EXE /R-
+ 
+        All switch options and possible messages for DOSMAX are detailed
+        below:
+
+(Loading DOSMAX High)::
+
+        You may load DOSMAX high with your high memory loader, but DOSMAX
+        will load itself high if upper memory is available.  To prevent
+        DOSMAX from loading itself high, use /X- or load it before the
+        memory manager is installed.
+
+(Moving the DOS kernel into a UMB)::
+
+        DOSMAX to move the DOS 5.0 or above kernel to a UMB, then DOS
+        must not be in the HMA when DOSMAX loads.  If you desire to stop
+        the kernel from moving into the HMA, then STOPMAX must be loaded
+        before the xms/umb memory manager, so that the DOS kernel is not
+        high when DOSMAX initializes.  If DOS is already in the HMA (not
+        using STOPMAX), then Verision 2.0 now detects this condition and
+        low memory is optimized correctly.
+
+================================================================================
+
+(Syntax)::
+
+        The only thing to remember about syntax for the command line is
+        that just about anything works.  What this means is that you
+        should be able to type in the options on the command line the
+        way they make sense to you.
+
+        To illustrate this point, the following command line example
+        is mutated several different ways.
+
+        DEVICE=DOSMAX.EXE /H+ /R- /P- /A0
+        DEVICE=DOSMAX.EXE -H+ -R- -P- -A0
+        DEVICE=DOSMAX.EXE H R- P- A0
+        DEVICE=DOSMAX.EXE HR-P-A
+        DEVICE=DOSMAX.EXE -H+-R-P-A
+
+        ... and so on.
+
+        DOSMAX 1.9 and above adds optional full word syntax.  The new
+        syntax looks like this:
+
+        DEVICE=DOSMAX.EXE /ALLOWHI:+ /REPORT:- /PAUSE:- /AVAIL4A=0
+        DEVICE=DOSMAX.EXE -ALLOWHI:+ -REPORT:- -PAUSE:- -AVAIL4A=0
+        DEVICE=DOSMAX.EXE ALLOWHI REPORT:- PAUSE:- AVAIL4A=0
+        DEVICE=DOSMAX.EXE ALLOWHIREPORT-PAUSE-AVAIL4A
+        DEVICE=DOSMAX.EXE -ALLOWHI+-REPORT-PAUSE-AVAIL4A
+
+        Obviously when using full words, it is easier to keep the words
+        separated so that is clear to read.  An optional [:] or [=] may be
+        used for switches (i.e. ALLOWHI:+ or AVAIL=0).  These optional
+        delimiters are used interchangeably and can also be used with the
+        single letter switches.  Remember to check your spelling because the
+        single letter interface is still intact.
+
+================================================================================
+
+(Switch Options)::
+
+        The following list of switch options is organized by:
+
+         - Control of DOSMAX Reports (/R:/P:/N:)
+         - Control of DOSMAX Operation (/M=/H:/L:/A=/S:/U=)
+           - Setting the Memory Strategy (/M=)
+           - Control the Location of the DOS Kernel (/H:/L:)
+           - Control COMMAND.COM Split (/C:/A=)
+           - Control EMS Usage (/Q:)
+           - Control Sub-Segment Relocation (/S:)
+           - Control Stack Interrupts (/U=)
+           - Control DOSMAX Automatic UMB installation (/X:)
+           - Response file for DOSMAX
+
+  (Control of DOSMAX Reports)::
+
+        (REPORT)::      R[+ or -]        (toggle:  default -)
+
+        Use /R+ or /REPORT:+ to enable the report of additional status
+        messages.
+
+        (PAUSE)::       P[+ or -]        (toggle:  default -)
+
+        Use /P+ or /PAUSE:+ to enable a pause after the execution of
+        DOSMAX.EXE.
+
+        (NOPAUSE)::     N[+ or -]        (toggle:  default -)
+
+        Use /N+ or /NOPAUSE:+ to never pause after the report, even if
+        there are errors.  This switch can be used if your configuration
+        generates a warning or error message which you choose to ignore.
+
+  (Control of DOSMAX Operation)::
+
+    (Setting the Memory Strategy)::
+
+        (STRATEGY)::    Mn               (value=  n = 0)   
+
+        Use /Mn or /STRATEGY=n to control the memory allocation strategy
+        which DOSMAX uses to allocate upper memory blocks.  The default
+        strategy is is First Fit (/M0).  This means that DOSMAX will use the
+        first upper memory block returned by the XMS manager.  The other
+        available options are Best Fit (/M1) and Last Fit (/M2).  Best Fit
+        uses the block which most closely matches the size needed, and
+        Last Fit uses the last block big enough to handle the request.
+        Values other than 0, 1, or 2 are ignored and the previous setting
+        of this option is used.
+ 
+        (SYSFSIZE)::    Fnn              (value=  nn = 59 )
+
+        Use /Fnn or /SYSFSIZE=nn to set the System File Size:  The upper
+        limit of nn is 61 in device mode, and 82 in command line mode.
+        The lower limit is 40.  Values other than the MS-DOS 4.0 - 6.0
+        System File Size of 59 are only allowed if the true MS-DOS version
+        is greater than 5.0.  The /Fnn switch is only necessary if DOSMAX
+        can't determine the System File Size automatically.
+
+    (Control the Location of the DOS Kernel)::
+
+        (ALLOWHI)::     H[+ or -]        (toggle:  default -)
+
+        Use /H+ or /ALLOWHI:+ to allow DOS to load into the HMA anyway.
+        This switch is now obsolete.  DOSMAX now detects the location of
+        the kernel and automatically determines the proper setting of this
+        switch.  It is for backward-compatability and debugging purposes only.
+
+        (FORCELOW)::    L[+ or -]        (toggle:  default -)
+
+        Use /L+ or /FORCELOW:+ to allocate DOS code block in low memory.
+        This switch is now obsolete.  DOSMAX now detects the location of
+        the kernel and automatically determines the proper setting of this
+        switch.  It is for backward-compatability and debugging purposes only.
+
+    (Control COMMAND.COM Split)::
+
+        (CMDALLOC)::    C[+ or -]        (toggle:  default -)
+        
+        Use /C:+ or /CMDALLOC:+ to enable the /AVAIL4A=nnnnn parameter and
+        the function which splits COMMAND.COM from DOS 5.0 in half.  This
+        is for those users who chose not to load COMMAND.COM into a UMB.
+
+        (AVAIL4A)::     Annnnn           (value=  nnnnn = 2080)
+
+        Use /Annnnn or /AVAIL4A=nnnnn to set the number of bytes reserved
+        in upper memory for COMMAND.COM and other DOS 5.0 and above programs
+        which have the capability of moving a portion of themselves into the
+        HMA.  These programs use INT 2Fh Function 4Ah to allocate a fixed
+        number of bytes from the HMA.  DOSMAX has the capability of emulating
+        this function in high memory.  By default, DOSMAX reserves 2080 bytes,
+        which is the space needed to shrink COMMAND.COM.  To reserve more
+        memory, increase this value.
+
+        The command line mode of DOSMAX reports the size and allocation
+        status of this area.  If the amount allocated or requested is not
+        equal to the amount reserved, DOSMAX will report what the proper
+        value should be.  Users of replacement shells like 4DOS.COM from
+        J.P. Software, should disable this option with /A0.  Disabling the
+        option or using the report feature of the command line mode to
+        set the exact amount of memory required, is recommended since
+        INT 21h 3306h (Get True Ver.), which is also hooked by DOSMAX,
+        must return with a bit set which indicates that DOS is in the HMA
+        until the amount of memory reserved is completely exhausted.
+
+    (Control EMS Usage)::
+
+        (LOADEMS)::      Q[+ or -]       (toggle:  default -)
+
+        Use /Q:- or /LOADEMS:- to disable the default action of DOSMAX
+        which allocates EMS to store the .EXE module until the DOS resources
+        are built and ready to move.  DOSMAX will still be able to function,
+        but disk compression schemes may cause confusion if DOSMAX.EXE is
+        not on both the compressed and uncompressed drives.
+
+    (Control Sub-Segment Relocation)::
+
+        (SKIPSUB)::      S[+ or -]       (toggle:  default -)
+
+        Use /S+ or /SKIPSUB:+ to tell DOSMAX to not move sub-segments
+        data types.  The switch is provided mainly for diagnostic purposes,
+        but may be useful when not enough high memory is available to
+        move both the DOS code block and the sub-segments, or if
+        you find this feature does not work in your configuration.
+
+    (Control Stack Interrupts)::
+
+        (UNHOOK)::       Unn             (value=  default none)
+
+        Use /Unn or /UNHOOK=nn to tell DOSMAX that INT nn is to be
+        "unhooked" from DOS STACKS when the STACKS are moved high.  This
+        switch is useful for controlling which hardware interrupts are
+        routed through the DOS STACKS mechanism.  Microsoft's EMM386 may
+        cold-boot or lock-up if STACKS are present and moved to high memory,
+        CTRL-ALT-DEL is pressed (warm-boot), and INT 09h is hooked by DOS
+        STACKS.  The DOSMAX option /U09 maybe used to work-around this
+        problem.  The interrupt number is in Hex-Notation and the valid
+        values are the hardware interrupts 02, 08, 09, 0A, 0B, 0C, 0D, 0E,
+        70, 72, 73, 74, 76, & 77.  Invalid interrupt numbers are ignored.
+        Multiple invocations of this switch are permissable.
+        
+    (Control DOSMAX Automatic UMB installation)::
+
+        (HILOAD)::       X[+ or -]       (toggle:  default +)
+
+        Use /X- to stop DOSMAX.EXE from loading itself high if upper
+        memory is available.  This switch is intended for diagnostic
+        purposes only, since if you use your memory manager to load
+        DOSMAX.EXE high this condition is detected and no second upper
+        memory block will be allocated.
+
+  (Response file for DOSMAX)::
+
+        Parameters for DOSMAX may be read from a response file by using the
+        @pathname syntax:
+        
+        DOSMAX.EXE @RESPONSE.FIL
+ 
+        Response files may be commented by using a ";","#",or "*" character
+        before the comment.
+
+        There is also a feature implemented for DOS 6.0 config menus.  If a
+        menu is configured for DOS 6.0, DOS puts the name of the effective
+        section in an environment variable.  This environment variable is
+        "CONFIG=."  You may optionally divide the response files into
+        sections, identified with the familiar [SECTION] syntax, where
+        "SECTION" is the name of the DOS 6.0 menu item selected.
+
+(CONFIG.SYS Line)::
+
+        DEVICE=DOSMAX.EXE [/-][R+P+N+L+H+FnnC+AnnnnMnUnnQ+X-]
+
+        device default: /R-/P-/N-/X+/C-/M1
+
+        *  disable Report status messages
+        *  don't Pause after report
+        *  Pause on errors or warnings
+        *  use the Best Fit memory allocation strategy
+        *  Load DOSMAX high if upper memory available
+
+        *  everything in square brackets "[]" is optional
+
+================================================================================
+
+(Report Format)::
+
+   DOSMAX.EXE :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+        ERROR :  (Error Messages)
+      WARNING :  (Warning Messages)
+       ADVICE :  (Advisory Messages)
+              :  (Report Messages)
+              :  (Allocation Status)
+        PAUSE :  Press any key to continue... 
+
+(Report Note)::
+
+        DOSMAX.EXE may be replaced by DOSMAX.SYS or DOSMAX.OVL.  The
+        exact name of the module is dependent upon the circumstances
+        under which DOSMAX.EXE is executed.  This detail is important
+        only as diagnostic information.
+        
+================================================================================
+
+(Error Messages)::
+
+        MS-DOS version 3.10 or above is required
+        DOS version is not compatible
+        An 80186 processor or better is required
+        Device not found, or version mismatch
+        Not enough memory to relocate
+        Unable to execute, can't open overlay 
+        Unable to execute, not enough memory for overlay 
+
+================================================================================
+
+(Warning Messages)::
+
+        Unknown option on the command line
+        Unknown option on line #0000
+        Extra characters on command line
+        Line length overflow at line #0000
+        INT 00h is not pointing into STACKS
+        DOS Sub-Segment list is unmoveable
+        System File Size not determined or out of range
+        Unable to validate System Data area
+        Couldn't validate DR-DOS data area
+        Couldn't size System File Table
+        Couldn't size System FCB Table
+        Couldn't trace Buffer Chain
+        Couldn't find Lastdrive Array
+        Unable to calculate DR-DOS kernel control constants
+        Unable to calculate kernel control constants
+
+================================================================================
+
+(Advisory Messages)::
+
+        Set STACKS=0,0 in CONFIG.SYS
+        Possible INSTALL= in CONFIG.SYS
+        Try using /Fnn switch
+        For maximum efficiency use /A00000
+
+================================================================================
+
+(Report Messages)::
+
+        Processing option file XXXXXXXX.XXX
+	Effection section is [XXXXXXXX]
+        DOS System forced low
+        DOS System in HMA
+        DOS System not in HMA
+        DOS Sub-Segments skipped
+        DOS Sub-Segments skipped
+        DOS Sub-Segments too small, staying resident
+        System File Size set to 00
+        Unhooked DOS STACKS INT 00h
+        Moved 00000 bytes of DOS data high
+        Found 00000 bytes allocated of 00000 bytes
+        Freed EMS handle 0
+
+================================================================================
+
+(Allocation Status)::
+
+        SYSTEM   moved to 0000
+        Not enough Hi Memory for SYSTEM  
+        INSTALL  moved to 0000
+        Not enough Hi Memory for INSTALL
+        STACKS   moved to 0000
+        Not enough Hi Memory for STACKS
+        DRDATA   moved to 0000
+        Not enough Hi Memory for DRDATA
+        LASTDRIV moved to 0000
+        Not enough Hi Memory for LASTDRIV
+        BUFFERS  moved to 0000
+        Not enough Hi Memory for BUFFERS 
+        WKBUFFER moved to 0000
+        Not enough Hi Memory for WKBUFFER
+        FCBS     moved to 0000
+        Not enough Hi Memory for FCBS    
+        FILES    moved to 0000
+        Not enough Hi Memory for FILES   
+        COMMAND  memory reserved at 0000
+        Not enough Hi Memory for COMMAND
+        DOSMAX   located at 0000
+        Not enough Hi Memory for DOSMAX  
+
+================================================================================
+
+(Sub-Segment List)::
+
+        The Sub-Segment List is searched from bottom to top for a block
+        of moveable sub-segments, then moved in reverse order.
+
+        The following chart attempts to show what can and cannot be moved
+        with DOSMAX:
+
+                        Sub-Segment Type                Not Moved  Moved
+        ----------------------------------------------- ---------  -----
+        "D"        DEVICE DRIVER                            x 
+        "E"        DEVICE DRIVER APPENDAGE                  x
+        "I"        IFS (Installable File System) DRIVER     x
+        "F"        FILES=                                            x
+        "X"        FCBS=                                             x
+        "C"        BUFFERS /X Option (EMS workspace area)            x
+        "B"        BUFFERS=                                          x
+        "L"        LASTDRIVE=                                        x
+        "S"        STACKS=                                           x
+        "T"        INSTALL=                                          x
+
+================================================================================
+
+(Changes)::
+
+    (Version 1.1)::
+
+    (1) Fixed problem not cleaning up properly, when DOS goes to HMA
+        anyway, (only /V+ switch, and some XMS Managers).
+
+    (2) Fixed problem that occurred if no XMS UMB's available, and DOS 5
+        UMB's tried, and if no DOS UMB's available either (not just not
+        enough), memory was allocated from low memory, even though
+        allocation strategy was set to try UMB's only.  Made sure UMB
+        Link state was set properly.
+
+    (3) Added support for DOS Versions 3.10 - 3.31 and DOS Version 4.x
+
+    (4) Improved File Size determination algorithum
+
+    (Version 1.2)::
+
+    (1) Improved detection of DOS=LOW, and reduced the possibility of
+        an errant "Should be the first DEVICE= in CONFIG.SYS" message.
+
+    (Version 1.3)::
+
+    (1) Added support for INT 2Fh, Function 4Ah, so that COMMAND.COM
+        (and others??) can move a portion of their code to high memory
+        too.  For COMMAND.COM users with DOS 5.0, this saves 2.1k of
+        low memory.  Added the /Annnn switch to support this feature,
+        plus an allocation status check for the command line mode.
+        4DOS users should disable this feature with option /A0.
+
+    (Version 1.4)::
+
+    (1) Added capability to find and move the master environment for
+        COMMAND.COM users.  Also implemented a special test mode with
+        the /T+ option, which verifies that the master environment
+        has been found and that it is moveable.  This test mode should
+        only be necessary for diagnostic purposes.
+
+    (Version 1.5)::
+
+    (1) Added base 10 number display for /A parameter and changed
+        System File Size message to base 10.
+
+    (Version 1.6)::
+
+    (1) Added /Mn option, to allow general control of memory allocation
+        strategy.  First Fit = 0, Best Fit = 1, and Last Fit = 2 were
+        implemented for both DOS 5 UMB's, and XMS UMB's.
+
+    (2) Added check for a 186 processor or better (allows V20/V30).
+
+    (3) DOSMAX will now move STACKS, so setting STACKS=0,0 is not
+        necessary.  In most cases though, STACKS=0,0 is still a good
+        idea.  Windows 3.1 supposed requirement for STACKS=9,256 is
+        not really necessary in most cases.
+
+    (4) Removed the check for an XMS manager and a check for extended
+        memory.  This allows machines without extended memory to use
+        UMB providers, which do not require extended memory, with DOSMAX.
+        These checks were redundant since if DOS is in the HMA when
+        DOSMAX loads, the message "DOS is HIGH already" is reported.
+        It is still possible to use DOSMAX, but the /H switch must be
+        used if DOS is HIGH first.
+
+    (5) Added /I option which inhibits HIMEM.SYS from loading DOS HIGH.
+        This switch is not very useful if HIMEM.SYS is not loaded high,
+        since HIMEM will be about 30k in size.  This switch is intended
+        for users who load HIMEM high after their UMB provider is installed.
+
+    (6) Changed default WINDOWS high file support method to a new method
+        which uses 2 system file handles, but no low memory, so it works
+        when DOSMAX is loaded high.  The new method may be disabled with
+        /Y-, or /W+ (/W+ enables the old method since it was proven to work
+        and the code was already written).  The new method cannot be
+        enabled or disabled from the command line.
+
+    (7) Now supporting separate program DOSM86.EXE.  This program is 
+        functionally identical to DOSMAX.EXE, but is compiled to work
+        on 8086/8088 processors also.  I have learned that there are
+        8086/8088 machines which can be configured with High Memory
+        using some High Memory Managers, and this variation will make
+        it possible for those users to put DOS in a UMB even though
+        there is no HMA.  DOSM86.EXE requires 32 more bytes of memory.
+
+    (8) Fixed high loading so it really works...Also added an automatic
+        move to high memory of DOSMAX, if UMB's are available via DOS
+        or the XMS manager.  If there is some reason you don't want
+        DOSMAX loaded high when loaded after UMB's are available then
+        use /X- to stop it.  If DOSMAX is high, then it takes 272 bytes,
+        because extra code was needed to securely find and identify
+        the DOSMAX stub in memory.
+
+    (9) Fixed a problem which hung DOSMAX after loading high if DOS was
+        not in the HMA yet and /V+ switch not used.
+        
+   (10) Changed order of first 5 handles in new windows support, and
+        enhanced error checking to only warn when support will not
+        work.  The new order maintains the AUX CON order and seems 
+        more compatible.
+
+   (11) Added routine to stop "Incompatible DOS" message if loaded high
+        with a "device loader."  DOSMAX will now load high with a
+        device loader like LOADHI.SYS or HIGHDRVR.SYS
+
+   (12) Try DOS high memory allocation even if NO XMS manager present.
+        This was necessary for PC's which don't have extended memory,
+        and don't even load an XMS manager (UMB_DRVR creates DOS high
+        memory and disappears).
+
+   (13) Fixed DOSMAX not running second time if loaded high with LOADHI.
+
+   (14) Fixed DOSMAX not moving anything high (sometimes) if loaded
+        high by any device loader.  I broke this in fix (13).
+
+   (15) Added /B+ option which will stop DOS from going to the HMA by
+        patching the DOS initilization code in memory.  This method
+        works no matter which memory manager is in use or how it is
+        configured.  It also requires no resident memory.
+
+    (Version 1.7)::
+
+    (1) Added /Unn option to tell DOSMAX to unhook hardware INT nn from
+        DOS STACKS if the STACKS are present and moved.  At the time
+        which DOSMAX moves the STACKS it is safe to restore the interrupt
+        to the pre-STACKS value.  This switch was added as a work-around
+        to a warm-reboot problem in EMM386.EXE when STACKS are high.  To
+        fix the warm-reboot problem use /U09.  The value is in Hex-Notation.
+
+    (2) Fixed DOSMAX not removing remnants of the sub-segments low when
+        the size of the DOS data area should have been 0.  This occurred
+        when using a memory manager with no code low, no drivers low, and
+        DOS in a UMB.  Changed method of recording sub-segment movement.
+
+    (3) Removed DOS Version 3.x use of new windows method, it worked, but
+        wasn't completely compatible.  Use FW3.BAT instead if your version
+        of DOS is higher then 3.31 (rare).
+
+    (4) Move master environment function now sets the MCB owner of the new,
+        high environment back the primary shell.  This corrects a minor
+        incompatiblity.
+
+    (Version 1.8)::
+
+    (1) Added specific support for 386MAX.  The high sub-segments and other
+        DOSMAX managed data are now labeled using a method which automatically
+        detects and adjusts to 386MAX's method of UMB management.
+
+    (Version 1.9)::
+
+    (1)  Reorganized code to enable an overlay method of module selection
+         to automate processor selection and split up .SYS and .EXE modules
+         to reduce the initialization memory to minimum.
+
+    (2)  DOSMAX now automatically detects the processor type and chooses
+         separate code modules if appropriate.  The 186 processor require-
+         ment of previous versions is no longer applicable.
+
+    (3)  Added optional full word syntax to argument parser.  The old style
+         single letter switch interface is still intact.  The switch lists
+         now show the optional word with the switch.
+
+    (4)  Corrected problem with DOS 3.1 - 3.3 files which failed for some file
+         settings (i.e. FILES=20 failed).
+
+    (5)  DOSMAX updated for DOS 6.0.  Corrected a coding error while moving
+         buffers.
+
+    (6)  Changed default setting of /E switch.  To move the master environment
+         high from the command line or AUTOEXEC, now use /E+.
+
+    (Version 2.0)::
+
+    (1)  Added support for INSTALL=, it is no longer necessary to remove
+         INSTALL= from the CONFIG.SYS.
+
+    (2)  Removed /B+,/V+, and /I+ options.  You must now use STOPMAX.SYS to
+         prevent DOS from moving into the HMA.  The parameters were causing
+         confusion.
+
+    (3)  /H and /L are no longer necessary and you can use DOS=HIGH or DOS=LOW
+         as you deem necessary.
+
+    (4)  Added /C+ switch to enable the COMMAND.COM split feature.  For most
+         users, /A0 was forgotten and only caused unecessary "Packed file
+         corrupt" messages and wasted space.  You may still use this feature,
+         but you must first enable it with /C+, since the default is now off.
+
+    (5)  Moved /E+,/MASTERENV:+ into ENVIMAX.COM.  The triple mode of DOSMAX
+         confused people and many just didn't realize that DOSMAX could be
+         put into AUTOEXEC.BAT to move the master environment.
+
+    (6)  Changed the Windows support method once again.  The /Y is gone (the
+         old high file support method) and /W+ now works from both the .SYS
+         and .EXE command lines.  This new method uses 256 bytes at 60:0 and
+         if this is a conflict, you must use FW4-6.BAT and FW3.BAT after
+         disabling the support with /W-.
+
+    (7)  Added support for DRDOS 6.0.  See EXAMPLES.DOC.
+
+    (8)  Added feature which preloads the .EXE portion of the DOSMAX into
+         EMS and improves ease of configuration for STACKER/SSTOR users.
+         Most of the time it is not necessary to duplicate DOSMAX.EXE on
+         both the compressed and uncompressed drives (unless EMS 4.0 is not
+         present).
+
+    (9)  Added support for loading self high when DOS=UMB is configured
+
+   (10)  Added option response file input with @filename.opt syntax
+
+    (Version 2.1)::
+
+    (1)  Fixed problem with finding DOS 6.0 CONFIG variable for machines
+         whose bios'es don't intialize memory properly.
+
+================================================================================

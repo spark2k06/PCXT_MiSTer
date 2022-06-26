@@ -1,0 +1,173 @@
+
+================================================================================
+      ENVIMAX.COM :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+================================================================================
+
+  ENVIMAX.COM is the "move master environment" function split from earlier
+  versions of DOSMAX.  Its function is to move the Master Environment of
+  COMMAND.COM into upper memory.
+
+  ENVIMAX does not support other shells like 4DOS/NDOS which move their own
+  environments to upper memory.
+
+  Support is provided for:
+
+    * moving COMMAND.COM's master environment into upper memory
+    * DOS Versions 3.1 - 3.31, DOS 4.x, DOS 5.x, and DOS 6.x
+
+================================================================================
+
+(Requirements)::
+
+        * Requires MS-DOS Version 3.10 or better
+
+================================================================================
+
+(Installation)::
+
+        Install ENVIMAX.COM in your AUTOEXEC.BAT.  I recommend that ENVIMAX
+        is the first program run in the AUTOEXEC.BAT
+
+================================================================================
+
+(Syntax)::
+
+        The only thing to remember about syntax for the command line is
+        that just about anything works.  What this means is that you
+        should be able to type in the options on the command line the
+        way they make sense to you.
+
+        To illustrate this point, the following command line example
+        is mutated several different ways.
+
+        ENVIMAX.COM /E+
+        ENVIMAX.COM E+
+        ENVIMAX.COM E
+        ENVIMAX.COM -E
+
+        ENVIMAX 2.0 and above adds optional full word syntax.  The new
+        syntax looks like this:
+
+        ENVIMAX.COM /MASTERENV:+
+        ENVIMAX.COM MASTERENV:+
+        ENVIMAX.COM MASTERENV
+        ENVIMAX.COM -MASTERENV:+
+
+        Obviously when using full words, it is easier to keep the words
+        separated so that is clear to read.  An optional [:] or [=] may be
+        used for switches (i.e. REPORT:+ or REPORT=+).  These optional
+        delimiters are used interchangeably and can also be used with the
+        single letter switches.  Remember to check your spelling because
+        the single letter interface is still intact.
+
+(Switch Options)::
+
+        The following list of switch options is organized by:
+
+        - Control of ENVIMAX Reports (/R:/P:/N:)
+        - Control of ENVIMAX Operation (/E:)
+        - Response file for ENVIMAX (@)
+
+  (Control of ENVIMAX Reports)::
+
+        (REPORT)::      R[+ or -]        (toggle:  default +)
+
+        Use /R- or /REPORT:- to disable the report after you are
+        satisfied with the configuration of DOSMAX.EXE
+
+        (PAUSE)::       P[+ or -]        (toggle:  default +)
+
+        Use /P- or /PAUSE:- to disable the pause after the report as
+        long as there are no errors or warnings.
+
+        (NOPAUSE)::     N[+ or -]        (toggle:  default -)
+
+        Use /N+ or /NOPAUSE:+ to never pause after the report, even if
+        there are errors.  This switch can be used if your configuration
+        generates a warning or error message which you choose to ignore.
+
+  (Control of ENVIMAX Operation)::
+
+        (MASTERENV)::    E[+ or -]       (toggle:  default +)     
+
+        Use /E- or /MASTERENV:- to disable locating and moving the master
+        environment to upper memory.  This switch is for diagnostic purposes
+        only.
+
+  (Response file for ENVIMAX)::
+
+        Parameters for ENVIMAX may be read from a response file by using the
+        @pathname syntax:
+        
+        ENVIMAX.COM @RESPONSE.FIL
+ 
+        Response files may be commented by using a ";","#",or "*" character
+        before the comment.
+
+        There is also a feature implemented for DOS 6.0 config menus.  If a
+        menu is configured for DOS 6.0, DOS puts the name of the effective
+        section in an environment variable.  This environment variable is
+        "CONFIG=."  You may optionally divide the response files into
+        sections, identified with the familiar [SECTION] syntax, where
+        "SECTION" is the name of the DOS 6.0 menu item selected.
+
+        *  everything in square brackets "[]" is optional
+
+================================================================================
+
+(Report Format)::
+
+       ENVIMAX.COM :  Ver. 2.1, Copyright (1992) by Philip B. Gardner
+             ERROR :  (Error Messages)
+           WARNING :  (Warning Messages)
+            ADVICE :  (Advisory Messages)
+                   :  (Report Messages)
+                   :  (Allocation Status)
+             PAUSE :  Press any key to continue... 
+
+================================================================================
+
+(Error Messages)::
+
+        MS-DOS version 3.10 or above is required
+
+================================================================================
+
+(Warning Messages)::
+
+        Unknown option in command line
+        Unknown option on line #0000
+        Extra characters on command line
+        Missing or invalid option file XXXXXXXX.XXX
+        Line length overflow at line #0000
+        Master Environment is not moveable
+
+================================================================================
+
+(Advisory Messages)::
+
+================================================================================
+
+(Report Messages)::
+
+        Processing option file XXXXXXXX.XXX
+	Effection section is [XXXXXXXX]
+        Master Environment located at 0000
+
+================================================================================
+
+(Allocation Status)::
+
+        MASTRENV moved to 0000
+        Not enough Hi Memory for MASTRENV  
+
+================================================================================
+
+(Changes)::
+
+    (Version 2.1)::
+
+    (1)  Fixed problem with finding DOS 6.0 CONFIG variable for machines
+         whose bios'es don't intialize memory properly.
+
+================================================================================

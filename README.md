@@ -37,6 +37,12 @@ In the SW folder there is also a file called "boot.rom" which contains Sergey Ki
 
 # ChangeLog
 
+### Beta 1.1
+
+* Lo-Tech 2Mb EMS
+* Fix in UART access
+* video vectors corrected, sdc constraints for sdram, minor tipos to clear warnings
+
 ### Beta 1.0
 
 * The UART port is changed to the internal MiSTer port, now it is possible to use the core without using a USB cable

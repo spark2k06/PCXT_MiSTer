@@ -1,0 +1,331 @@
+
+================================================================================
+       STOPMAX.SYS :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+================================================================================
+
+  STOPMAX.SYS is a derivative of DOSMAX.EXE.  The algorithums of DOSMAX which
+  "stop" the DOS 5.0 and above kernel from loading into the HMA have been
+  assembled separately into STOPMAX.SYS.  This allows DOSMAX.EXE to load high
+  after the memory manager has installed and still put the DOS kernel into a
+  UMB.  STOPMAX is specifically for DOS 5.0 and above users and will not work
+  with DOS versions prior to DOS 5.0 and above.
+
+  STOPMAX prevents DOS from loading into the HMA using one of the for methods
+  which are also part of DOSMAX.  The default method "/B," patches the DOS
+  5.0 and above initialization code.  This method and the "/V" (VDISK header
+  method), do not require any resident memory, so STOPMAX simply executes and
+  returns all memory to DOS.  DOSMAX should then be loaded as a DEVICE, after
+  the memory manager and there is no restriction as to when DOSMAX should be
+  installed.
+
+  Support is provided for:
+
+        * Stopping DOS from loading into the HMA
+
+================================================================================
+
+(Requirements)::
+
+        * Requires MS-DOS Version 5.00 or above
+
+================================================================================
+
+(Installation)::
+
+        (CONFIG.SYS)::
+
+        Installation of STOPMAX.SYS requires modifying the contents of
+        your CONFIG.SYS file.
+
+(Generic Configuration)::
+
+        This configuration should work and be the most efficient in 95%
+        of all configurations.  For a few real world examples see
+        EXAMPLES.DOC
+
+        DOS=HIGH[,UMB]                    (DOS 5.0 and above only)
+        DEVICE=STOPMAX.SYS [options]      (Stops kernel from loading in HMA)
+        DEVICE=(xms/umb memory manager)
+        DEVICE=DOSMAX.EXE [options]       (DOSMAX loads high automatically)
+        SHELL=SHELLMAX.COM COMMAND.COM /P
+        BUFFERS=20
+        FILES=40
+        LASTDRIVE=Z
+
+        DOS 5.0 and above users should configure DOS to load high into
+        the HMA.  The UMB parameter is optional, since both DOS 5.0 and
+        above upper memory management and XMS upper memory blocks are
+        supported by DOSMAX.
+
+        DOS=HIGH[,[UMB][NOUMB]] (Both DOS UMB's and XMS UMB's supported)
+
+        Add a DEVICE= line for STOPMAX.SYS in your config.sys.  STOPMAX
+        must be loaded before the XMS and UMB memory manager, but some
+        memory managers provide high memory but not an HMA.  If your
+        memory manager does not support an HMA, then STOPMAX is not
+        necessary.  DOSMAX is then loaded "after" the memory manager
+
+        HIMEM.SYS from Microsoft always puts the DOS 5.0 and above kernel
+        into the HMA before it is through initializing and then puts its
+        own code into the HMA.  If you are able to load HIMEM.SYS high
+        (using some upper memory providers, not EMM386.SYS), you can now
+        use the /I+ switch to stop HIMEM from loading DOS into the HMA,
+        and STOPMAX will put it into a UMB instead.  The /B+ option (default)
+        also stops HIMEM.SYS from putting the DOS kernel into the HMA.  If
+        you use only DOS 5.0 and above files, meaning HIMEM.SYS and EMM386.SYS
+        you should not use STOPMAX.
+
+        DEVICE=STOPMAX.SYS [options]
+        DEVICE=(Memory Manager)
+        ......
+        DEVICE=DOSMAX.EXE [options]
+
+        By default, STOPMAX.SYS will generate a message for each successful
+        operation or event.  The display then pauses to allow you to
+        read the report.  After you are satisfied with the configuration
+        and you want to disable the REPORT and PAUSE feature, use:
+
+        DEVICE=STOPMAX.SYS /R- /P- 
+
+        All switch options and possible messages for STOPMAX are detailed
+        below:
+
+================================================================================
+
+(Syntax)::
+
+        The only thing to remember about syntax for the command line is
+        that just about anything works.  What this means is that you
+        should be able to type in the options on the command line the
+        way they make sense to you.
+
+        To illustrate this point, the following command line example
+        is mutated several different ways.
+
+        DEVICE=STOPMAX.SYS /R- /P- /B+
+        DEVICE=STOPMAX.SYS -R- -P- -B+
+        DEVICE=STOPMAX.SYS R- P- B+
+        DEVICE=STOPMAX.SYS R-P-B
+        DEVICE=STOPMAX.SYS -R-P-B
+
+        ... and so on.
+
+        STOPMAX 1.9 and above adds optional full word syntax.  The new
+        syntax looks like this:
+
+        DEVICE=STOPMAX.SYS /REPORT:- /PAUSE:- /IOPATCH:+
+        DEVICE=STOPMAX.SYS -REPORT:- -PAUSE:- -IOPATCH:+
+        DEVICE=STOPMAX.SYS REPORT:- PAUSE:- IOPATCH:+
+        DEVICE=STOPMAX.SYS REPORT-PAUSE-IOPATCH:+
+        DEVICE=STOPMAX.SYS -REPORT-PAUSE-IOPATCH:+
+
+        Obviously when using full words, it is easier to keep the words
+        separated so that is clear to read.  The optional [:] is used
+        for toggle switches (i.e. REPORT:+).  These optional delimiters
+        can also be used with the single letter switches.  Exact spelling
+        is required because the single letter interface is still intact.
+
+(Switch Options)::
+
+        The following list of switch options is organized by:
+
+          - Control of STOPMAX Reports (/R:/P:/N:)
+          - Control the Location of the DOS Kernel (/B:/V:/I:)
+
+    (Control of STOPMAX Reports)::
+
+        (REPORT)::      R[+ or -]        (toggle:  default +)
+
+        Use /R- or /REPORT:- to disable the report after you are
+        satisfied with the configuration of STOPMAX.SYS
+
+        (PAUSE)::       P[+ or -]        (toggle:  default +)
+
+        Use /P- or /PAUSE:- to disable the pause after the report as
+        long as there are no errors or warnings.
+
+        (NOPAUSE)::     N[+ or -]        (toggle:  default -)
+
+        Use /N+ or /NOPAUSE:+ to never pause after the report, even if
+        there are errors.  This switch can be used if your configuration
+        generates a warning or error message which you choose to ignore.
+
+    (Control the Location of the DOS Kernel)::
+
+        (IOPATCH)::     B[+ or -]        (toggle:  default -)
+
+        Use /B+ or /IOPATCH:+ to stop DOS from loading in the HMA using
+        a method which patches the copy of DOS 5.0 initialization code in
+        memory when STOPMAX initializes.  This method will search and
+        "patch out" the DOS to HMA code.  This option was developed and
+        tested under MSDOS 5.0 and 6.0 and is not guaranteed to work with
+        DOS versions later than 6.0, but then many of the algorithums in
+        STOPMAX depend upon "undocumented" features of DOS which are always
+        subject to change anyway.  The advantage of this method is that it
+        works no matter which memory manager is used or how it is configured.
+
+        (VDISK)::       V[+ or -]        (toggle:  default -)
+
+        Use /V+ or /VDISK:+ to enable an alternate method of stopping
+        DOS from allocating the HMA.  This switch is only necessary
+        if STOPMAX reports that the DOS version is incompatible, and
+        it will only work with memory managers which can detect a
+        VDISK Header in the HMA when the memory manager initializes
+        and mark's it as allocated.
+
+        (STOPHIMEM)::   I[+ or -]        (toggle:  default -)
+
+        Use /I+ or /STOPHIMEM:+ to stop HIMEM.SYS from loading DOS HIGH.
+        This switch is intended for users who load HIMEM.SYS from
+        Microsoft high after their UMB provider.  This option is not
+        very useful if HIMEM.SYS is not loaded high because HIMEM will
+        grow to about 30k in size.  If you still want to inhibit HIMEM,
+        then load it last, to minimize the "growth."  The reason HIMEM
+        "grows" is because the code which normally goes to the HMA is
+        fixed at offset 0A000, so if HIMEM is loaded below 0A00h, the
+        size of HIMEM grows to 0A00h + the size of the HMA code + the
+        size of the XMS handle table.  This option affects the size of
+        STOPMAX and adds 32 bytes.
+
+        *  everything in square brackets "[]" is optional
+
+(CONFIG.SYS Line)::
+
+        DEVICE=STOPMAX.SYS [/-][R-P+I+N+V+B-]
+
+        device default:  /R+/P-/N-/B+/I-/V-
+
+        *  Report status messages
+        *  Don't Pause after report
+        *  Pause on errors or warnings
+
+================================================================================
+
+(Report Format)::
+
+        STOPMAX.SYS :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+             ERROR :  (Error Messages)
+           WARNING :  (Warning Messages)
+            ADVICE :  (Advisory Messages)
+                   :  (Report Messages)
+                   :  (Allocation Status)
+             PAUSE :  Press any key to continue... 
+
+(Report Note)::
+
+        STOPMAX.SYS may be replaced by STOPMAX.OVL.  The exact name of the
+        module is dependent upon the circumstances under which STOPMAX.SYS
+        reports.  This detail is important only as diagnostic information.
+        
+================================================================================
+
+(Error Messages)::
+
+        MS-DOS version 5.00 or above is required
+        An 80186 processor or better is required
+        Can't load in High Memory
+        DOS version is not compatible
+        Not necessary for versions below DOS 5.0
+        DOS is HIGH already
+        Include DOS=HIGH in CONFIG.SYS
+        Couldn't write VDISK Header
+        Stop DOS to HMA patch not successful
+
+================================================================================
+
+(Warning Messages)::
+
+        Unknown option in command line
+        Unknown option on line #0000
+        Extra characters on command line
+        Missing or invalid option file XXXXXXXX.XXX
+        Line length overflow at line #0000
+
+================================================================================
+
+(Advisory Messages)::
+
+        Should be the first DEVICE= in CONFIG.SYS
+        Try using /V+ switch
+        Try using /B+ switch
+
+================================================================================
+
+(Report Messages)::
+
+        Processing option file XXXXXXXX.XXX
+	Effection section is [XXXXXXXX]
+
+================================================================================
+
+(Allocation Status)::
+
+================================================================================
+
+(Changes)::
+
+    (Version 1.6)::
+
+    (1) Added check for a 186 processor or better (allows V20/V30).
+
+    (2) Removed the check for an XMS manager and a check for extended
+        memory.  This allows machines without extended memory to use
+        UMB providers, which do not require extended memory, with STOPMAX.
+        These checks were redundant since if DOS is in the HMA when
+        STOPMAX loads, the message "DOS is HIGH already" is reported.
+
+    (3) Added /I option which inhibits HIMEM.SYS from loading DOS HIGH.
+        This switch is not very useful if HIMEM.SYS is not loaded high,
+        since HIMEM will be about 30k in size.  This switch is intended
+        for users who load HIMEM high after their UMB provider is installed.
+
+    (4) Now supporting separate program STOPM86.SYS.  This program is 
+        functionally identical to STOPMAX.SYS, but is compiled to work
+        on 8086/8088 processors also.  I have learned that there are
+        8086/8088 machines which can be configured with High Memory
+        using some High Memory Managers, and this variation will make
+        it possible for those users to put DOS in a UMB even though
+        there is no HMA.  STOPM86.SYS requires 32 more bytes of memory.
+
+   (5)  Added /B+ option which will stop DOS from going to the HMA by
+        patching the DOS initilization code in memory.  This method
+        works no matter which memory manager is in use or how it is
+        configured.  It also requires no resident memory.  I made this
+        the default method for STOPMAX.
+
+   (Version 1.7)::
+
+   (1)  Changed common parsing algorithum to support Hex-Notation input.
+        This input method is not used in STOPMAX at this time.
+
+   (Version 1.8)::
+
+   (1)  Changes in STOPMAX common code for specific 386MAX support.
+
+    (Version 1.9)::
+
+    (1)  Reorganized code to enable an overlay method of module selection
+         to automate processor selection and split up .SYS and .EXE modules
+         to reduce the initialization memory to minimum.
+
+    (2)  STOPMAX now automatically detects the processor type and chooses
+         separate code modules if appropriate.  The 186 processor require-
+         ment of previous versions is no longer applicable.
+
+    (3)  Added optional full word syntax to argument parser.  The old style
+         single letter switch interface is still intact.  The switch lists
+         now show the optional word with the switch.
+
+    (4)  STOPMAX updated for DOS 6.0.  Corrected a coding error while moving
+         buffers.
+
+    (Version 2.0)::
+
+    (1)  Added response file input with @filename.opt syntax
+
+    (Version 2.1)::
+
+    (1)  Fixed problem with finding DOS 6.0 CONFIG variable for machines
+         whose bios'es don't intialize memory properly.
+
+================================================================================

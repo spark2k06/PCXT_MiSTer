@@ -1,0 +1,286 @@
+
+================================================================================
+       SHELLMAX.COM :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+================================================================================
+
+  SHELLMAX.COM is a utility which loads the primary shell high from the
+  SHELL= line in your CONFIG.SYS.
+
+  Support is provided for:
+
+        * Loading the primary SHELL into high memory
+        * Creating a primary SHELL stub in low memory
+          (improves compatability with some configurations)
+
+================================================================================
+
+(Requirements)::
+
+        * Requires MS-DOS Version 3.10 or better
+
+================================================================================
+
+(Installation)::
+
+        (CONFIG.SYS)::
+
+        Installation of SHELLMAX.COM requires modifying the contents of
+        your CONFIG.SYS file.
+
+        SHELL=SHELLMAX.COM [options] COMMAND.COM /P
+
+        Insert SHELLMAX.COM in your SHELL= line of your CONFIG.SYS.
+        SHELLMAX.  
+
+(Safety)::
+
+        When installing SHELLMAX, it is best if you copy SHELLMAX.COM and
+        COMMAND.COM (the primary shell), to the root directory of your boot
+        drive.  If SHELLMAX fails to function properly with the parameters
+        in your SHELL= command line, it will issue a series of error messages,
+        and then try and load COMMAND.COM from the root directory.  This will
+        give you a chance to edit the CONFIG.SYS and correct the problem.
+        You should exercise caution and have a boot floppy available.
+
+        SHELLMAX is compatible with full SHELL= command line specifications.
+        In the following example, neither SHELLMAX.COM or COMMAND.COM is
+        required in the root directory after installation is successful, as
+        indicated by no error or warning messages.
+
+        SHELL=C:\BOOT\SHELLMAX.COM /R- C:\DOS\COMMAND.COM C:\DOS /E:512 /P
+
+        All switch options and possible messages for SHELLMAX are detailed
+        below:
+
+================================================================================
+
+(Compatibility)::
+
+    (4DOS)::
+
+        If you are using Version 4.x 4DOS from J.P. Software, you should
+        add the path to 4DOS.COM to the 4DOS command line.
+
+        SHELL=SHELLMAX.COM C:\4DOS\4DOS.COM C:\4DOS /p
+
+        If this parameter is not added, 4DOS may not set the environment
+        variable "COMSPEC=" properly.
+
+    (DOS 3.x & 4.x)::
+
+        Some versions of DOS incorrectly truncate the command line to 35
+        characters for the SHELL= statement in the CONFIG.SYS or fail to
+        pass a command line at all if the line is over 35 characters.
+        This bug is circumvented by a special algorithum in SHELLMAX.  If
+        SHELLMAX does not work for you, and you suspect that this is the
+        problem, please contact me for assistance.
+
+================================================================================
+
+(Syntax)::
+
+        The only thing to remember about syntax for the command line is
+        that just about anything works.  What this means is that you
+        should be able to type in the options on the command line the
+        way they make sense to you.
+
+        To illustrate this point, the following command line example
+        is mutated several different ways.
+
+        SHELL=SHELLMAX.COM /R- /P+ /S+ C:\COMMAND.COM C:\ /P
+        SHELL=SHELLMAX.COM -R- -P+ -S+ C:\COMMAND.COM C:\ /P
+        SHELL=SHELLMAX.COM /R-/P+/S+ C:\COMMAND.COM C:\ /P
+        SHELL=SHELLMAX.COM -R--P+-S+ C:\COMMAND.COM C:\ /P
+
+        ... and so on.
+
+        SHELLMAX 2.0 and above adds optional full word syntax.  The new
+        syntax looks like this:
+
+        SHELL=SHELLMAX.COM /REPORT:- /PAUSE:+ /FAKESTUB:+ C:\COMMAND.COM C:\ /P
+        SHELL=SHELLMAX.COM -REPORT:- -PAUSE:+ -FAKESTUB:+ C:\COMMAND.COM C:\ /P
+        SHELL=SHELLMAX.COM /REPORT:-/PAUSE:+/FAKESTUB:+ C:\COMMAND.COM C:\ /P
+        SHELL=SHELLMAX.COM -REPORT:--PAUSE:+-FAKESTUB:+ C:\COMMAND.COM C:\ /P
+
+        Obviously when using full words, it is easier to keep the words
+        separated so that is clear to read.  The optional [:] is used
+        for toggle switches (i.e. REPORT:+).  These optional delimiters
+        can also be used with the single letter switches.  Exact spelling
+        is required because the single letter interface is still intact.
+
+(Switch Options)::
+
+        The following list of switch options is organized by:
+
+          - Control of SHELLMAX Reports (/R:/P:/N:)
+          - Control the Configuration of a Fake Low Memory Stub (/S:)
+          - Response file for SHELLMAX (@)
+
+    (Control of SHELLMAX Reports)::
+
+        (REPORT)::      R[+ or -]        (toggle:  default +)
+
+        Use /R- or /REPORT:- to disable the report after you are
+        satisfied with the configuration of STOPMAX.SYS
+
+        (PAUSE)::       P[+ or -]        (toggle:  default +)
+
+        Use /P- or /PAUSE:- to disable the pause after the report as
+        long as there are no errors or warnings.
+
+        (NOPAUSE)::     N[+ or -]        (toggle:  default -)
+
+        Use /N+ or /NOPAUSE:+ to never pause after the report, even if
+        there are errors.  This switch can be used if your configuration
+        generates a warning or error message which you choose to ignore.
+
+    (Control the Configuration of a Fake Low Memory Stub)
+
+        (FAKESTUB)::    S[+ or -]        (toggle:  default -)
+
+        If you use SHELLMAX to load the shell high, then some programs
+        (environment editors and some networks), are confused that no
+        portion of the primary shell is is low memory.  Use /S+ or 
+        /FAKESTUB:+ to tell SHELLMAX to create a fake stub, which looks
+        like the primary shell, in low memory.  This stub tracks changes
+        to the Master Environment segment pointer by monitoring the real
+        stub high (each "get exit code of sub-program"  INT 21h, 4Dh).
+        The stub size is 256 bytes, so if you use 4DOS, and find that
+        you need the low stub, it is better to just let 4DOS do it and
+        not use SHELLMAX.
+
+  (Response file for SHELLMAX)::
+
+        Parameters for SHELLMAX may be read from a response file by using the
+        @pathname syntax:
+        
+        SHELLMAX.COM @RESPONSE.FIL C:\COMMAND.COM C:\ /E:512 /P
+ 
+        Notice that the path to the SHELL is cannot be in the response file.
+
+        Response files may be commented by using a ";","#",or "*" character
+        before the comment.
+
+        *  everything in square brackets "[]" is optional
+
+(CONFIG.SYS Line)::
+
+        SHELL=SHELLMAX.COM [/R-/P+/N+/S+] COMMAND.COM /P
+
+        default:  /R+/P-/N-/S-
+
+        *  Report status messages
+        *  Don't Pause after report
+        *  Pause on errors or warnings
+        *  Don't Fake stub low
+
+================================================================================
+
+(Report Format)::
+
+    SHELLMAX.COM (8086):  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+                 ERROR :  (Error Messages)
+               WARNING :  (Warning Messages)
+                ADVICE :  (Advisory Messages)
+                       :  (Report Messages)
+                       :  (Allocation Status)
+                 PAUSE :  Press any key to continue... 
+
+================================================================================
+
+(Error Messages)::
+
+        MS-DOS version 3.10 or above is required
+        Bad or missing program specification
+        Use SHELLMAX.COM only as CONFIG.SYS SHELL=
+	Not enough memory to execute 
+        Fatal Error, program halted
+
+================================================================================
+
+(Warning Messages)::
+
+        Unknown option in command line
+        Unknown option on line #0000
+        Extra characters on command line
+        Missing or invalid option file XXXXXXXX.XXX
+        Line length overflow at line #0000
+        Unable to load high, loading low
+
+================================================================================
+
+(Advisory Messages)::
+
+================================================================================
+
+(Report Messages)::
+
+        Processing option file XXXXXXXX.XXX
+	Effection section is [XXXXXXXX]
+
+================================================================================
+
+(Allocation Status)::
+
+        SHELL    loaded at 0000
+        Not enough Hi Memory for SHELL
+        STUB     faked at 0000
+
+================================================================================
+
+(Changes)::
+
+    (Version 1.7)::
+
+    (1)  Found a workaround to 4DOS 4.x initialization hang.  4DOS now will
+         load properly.  One caveat, add path to 4DOS to the 4DOS command
+         line or 4DOS will not find 4DOS.INI or set the COMSPEC variable
+         correctly.
+
+    (2)  Corrected problem with DOS 3.x and DOS 4.x when the standard handles
+         were getting closed by mistake.
+
+    (3)  When COMMAND.COM path argument was a different drive then the boot
+         drive, COMMAND.COM was looking for the AUTOEXEC.BAT on the drive
+         of the argument instead of the boot drive.  Fixed so COMMAND.COM
+         processes the AUTOEXEC.BAT from the boot drive.
+
+    (4)  Version bumped to match DOSMAX
+
+    (Version 1.8)::
+
+    (1)  Added /S+ option to create a fake primary shell stub in low memory.
+         This works around environment editor and network compatability
+         problems.
+
+    (2)  Improved error recovery with the goal of trying every way of at
+         least loading some shell in the event the algorithum of SHELLMAX
+         encounters multiple errors.
+
+    (Version 1.9)::
+
+    (1)  Reorganized code to enable an overlay method of module selection
+         to automate processor selection and split up .SYS and .EXE modules
+         to reduce the initialization memory to minimum.
+
+    (2)  SHELLMAX now automatically detects the processor type and chooses
+         separate code modules if appropriate.  The 186 processor require-
+         ment of previous versions is no longer applicable.
+
+    (3)  Added optional full word syntax to argument parser.  The old style
+         single letter switch interface is still intact.  The switch lists
+         now show the optional word with the switch.
+
+    (Version 2.0)::
+
+    (1)  Completely rewritten.  Added feature to edit command line if
+         the SHELL is bad or missing.
+
+    (2)  Added option response file input with @filename.opt syntax
+
+    (Version 2.1)::
+
+    (1)  Fixed problem with finding DOS 6.0 CONFIG variable for machines
+         whose bios'es don't intialize memory properly.
+
+================================================================================

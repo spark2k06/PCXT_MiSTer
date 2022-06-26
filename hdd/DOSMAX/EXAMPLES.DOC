@@ -1,0 +1,434 @@
+
+================================================================================
+         DOSMAX.EXE :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+        STOPMAX.SYS :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+       FREELOAD.SYS :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+       SHELLMAX.COM :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+        ENVIMAX.COM :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+================================================================================
+
+EXAMPLE CONFIGURATIONS:
+
+If you have a configuration that is significantly different, perhaps a
+different memory manager or special switches that are used, please send
+me a copy and I will include it in this file.
+
+If you have problems, check out GENERIC at the end of this file.
+
+;------------ QEMM386 ----------------------------------------------------------
+
+(CONFIG)::
+
+dos=high,noumb
+stacks=0,0
+REM=default /B+ requires no resident memory
+device=stopmax.sys
+device=c:\qemm\qemm386.sys ram rom i=b000-b7ff i=cc00-f7ff fr=e800
+REM=no report, no pause, (default is now /c:- or effectively /a0)
+REM=or loaded high with loadhi
+device=c:\boot\dosmax.exe /r-/p-
+REM=s for shrink
+device=c:\boot\freeload.sys /s
+device=c:\qemm\loadhi.sys /r:1 c:\mouse\mouse.sys
+shell=shellmax.com /r- c:\dos\command.com c:\dos /e:768 /p
+REM=use /S+ option to create a 256 byte low stub (networks? enviroment editors?)
+REM=shell=c:\boot\shellmax.com /r- c:\dos\command.com c:\dos /e:768 /p
+buffers=20
+files=40 
+lastdrive=Z  
+
+(AUTOEXEC)::
+
+REM moves master environment
+c:\boot\envimax.com
+
+;------------ QEMM386 + 4DOS ---------------------------------------------------
+
+(CONFIG)::
+
+dos=high,noumb
+stacks=0,0
+REM=default /B+ requires no resident memory
+device=stopmax.sys
+device=d:\qemm\qemm386.sys r:2 ns nv ram rom i=0400-0fff st:m fr=c000
+REM=a0 for 4DOS, no report, no pause
+device=c:\boot\dosmax.exe /r-/p-
+REM=m1 for best fit, f to change pathname of loader, s for shrink
+device=c:\boot\freeload.sys /m1 /fd:\qemm\loadhi.sys /s
+REM=disable windows support
+device=d:\qemm\loadhi.sys /r:1 c:\mouse\mouse.sys
+device=d:\qemm\loadhi.sys /r:2 c:\boot\hyper386.exe c:2048:1024 s ox
+REM=path parameter to 4DOS may be required to initialize properly
+shell=shellmax.com /s- c:\4dos\4dos.com c:\4dos /p
+REM=if the /S+ option is required (networks? enviroment editors?)
+REM=then using shellmax with 4dos is pointless
+REM=shell=c:\4dos\4dos.com c:\4dos /p
+buffers=5,4
+files=40 
+lastdrive=Z  
+
+(AUTOEXEC)::
+
+REM not necessary at all, but no harm, /E- switch avoids environment warning
+c:\boot\envimax.com /E-
+
+;------------ 386MAX ------------------------------------------------------
+
+(CONFIG)::
+
+dos=high,noumb
+stacks=0,0
+REM=default /B+ requires no resident memory
+device=stopmax.sys
+device=f:\386max\386max.sys pro=c:\386max\386max.pro
+REM=default loader name is c:\386max\386load.sys
+REM=use /F option if necessary
+REM=device=c:\boot\freeload.sys /sd:\386max\386load.sys
+device=c:\boot\freeload.sys /s
+REM=a0 for SHELLMAX, m1 for best fit, no report, no pause
+device=f:\386max\386load.sys prgreg=2 flexframe prog=c:\boot\dosmax.exe a0m1r-p-
+device=f:\386max\386load.sys prgreg=2 flexframe prog=c:\mouse\mouse.sys
+shell=c:\boot\shellmax.com /s c:\dos5\command.com c:\dos5 /e:768 /p
+REM=use /S+ option to create a 256 byte low stub (networks? enviroment editors?)
+REM=shell=c:\boot\shellmax.com /r-/s+ c:\dos\command.com c:\dos /e:768 /p
+REM=only a few buffers required if a disk cache is loaded in autoexec
+buffers=5
+files=35 
+lastdrive=Z
+
+(AUTOEXEC)::
+
+REM moves master environment
+c:\boot\envimax.com /e+
+
+;------------ 386MAX + 4DOS -----------------------------------------------
+
+(CONFIG)::
+
+dos=high,noumb
+stacks=0,0
+REM=default /B+ requires no resident memory
+device=stopmax.sys
+device=f:\386max\386max.sys pro=c:\386max\386max.pro
+REM=default loader name is c:\386max\386load.sys
+REM=use /F option if necessary
+REM=device=c:\boot\freeload.sys /sd:\386max\386load.sys
+device=c:\boot\freeload.sys /s
+REM=a0 for 4DOS, m1 for best fit, no report, no pause
+device=f:\386max\386load.sys prgreg=2 flexframe prog=c:\boot\dosmax.exe a0m1r-p-
+device=f:\386max\386load.sys prgreg=2 flexframe prog=c:\mouse\mouse.sys
+REM=probably not enough high memory to use shellmax with 4DOS
+shell=c:\4dos\4dos.com c:\4dos /e:768 /p
+REM=only a few buffers required if a disk cache is loaded in autoexec
+buffers=5
+files=35 
+lastdrive=Z
+
+(AUTOEXEC)::
+
+REM not necessary at all, but no harm, /E- switch avoids environment warning
+c:\boot\envimax.com /e-
+
+;------------ LASTBYTE ---------------------------------------------------------
+
+(CONFIG)::
+
+dos=high,noumb
+stacks=9,256
+REM=alternative to dosmax /i+ switch, use stopmax.sys
+REM=device=stopmax.sys
+REM physical=(CHIPSET or fixed)
+device=c:\tlbmm\lastbyte.sys ? physical=fixed
+REM=i to force DOS to UMB even with HIMEM, m1 for best fit, no report, no pause
+REM=a0 since shellmax is used
+device=c:\tlbmm\highdrvr.sys c:\boot\dosmax.exe /a0/i+/m1/r-p-
+REM=himem.sys cannot be loaded after highumm.sys
+device=c:\tlbmm\highdrvr.sys c:\dos\himem.sys
+REM=must load highumm.sys for DOSMAX (/replace is for himem.sys)
+device=c:\tlbmm\highumm.sys /replace
+device=c:\tlbmm\highdrvr.sys c:\mouse\mouse.sys
+shell=c:\boot\shellmax.com /r- c:\dos\command.com c:\dos /e:512 /p
+REM=use /S+ option to create a 256 byte low stub (networks? enviroment editors?)
+REM=shell=c:\boot\shellmax.com /r-/s+ c:\dos\command.com c:\dos /e:768 /p
+buffers=20
+files=40 
+lastdrive=Z  
+
+(AUTOEXEC)::
+
+REM moves master environment, reports on COMMAND space
+c:\boot\envimax.com
+
+;------------ UMB_DRVR ---------------------------------------------------------
+
+(CONFIG)::
+
+dos=high,umb
+stacks=9,256
+REM=alternative to dosmax /i+ switch, use stopmax.sys
+REM=device=stopmax.sys
+device=c:\umb_drvr\umb_drvr.sys
+REM=i to force DOS to UMB even with HIMEM, m1 for best fit, no report, no pause
+devicehigh=c:\boot\dosmax.exe /i+/m1/r-p-
+devicehigh=c:\dos\himem.sys
+devicehigh=c:\mouse\mouse.sys
+shell=shellmax.com /r- c:\dos\command.com c:\dos /e:512 /p
+buffers=20
+files=40 
+lastdrive=Z  
+
+(AUTOEXEC)::
+
+REM moves master environment, reports on COMMAND space
+c:\boot\envimax.com
+
+;------------ UMB_DRVR + 4DOS + NO HIMEM (no Extended Memory) ------------------
+
+(CONFIG)::
+
+dos=high,umb
+stacks=9,256
+device=c:\umb_drvr\umb_drvr.sys
+REM=i to force DOS to UMB even with HIMEM, m1 for best fit, no report, no pause
+devicehigh=c:\boot\dosmax.exe /a0/m1/r-p-
+devicehigh=c:\mouse\mouse.sys
+REM=probably not enough high memory to use shellmax with 4DOS
+shell=c:\4dos\4dos.com c:\4dos /p
+buffers=20
+files=40 
+lastdrive=Z  
+
+(AUTOEXEC)::
+
+REM not necessary at all, but no harm, /E- switch avoids environment warning
+c:\boot\envimax.com /E-
+
+;------------ DOS 5.0 ----------------------------------------------------------
+
+(CONFIG)::
+
+dos=high,umb
+stacks=0,0
+REM=stacks=9,256
+REM=if you really want DOS in UMB, use stopmax
+REM=but it will cost you 30k for HIMEM (try alternate XMS driver like QEXT.SYS)
+REM=device=stopmax.sys
+device=c:\dos\himem.sys
+device=c:\dos\emm386.exe ram 4096 i=b000-b7ff i=cc00-f7ff frame=cc00 b=1000
+REM=h because DOS goes to HMA, m1 for best fit, no report, no pause
+REM=no a0 necessary since DOS (and part of command.com is in the HMA)
+devicehigh=c:\boot\dosmax.exe /h/m1/r-/p-
+REM=if stacks=0,0 is not used, you may need to add /U9 to dosmax.exe line
+REM=this is a workaround for a emm386.exe warm-reboot problem
+devicehigh=c:\boot\dosmax.exe /h/m1/r-/p-/u9
+devicehigh=c:\dos\smartdrv.sys 1024 512
+devicehigh=c:\mouse\mouse.sys
+shell=shellmax.com /r- c:\dos\command.com c:\dos /e:768 /p
+buffers=5
+files=40
+lastdrive=Z
+
+(AUTOEXEC)::
+
+REM moves master environment, reports on COMMAND space (if no /A0)
+c:\boot\envimax.com
+
+;------------ QEMM386 + DOS 4.01 -----------------------------------------------
+
+(CONFIG)::
+
+stacks=9,256
+REM=stopmax.sys not necessary
+device=c:\qemm\qemm386.sys ram rom i=b000-b7ff i=cc00-f7ff fr=e800
+REM=m1 for best fit, no report, no pause
+device=c:\qemm\loadhi.sys /r:1 c:\boot\dosmax.exe m1r-p-
+REM=or let DOSMAX load itself high
+REM=device=c:\boot\dosmax.exe m1r-p-
+REM=s for shrink
+device=c:\boot\freeload.sys s
+device=c:\qemm\loadhi.sys /r:1 c:\mouse\mouse.sys
+shell=shellmax.com c:\dos\command.com c:\dos /e:768 /p
+REM=buffers low
+buffers=20
+REM=or use buffers in EMS
+REM=buffers=20 /x
+files=40
+lastdrive=Z
+
+(AUTOEXEC)::
+
+REM moves master environment
+c:\boot\envimax.com
+
+;------------ QEMM386 + DOS 3.30 -----------------------------------------------
+
+(CONFIG)::
+(NOTE:  REM really not allowed, just shown for clarity)
+
+stacks=9,256
+REM=stopmax.sys not necessary
+device=c:\qemm\qemm386.sys ram rom i=b000-b7ff i=cc00-f7ff fr=e800
+REM=m1 for best fit, no report, no pause
+device=c:\qemm\loadhi.sys /r:1 c:\boot\dosmax.exe m1r-p-
+REM=or let DOSMAX load itself high
+REM=device=c:\boot\dosmax.exe m1r-p-
+REM=s for shrink
+device=c:\boot\freeload.sys s
+device=c:\qemm\loadhi.sys /r:1 c:\mouse\mouse.sys
+shell=shellmax.com c:\dos\command.com c:\dos /e:768 /p
+buffers=20
+files=40
+lastdrive=Z
+
+(AUTOEXEC)::
+
+REM moves master environment
+c:\boot\envimax.com
+
+;------------ EMM386 + DR-DOS 6.0 ---------------------------------------------
+
+device=c:\drdos\emm386.sys /f=e800 /k=7168 /b=ffff /i=b000-b7ff,f000-f7ff /r=c000-cbff,f800-ffff
+rem For kernel in HMA, use hidos.sys /bdos=ffff
+rem For kernel in a UMB, don't use hidos.sys or hidos.sys /bdos=AUTO
+rem device=c:\drdos\hidos.sys /bdos=ffff
+rem your choice hidevice= or device=
+rem hidevice=c:\uboot\dosmax.exe /r- /p-
+device=c:\uboot\dosmax.exe /r- /p-
+hidevice=c:\windows\mouse.sys /y
+country=001,,c:\drdos\country.sys
+rem your choice shell=c:\shellmax.com or shell=c:\drdos\command.com
+rem shellmax.com saves 256 bytes or shellmax.com /s- saves 512 bytes
+shell=c:\shellmax.com c:\drdos\command.com c:\drdos\ /p /e:512
+rem your choice history=off or history=on,???,etc...
+rem history=off
+history=on, 256, off, off, off
+break=off
+rem your choice hibuffers= or buffers=
+rem hibuffers=20
+buffers=20
+files=35
+fcbs=8,4
+rem your choice fastopen=0 or fastopen=???
+rem fastopen=512
+fastopen=0
+lastdrive=z
+rem your choice hidos=on or hidos=off
+rem hidos=on
+hidos=off
+rem no install= or hiinstall=
+rem install=????
+
+;------------ QEMM386 + DR-DOS 6.0 ---------------------------------------------
+
+device=c:\qemm\qemm386.sys r:2 ns nv ram rom ha=64 ma=16 dma=128 i=0400-0fff st:m fr=c000
+rem For kernel in HMA, use hidos.sys /bdos=ffff
+rem For kernel in a UMB, don't use hidos.sys or hidos.sys /bdos=AUTO
+rem device=c:\drdos\hidos.sys /bdos=ffff
+device=c:\uboot\dosmax.exe /r- /p-
+hidevice=c:\windows\mouse.sys /y
+country=001,,c:\drdos\country.sys
+shell=c:\shellmax.com c:\drdos\command.com c:\drdos\ /p /e:512
+rem your choice history=off or history=on,???,etc...
+rem history=off
+history=on, 256, off, off, off
+break=off
+rem your choice hibuffers= or buffers=
+rem hibuffers=20
+buffers=20
+files=35
+fcbs=8,4
+rem your choice fastopen=0 or fastopen=???
+rem fastopen=512
+fastopen=0
+lastdrive=z
+rem your choice hidos=on or hidos=off
+rem hidos=on
+hidos=off
+rem no install= or hiinstall=
+rem install=????
+
+(AUTOEXEC)::
+
+REM moves master environment
+c:\boot\envimax.com
+
+;------------ GENERIC ----------------------------------------------------------
+
+; fully configured
+; 36K DOS 5.0 kernel in UMB, subs moved, shellmax loading primary shell high
+
+device=stopmax.sys
+device=memmgr.sys
+device=freeload.sys /s
+device=dosmax.exe /a0
+shell=shellmax.com c:\command.com c:\ /e:256 /p
+
+; problem 1:  not enough hi mem for drivers, subs, tsr's and DOS 5.0 kernel
+; solution 1:  saves 36K+ in hi mem by allowing DOS the HMA, still moves subs
+
+rem=no stopmax.sys
+device=memmgr.sys
+device=freeload.sys /s
+rem=add /h+, remove /a0
+device=dosmax.exe /h+
+rem=no shellmax.com
+shell=c:\command.com c:\ /e:256 /p
+
+; problem 2:  Network hangs when loaded, or env editor can't find master env
+; solution 2:  create fake stub in low memory
+
+device=stopmax.sys
+device=memmgr.sys
+device=freeload.sys /s
+device=dosmax.exe /a0
+rem=add /s+
+shell=shellmax.com /s+ c:\command.com c:\ /e:256 /p
+
+; problem 3:  CTRL-ALT-DEL to reboot crashes
+; solution 3:  use stacks=0,0 or unhook int 09h from stacks
+
+rem=no stacks
+stacks=0,0
+device=stopmax.sys
+device=memmgr.sys
+device=freeload.sys /s
+rem=or add /u9
+device=dosmax.exe /u9
+shell=shellmax.com c:\command.com c:\ /e:256 /p
+
+; problem 4:  SHELLMAX reports "unable to load high, loading low"
+; solution 4:  don't use shellmax (or see solution 1)
+
+device=stopmax.sys
+device=memmgr.sys
+device=freeload.sys /s
+rem=remove /a0
+device=dosmax.exe
+rem=no shellmax
+shell=c:\command.com c:\ /e:256 /p
+
+; problem 5:  freeload seems to have no effect
+; solution 5:  set /f parameter of freeload and use full pathname to loader
+
+device=stopmax.sys
+device=memmgr.sys
+rem=set /f parameter
+device=freeload.sys /s /fc:\mem\hiloader.sys
+rem=use full pathname to loader
+device=c:\mem\hiloader.sys general.sys
+device=dosmax.exe /a0
+shell=shellmax.com c:\command.com c:\ /e:256 /p
+
+; problem 6:  A specific driver fails with freeload
+; solution 6:  load driver before freeload, or duplicate loader in another path
+
+device=stopmax.sys
+device=memmgr.sys
+rem=load before freeload
+device=c:\mem\hiloader.sys specific.sys
+device=freeload.sys /s /fc:\mem\hiloader.sys
+rem=or duplicate loader in another path
+rem=device=d:\mem\hiloader.sys specific.sys
+device=dosmax.exe /a0
+shell=shellmax.com c:\command.com c:\ /e:256 /p
+

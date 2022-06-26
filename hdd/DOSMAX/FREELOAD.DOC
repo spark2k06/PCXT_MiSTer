@@ -1,0 +1,426 @@
+
+================================================================================
+      FREELOAD.SYS :  Ver. 2.1, Copyright (1992,93) by Philip B. Gardner
+================================================================================
+
+  FREELOAD.SYS is a device driver which will help maximize the use of low
+  memory by releasing memory usually reserved in low memory by LOADHI.SYS
+  from Quarterdeck Office Systems. 
+
+  FREELOAD.SYS tracks the high memory device loader operations and if it
+  is safe to release the low memory after each device initiates, the low
+  memory is released and the driver in upper memory is linked into the DOS
+  device chain.
+
+  FREELOAD.SYS can be used to save 1-2k in a typical configuration.  The
+  actual amount of memory saved depends upon on the number and type of
+  device drivers loaded high.
+
+  Support is provided for:
+
+    * fully automatic support of QEMM's LOADHI.SYS and 386MAX's 386LOAD.SYS
+    * specifying the name and path of the device loader
+    * both character and block devices
+    * character drivers which contain an unlimited number of devices
+    * DOS Versions 3.1 - 3.31, DOS 4.x, and DOS 5.x (or better?)
+
+================================================================================
+
+(Requirements)::
+
+        * Requires MS-DOS Version 3.10 or better
+
+================================================================================
+
+(Installation)::
+
+        (CONFIG.SYS)::
+
+        Installation of FREELOAD.SYS requires modifying the contents of
+        your CONFIG.SYS file.
+
+(Generic Configuration)::
+
+        This configuration should work and be the most efficient in 95%
+        of all configurations.  For a few real world examples see
+        EXAMPLES.DOC
+
+        DOS=HIGH[,UMB]                    (DOS 5.0 only)
+        REM DEVICE=STOPMAX.SYS [options]  (Stops kernel from loading in HMA)
+        DEVICE=(xms/umb memory manager)
+        DEVICE=DOSMAX.EXE [options]       (DOSMAX loads high automatically)
+        DEVICE=FREELOAD.SYS [-S][other options]
+        REM DEVICE=LOADHI.SYS DOSMAX.EXE  (or DOSMAX loaded high with loader)
+        SHELL=SHELLMAX.COM COMMAND.COM /P
+        BUFFERS=20
+        FILES=40
+        LASTDRIVE=Z
+
+        Add a DEVICE= line for FREELOAD.SYS in your config.sys.  FREELOAD
+        should be loaded immediately after the XMS and UMB memory manager
+
+        DEVICE=(Memory Manager)
+        DEVICE=FREELOAD.SYS [options]
+
+        The default loader pathname is "C:\QEMM\LOADHI.SYS".  If FREELOAD
+        cannot open this pathname, a message will displayed alerting you
+        to "Use /Fpathname to override."  An example which uses this switch
+        is shown below:
+
+        DEVICE=FREELOAD.SYS /F D:\QEMM\LOADHI.SYS
+
+        Version 1.8 adds full 386MAX support, so if 386MAX is detected, or
+        the /A2 switch is used, then the default loader pathname is changed
+        to "C:\386MAX\386LOAD.SYS."
+
+(Tip)::
+
+        If you prefer that a particular device driver is not affected by
+        the operation of FREELOAD, place the DEVICE= for that device above
+        the DEVICE=FREELOAD.SYS entry.  This may be necessary in the case
+        that a particular driver is not compatible with FREELOAD.
+
+================================================================================
+
+(Syntax)::
+
+        The only thing to remember about syntax for the command line is
+        that just about anything works.  What this means is that you
+        should be able to type in the options on the command line the
+        way they make sense to you.
+
+        To illustrate this point, the following command line example
+        is mutated several different ways.
+
+        DEVICE=FREELOAD.SYS /R+ /P+ /FC:\QEMM\LOADHI.SYS
+        DEVICE=FREELOAD.SYS -R+ -P+ -F C:\QEMM\LOADHI.SYS
+        DEVICE=FREELOAD.SYS R+ P+ F C:\QEMM\LOADHI.SYS
+        DEVICE=FREELOAD.SYS R+P+FC:\QEMM\LOADHI.SYS
+        DEVICE=FREELOAD.SYS -R+P+FC:\QEMM\LOADHI.SYS
+
+        ... and so on.  There must be an EOL or space following the
+        filename paramter the /Fpathname switch
+
+        FREELOAD 1.9 and above adds optional full word syntax.  The new
+        syntax looks like this:
+
+        DEVICE=FREELOAD.SYS /REPORT:- /PAUSE:- /LOADER=C:\QEMM\LOADHI.SYS
+        DEVICE=FREELOAD.SYS -REPORT:- -PAUSE:- -LOADER=C:\QEMM\LOADHI.SYS
+        DEVICE=FREELOAD.SYS REPORT:- PAUSE:- LOADER=C:\QEMM\LOADHI.SYS
+        DEVICE=FREELOAD.SYS REPORT-PAUSE-LOADER=C:\QEMM\LOADHI.SYS
+        DEVICE=FREELOAD.SYS -REPORT-PAUSE--LOADER=C:\QEMM\LOADHI.SYS
+
+        Obviously when using full words, it is easier to keep the words
+        separated so that is clear to read.  An optional [:] or [=] may be
+        used for switches (i.e. REPORT:+ or LOADER=C:\LOADHI.SYS).  These
+        optional delimiters are used interchangeably and can also be used
+        with the single letter switches.  Remember to check your spelling
+        because the single letter interface is still intact.
+
+(Switch Options)::
+
+        The following list of switch options is organized by:
+
+        - Control of FREELOAD Reports (/R:/P:/N:)
+        - Override the Default Name and Path of the Loader (/F=)
+        - Setting the Memory Strategy (/M=)
+        - Overriding Directory Structure Size (/D=)
+        - Control the Alternate Memory Manager Method (/A=)
+        - Controlling the Shrink Feature (/S:)
+        - Response file for FREELOAD (@)
+
+    (Control of FREELOAD Reports)::
+
+        (REPORT)::      R[+ or -]        (toggle:  default +)
+
+        Use /R- or /REPORT:- to disable the report after you are
+        satisfied with the configuration of DOSMAX.EXE
+
+        (PAUSE)::       P[+ or -]        (toggle:  default +)
+
+        Use /P- or /PAUSE:- to disable the pause after the report as
+        long as there are no errors or warnings.
+
+        (NOPAUSE)::     N[+ or -]        (toggle:  default -)
+
+        Use /N+ or /NOPAUSE:+ to never pause after the report, even if
+        there are errors.  This switch can be used if your configuration
+        generates a warning or error message which you choose to ignore.
+
+    (Override the Default Name and Path of the Loader)::
+
+        (LOADER)::      F[pathname]      (string=  default=C:\QEMM\LOADHI.SYS)
+
+        Use /Fpathname or /LOADER=pathname to specify the filename and path
+        of the device loader provided with your upper memory manager.  For
+        example, if this device driver is on drive D:
+
+                DEVICE=FREELOAD.SYS /FD:\QEMM\LOADHI.SYS
+
+        If FREELOAD cannot find this file, it will not load.
+
+    (Setting the Memory Strategy)::
+
+        (STRATEGY)::    Mn               (value:  n = 0)   
+
+        Use /Mn or /STRATEGY=n to control the memory allocation strategy
+        which FREELOAD uses to allocate its upper memory block.  The default
+        strategy is is First Fit (/M0).  This means that FREELOAD will use
+        the first upper memory block returned by the XMS manager.  The other
+        options are Best Fit (/M1) and Last Fit (/M2).  Best Fit uses the
+        block which most closely matches the size needed, and Last Fit uses
+        the highest block big enough to handle the request.  Values other
+        than 0, 1, or 2 are ignored and the previous setting of this option
+        is used.
+ 
+    (Overriding Directory Structure Size)::
+
+        (CDSSIZE)::     Dnn              (value:  nn = 88)
+
+        Use /Dnn or /CDSSIZE=nn to set the Drive Table Size.  Values other
+        than the MS-DOS 4.0 - 6.0 Drive Table Size of 88 are only allowed if
+        the true MS-DOS version is greater than 5.0.  The Drive Table Size
+        for DOS 3.x is 81. The /Dnn switch is only necessary if FREELOAD
+        can't determine the Drive Table Size automatically.
+
+    (Control the Alternate Memory Manager Method)::
+
+        (ALTMETHOD)::   An               (value:  n = 0)
+
+        Use /An to select the method FREELOAD uses to detect and track
+        high device loaders.  There are 3 possible values.  (0), the
+        default, means that FREELOAD will automatically select the proper
+        method.  (1), method 1 is for device loaders compatible with
+        LOADHI.SYS from Quarterdeck.  (2), method 2 is for device loaders
+        compatible with 386LOAD.SYS from Qualitas.  This switch is included
+        only for debugging purposes.
+
+    (Controlling the Shrink Feature)
+
+        (SHRINK)::      S[+ or -]        (toggle:  default -)
+
+        FREELOAD normally takes approximately 1.4K of high memory. Use /S+
+        or /SHRINK:+ to reduce this requirement to 16 bytes just before
+        the shell is loaded from CONFIG.SYS.  Shrinking may cause problems
+        with high memory optimizers, but the switch can be safely used
+        after the system is optimized, to free another 1.4K of high memory.
+
+  (Response file for FREELOAD)::
+
+        Parameters for FREELOAD may be read from a response file by using the
+        @pathname syntax:
+        
+        FREELOAD.SYS @RESPONSE.FIL
+ 
+        Response files may be commented by using a ";","#",or "*" character
+        before the comment.
+
+        *  everything in square brackets "[]" is optional
+
+(CONFIG.SYS Line)::
+
+        DEVICE=FREELOAD.SYS [/ or -][R[+]P[+]N[+]S[+]Fpathname]
+
+        device mode default: /R-/P-/N-/S-/Mn/FC:\QEMM\LOADHI.SYS
+
+        *  No Report status messages
+        *  No Pause after report
+        *  Pause on errors or warnings
+        *  Use the First Fit memory allocation strategy
+        *  Default Loader Pathname = "C:\QEMM\LOADHI.SYS"
+
+================================================================================
+
+(Report Format)::
+
+      FREELOAD.SYS :  Ver. 2.1, Copyright (1992) by Philip B. Gardner
+             ERROR :  (Error Messages)
+           WARNING :  (Warning Messages)
+            ADVICE :  (Advisory Messages)
+                   :  (Report Messages)
+                   :  (Allocation Status)
+             PAUSE :  Press any key to continue... 
+
+(Report Note)::
+
+        FREELOAD.SYS may be replaced by FREELOAD.OVL.  The exact name of the
+        module is dependent upon the circumstances under which FREELOAD.SYS
+        reports.  This detail is important only as diagnostic information.
+
+================================================================================
+
+(Error Messages)::
+
+        MS-DOS version 3.10 or above is required
+        XMS manager not installed
+        DOS version is not compatible
+        Can't load in High Memory
+        An 80186 processor or better is required
+        Device Loader not found
+
+================================================================================
+
+(Warning Messages)::
+
+        Unknown option in command line
+        Unknown option on line #0000
+        Extra characters on command line
+        Missing or invalid option file XXXXXXXX.XXX
+        Line length overflow at line #0000
+        Drive Table Size not determined or out of range
+
+================================================================================
+
+(Advisory Messages)::
+
+        Use /Fpathname to override
+        Use /Dnn switch to set Drive Table size
+
+================================================================================
+
+(Report Messages)::
+
+        Processing option file XXXXXXXX.XXX
+	Effection section is [XXXXXXXX]
+        Drive Table Size set to 00h
+        [pathname]                      (/Fpathname parameter if error)
+
+================================================================================
+
+(Allocation Status)::
+
+        FREELOAD moved to 0000
+        Not enough Hi Memory for FREELOAD  
+
+================================================================================
+
+(Changes)::
+
+    (Version 1.1)::
+
+    (1) Fixed problem where character devices were skipped if a
+        block device was loaded first
+
+    (2) Added support for block devices.  This grew the size of
+        FREELOAD to 880 bytes so FREELOAD now shrinks to 16 bytes
+        when finished.  This frees a .8k block of upper memory
+        which is not needed after all devices are loaded.
+
+    (Version 1.2)::
+
+    (1) Added support for character drivers which contain multiple
+        devices.  There is a requirement for 16 bytes of low
+        memory for a multiple device driver, but this 16 bytes
+        supports an unlimited number of devices within the driver.
+        Without the 16 bytes, DOS believes the initialization of the
+        driver has failed and only the first device is linked.
+
+    (Version 1.3)::
+
+    (1) Fixed problem with failing to build a Drive Parameter Block
+        when a multiple device driver ended with a block device.
+
+    (2) Changed automatic reduce to a command line option.  FREELOAD
+        now takes 1K bytes high.  If the /S+ (shrink option is used)
+        this size is reduced to 16 bytes just before the shell is loaded.
+
+    (Version 1.4)::
+
+    (1) Improved multiple device failure mode.  If a multiple device
+        driver has begun the initiate phase and fails, the high device
+        is left unlinked, and the loader is left in place with memory
+        and the device chain set to the length of the last successful
+        initialization.  This method more closely emultates DOS.
+
+    (2) Added check that resets FREELOAD if the loader doesn't load the
+        device in high memory successfully.
+
+    (3) Optimized code to reduce memory requirement back to 1K
+
+    (Version 1.5)::
+
+    (1) Added base 10 display of Drive Table Size message
+
+    (Version 1.6)::
+
+    (1) Added support for DOS 5 UMB's when moving FREELOAD upto upper
+        memory.  Some device loaders will work with DOS 5 UMB's, and
+        now you can use the loader instead of DEVICEHIGH= if you want.
+
+    (2) Added /Mn option, to allow general control of memory allocation
+        strategy.  First Fit = 0, Best Fit = 1, and Last Fit = 2 were
+        implemented for both DOS 5 UMB's, and XMS UMB's.
+
+    (3) Added check for a 186 processor or better (allows V20/V30).
+
+    (4) Now supporting separate program FREELO86.SYS.  This program is
+        functionally identical to FREELO86.SYS, but is compiled to work
+        on 8086/8088 processors also.  The stub left in high memory
+        is 16 bytes greater using with this variation.
+
+    (Version 1.7)::
+
+    (1) Changed common parsing algorithum to add support for Hex-Notation
+        input.  This input method is not used in FREELOAD at this time.
+
+    (2) Fixed case where device fails but the loader tells DOS the device
+        was ok.  The high memory block is released, but the loader still
+        reserves low memory.  FREELOAD linked the released driver, but now
+        detects the condition, does not complete the link, and releases
+        the stub.
+
+    (Version 1.8)::
+
+    (1) Added automatic support for 386LOAD.SYS from Qualitas.  The proper
+        method FREELOAD uses is determined automatically, but may be
+        overridden with the /An switch.  The option adds as much as
+        246 bytes to the pre-shrink size of FREELOAD.
+
+    (2) DOS 3.x and 4.x with FREELOAD and 386LOAD was crashing because
+        the 386LOAD stub hooked INT 21h, apparently to return a different
+        DOS version to the device being loaded.  This "feature" is now
+        disabled by FREELOAD so that the stub may be freed.  DOS 5 (and
+        above?) used func 4B05h (set execution state), so the hook checking
+        is bypassed.  The hook checking is implemented for /A2 only (or
+        auto /A0).
+
+    (3) If method 2 (/A2 or 386MAX detected with /A0), the default loader
+        name is "C:\386MAX\386LOAD.SYS."  This makes compatability with
+        386MAX completely transparent to the user in most cases.
+
+    (Version 1.9)::
+
+    (1)  Reorganized code to enable an overlay method of module selection
+         to automate processor selection and split up .SYS and .EXE modules
+         to reduce the initialization memory to minimum.
+
+    (2)  FREELOAD now automatically detects the processor type and chooses
+         separate code modules if appropriate.  The 186 processor require-
+         ment of previous versions is no longer applicable.
+
+    (3)  Added optional full word syntax to argument parser.  The old style
+         single letter switch interface is still intact.  The switch lists
+         now show the optional word with the switch.
+
+    (Version 2.0)::
+
+    (1)  Added support for DOS 6.0's changes in the way devices are
+         initialized.  FREELOAD 1.7 was not compatible with DOS 6.0 or
+         DBLSPACE.  FREELOAD 2.0 now supports the new version seamlessly.
+
+    (2)  Added support for loaders which build sub-segments for devices
+         in high memory.  This caused problems while preparing block
+         devices.
+
+    (3)  Added option response file input with @filename.opt syntax
+
+    (Version 2.1)::
+
+    (1)  Fixed problem with finding DOS 6.0 CONFIG variable for machines
+         whose bios'es don't intialize memory properly.
+
+    (2)  Fixed problem with some configurations of non-DOS 6.x systems
+         and non-DBLSPACE systems which caused an Exception 13 after
+         FREELOAD was loaded.
+
+================================================================================
