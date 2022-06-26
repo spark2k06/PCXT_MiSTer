@@ -320,6 +320,7 @@ reg clk_14_318 = 1'b0;
 //reg clk_7_16 = 1'b0;
 wire clk_4_77;
 wire clk_cpu;
+wire cen_opl2;
 wire peripheral_clock;
 
 pll pll
@@ -348,7 +349,7 @@ wire ce_pix;
 assign CLK_VIDEO = clk_28_636;
 assign CE_PIXEL = 1'b1;
 
-//assign clk_cpu = status[4] ? clk_7_16 : clk_4_77;
+//assign clk_cpu = status[x] ? clk_7_16 : clk_4_77;
 assign clk_cpu = clk_4_77;
 
 always @(posedge clk_28_636)
@@ -568,6 +569,10 @@ always @(posedge clk_4_77)
         .sdram_udqm                         (SDRAM_DQMH)   
     
     );
+	
+	wire speaker_out;
+	wire  [7:0]   tandy_snd_e;
+
 	wire [15:0] jtopl2_snd_e;	
 	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + {tandy_snd_e, 6'd0}; // signed mixer
 	
@@ -579,7 +584,10 @@ always @(posedge clk_4_77)
 	assign SDRAM_DQ = ~SDRAM_DQ_IO ? SDRAM_DQ_OUT : 16'hZZZZ;			
 	
 	assign AUDIO_R = sndmix >> 1;
-	 
+	
+	wire s6_3_mux;
+	wire [2:0] SEGMENT;
+
 	i8088 B1(
 	  .CORE_CLK(clk_100),
 	  .CLK(clk_cpu),
@@ -634,6 +642,8 @@ always @(posedge clk_4_77)
 			cpu_address <= cpu_address;
 	end	
 	
+	/// VIDEO
+
 	/*
 	wire [1:0] scale = status[8:7];
 	assign VGA_SL = scale;
@@ -649,6 +659,8 @@ always @(posedge clk_4_77)
 	);
 	*/
 
+
+	//CGA
 	always @ (status[2:1], r, g, b) begin		
 		case(status[2:1])
 			// Verde

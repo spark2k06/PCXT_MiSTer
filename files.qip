@@ -1,5 +1,6 @@
 set_global_assignment -name SDC_FILE PCXT.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE PCXT.sv
+set_global_assignment -name QIP_FILE rtl/pll.qip
 set_global_assignment -name QIP_FILE rtl/common/common.qip
 set_global_assignment -name QIP_FILE rtl/video/video.qip
 set_global_assignment -name QIP_FILE rtl/uart/uart.qip
