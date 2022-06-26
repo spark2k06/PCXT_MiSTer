@@ -427,7 +427,7 @@ module PERIPHERALS #(
 		.read              (~io_read_n & prev_io_read_n),
 		.write             (io_write_n & ~prev_io_write_n),
 		.readdata          (uart_readdata_1),
-		.cs                (uart_cs),
+		.cs                (uart_cs && (~address_enable_n)),
 
 		.rx                (uart_rx),
 		.tx                (uart_tx),
@@ -696,7 +696,7 @@ module PERIPHERALS #(
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = opl32_data;			
         end
-		  else if ((uart_cs) && (~io_read_n)) begin
+		  else if ((uart_cs) && (~io_read_n) && (~address_enable_n)) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = uart_readdata;			
         end
