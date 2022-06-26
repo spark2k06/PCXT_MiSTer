@@ -534,8 +534,8 @@ always @(posedge clk_4_77)
         .port_b_out                         (port_b_out),
 		  .port_c_in                          (port_c_in),
 	     .speaker_out                        (speaker_out),   
-        .ps2_clock                          (device_clock),
-	     .ps2_data                           (device_data),
+        .ps2_clock                          (ps2_kbd_clk_in),
+	     .ps2_data                           (ps2_kbd_data_in),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
