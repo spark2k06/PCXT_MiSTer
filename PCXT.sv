@@ -211,6 +211,9 @@ localparam CONF_STR = {
 	"-;",
 	"OA,Adlib,On,Invisible;",
 	"-;",
+	"OB,Lo-tech 2MB EMS, Enabled, Disabled;",
+	"OCD,EMS Frame,A000,C000,D000,E000;",
+	"-;",
 	"O4,Video Output,Tandy/CGA,MDA;",
 	"O12,CGA RGB,Color,Green,Amber,B/W;",
 	"O56,MDA RGB,Green,Amber,B/W;",
@@ -566,7 +569,9 @@ always @(posedge clk_4_77)
         .sdram_dq_out                       (SDRAM_DQ_OUT),
         .sdram_dq_io                        (SDRAM_DQ_IO),
         .sdram_ldqm                         (SDRAM_DQML),
-        .sdram_udqm                         (SDRAM_DQMH)   
+        .sdram_udqm                         (SDRAM_DQMH),
+		  .ems_enabled                        (~status[11]),
+		  .ems_address                        (status[13:12])
     
     );
 	

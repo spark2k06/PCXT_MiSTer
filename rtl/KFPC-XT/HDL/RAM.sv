@@ -29,14 +29,21 @@ module RAM (
     output  logic   [15:0]  sdram_dq_out,
     output  logic           sdram_dq_io,
     output  logic           sdram_ldqm,
-    output  logic           sdram_udqm
+    output  logic           sdram_udqm,
+	 // EMS	 
+	 input   logic   [6:0]   map_ems[0:3],	 
+	 input   logic           ems_b1,
+	 input   logic           ems_b2,
+	 input   logic           ems_b3,
+	 input   logic           ems_b4
+	 
 );
 
     typedef enum {IDLE, RAM_WRITE_1, RAM_WRITE_2, RAM_READ_1, RAM_READ_2, COMPLETE_RAM_RW, WAIT} state_t;
 
     state_t         state;
     state_t         next_state;
-    logic   [19:0]  latch_address;
+    logic   [21:0]  latch_address;
     logic   [7:0]   latch_data;
     logic           write_command;
     logic           read_command;
@@ -45,10 +52,11 @@ module RAM (
 
     //
     // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xEFFFF)
-    //
-	 assign  ram_address_select_n =  ~(enable_sdram && (address < 20'h0B0000 ||
-	                                 (~(address[19:16] == 4'b1111)       // B0000h reserved for VRAM
-												&& ~(address[19:16] == 4'b1011)))); // F0000h reserved for BIOS
+    //	 
+	 assign  ram_address_select_n = ~(enable_sdram && 
+	                                ~(address[19:16] == 4'b1111) &&  // B0000h reserved for VRAM
+											  ~(address[19:16] == 4'b1011));   // F0000h reserved for BIOS
+											  
 
     //
     // Latch I/O Ports
@@ -57,8 +65,21 @@ module RAM (
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             latch_address   <= 0;
-        else
-            latch_address   <= address;
+        else begin
+		  			
+			  if (ems_b1)
+					latch_address   <= {1'b1, map_ems[0], address[13:0]};
+			  else if (ems_b2)
+					latch_address   <= {1'b1, map_ems[1], address[13:0]};
+			  else if (ems_b3)
+					latch_address   <= {1'b1, map_ems[2], address[13:0]};
+			  else if (ems_b4)
+					latch_address   <= {1'b1, map_ems[3], address[13:0]};
+			  else
+					latch_address   <= {2'b00, address};
+				
+		  end
+		  
     end
 
     // Data Bus
@@ -194,7 +215,7 @@ module RAM (
                 sdram_udqm      = 1'b0;
             end
             RAM_WRITE_1: begin
-                access_address  = {9'h000, latch_address};
+                access_address  = {7'h00, latch_address};
                 access_num      = 10'h001;
                 access_data_in  = {8'h00, latch_data};
                 write_request   = 1'b1;
@@ -203,7 +224,7 @@ module RAM (
                 sdram_udqm      = 1'b0;
             end
             RAM_WRITE_2: begin
-                access_address  = {9'h000, latch_address};
+                access_address  = {7'h00, latch_address};
                 access_num      = 10'h001;
                 access_data_in  = {8'h00, latch_data};
                 write_request   = 1'b0;
@@ -212,7 +233,7 @@ module RAM (
                 sdram_udqm      = 1'b0;
             end
             RAM_READ_1: begin
-                access_address  = {9'h000, latch_address};
+                access_address  = {7'h00, latch_address};
                 access_num      = 10'h001;
                 access_data_in  = 16'h0000;
                 write_request   = 1'b0;
@@ -221,7 +242,7 @@ module RAM (
                 sdram_udqm      = 1'b0;
             end
             RAM_READ_2: begin
-                access_address  = {9'h000, latch_address};
+                access_address  = {7'h00, latch_address};
                 access_num      = 10'h001;
                 access_data_in  = 16'h0000;
                 write_request   = 1'b0;

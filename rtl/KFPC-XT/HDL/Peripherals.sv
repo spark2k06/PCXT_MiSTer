@@ -76,7 +76,16 @@ module PERIPHERALS #(
 	 input   logic           uart_dcd_n,
 	 input   logic           uart_dsr_n,
 	 output  logic           uart_rts_n,
-	 output  logic           uart_dtr_n
+	 output  logic           uart_dtr_n,
+	 // EMS
+	 input   logic           ems_enabled,
+	 input   logic   [1:0]   ems_address,
+	 output  reg     [6:0]   map_ems[0:3], // Segment hE000, hE400, hE800, hEC00
+	 output  reg             ena_ems[0:3], // Enable Segment Map hE000, hE400, hE800, hEC00
+	 output  logic           ems_b1,
+	 output  logic           ems_b2,
+	 output  logic           ems_b3,
+	 output  logic           ems_b4
 
 	 
 );
@@ -117,6 +126,25 @@ module PERIPHERALS #(
 	 wire    rom_select_n           = ~(address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
 	 wire    uart_cs                = ({address[15:3], 3'd0} == 16'h03F8);
 	 
+	 
+	 wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1010 : (ems_address == 2'b01) ? 4'b1100 : (ems_address == 2'b10) ? 4'b1101 : 4'b1110;
+	 wire    ems_oe                 = (ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h	 
+	 assign  ems_b1                 = (ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // A0000h - C0000h - D0000h - E0000h
+	 assign  ems_b2                 = (ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // A4000h - C4000h - D4000h - E4000h
+	 assign  ems_b3                 = (ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // A8000h - C8000h - D8000h - E8000h
+	 assign  ems_b4                 = (ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // AC000h - CC000h - DC000h - EC000h
+	 
+	 always_ff @(negedge clock, posedge reset)
+    begin
+        if (reset) begin
+		      map_ems = '{7'h00, 7'h00, 7'h00, 7'h00};
+            ena_ems = '{1'b0, 1'b0, 1'b0, 1'b0};
+        end
+        else if (ems_oe && ~io_write_n && ~address_enable_n) begin
+					map_ems[address[1:0]] <= (internal_data_bus == 8'hFF) ? 7'hFF : (internal_data_bus < 8'h80) ? internal_data_bus[6:0] : map_ems[address[1:0]];
+					ena_ems[address[1:0]] <= (internal_data_bus == 8'hFF) ? 1'b0 : (internal_data_bus < 8'h80) ? 1'b1 : ena_ems[address[1:0]];
+		  end
+    end
 
     //
     // 8259
@@ -671,6 +699,10 @@ module PERIPHERALS #(
 		  else if ((uart_cs) && (~io_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = uart_readdata;			
+        end
+		  else if ((ems_oe) && (~io_read_n) && (~address_enable_n)) begin
+            data_bus_out_from_chipset = 1'b1;				
+				data_bus_out = ena_ems[address[1:0]] ? map_ems[address[1:0]] : 8'hFF;            
         end
         else begin
             data_bus_out_from_chipset = 1'b0;

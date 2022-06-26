@@ -107,7 +107,10 @@ module CHIPSET (
     output  logic   [15:0]  sdram_dq_out,
     output  logic           sdram_dq_io,
     output  logic           sdram_ldqm,
-    output  logic           sdram_udqm
+    output  logic           sdram_udqm,
+	 // EMS
+	 input   logic           ems_enabled,
+	 input   logic   [1:0]   ems_address
 );
 
     logic           dma_ready;
@@ -123,6 +126,15 @@ module CHIPSET (
     logic   [7:0]   internal_data_bus_ram;
     logic           data_bus_out_from_chipset;
     logic           internal_data_bus_direction;
+	 
+	 
+	 logic   [6:0]   map_ems[0:3];
+	 logic           ena_ems[0:3];
+	 logic           ems_b1;
+	 logic           ems_b2;
+	 logic           ems_b3;
+	 logic           ems_b4;
+	 
 
     READY u_READY (
         .clock                              (clock),
@@ -238,7 +250,15 @@ module CHIPSET (
 	     .uart_dcd_n                        (uart_dcd),
 	     .uart_dsr_n                        (uart_dsr),
 	     .uart_rts_n                        (uart_rts),
-	     .uart_dtr_n                        (uart_dtr)
+	     .uart_dtr_n                        (uart_dtr),
+		  .ems_enabled                       (ems_enabled),
+		  .ems_address                       (ems_address),
+		  .map_ems                           (map_ems),
+	     .ena_ems                           (ena_ems),
+	     .ems_b1                            (ems_b1),
+	     .ems_b2                            (ems_b2),
+	     .ems_b3                            (ems_b3),
+	     .ems_b4                            (ems_b4)
 		  
     );
 
@@ -265,7 +285,12 @@ module CHIPSET (
         .sdram_dq_out                       (sdram_dq_out),
         .sdram_dq_io                        (sdram_dq_io),
         .sdram_ldqm                         (sdram_ldqm),
-        .sdram_udqm                         (sdram_udqm)
+        .sdram_udqm                         (sdram_udqm),		  
+		  .map_ems                            (map_ems),	     
+	     .ems_b1                             (ems_b1),
+	     .ems_b2                             (ems_b2),
+	     .ems_b3                             (ems_b3),
+	     .ems_b4                             (ems_b4)
     );
 
     assign  data_bus = internal_data_bus;
