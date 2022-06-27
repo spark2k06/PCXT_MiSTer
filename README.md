@@ -21,10 +21,7 @@ Place boot.rom (in SW folder) inside games/PCXT folder at root of SD card.
 * IDE module implementation
 * Floppy implementation
 * VHD support for easy integration with [XTIDE Universal BIOS](https://www.xtideuniversalbios.org/)
-* Addition of other modules:
-    * EMS    
-    * Others...
-
+* Addition of other modules
 * Turbo mode (7.16Mhz)
 
 # Mounting the disk image
