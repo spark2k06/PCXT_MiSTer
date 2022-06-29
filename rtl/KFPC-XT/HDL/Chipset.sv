@@ -7,6 +7,7 @@ module CHIPSET (
 	 input   logic           clk_sys,
     input   logic           peripheral_clock,
     input   logic           reset,
+    input   logic           sdram_reset,
     // CPU
     input   logic   [19:0]  cpu_address,
     input   logic   [7:0]   cpu_data_bus,
@@ -266,6 +267,7 @@ module CHIPSET (
         .clock                              (clock),
         .sdram_clock                        (sdram_clock),
         .reset                              (reset),
+        .sdram_reset                        (sdram_reset),
         .enable_sdram                       (enable_sdram),
         .address                            (address),
         .internal_data_bus                  (internal_data_bus),

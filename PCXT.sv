@@ -556,6 +556,7 @@ end
 		  .peripheral_clock                   (peripheral_clock),
 		  
         .reset                              (reset_chipset),
+        .sdram_reset                        (reset),
         .cpu_address                        (cpu_address),
         .cpu_data_bus                       (cpu_data_bus),
         .processor_status                   (processor_status),
