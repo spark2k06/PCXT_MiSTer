@@ -408,7 +408,7 @@ module PERIPHERALS #(
 
 		.address           (address[2:0]),
 		.writedata         (write_to_uart),
-		.read              (~io_read_n & prev_io_read_n),
+		.read              (~io_read_n  & prev_io_read_n),
 		.write             (io_write_n & ~prev_io_write_n),
 		.readdata          (uart_readdata_1),
 		.cs                (uart_cs && (~address_enable_n)),
@@ -427,7 +427,7 @@ module PERIPHERALS #(
 
 	// Timing of the readings may need to be reviewed.
 	always_ff @(posedge clock) begin
-		if (~io_read_n & prev_io_read_n)
+		if (~io_read_n)
 			uart_readdata <= uart_readdata_1;
 		else
 			uart_readdata <= uart_readdata;
