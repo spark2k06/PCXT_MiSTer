@@ -4,15 +4,18 @@
           ((_)()\ )\ /(_))( )(_))))\ )(    /(_)|((_)((_)\  ( )(_)) 
           (_()((_|(_|_)) (_(_())/((_|()\  (_)) )\_____((_)(_(_())  
           |  \/  |(_) __||_   _(_))  ((_) | _ ((/ __\ \/ /|_   _|  
-          | |\/| || \__ \  | | / -_)| '_| |  _/| (__ >  <   | |   beta 1.1
-          |_|  |_||_|___/  |_| \___||_|   |_|   \___/_/\_\  |_|  26/06/2022
+          | |\/| || \__ \  | | / -_)| '_| |  _/| (__ >  <   | |   beta 1.2
+          |_|  |_||_|___/  |_| \___||_|   |_|   \___/_/\_\  |_|  03/07/2022
 
 
-                        Port by @spark2k06, @naeloob
+                             Port by @spark2k06
 
-                         Powered by KFPC-XT & MCL86
+           Powered by KFPC-XT (@kitune-san) & MCL86 (@MicroCoreLabs)
                                        
-                                Contributors
-                                ------------
+                       Contributors & Special Thanks
+                       -----------------------------
 
-             @JasonA, @gyurco, @kitune-san, @MicroCoreLabs, @somhi
+              @naeloob, @JasonA, @gyurco, @somhi, @Adr1048
+                             @pgimeno, @Mills
+
+
