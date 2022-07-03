@@ -82,7 +82,7 @@ module KF8255_Port_C (
     //
 
     // Read edge
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
             read_port_a_ff <= 1'b0;
             read_port_b_ff <= 1'b0;
@@ -334,7 +334,7 @@ module KF8255_Port_C (
         endcase
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
             port_c_io[0] <= `PORT_INPUT;
             port_c_io[1] <= `PORT_INPUT;
@@ -359,7 +359,7 @@ module KF8255_Port_C (
     assign update_group_b_port_b_io_reg = internal_data_bus[1];
 
     // PC0 (INTRB | INTRB)
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_c_out[0] <= 1'b0;
         else if ((write_port_c_bit_set) && (internal_data_bus[3:1] == 3'b000))
@@ -377,7 +377,7 @@ module KF8255_Port_C (
     end
 
     // PC1 (IBFB | /OBFB)
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_c_out[1] <= 1'b0;
         else if ((write_port_c_bit_set) && (internal_data_bus[3:1] == 3'b001))
@@ -399,7 +399,7 @@ module KF8255_Port_C (
     end
 
     // PC2 (/STBB(INTEB) | /ACKB(INTEB))
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_c_out[2] <= 1'b0;
         else if ((write_port_c_bit_set) && (internal_data_bus[3:1] == 3'b010))
@@ -413,7 +413,7 @@ module KF8255_Port_C (
     end
 
     // PC3 (INTRA / INTRA)
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_c_out[3] <= 1'b0;
         else if ((write_port_c_bit_set) && (internal_data_bus[3:1] == 3'b011))
@@ -431,7 +431,7 @@ module KF8255_Port_C (
             endcase
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
             intr_a_mode2_read_reg  <= 1'b0;
             intr_a_mode2_write_reg <= 1'b0;
@@ -444,7 +444,7 @@ module KF8255_Port_C (
 
 
     // PC4 (/STBA(INTE2) | I/O)
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_c_out[4] <= 1'b0;
         else if ((write_port_c_bit_set) && (internal_data_bus[3:1] == 3'b100))
@@ -458,7 +458,7 @@ module KF8255_Port_C (
     end
 
     // PC5 (IBFA | I/O)
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_c_out[5] <= 1'b0;
         else if ((write_port_c_bit_set) && (internal_data_bus[3:1] == 3'b101))
@@ -477,7 +477,7 @@ module KF8255_Port_C (
     end
 
     // PC6 (I/O | /ACKA(INTEA))
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_c_out[6] <= 1'b0;
         else if ((write_port_c_bit_set) && (internal_data_bus[3:1] == 3'b110))
@@ -491,7 +491,7 @@ module KF8255_Port_C (
     end
 
     // PC7 (I/O | /OBFA)
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_c_out[7] <= 1'b0;
         else if ((write_port_c_bit_set) && (internal_data_bus[3:1] == 3'b111))
@@ -546,7 +546,7 @@ module KF8255_Port_C (
             port_c_read_comb[7] = port_c_out[7];
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_c_read <= 8'b00000000;
         else if (update_group_a_mode & update_group_b_mode)

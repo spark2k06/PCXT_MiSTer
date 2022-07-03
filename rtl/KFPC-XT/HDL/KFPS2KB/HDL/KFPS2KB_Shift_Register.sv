@@ -8,6 +8,7 @@ module KFPS2KB_Shift_Register #(
     parameter over_time = 16'd1000
 ) (
     input   logic           clock,
+    input   logic           peripheral_clock,
     input   logic           reset,
 
     input   logic           device_clock,
@@ -39,9 +40,30 @@ module KFPS2KB_Shift_Register #(
 
 
     //
+    // Detect peripheral clock edge
+    //
+    logic           prev_p_clock_1;
+    logic           prev_p_clock_2;
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset) begin
+            prev_p_clock_1 <= 1'b0;
+            prev_p_clock_2 <= 1'b0;
+        end
+        else begin
+            prev_p_clock_1 <= peripheral_clock;
+            prev_p_clock_2 <= prev_p_clock_1;
+
+        end
+    end
+
+    wire    p_clock_posedge = prev_p_clock_1 & ~prev_p_clock_2;
+
+
+    //
     // Detect clock edge
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             prev_device_clock <= 1'b0;
         else
@@ -54,7 +76,7 @@ module KFPS2KB_Shift_Register #(
     //
     // Shift register
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             shift_register <= 9'b0_0000_0000;
         else if ((state == RECEIVING) & (device_clock_edge))
@@ -67,7 +89,7 @@ module KFPS2KB_Shift_Register #(
     //
     // Bit Count
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             bit_count <= 4'b0000;
         else if (state == READY)
@@ -91,14 +113,14 @@ module KFPS2KB_Shift_Register #(
     //
     // Count receiving time
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             receiving_time <= 16'h0000;
         else if (state == READY)
             receiving_time <= 16'h0000;
         else if (device_clock_edge)
             receiving_time <= 16'h0000;
-        else if (over_receiving_time == 1'b0)
+        else if ((p_clock_posedge) && (over_receiving_time == 1'b0))
             receiving_time <= receiving_time + 16'h0001;
         else
             receiving_time <= receiving_time;
@@ -110,7 +132,7 @@ module KFPS2KB_Shift_Register #(
     //
     // Recieved flag and error flag
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
             recieved_flag <= 1'b0;
             error_flag    <= 1'b0;
@@ -145,7 +167,7 @@ module KFPS2KB_Shift_Register #(
     //
     // Set register
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             register <= 8'h00;
         else if ((state == STOPBIT) && (device_clock_edge))
@@ -186,7 +208,7 @@ module KFPS2KB_Shift_Register #(
             next_state = READY;
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             state <= READY;
         else

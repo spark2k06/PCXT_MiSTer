@@ -4,6 +4,7 @@
 //
 module CHIPSET (
     input   logic           clock,
+    input   logic           cpu_clock,
 	 input   logic           clk_sys,
     input   logic           peripheral_clock,
     input   logic           reset,
@@ -139,6 +140,7 @@ module CHIPSET (
 
     READY u_READY (
         .clock                              (clock),
+        .cpu_clock                          (cpu_clock),
         .reset                              (reset),
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
@@ -153,6 +155,7 @@ module CHIPSET (
 
     BUS_ARBITER u_BUS_ARBITER (
         .clock                              (clock),
+        .cpu_clock                          (cpu_clock),
         .reset                              (reset),
         .cpu_address                        (cpu_address),
         .cpu_data_bus                       (cpu_data_bus),

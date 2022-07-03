@@ -48,7 +48,7 @@ module KF8237_Priority_Encoder (
     //
     // Command Register
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             controller_disable <= 1'b0;
         else if (master_clear)
@@ -59,7 +59,7 @@ module KF8237_Priority_Encoder (
             controller_disable <= controller_disable;
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             rotating_priority <= 1'b0;
         else if (master_clear)
@@ -70,7 +70,7 @@ module KF8237_Priority_Encoder (
             rotating_priority <= rotating_priority;
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             dreq_sense_active_low <= 1'b0;
         else if (master_clear)
@@ -87,7 +87,7 @@ module KF8237_Priority_Encoder (
     genvar mask_bit_i;
     generate
     for (mask_bit_i = 0; mask_bit_i < 4; mask_bit_i = mask_bit_i + 1) begin : MASK_REGISTER
-        always_ff @(negedge clock, posedge reset) begin
+        always_ff @(posedge clock, posedge reset) begin
             if (reset)
                 mask_register[mask_bit_i] <= 1'b1;
             else if ((master_clear) || (clear_mask_register))
@@ -108,7 +108,7 @@ module KF8237_Priority_Encoder (
     genvar req_reg_bit_i;
     generate
     for (req_reg_bit_i = 0; req_reg_bit_i < 4; req_reg_bit_i = req_reg_bit_i + 1) begin : REQUEST_REGISTER
-        always_ff @(negedge clock, posedge reset) begin
+        always_ff @(posedge clock, posedge reset) begin
             if (reset)
                 request_register[req_reg_bit_i] <= 1'b0;
             else if ((master_clear) || (clear_mask_register))
@@ -126,7 +126,7 @@ module KF8237_Priority_Encoder (
     //
     // Latch DMA Request
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             dma_request_ff <= 0;
         else if (master_clear)
@@ -141,7 +141,7 @@ module KF8237_Priority_Encoder (
     genvar req_lock_bit_i;
     generate
     for (req_lock_bit_i = 0; req_lock_bit_i < 4; req_lock_bit_i = req_lock_bit_i + 1) begin : REQUEST_LCOK
-        always_ff @(negedge clock, posedge reset) begin
+        always_ff @(posedge clock, posedge reset) begin
             if (reset)
                 dma_request_lock[req_lock_bit_i] <= 1'b0;
             else if ((master_clear) || (clear_mask_register))

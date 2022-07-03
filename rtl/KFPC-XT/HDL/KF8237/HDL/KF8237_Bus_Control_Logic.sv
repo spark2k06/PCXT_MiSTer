@@ -50,7 +50,7 @@ module KF8237_Bus_Control_Logic (
     //
     // Write Control
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             internal_data_bus <= 8'b00000000;
         else if (~io_write_n_in & ~chip_select_n)
@@ -59,7 +59,7 @@ module KF8237_Bus_Control_Logic (
             internal_data_bus <= internal_data_bus;
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             prev_write_enable_n <= 1'b1;
         else if (chip_select_n)
@@ -69,7 +69,7 @@ module KF8237_Bus_Control_Logic (
     end
     assign write_flag = ~prev_write_enable_n & io_write_n_in & ~lock_bus_control;
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             stable_address <= 4'b0000;
         else

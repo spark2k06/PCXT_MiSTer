@@ -31,7 +31,7 @@ module KF8255_Group (
     //
     // Set mode select register
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             mode_select_reg <= `KF8255_CONTROL_MODE_0;
         else if (write_register)
@@ -44,7 +44,7 @@ module KF8255_Group (
     //
     // Set port I/O registers
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_1_io_reg <= `PORT_INPUT;
         else if (write_register)
@@ -53,7 +53,7 @@ module KF8255_Group (
             port_1_io_reg <= port_1_io_reg;
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_2_io_reg <= `PORT_INPUT;
         else if (write_register)
