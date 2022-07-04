@@ -149,6 +149,7 @@ module RAM (
     logic           write_flag;
     logic           read_flag;
     logic           idle;
+    logic           refresh_mode;
 
     KFSDRAM u_KFSDRAM (
         .sdram_clock        (sdram_clock),
@@ -162,6 +163,7 @@ module RAM (
         .write_flag         (write_flag),
         .read_flag          (read_flag),
         .idle               (idle),
+        .refresh_mode       (refresh_mode),
         .sdram_address      (sdram_address),
         .sdram_cke          (sdram_cke),
         .sdram_cs           (sdram_cs),
@@ -334,8 +336,14 @@ module RAM (
             access_ready <= 1'b0;
         else if (state == COMPLETE_RAM_RW)
             access_ready <= 1'b1;
-        else
+        else if (state == IDLE)
+            access_ready <= idle;
+        else if ((write_command) && (refresh_mode))
             access_ready <= 1'b0;
+        else if ((read_command)  && (refresh_mode))
+            access_ready <= 1'b0;
+        else
+            access_ready <= access_ready;
     end
 
     assign  memory_access_ready = ((~ram_address_select_n) && ((~memory_read_n) || (~memory_write_n))) ? access_ready : 1'b1;
