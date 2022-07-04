@@ -7,6 +7,7 @@
 
 module KF8237 (
     input   logic           clock,
+    input   logic           cpu_clock,
     input   logic           reset,
     input   logic           chip_select_n,
     input   logic           ready,
@@ -176,6 +177,7 @@ module KF8237 (
 
     KF8237_Timing_And_Control u_Timing_And_Control (
         .clock                              (clock),
+        .cpu_clock                          (cpu_clock),
         .reset                              (reset),
 
         // Internal Bus

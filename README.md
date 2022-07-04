@@ -34,6 +34,16 @@ In the SW folder there is also a file called "boot.rom" which contains Sergey Ki
 
 # ChangeLog
 
+### Beta 1.2
+
+* Fix input device_clock and data_clock to the chipset
+* Fixed KF8259 bugs.
+* Create reset signals for each clock domain.
+* Changed SDRAM reset signal and bus input logic.
+* Fix timmings in PCXT.sdc
+* cleaning up project files
+* Default value to FFh for unused I/O ports 
+
 ### Beta 1.1
 
 * Lo-Tech 2Mb EMS

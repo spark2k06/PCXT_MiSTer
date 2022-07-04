@@ -4,6 +4,7 @@
 //
 module BUS_ARBITER (
     input   logic           clock,
+    input   logic           cpu_clock,
     input   logic           reset,
     // CPU
     input   logic   [19:0]  cpu_address,
@@ -45,6 +46,21 @@ module BUS_ARBITER (
 );
 
     //
+    // CPU clock edge
+    //
+    logic   prev_cpu_clock;
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            prev_cpu_clock <= 1'b0;
+        else
+            prev_cpu_clock <= cpu_clock;
+    end
+
+    wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
+    wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
+
+    //
     // Hold Acknowledge Signal
     //
     logic   hold_request_ff_1;
@@ -52,26 +68,30 @@ module BUS_ARBITER (
     logic   hold_acknowledge;
     logic   hold_request;
 
-    // NOTE: POSEDGE
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             hold_request_ff_1 <= 1'b0;
-        else if (processor_status[0] & processor_status[1] & processor_lock_n & hold_request)
-            hold_request_ff_1 <= 1'b1;
+        else if (cpu_clock_posedge)
+            if (processor_status[0] & processor_status[1] & processor_lock_n & hold_request)
+                hold_request_ff_1 <= 1'b1;
+            else
+                hold_request_ff_1 <= 1'b0;
         else
-            hold_request_ff_1 <= 1'b0;
+            hold_request_ff_1 <= hold_request_ff_1;
     end
 
-    // NOTE: NEGEDGE
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             hold_request_ff_2 <= 1'b0;
-        else if (~hold_request)
-            hold_request_ff_2 <= 1'b0;
-        else if (hold_request_ff_2)
-            hold_request_ff_2 <= 1'b1;
+        else if (cpu_clock_negedge)
+            if (~hold_request)
+                hold_request_ff_2 <= 1'b0;
+            else if (hold_request_ff_2)
+                hold_request_ff_2 <= 1'b1;
+            else
+                hold_request_ff_2 <= hold_request_ff_1;
         else
-            hold_request_ff_2 <= hold_request_ff_1;
+            hold_request_ff_2 <= hold_request_ff_2;
     end
 
     assign  hold_acknowledge = (hold_request) ? hold_request_ff_2 : 1'b0;
@@ -80,12 +100,13 @@ module BUS_ARBITER (
     //
     // Address/Command Enable Signal
     //
-    // NOTE: POSEDGE
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             address_enable_n <= 1'b0;
-        else
+        else if (cpu_clock_posedge)
             address_enable_n <= hold_acknowledge;
+        else
+            address_enable_n <= address_enable_n;
     end
 
 
@@ -94,12 +115,13 @@ module BUS_ARBITER (
     //
     logic   dma_wait;
 
-    // NOTE: POSEDGE
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             dma_wait <= 1'b0;
-        else
+        else if (cpu_clock_posedge)
             dma_wait <= address_enable_n;
+        else
+            dma_wait <= dma_wait;
     end
 
     assign dma_wait_n = ~dma_wait;
@@ -125,6 +147,7 @@ module BUS_ARBITER (
 
     KF8288 u_KF8288 (
         .clock                              (clock),
+        .cpu_clock                          (cpu_clock),
         .reset                              (reset),
         .address_enable_n                   (address_enable_n),
         .command_enable                     (~address_enable_n),
@@ -162,6 +185,7 @@ module BUS_ARBITER (
 
     KF8237 u_KF8237 (
         .clock                              (clock),
+        .cpu_clock                          (cpu_clock),
         .reset                              (reset),
         .chip_select_n                      (dma_chip_select_n),
         .ready                              (dma_ready),
@@ -200,7 +224,7 @@ module BUS_ARBITER (
     genvar dma_page_i;
     generate
     for (dma_page_i = 0; dma_page_i < 4; dma_page_i = dma_page_i + 1) begin : DMA_PAGE_REGISTERS
-        always_ff @(negedge clock, posedge reset) begin
+        always_ff @(posedge clock, posedge reset) begin
             if (reset)
                 dma_page_register[dma_page_i] <= 0;
             else if ((~dma_page_chip_select_n) && (~io_write_n) && (bit_select[dma_page_i] == address[1:0]))

@@ -352,9 +352,6 @@ wire ce_pix;
 assign CLK_VIDEO = clk_28_636;
 assign CE_PIXEL = 1'b1;
 
-//assign clk_cpu = status[x] ? clk_7_16 : clk_4_77;
-assign clk_cpu = clk_4_77;
-
 always @(posedge clk_28_636)
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
 	
@@ -371,6 +368,15 @@ clk_div3 clk_normal // 4.77MHz
 
 always @(posedge clk_4_77)
 	peripheral_clock <= ~peripheral_clock; // 2.385Mhz
+
+logic  clk_cpu_ff_1;
+logic  clk_cpu_ff_2;
+
+always @(posedge clk_100) begin
+    clk_cpu_ff_1 <= clk_4_77;
+    clk_cpu_ff_2 <= clk_cpu_ff_1;
+    clk_cpu      <= clk_cpu_ff_2;
+end
 
 //////////////////////////////////////////////////////////////////
 
@@ -395,20 +401,6 @@ always @(posedge CLK_50M, posedge reset_wire) begin
 	else begin
 		reset <= 1'b0;
 		reset_count <= reset_count;
-	end
-end
-
-logic reset_chipset_ff = 1'b1;
-logic reset_chipset = 1'b1;
-
-always @(negedge clk_4_77, posedge reset) begin
-	if (reset) begin
-		reset_chipset_ff <= 1'b1;
-		reset_chipset <= 1'b1;
-	end
-	else begin
-		reset_chipset_ff <= reset;
-		reset_chipset <= reset_chipset_ff;
 	end
 end
 
@@ -551,11 +543,12 @@ end
 	 assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
    CHIPSET u_CHIPSET (
-        .clock                              (clk_cpu),
+        .clock                              (clk_100),
+        .cpu_clock                            (clk_cpu),
 		  .clk_sys                            (CLK_50M),
 		  .peripheral_clock                   (peripheral_clock),
 		  
-        .reset                              (reset_chipset),
+        .reset                              (reset_cpu),
         .sdram_reset                        (reset),
         .cpu_address                        (cpu_address),
         .cpu_data_bus                       (cpu_data_bus),
