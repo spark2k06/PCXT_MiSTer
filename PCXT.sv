@@ -323,7 +323,7 @@ reg clk_14_318 = 1'b0;
 //reg clk_7_16 = 1'b0;
 wire clk_4_77;
 wire clk_cpu;
-wire cen_opl2;
+wire clk_opl2;
 wire peripheral_clock;
 
 pll pll
@@ -333,7 +333,7 @@ pll pll
 	.outclk_0(clk_100),
 	.outclk_1(clk_28_636),	
 	.outclk_2(clk_uart),
-	.outclk_3(cen_opl2),
+	.outclk_3(clk_opl2),
 	.outclk_4(clk_56_875),
 	.locked(pll_locked)
 );
@@ -377,6 +377,19 @@ always @(posedge clk_100) begin
     clk_cpu_ff_2 <= clk_cpu_ff_1;
     clk_cpu      <= clk_cpu_ff_2;
 end
+
+logic   clk_opl2_ff_1;
+logic   clk_opl2_ff_2;
+logic   clk_opl2_ff_3;
+logic   cen_opl2;
+
+always @(posedge clk_100) begin
+    clk_opl2_ff_1 <= clk_opl2;
+    clk_opl2_ff_2 <= clk_opl2_ff_1;
+    clk_opl2_ff_3 <= clk_opl2_ff_2;
+    cen_opl2 <= clk_opl2_ff_2 & ~clk_opl2_ff_3;
+end
+
 
 //////////////////////////////////////////////////////////////////
 
