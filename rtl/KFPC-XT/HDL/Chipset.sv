@@ -197,6 +197,7 @@ module CHIPSET (
 		  .clk_sys                            (clk_sys),
 		  .clk_uart                           (clk_uart),
         .peripheral_clock                   (peripheral_clock),
+		  .cpu_clock                          (cpu_clock),
         .reset                              (reset),
         .interrupt_to_cpu                   (interrupt_to_cpu),
         .interrupt_acknowledge_n            (interrupt_acknowledge_n),

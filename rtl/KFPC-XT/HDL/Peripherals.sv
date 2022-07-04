@@ -8,6 +8,7 @@ module PERIPHERALS #(
     input   logic           clock,
 	 input   logic           clk_sys,
     input   logic           peripheral_clock,
+	 input   logic           cpu_clock,
     input   logic           reset,
     // CPU
     output  logic           interrupt_to_cpu,
@@ -331,7 +332,7 @@ module PERIPHERALS #(
 	jtopl2 jtopl2_inst
 	(
 		.rst(reset),
-		.clk(clock),
+		.clk(cpu_clock),
 		.cen(clk_en_opl2),
 		.din(internal_data_bus),
 		.dout(jtopl2_dout),
@@ -348,7 +349,7 @@ module PERIPHERALS #(
 	// Tandy sound
 	sn76489_top sn76489
 	(
-		.clock_i(clock),
+		.clock_i(cpu_clock),
 		.clock_en_i(clk_en_opl2), // 3.579MHz
 		.res_n_i(~reset),
 		.ce_n_i(tandy_chip_select_n),
