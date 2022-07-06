@@ -39,6 +39,7 @@ module BUS_ARBITER (
     output  logic           memory_write_n,
     input   logic           memory_write_n_ext,
     output  logic           memory_write_n_direction,
+    output  logic           no_command_state,
     input   logic   [3:0]   dma_request,
     output  logic   [3:0]   dma_acknowledge_n,
     output  logic           address_enable_n,
@@ -251,6 +252,7 @@ module BUS_ARBITER (
     assign  io_read_n                   = io_read_n_direction      ? io_read_n_ext      : ab_io_read_n;
     assign  memory_write_n              = memory_write_n_direction ? memory_write_n_ext : ab_memory_write_n;
     assign  memory_read_n               = memory_read_n_direction  ? memory_read_n_ext  : ab_memory_read_n;
+    assign no_command_state             = io_write_n & io_read_n & memory_write_n & memory_read_n;
 
 
     //

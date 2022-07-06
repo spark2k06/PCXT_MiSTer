@@ -14,6 +14,7 @@ module RAM (
     output  logic   [7:0]   data_bus_out,
     input   logic           memory_read_n,
     input   logic           memory_write_n,
+    input   logic           no_command_state,
     output  logic           memory_access_ready,
     output  logic           ram_address_select_n,
     // VRAM FIFO
@@ -54,6 +55,10 @@ module RAM (
     logic           read_command_ff_1;
     logic           read_command_ff_2;
     logic           read_command;
+    logic           no_command_state_ff_1;
+    logic           no_command_state_ff_2;
+    logic           no_command_state_ff_3;
+    logic           enable_refresh;
 
     logic           access_ready;
 
@@ -136,6 +141,22 @@ module RAM (
         end
     end
 
+    // Generate refresh timing
+    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
+        if (sdram_reset) begin
+            no_command_state_ff_1 <= 1'b0;
+            no_command_state_ff_2 <= 1'b0;
+            no_command_state_ff_3 <= 1'b0;
+        end
+        else begin
+            no_command_state_ff_1 <= no_command_state;
+            no_command_state_ff_2 <= no_command_state_ff_1;
+            no_command_state_ff_3 <= no_command_state_ff_2;
+        end
+    end
+
+    assign  enable_refresh  = no_command_state_ff_2 & ~no_command_state_ff_3;
+
 
     //
     // SDRAM Controller
@@ -160,6 +181,7 @@ module RAM (
         .data_out           (access_data_out),
         .write_request      (write_request),
         .read_request       (read_request),
+        .enable_refresh     (enable_refresh),
         .write_flag         (write_flag),
         .read_flag          (read_flag),
         .idle               (idle),

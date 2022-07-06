@@ -128,6 +128,7 @@ module CHIPSET (
     logic   [7:0]   internal_data_bus_ram;
     logic           data_bus_out_from_chipset;
     logic           internal_data_bus_direction;
+    logic           no_command_state;
 	 
 	 
 	 logic   [6:0]   map_ems[0:3];
@@ -186,6 +187,7 @@ module CHIPSET (
         .memory_write_n                     (memory_write_n),
         .memory_write_n_ext                 (memory_write_n_ext),
         .memory_write_n_direction           (memory_write_n_direction),
+        .no_command_state                   (no_command_state),
         .dma_request                        (dma_request),
         .dma_acknowledge_n                  (dma_acknowledge_n),
         .address_enable_n                   (address_enable_n),
@@ -277,6 +279,7 @@ module CHIPSET (
         .data_bus_out                       (internal_data_bus_ram),
         .memory_read_n                      (memory_read_n),
         .memory_write_n                     (memory_write_n),
+        .no_command_state                   (no_command_state),
         .memory_access_ready                (memory_access_ready),
         .ram_address_select_n               (ram_address_select_n),
         .sdram_address                      (sdram_address),
