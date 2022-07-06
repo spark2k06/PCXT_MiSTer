@@ -11,25 +11,25 @@ if __name__ == "__main__":
     with zipfile.ZipFile("ibm5160.zip", 'r') as zip_ref:
         zip_ref.extractall()
 
+    try:
+        os.remove("ibm5160.zip")
+    except:
+        print("Error while deleting file : ibm5160.zip")
+
+    rom_filename = "boot.rom"
+    ibm5160_basename = "BIOS_5160_08NOV82_"
+
+    with open(rom_filename, "wb") as romf, open(ibm5160_basename + "U19_5000027_27256.bin", "rb") as f:
+        romf.write(f.read())
+
+    with open(rom_filename, "ab") as romf, open(ibm5160_basename + "U18_1501512.bin", "rb") as f:
+        romf.write(f.read())
+
+    fileList = glob.glob(ibm5160_basename + "*.bin")
+
+    for filePath in fileList:
         try:
-            os.remove("ibm5160.zip")
+            os.remove(filePath)
         except:
-            print("Error while deleting file : ibm5160.zip")
-
-            rom_filename = "boot.rom"
-            ibm5160_basename = "BIOS_5160_08NOV82_"
-
-            with open(rom_filename, "wb") as romf, open(ibm5160_basename + "U19_5000027_27256.bin", "rb") as f:
-                romf.write(f.read())
-
-                with open(rom_filename, "ab") as romf, open(ibm5160_basename + "U18_1501512.bin", "rb") as f:
-                    romf.write(f.read())
-
-                    fileList = glob.glob(ibm5160_basename + "*.bin")
-
-                    for filePath in fileList:
-                        try:
-                            os.remove(filePath)
-                        except:
-                            print("Error while deleting file : ", filePath)
+            print("Error while deleting file : ", filePath)
 
