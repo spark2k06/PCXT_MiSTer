@@ -129,7 +129,9 @@ module CHIPSET (
     logic           data_bus_out_from_chipset;
     logic           internal_data_bus_direction;
     logic           no_command_state;
-	 
+
+    logic           prev_timer_count_1;
+    logic           DRQ0;
 	 
 	 logic   [6:0]   map_ems[0:3];
 	 logic           ena_ems[0:3];
@@ -138,6 +140,24 @@ module CHIPSET (
 	 logic           ems_b3;
 	 logic           ems_b4;
 	 
+
+   always_ff @(posedge clock) begin
+       if (reset)
+            prev_timer_count_1 <= 1'b1;
+        else
+            prev_timer_count_1 <= timer_counter_out[1];
+    end
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            DRQ0 <= 1'b0;
+        else if (~dma_acknowledge_n[0])
+            DRQ0 <= 1'b0;
+        else if (~prev_timer_count_1 & timer_counter_out[1])
+            DRQ0 <= 1'b1;
+        else
+            DRQ0 <= DRQ0;
+    end
 
     READY u_READY (
         .clock                              (clock),
@@ -188,7 +208,7 @@ module CHIPSET (
         .memory_write_n_ext                 (memory_write_n_ext),
         .memory_write_n_direction           (memory_write_n_direction),
         .no_command_state                   (no_command_state),
-        .dma_request                        (dma_request),
+        .dma_request                        ({dma_request[3:1], DRQ0}),
         .dma_acknowledge_n                  (dma_acknowledge_n),
         .address_enable_n                   (address_enable_n),
         .terminal_count_n                   (terminal_count_n)
