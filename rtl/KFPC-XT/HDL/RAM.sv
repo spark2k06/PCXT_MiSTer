@@ -67,7 +67,8 @@ module RAM (
     //	 
 	 assign  ram_address_select_n = ~(enable_sdram && 
 	                                ~(address[19:16] == 4'b1111) &&  // B0000h reserved for VRAM
-											  ~(address[19:16] == 4'b1011));   // F0000h reserved for BIOS
+											  ~(address[19:16] == 4'b1011) &&  // F0000h reserved for BIOS
+											  ~(address[19:14] == 6'b111011)); // EC000h reserved for XTIDE
 											  
 
     //
