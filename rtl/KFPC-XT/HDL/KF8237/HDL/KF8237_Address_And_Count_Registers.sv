@@ -9,6 +9,8 @@
 module KF8237_Address_And_Count_Registers (
     // Bus
     input   logic           clock,
+    input   logic           cpu_clock_posedge,
+    input   logic           cpu_clock_negedge,
     input   logic           reset,
 
     // Internal Bus
@@ -19,6 +21,7 @@ module KF8237_Address_And_Count_Registers (
     input   logic   [3:0]   write_base_and_current_word_count,
     // -- software command
     input   logic           clear_byte_pointer,
+    input   logic           set_byte_pointer,
     input   logic           master_clear,
     // -- read
     input   logic   [3:0]   read_current_address,
@@ -74,6 +77,8 @@ module KF8237_Address_And_Count_Registers (
             byte_pointer <= 1'b0;
         else if ((master_clear) || (clear_byte_pointer))
             byte_pointer <= 1'b0;
+        else if (set_byte_pointer)
+            byte_pointer <= 1'b1;
         else if (update_byte_pointer)
              if (byte_pointer)
                  byte_pointer <= 1'b0;
@@ -138,7 +143,7 @@ module KF8237_Address_And_Count_Registers (
                     current_address[dma_ch_i][15:8] <= internal_data_bus;
             else if ((transfer_register_select[dma_ch_i]) && (initialize_current_register))
                 current_address[dma_ch_i] <= base_address[dma_ch_i];
-            else if ((transfer_register_select[dma_ch_i]) && (next_word))
+            else if ((transfer_register_select[dma_ch_i]) && (next_word) && (cpu_clock_negedge))
                 current_address[dma_ch_i] <= temporary_address;
             else
                 current_address[dma_ch_i] <= current_address[dma_ch_i];
@@ -159,7 +164,7 @@ module KF8237_Address_And_Count_Registers (
                     current_word_count[dma_ch_i][15:8] <= internal_data_bus;
             else if ((transfer_register_select[dma_ch_i]) && (initialize_current_register))
                 current_word_count[dma_ch_i] <= base_word_count[dma_ch_i];
-            else if ((transfer_register_select[dma_ch_i]) && (next_word))
+            else if ((transfer_register_select[dma_ch_i]) && (next_word) && (cpu_clock_negedge))
                 current_word_count[dma_ch_i] <= temporary_word_count[15:0];
             else
                 current_word_count[dma_ch_i] <= current_word_count[dma_ch_i];
@@ -214,8 +219,10 @@ module KF8237_Address_And_Count_Registers (
             transfer_address <= 0;
         else if (master_clear)
             transfer_address <= 0;
-        else
+        else if (cpu_clock_negedge)
             transfer_address <= current_address[dma_select];
+        else
+            transfer_address <= transfer_address;
     end
 
     //

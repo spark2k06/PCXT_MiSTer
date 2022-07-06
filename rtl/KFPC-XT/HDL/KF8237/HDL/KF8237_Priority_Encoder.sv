@@ -8,6 +8,8 @@
 
 module KF8237_Priority_Encoder (
     input   logic           clock,
+    input   logic           cpu_clock_posedge,
+    input   logic           cpu_clock_negedge,
     input   logic           reset,
 
     // Internal Bus
@@ -44,6 +46,7 @@ module KF8237_Priority_Encoder (
     logic   [3:0]   request_register;
     logic   [3:0]   dma_request_ff;
     logic   [3:0]   dma_request_lock;
+
 
     //
     // Command Register
@@ -148,7 +151,7 @@ module KF8237_Priority_Encoder (
                 dma_request_lock[req_lock_bit_i] <= 1'b0;
             else if (~edge_request[req_lock_bit_i])
                 dma_request_lock[req_lock_bit_i] <= 1'b0;
-            else if (encoded_dma[req_lock_bit_i]  &  dma_acknowledge_internal[req_lock_bit_i])
+            else if (cpu_clock_negedge & encoded_dma[req_lock_bit_i]  &  dma_acknowledge_internal[req_lock_bit_i])
                 dma_request_lock[req_lock_bit_i] <= 1'b1;
             else if (~dma_request_ff[req_lock_bit_i] & ~dma_acknowledge_internal[req_lock_bit_i])
                 dma_request_lock[req_lock_bit_i] <= 1'b0;

@@ -30,6 +30,7 @@ module KF8237_Bus_Control_Logic (
     output  logic   [3:0]   write_base_and_current_word_count,
     // -- software command
     output  logic           clear_byte_pointer,
+    output  logic           set_byte_pointer,
     output  logic           master_clear,
     output  logic           clear_mask_register,
     // -- read
@@ -93,6 +94,7 @@ module KF8237_Bus_Control_Logic (
 
     // Generate software command
     assign  clear_byte_pointer                      = write_flag & (stable_address == 4'b1100);
+    assign  set_byte_pointer                        = read_flag  & (stable_address == 4'b1100);
     assign  master_clear                            = write_flag & (stable_address == 4'b1101);
     assign  clear_mask_register                     = write_flag & (stable_address == 4'b1110);
 

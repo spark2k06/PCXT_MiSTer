@@ -33,6 +33,7 @@ module KFSDRAM #(
     output  logic   [sdram_data_width-1:0]      data_out,
     input   logic                               write_request,
     input   logic                               read_request,
+    input   logic                               enable_refresh,
     output  logic                               write_flag,
     output  logic                               read_flag,
     output  logic                               refresh_mode,
@@ -108,7 +109,7 @@ module KFSDRAM #(
                     next_state = WRITE_ACT;
                 else if (read_request)
                     next_state = READ_ACT;
-                else if ((~sdram_no_refresh) && (refresh_counter == sdram_refresh_cycle))
+                else if ((~sdram_no_refresh) && (enable_refresh) && (refresh_counter == sdram_refresh_cycle))
                     next_state = REFRESH_PALL;
             end
             WRITE_ACT: begin
