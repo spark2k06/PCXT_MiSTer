@@ -18,7 +18,8 @@
 
 module KF8237_Timing_And_Control (
     input   logic           clock,
-    input   logic           cpu_clock,
+    input   logic           cpu_clock_posedge,
+    input   logic           cpu_clock_negedge,
     input   logic           reset,
 
     // Internal Bus
@@ -87,24 +88,10 @@ module KF8237_Timing_And_Control (
     logic   [1:0]   dma_select;
     logic   [3:0]   dma_acknowledge_ff;
     logic           terminal_count;
+    logic           terminal_count_internal;
     logic           reoutput_high_address;
     logic           external_end_of_process;
-
-
-    //
-    // CPU clock edge
-    //
-    logic   prev_cpu_clock;
-
-    always_ff @(posedge clock, posedge reset) begin
-        if (reset)
-            prev_cpu_clock <= 1'b0;
-        else
-            prev_cpu_clock <= cpu_clock;
-    end
-
-    wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
-    wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
+    logic           prev_read_status_register;
 
 
     //
@@ -185,58 +172,57 @@ module KF8237_Timing_And_Control (
     always_comb begin
         next_state = state;
 
-        if (cpu_clock_negedge)
-            casez (state)
-                SI: begin
-                    if (0 != encoded_dma)
-                        next_state = S0;
-                end
-                S0: begin
-                    if (hold_acknowledge)
-                        next_state = S1;
-                end
-                S1: begin
-                    if (transfer_mode[dma_select] == `TRANSFER_MODE_CASCADE)
-                        next_state = S4;
-                    else
-                        next_state = S2;
-                end
-                S2: begin
-                    if (~compressed_timing)
-                        next_state = S3;
-                    else if ((ready) || (transfer_type[dma_select] == `TRANSFER_TYPE_VERIFY))
-                        next_state = S4;
-                    else
-                        next_state = SW;
-                end
-                S3: begin
-                    if ((ready) || (transfer_type[dma_select] == `TRANSFER_TYPE_VERIFY))
-                        next_state = S4;
-                    else
-                        next_state = SW;
-                end
-                SW: begin
-                    if (ready)
-                        next_state = S4;
-                end
-                S4: begin
-                    if (transfer_mode[dma_select] == `TRANSFER_MODE_CASCADE)
-                        if (0 == (dma_acknowledge_internal & dma_request_state))
-                            next_state = SI;
-                        else
-                            next_state = S4;
-                    else if (transfer_mode[dma_select] == `TRANSFER_MODE_SINGLE)
-                        next_state = SI;
-                    else if ((transfer_mode[dma_select] == `TRANSFER_MODE_DEMAND) && (0 == (dma_acknowledge_internal & dma_request_state)))
-                        next_state = SI;
-                    else if (end_of_process_internal)
+        casez (state)
+            SI: begin
+                if (0 != encoded_dma)
+                    next_state = S0;
+            end
+            S0: begin
+                if (hold_acknowledge)
+                    next_state = S1;
+            end
+            S1: begin
+                if (transfer_mode[dma_select] == `TRANSFER_MODE_CASCADE)
+                    next_state = S4;
+                else
+                    next_state = S2;
+            end
+            S2: begin
+                if (~compressed_timing)
+                    next_state = S3;
+                else if ((ready) || (transfer_type[dma_select] == `TRANSFER_TYPE_VERIFY))
+                    next_state = S4;
+                else
+                    next_state = SW;
+            end
+            S3: begin
+                if ((ready) || (transfer_type[dma_select] == `TRANSFER_TYPE_VERIFY))
+                    next_state = S4;
+                else
+                    next_state = SW;
+            end
+            SW: begin
+                if (ready)
+                    next_state = S4;
+            end
+            S4: begin
+                if (transfer_mode[dma_select] == `TRANSFER_MODE_CASCADE)
+                    if (0 == (dma_acknowledge_internal & dma_request_state))
                         next_state = SI;
                     else
-                        next_state = (reoutput_high_address) ? S1 : S2;
-                end
-                default: begin
-                end
-            endcase
+                        next_state = S4;
+                else if (transfer_mode[dma_select] == `TRANSFER_MODE_SINGLE)
+                    next_state = SI;
+                else if ((transfer_mode[dma_select] == `TRANSFER_MODE_DEMAND) && (0 == (dma_acknowledge_internal & dma_request_state)))
+                    next_state = SI;
+                else if (end_of_process_internal)
+                    next_state = SI;
+                else
+                    next_state = (reoutput_high_address) ? S1 : S2;
+            end
+            default: begin
+            end
+        endcase
     end
 
     always_ff @(posedge clock, posedge reset) begin
@@ -244,8 +230,10 @@ module KF8237_Timing_And_Control (
             state <= SI;
         else if (master_clear)
             state <= SI;
-        else
+        else if (cpu_clock_negedge)
             state <= next_state;
+        else
+            state <= state;
     end
 
     //
@@ -571,19 +559,32 @@ module KF8237_Timing_And_Control (
     // Terminal Count Signal
     //
     always_ff @(posedge clock, posedge reset) begin
-        if (reset)
+        if (reset) begin
             terminal_count <= 1'b0;
-        else if (master_clear)
+            terminal_count_internal <= 1'b0;
+        end
+        else if (master_clear) begin
             terminal_count <= 1'b0;
-        else if (cpu_clock_posedge)
-            if (state == S4)
+            terminal_count_internal <= 1'b0;
+        end
+        else if (cpu_clock_posedge) begin
+            if (state == S4) begin
                 terminal_count <= 1'b0;
-            else if (next_word)
+                terminal_count_internal <= 1'b0;
+            end
+            else if (next_word) begin
                 terminal_count <= underflow;
-            else
+                terminal_count_internal <= underflow;
+            end
+            else begin
                 terminal_count <= 1'b0;
-        else
+                terminal_count_internal <= terminal_count_internal;
+            end
+        end
+        else begin
             terminal_count <= terminal_count;
+            terminal_count_internal <= terminal_count_internal;
+        end
     end
 
     assign  end_of_process_n_out = ~terminal_count;
@@ -614,7 +615,7 @@ module KF8237_Timing_And_Control (
             end_of_process_internal <= 1'b0;
         else if (cpu_clock_negedge)
             if (next_state == S4)
-                end_of_process_internal <= terminal_count | external_end_of_process;
+                end_of_process_internal <= terminal_count_internal | external_end_of_process;
             else
                 end_of_process_internal <= 1'b0;
         else
@@ -626,14 +627,23 @@ module KF8237_Timing_And_Control (
     //
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
+            prev_read_status_register <= 1'b0;
+        else if (cpu_clock_negedge)
+            prev_read_status_register <= read_status_register;
+        else
+            prev_read_status_register <= prev_read_status_register;
+    end
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
             terminal_count_state <= 0;
         else if (master_clear)
             terminal_count_state <= 0;
         else if (cpu_clock_negedge)
-            if (read_status_register)
+            if (prev_read_status_register & ~read_status_register)
                 terminal_count_state <= 0;
             else if (end_of_process_internal)
-                terminal_count_state <= dma_acknowledge_internal;
+                terminal_count_state <= terminal_count_state | dma_acknowledge_internal;
             else
                 terminal_count_state <= terminal_count_state;
         else
