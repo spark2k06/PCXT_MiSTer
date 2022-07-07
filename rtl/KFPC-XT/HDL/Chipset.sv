@@ -78,8 +78,10 @@ module CHIPSET (
 	 input   logic           clk_en_opl2,
 	 output  logic   [15:0]  jtopl2_snd_e,
 	 input   logic           adlibhide,
-	 // TANDY SND
+	 // TANDY
+	 input   logic           tandy_video,
 	 output  logic   [7:0]   tandy_snd_e,
+	 
 	 // IOCTL
     input   logic           ioctl_download,
     input   logic   [7:0]   ioctl_index,
@@ -265,6 +267,7 @@ module CHIPSET (
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
 		  .tandy_snd_e                        (tandy_snd_e),
+		  .tandy_video                        (tandy_video),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
 		  .ioctl_wr                           (ioctl_wr),

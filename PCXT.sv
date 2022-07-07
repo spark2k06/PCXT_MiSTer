@@ -206,7 +206,7 @@ assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 localparam CONF_STR = {
 	"PCXT;;",
 	"-;",
-	"O3,Splash Screen,Yes,No;",
+	"O7,Splash Screen,Yes,No;",
 	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
 	"-;",
 	"OA,Adlib,On,Invisible;",
@@ -214,8 +214,8 @@ localparam CONF_STR = {
 	"OB,Lo-tech 2MB EMS, Enabled, Disabled;",
 	"OCD,EMS Frame,A000,C000,D000,E000;",
 	"-;",
-	"O4,Video Output,Tandy/CGA,MDA;",
-	"O12,CGA RGB,Color,Green,Amber,B/W;",
+	"O34,Video Output,CGA,Tandy,MDA;",
+	"O12,CGA/Tandy RGB,Color,Green,Amber,B/W;",
 	"O56,MDA RGB,Green,Amber,B/W;",
 	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
 	//"O78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",	
@@ -486,7 +486,7 @@ end
 	always @ (posedge clk_14_318) begin
 	
 		if (splashscreen) begin
-			if (status[3])
+			if (status[7])
 				splashscreen <= 0;
 			else if(splash_cnt2 == 5) // 5 seconds delay
 				splashscreen <= 0;
@@ -553,7 +553,14 @@ end
     logic   [7:0]   port_c_in;	 
 	 reg     [7:0]   sw;
 	 
-	 assign  sw = status[4] ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (MDA or CGA 80)
+	 wire tandy_mode;
+	 wire mda_mode;
+	 assign tandy_mode = (status[4:3] == 1);
+	 assign mda_mode = (status[4:3] == 2);
+	 
+	 
+	 
+	 assign  sw = mda_mode ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (MDA or CGA 80)
 	 assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
    CHIPSET u_CHIPSET (
@@ -572,7 +579,7 @@ end
 		  .processor_ready                    (processor_ready),
         .interrupt_to_cpu                   (interrupt_to_cpu),
         .splashscreen                       (splashscreen),
-		  .video_output                       (status[4]),
+		  .video_output                       (mda_mode),
         .clk_vga_cga                        (clk_28_636),
         .enable_cga                         (1'b1),
         .clk_vga_mda                        (clk_56_875),
@@ -620,6 +627,7 @@ end
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
+		  .tandy_video                        (tandy_mode),
 		  .tandy_snd_e                        (tandy_snd_e),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
@@ -774,9 +782,9 @@ end
 		endcase
 	end
 
-	assign VGA_R = {status[4] ? r : raux, 2'b0};
-	assign VGA_G = {status[4] ? g : gaux, 2'b0};
-	assign VGA_B = {status[4] ? b : baux, 2'b0};
+	assign VGA_R = {mda_mode ? r : raux, 2'b0};
+	assign VGA_G = {mda_mode ? g : gaux, 2'b0};
+	assign VGA_B = {mda_mode ? b : baux, 2'b0};
 
 /*
 // SRAM management

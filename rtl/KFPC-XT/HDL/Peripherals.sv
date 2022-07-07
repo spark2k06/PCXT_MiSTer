@@ -60,7 +60,8 @@ module PERIPHERALS #(
 	 input   logic           clk_en_opl2,
 	 output  logic   [15:0]  jtopl2_snd_e,
 	 input   logic           adlibhide,
-	 // TANDY SND
+	 // TANDY
+	 input   logic           tandy_video,
 	 output  logic   [7:0]   tandy_snd_e,
 	 // IOCTL
     input   logic           ioctl_download,
@@ -555,7 +556,8 @@ module PERIPHERALS #(
         .video                      (video_cga),
         .dbl_video                  (vga_video),                // scandoubler
 		  .splashscreen               (splashscreen),
-        .thin_font                  (thin_font)
+        .thin_font                  (thin_font),
+		  .tandy_video                (tandy_video)
     );
 
     defparam cga1.BLINK_MAX = 24'd4772727;

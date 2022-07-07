@@ -38,7 +38,8 @@ module cga(
     output[6:0] comp_video,
 
 	 input splashscreen,
-    input thin_font
+    input thin_font,
+	 input tandy_video
     );
 
     parameter MDA_70HZ = 0;
@@ -227,7 +228,7 @@ endgenerate
     assign blink_enabled = cga_control_reg[5];
 
     // FIXME: temporary for testing
-    assign tandy_16_mode = cga_control_reg[6];
+    assign tandy_16_mode = tandy_video; //cga_control_reg[6];
 
     assign hsync = hsync_int;
 
