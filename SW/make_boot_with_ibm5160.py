@@ -17,6 +17,7 @@ if __name__ == "__main__":
         print("Error while deleting file : ibm5160.zip")
 
     rom_filename = "boot.rom"
+    xtidename = "ide_xtl.rom"
     ibm5160_basename = "BIOS_5160_08NOV82_"
 
     with open(rom_filename, "wb") as romf, open(ibm5160_basename + "U19_5000027_27256.bin", "rb") as f:
@@ -24,6 +25,9 @@ if __name__ == "__main__":
 
     with open(rom_filename, "ab") as romf, open(ibm5160_basename + "U18_1501512.bin", "rb") as f:
         romf.write(f.read())
+        
+    with open(rom_filename, "ab") as romf, open(xtidename, "rb") as f:
+     romf.write(f.read())
 
     fileList = glob.glob(ibm5160_basename + "*.bin")
 
