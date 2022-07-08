@@ -127,6 +127,7 @@ module PERIPHERALS #(
 	 wire    bios_select_n           = ~(address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
 	 wire    xtide_select_n          = ~(address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
 	 wire    uart_cs                = ({address[15:3], 3'd0} == 16'h03F8);
+	 wire    lpt_cs                = ({address[15:3], 3'd0} == 16'h0378);
 	 
 	 
 	 wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1010 : (ems_address == 2'b01) ? 4'b1100 : 4'b1101;
@@ -395,11 +396,17 @@ module PERIPHERALS #(
             port_a_in   <= keycode_ff;
         end
     end
+	
+	reg [7:0] lpt_data = 8'hFF;
 	always_ff @(posedge clock) begin
 		if (~io_write_n)
 			write_to_uart <= internal_data_bus;
 		else
 			write_to_uart <= write_to_uart;
+			
+      if ((lpt_cs) && (~io_write_n) && (~address_enable_n))
+            lpt_data <= internal_data_bus;				
+        
 	end
 
 	uart uart1
@@ -709,6 +716,10 @@ module PERIPHERALS #(
 		  else if ((ems_oe) && (~io_read_n) && (~address_enable_n)) begin
             data_bus_out_from_chipset = 1'b1;				
 				data_bus_out = ena_ems[address[1:0]] ? map_ems[address[1:0]] : 8'hFF;            
+        end
+		  else if ((lpt_cs) && (~io_read_n) && (~address_enable_n)) begin
+            data_bus_out_from_chipset = 1'b1;				
+				data_bus_out = lpt_data;
         end
         else begin
             data_bus_out_from_chipset = 1'b0;
