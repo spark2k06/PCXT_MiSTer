@@ -63,7 +63,7 @@ module RAM (
     logic           access_ready;
 
     //
-    // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xEFFFF)
+    // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xEBFFF)
     //	 
 	 assign  ram_address_select_n = ~(enable_sdram && 
 	                                ~(address[19:16] == 4'b1111) &&  // B0000h reserved for VRAM
