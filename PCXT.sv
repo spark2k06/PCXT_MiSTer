@@ -212,7 +212,7 @@ localparam CONF_STR = {
 	"OA,Adlib,On,Invisible;",
 	"-;",
 	"OB,Lo-tech 2MB EMS, Enabled, Disabled;",
-	"OCD,EMS Frame,A000,C000,D000,E000;",
+	"OCD,EMS Frame,A000,C000,D000;",
 	"-;",
 	"O34,Video Output,CGA,Tandy,MDA;",
 	"O12,CGA/Tandy RGB,Color,Green,Amber,B/W;",
