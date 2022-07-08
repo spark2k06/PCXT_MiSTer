@@ -124,8 +124,8 @@ module PERIPHERALS #(
 	 wire    opl_chip_select_n      = ~(address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
     wire    cga_chip_select_n      = ~(enable_cga & (address[19:15] == 6'b10111)); // B8000 - BFFFF (32 KB)
 	 wire    mda_chip_select_n      = ~(enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (32 KB)	 
-	 wire    rom_select_n           = ~(address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
-	 wire    rom2_select_n          = ~(address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
+	 wire    bios_select_n           = ~(address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
+	 wire    xtide_select_n          = ~(address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
 	 wire    uart_cs                = ({address[15:3], 3'd0} == 16'h03F8);
 	 
 	 
@@ -601,22 +601,26 @@ module PERIPHERALS #(
 	);
 	
 
+   wire bios_loader  = (ioctl_download && ioctl_index < 2 && ioctl_addr[24:16] == 9'b000000000);
+   wire xtide_loader = ((ioctl_download && ioctl_index == 2) ||
+                        (ioctl_download && ioctl_index == 0 && ioctl_addr[24:16] == 9'b000000001));
+	
 	bios bios
 	(
-        .clka((ioctl_download && ioctl_index < 2) ? clk_sys : clock),
-        .ena((~address_enable_n && ~rom_select_n) || ioctl_download),
-        .wea((ioctl_download && ioctl_index < 2) && ioctl_wr),
-        .addra((ioctl_download && ioctl_index < 2) ? ioctl_addr[15:0] : address[15:0]),
+        .clka(bios_loader ? clk_sys : clock),
+        .ena((~address_enable_n && ~bios_select_n) || ioctl_download),
+        .wea(bios_loader && ioctl_wr),
+        .addra(bios_loader ? ioctl_addr[15:0] : address[15:0]),
         .dina(ioctl_data),
         .douta(bios_cpu_dout)
 	);
 	
 	xtide xtide
 	(
-        .clka((ioctl_download && ioctl_index == 2) ? clk_sys : clock),
-        .ena((~address_enable_n && ~rom2_select_n) || ioctl_download),
-        .wea((ioctl_download && ioctl_index == 2) && ioctl_wr),
-        .addra((ioctl_download && ioctl_index == 2) ? ioctl_addr[13:0] : address[13:0]),
+        .clka(xtide_loader ? clk_sys : clock),
+        .ena((~address_enable_n && ~xtide_select_n) || ioctl_download),
+        .wea(xtide_loader && ioctl_wr),
+        .addra(xtide_loader ? ioctl_addr[13:0] : address[13:0]),
         .dina(ioctl_data),
         .douta(xtide_cpu_dout)
 	);
@@ -678,11 +682,11 @@ module PERIPHERALS #(
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = mda_vram_cpu_dout;
         end
-		  else if ((~rom_select_n) && (~memory_read_n)) begin
+		  else if ((~bios_select_n) && (~memory_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = bios_cpu_dout;
         end
-		  else if ((~rom2_select_n) && (~memory_read_n)) begin
+		  else if ((~xtide_select_n) && (~memory_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = xtide_cpu_dout;
         end
