@@ -34,6 +34,29 @@ In the SW folder there is also a file called "boot.rom" which contains Sergey Ki
 
 # ChangeLog
 
+### Beta 1.3
+
+* Unified chipset clock at 100 MHz.
+* Changed read signal to uart module.
+* Changed cen_opl2 signal.
+* Improved access speed to SDRAM.
+* Control sdram refresh execution timing.
+* Fixed KF8237.
+* Wired between Timer 1 output and DMA0 request.
+* Fix VRAM CGA and loader for XTIDE.
+* IBM5160 BIOS downloader.
+* Fix indentations in make_boot_with_ibm5160.
+* Tandy graphics selectable from the OSD.
+* EMS pages frame update.
+* fix a comment on addressable memory.
+* boot.rom up to 64Kb + 16Kb for XTIDE.
+* Dummy LPT1.
+* Update of ROM download scripts.
+* Simple improvements to PCXT.sdc.
+* Correct use of address_enable_n signal in ports and memory accesses.
+* Initial improvements in Tandy sound implementation.
+* Improvements to the implementation of Tandy video
+
 ### Beta 1.2
 
 * Fix input device_clock and data_clock to the chipset
