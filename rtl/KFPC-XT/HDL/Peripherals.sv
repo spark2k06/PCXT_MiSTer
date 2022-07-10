@@ -120,18 +120,18 @@ module PERIPHERALS #(
     wire    ppi_chip_select_n       = chip_select_n[3];
     assign  dma_page_chip_select_n  = chip_select_n[4];
 	 
-	 wire    tandy_chip_select_n    = ~(address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
-	 wire    opl_chip_select_n      = ~(address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
-    wire    cga_chip_select_n      = ~(enable_cga & (address[19:15] == 6'b10111)); // B8000 - BFFFF (32 KB)
-	 wire    mda_chip_select_n      = ~(enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (32 KB)	 
-	 wire    bios_select_n           = ~(address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
-	 wire    xtide_select_n          = ~(address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
-	 wire    uart_cs                = ({address[15:3], 3'd0} == 16'h03F8);
-	 wire    lpt_cs                = ({address[15:3], 3'd0} == 16'h0378);
+	 wire    tandy_chip_select_n    = ~(~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
+	 wire    opl_chip_select_n      = ~(~address_enable_n && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
+    wire    cga_chip_select_n      = ~(~address_enable_n && enable_cga & (address[19:15] == 6'b10111)); // B8000 - BFFFF (32 KB)
+	 wire    mda_chip_select_n      = ~(~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (32 KB)	 
+	 wire    bios_select_n          = ~(~address_enable_n && address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
+	 wire    xtide_select_n         = ~(~address_enable_n && address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
+	 wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
+	 wire    lpt_cs                 =  (~address_enable_n && {address[15:3], 3'd0} == 16'h0378);
 	 
 	 
 	 wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1010 : (ems_address == 2'b01) ? 4'b1100 : 4'b1101;
-	 wire    ems_oe                 = (ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h	 
+	 wire    ems_oe                 = (~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h	 
 	 assign  ems_b1                 = (ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // A0000h - C0000h - D0000h
 	 assign  ems_b2                 = (ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // A4000h - C4000h - D4000h
 	 assign  ems_b3                 = (ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // A8000h - C8000h - D8000h
@@ -143,7 +143,7 @@ module PERIPHERALS #(
 		      map_ems = '{7'h00, 7'h00, 7'h00, 7'h00};
             ena_ems = '{1'b0, 1'b0, 1'b0, 1'b0};
         end
-        else if (ems_oe && ~io_write_n && ~address_enable_n) begin
+        else if (ems_oe && ~io_write_n) begin
 					map_ems[address[1:0]] <= (internal_data_bus == 8'hFF) ? 7'hFF : (internal_data_bus < 8'h80) ? internal_data_bus[6:0] : map_ems[address[1:0]];
 					ena_ems[address[1:0]] <= (internal_data_bus == 8'hFF) ? 1'b0 : (internal_data_bus < 8'h80) ? 1'b1 : ena_ems[address[1:0]];
 		  end
@@ -404,7 +404,7 @@ module PERIPHERALS #(
 		else
 			write_to_uart <= write_to_uart;
 			
-      if ((lpt_cs) && (~io_write_n) && (~address_enable_n))
+      if ((lpt_cs) && (~io_write_n))
             lpt_data <= internal_data_bus;				
         
 	end
@@ -420,7 +420,7 @@ module PERIPHERALS #(
 		.read              (~io_read_n  & prev_io_read_n),
 		.write             (io_write_n & ~prev_io_write_n),
 		.readdata          (uart_readdata_1),
-		.cs                (uart_cs && (~address_enable_n)),
+		.cs                (uart_cs),
 
 		.rx                (uart_rx),
 		.tx                (uart_tx),
@@ -577,7 +577,7 @@ module PERIPHERALS #(
     vram cga_vram
 	 (
         .clka                       (clock),
-        .ena                        (~address_enable_n && ~cga_chip_select_n),
+        .ena                        (~cga_chip_select_n),
         .wea                        (~memory_write_n),
         .addra                      (address[14:0]),
         .dina                       (internal_data_bus),
@@ -594,7 +594,7 @@ module PERIPHERALS #(
     vram mda_vram
 	 (
         .clka                       (clock),
-        .ena                        (~address_enable_n && ~mda_chip_select_n),
+        .ena                        (~mda_chip_select_n),
         .wea                        (~memory_write_n),
         .addra                      (address[14:0]),
         .dina                       (internal_data_bus),
@@ -615,7 +615,7 @@ module PERIPHERALS #(
 	bios bios
 	(
         .clka(bios_loader ? clk_sys : clock),
-        .ena((~address_enable_n && ~bios_select_n) || ioctl_download),
+        .ena((~bios_select_n) || ioctl_download),
         .wea(bios_loader && ioctl_wr),
         .addra(bios_loader ? ioctl_addr[15:0] : address[15:0]),
         .dina(ioctl_data),
@@ -625,7 +625,7 @@ module PERIPHERALS #(
 	xtide xtide
 	(
         .clka(xtide_loader ? clk_sys : clock),
-        .ena((~address_enable_n && ~xtide_select_n) || ioctl_download),
+        .ena((~xtide_select_n) || ioctl_download),
         .wea(xtide_loader && ioctl_wr),
         .addra(xtide_loader ? ioctl_addr[13:0] : address[13:0]),
         .dina(ioctl_data),
@@ -709,15 +709,15 @@ module PERIPHERALS #(
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = opl32_data;			
         end
-		  else if ((uart_cs) && (~io_read_n) && (~address_enable_n)) begin
+		  else if ((uart_cs) && (~io_read_n)) begin
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = uart_readdata;			
         end
-		  else if ((ems_oe) && (~io_read_n) && (~address_enable_n)) begin
+		  else if ((ems_oe) && (~io_read_n)) begin
             data_bus_out_from_chipset = 1'b1;				
 				data_bus_out = ena_ems[address[1:0]] ? map_ems[address[1:0]] : 8'hFF;            
         end
-		  else if ((lpt_cs) && (~io_read_n) && (~address_enable_n)) begin
+		  else if ((lpt_cs) && (~io_read_n)) begin
             data_bus_out_from_chipset = 1'b1;				
 				data_bus_out = lpt_data;
         end
