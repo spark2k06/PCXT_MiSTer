@@ -629,6 +629,7 @@ end
 		  .adlibhide                          (adlibhide),
 		  .tandy_video                        (tandy_mode),
 		  .tandy_snd_e                        (tandy_snd_e),
+		  .tandy_snd_rdy                      (tandy_snd_rdy),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
 		  .ioctl_wr                           (ioctl_wr),
@@ -664,6 +665,7 @@ end
 	
 	wire speaker_out;
 	wire  [7:0]   tandy_snd_e;
+	wire tandy_snd_rdy;
 
 	wire [15:0] jtopl2_snd_e;	
 	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + {tandy_snd_e, 6'd0}; // signed mixer
@@ -685,7 +687,7 @@ end
 	  .CLK(clk_cpu),
 
 	  .RESET(reset_cpu),
-	  .READY(processor_ready),	  
+	  .READY(processor_ready),// && tandy_snd_rdy),	  
 	  .NMI(1'b0),
 	  .INTR(interrupt_to_cpu),
 
