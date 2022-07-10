@@ -40,7 +40,7 @@ module KF8255_Control_Logic (
     //
     // Write Control
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             internal_data_bus <= 8'b00000000;
         else if (~write_enable_n & ~chip_select_n)
@@ -49,7 +49,7 @@ module KF8255_Control_Logic (
             internal_data_bus <= internal_data_bus;
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             prev_write_enable_n <= 1'b1;
         else if (chip_select_n)
@@ -59,7 +59,7 @@ module KF8255_Control_Logic (
     end
     assign write_flag = ~prev_write_enable_n & write_enable_n;
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             stable_address <= 2'b00;
         else

@@ -8,6 +8,7 @@
 module KF8288 (
     // Control input
     input   logic           clock,
+    input   logic           cpu_clock,
     input   logic           reset,
     input   logic           address_enable_n,
     input   logic           command_enable,
@@ -37,6 +38,21 @@ module KF8288 (
     output  logic           address_latch_enable
 );
 
+    //
+    // CPU clock edge
+    //
+    logic   prev_cpu_clock;
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            prev_cpu_clock <= 1'b0;
+        else
+            prev_cpu_clock <= cpu_clock;
+    end
+
+    wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
+    wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
+
 
     //
     // Status decoder
@@ -59,7 +75,7 @@ module KF8288 (
     logic   strobed_write_memory_status;
 
     // Strobe processor status
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
             strobed_interrupt_acknowledge_status <= 1'b0;
             strobed_read_io_port_status          <= 1'b0;
@@ -69,7 +85,7 @@ module KF8288 (
             strobed_read_memory_status           <= 1'b0;
             strobed_write_memory_status          <= 1'b0;
         end
-        else begin
+        else if (cpu_clock_negedge) begin
             strobed_interrupt_acknowledge_status <= is_interrupt_acknowledge_status;
             strobed_read_io_port_status          <= is_read_io_port_status;
             strobed_write_io_port_status         <= is_write_io_port_status;
@@ -77,6 +93,15 @@ module KF8288 (
             strobed_code_access_status           <= is_code_access_status;
             strobed_read_memory_status           <= is_read_memory_status;
             strobed_write_memory_status          <= is_write_memory_status;
+        end
+        else begin
+            strobed_interrupt_acknowledge_status <= strobed_interrupt_acknowledge_status;
+            strobed_read_io_port_status          <= strobed_read_io_port_status;
+            strobed_write_io_port_status         <= strobed_write_io_port_status;
+            strobed_halt_status                  <= strobed_halt_status;
+            strobed_code_access_status           <= strobed_code_access_status;
+            strobed_read_memory_status           <= strobed_read_memory_status;
+            strobed_write_memory_status          <= strobed_write_memory_status;
         end
     end
 
@@ -87,29 +112,35 @@ module KF8288 (
     logic           machine_cycle_period;
     logic   [2:0]   machine_cycle;
 
-    // Generate machine cycle period (ATTENTION: POSEDGE CLK)
+    // Generate machine cycle period
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             machine_cycle_period <= 1'b1;
-        else if (machine_cycle == 3'b000)
-            if (is_passive_status)
-                machine_cycle_period <= 1'b1;
+        else if (cpu_clock_posedge)
+            if (machine_cycle == 3'b000)
+                if (is_passive_status)
+                    machine_cycle_period <= 1'b1;
+                else
+                    machine_cycle_period <= 1'b0;
             else
                 machine_cycle_period <= 1'b0;
         else
-            machine_cycle_period <= 1'b0;
+            machine_cycle_period <= machine_cycle_period;
     end
 
     // Generate machine cycle
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             machine_cycle <= 3'b000;
-        else if (is_passive_status)
-            machine_cycle <= 3'b000;
-        else if (machine_cycle_period)
-            machine_cycle <= 3'b000;
+        else if (cpu_clock_negedge)
+            if (is_passive_status)
+                machine_cycle <= 3'b000;
+            else if (machine_cycle_period)
+                machine_cycle <= 3'b000;
+            else
+                machine_cycle <= {machine_cycle[1:0], 1'b1};
         else
-            machine_cycle <= {machine_cycle[1:0], 1'b1};
+            machine_cycle <= machine_cycle;
     end
 
 
@@ -182,68 +213,75 @@ module KF8288 (
     logic       read_command_tmp;
     logic       read_data_enable;
 
-    // Generate bus direction signal (ATTENTION: POSEDGE CLK)
+    // Generate bus direction signal
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             direction_transmit_or_receive_n <= 1'b1;
-        else if (machine_cycle_period) begin
-            if (is_interrupt_acknowledge_status)
-                direction_transmit_or_receive_n <= 1'b0;
-            else if (is_read_io_port_status)
-                direction_transmit_or_receive_n <= 1'b0;
-            else if (is_write_io_port_status)
-                direction_transmit_or_receive_n <= 1'b1;
-            else if (is_halt_status)
-                direction_transmit_or_receive_n <= 1'b1;
-            else if (is_code_access_status)
-                direction_transmit_or_receive_n <= 1'b0;
-            else if (is_read_memory_status)
-                direction_transmit_or_receive_n <= 1'b0;
-            else if (is_write_memory_status)
-                direction_transmit_or_receive_n <= 1'b1;
-            else
-                direction_transmit_or_receive_n <= 1'b1;
-        end
-        else begin
-            if (strobed_interrupt_acknowledge_status)
-                direction_transmit_or_receive_n <= 1'b0;
-            else if (strobed_read_io_port_status)
-                direction_transmit_or_receive_n <= 1'b0;
-            else if (strobed_write_io_port_status)
-                direction_transmit_or_receive_n <= 1'b1;
-            else if (strobed_halt_status)
-                direction_transmit_or_receive_n <= 1'b1;
-            else if (strobed_code_access_status)
-                direction_transmit_or_receive_n <= 1'b0;
-            else if (strobed_read_memory_status)
-                direction_transmit_or_receive_n <= 1'b0;
-            else if (strobed_write_memory_status)
-                direction_transmit_or_receive_n <= 1'b1;
-            else
-                direction_transmit_or_receive_n <= 1'b1;
-        end
+        else if (cpu_clock_posedge)
+            if (machine_cycle_period) begin
+                if (is_interrupt_acknowledge_status)
+                    direction_transmit_or_receive_n <= 1'b0;
+                else if (is_read_io_port_status)
+                    direction_transmit_or_receive_n <= 1'b0;
+                else if (is_write_io_port_status)
+                    direction_transmit_or_receive_n <= 1'b1;
+                else if (is_halt_status)
+                    direction_transmit_or_receive_n <= 1'b1;
+                else if (is_code_access_status)
+                    direction_transmit_or_receive_n <= 1'b0;
+                else if (is_read_memory_status)
+                    direction_transmit_or_receive_n <= 1'b0;
+                else if (is_write_memory_status)
+                    direction_transmit_or_receive_n <= 1'b1;
+                else
+                    direction_transmit_or_receive_n <= 1'b1;
+            end
+            else begin
+                if (strobed_interrupt_acknowledge_status)
+                    direction_transmit_or_receive_n <= 1'b0;
+                else if (strobed_read_io_port_status)
+                    direction_transmit_or_receive_n <= 1'b0;
+                else if (strobed_write_io_port_status)
+                    direction_transmit_or_receive_n <= 1'b1;
+                else if (strobed_halt_status)
+                    direction_transmit_or_receive_n <= 1'b1;
+                else if (strobed_code_access_status)
+                    direction_transmit_or_receive_n <= 1'b0;
+                else if (strobed_read_memory_status)
+                    direction_transmit_or_receive_n <= 1'b0;
+                else if (strobed_write_memory_status)
+                    direction_transmit_or_receive_n <= 1'b1;
+                else
+                    direction_transmit_or_receive_n <= 1'b1;
+            end
+        else
+            direction_transmit_or_receive_n <= direction_transmit_or_receive_n;
     end
 
     // Generate data enable signal
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             write_command_tmp <= 1'b0;
-        else if (machine_cycle_period)
-            write_command_tmp <= 1'b0;
-        else if (is_halt_status)
-            write_command_tmp <= 1'b0;
-        else if (strobed_halt_status)
-            write_command_tmp <= 1'b0;
+        else if (cpu_clock_negedge)
+            if (machine_cycle_period)
+                write_command_tmp <= 1'b0;
+            else if (is_halt_status)
+                write_command_tmp <= 1'b0;
+            else if (strobed_halt_status)
+                write_command_tmp <= 1'b0;
+            else
+                write_command_tmp <= 1'b1;
         else
-            write_command_tmp <= 1'b1;
+            write_command_tmp <= write_command_tmp;
     end
 
-    // (ATTENTION: POSEDGE CLK)
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             read_command_tmp <= 1'b0;
-        else
+        else if (cpu_clock_posedge)
             read_command_tmp <= ~read_and_advanced_write_command_n;
+        else
+            read_command_tmp <= read_command_tmp;
     end
 
     assign write_data_enable = write_command_tmp & ~machine_cycle_period;

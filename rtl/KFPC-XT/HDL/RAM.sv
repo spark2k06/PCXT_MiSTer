@@ -14,6 +14,7 @@ module RAM (
     output  logic   [7:0]   data_bus_out,
     input   logic           memory_read_n,
     input   logic           memory_write_n,
+    input   logic           no_command_state,
     output  logic           memory_access_ready,
     output  logic           ram_address_select_n,
     // VRAM FIFO
@@ -54,15 +55,20 @@ module RAM (
     logic           read_command_ff_1;
     logic           read_command_ff_2;
     logic           read_command;
+    logic           no_command_state_ff_1;
+    logic           no_command_state_ff_2;
+    logic           no_command_state_ff_3;
+    logic           enable_refresh;
 
     logic           access_ready;
 
     //
-    // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xEFFFF)
+    // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xEBFFF)
     //	 
 	 assign  ram_address_select_n = ~(enable_sdram && 
 	                                ~(address[19:16] == 4'b1111) &&  // B0000h reserved for VRAM
-											  ~(address[19:16] == 4'b1011));   // F0000h reserved for BIOS
+											  ~(address[19:16] == 4'b1011) &&  // F0000h reserved for BIOS
+											  ~(address[19:14] == 6'b111011)); // EC000h reserved for XTIDE
 											  
 
     //
@@ -136,6 +142,22 @@ module RAM (
         end
     end
 
+    // Generate refresh timing
+    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
+        if (sdram_reset) begin
+            no_command_state_ff_1 <= 1'b0;
+            no_command_state_ff_2 <= 1'b0;
+            no_command_state_ff_3 <= 1'b0;
+        end
+        else begin
+            no_command_state_ff_1 <= no_command_state;
+            no_command_state_ff_2 <= no_command_state_ff_1;
+            no_command_state_ff_3 <= no_command_state_ff_2;
+        end
+    end
+
+    assign  enable_refresh  = no_command_state_ff_2 & ~no_command_state_ff_3;
+
 
     //
     // SDRAM Controller
@@ -149,6 +171,7 @@ module RAM (
     logic           write_flag;
     logic           read_flag;
     logic           idle;
+    logic           refresh_mode;
 
     KFSDRAM u_KFSDRAM (
         .sdram_clock        (sdram_clock),
@@ -159,9 +182,11 @@ module RAM (
         .data_out           (access_data_out),
         .write_request      (write_request),
         .read_request       (read_request),
+        .enable_refresh     (enable_refresh),
         .write_flag         (write_flag),
         .read_flag          (read_flag),
         .idle               (idle),
+        .refresh_mode       (refresh_mode),
         .sdram_address      (sdram_address),
         .sdram_cke          (sdram_cke),
         .sdram_cs           (sdram_cs),
@@ -334,8 +359,14 @@ module RAM (
             access_ready <= 1'b0;
         else if (state == COMPLETE_RAM_RW)
             access_ready <= 1'b1;
-        else
+        else if (state == IDLE)
+            access_ready <= idle;
+        else if ((write_command) && (refresh_mode))
             access_ready <= 1'b0;
+        else if ((read_command)  && (refresh_mode))
+            access_ready <= 1'b0;
+        else
+            access_ready <= access_ready;
     end
 
     assign  memory_access_ready = ((~ram_address_select_n) && ((~memory_read_n) || (~memory_write_n))) ? access_ready : 1'b1;

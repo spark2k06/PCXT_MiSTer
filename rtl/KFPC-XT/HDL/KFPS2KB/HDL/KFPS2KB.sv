@@ -8,6 +8,7 @@ module KFPS2KB #(
     parameter over_time = 16'd1000
 ) (
     input   logic           clock,
+    input   logic           peripheral_clock,
     input   logic           reset,
 
     input   logic           device_clock,
@@ -32,15 +33,16 @@ module KFPS2KB #(
     KFPS2KB_Shift_Register #(
         .over_time      (over_time)
     ) u_Shift_Register (
-        .clock          (clock),
-        .reset          (reset),
+        .clock              (clock),
+        .peripheral_clock   (peripheral_clock),
+        .reset              (reset),
 
-        .device_clock   (device_clock),
-        .device_data    (device_data),
+        .device_clock       (device_clock),
+        .device_data        (device_data),
 
-        .register       (register),
-        .recieved_flag  (recieved_flag),
-        .error_flag     (error_flag)
+        .register           (register),
+        .recieved_flag      (recieved_flag),
+        .error_flag         (error_flag)
     );
 
     //
@@ -209,7 +211,7 @@ module KFPS2KB #(
     //
     // Make keycode
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
             irq         <= 1'b0;
             keycode     <= 8'h00;

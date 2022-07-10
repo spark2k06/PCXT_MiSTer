@@ -7,6 +7,7 @@ module KFPS2KB_Send_Data #(
     parameter device_out_clock_wait = 16'd240
 ) (
     input   logic           clock,
+    input   logic           peripheral_clock,
     input   logic           reset,
 
     input   logic           device_clock,
@@ -35,10 +36,32 @@ module KFPS2KB_Send_Data #(
     logic   [15:0]  state_counter;
     logic   [7:0]   send_bit_count;
 
+
+    //
+    // Detect peripheral clock edge
+    //
+    logic           prev_p_clock_1;
+    logic           prev_p_clock_2;
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset) begin
+            prev_p_clock_1 <= 1'b0;
+            prev_p_clock_2 <= 1'b0;
+        end
+        else begin
+            prev_p_clock_1 <= peripheral_clock;
+            prev_p_clock_2 <= prev_p_clock_1;
+
+        end
+    end
+
+    wire    p_clock_posedge = prev_p_clock_1 & ~prev_p_clock_2;
+
+
     //
     // Detect clock edge
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             prev_device_clock <= 1'b0;
         else
@@ -52,7 +75,7 @@ module KFPS2KB_Send_Data #(
     //
     // Detect send request edge
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             prev_send_request <= 1'b0;
         else
@@ -74,7 +97,7 @@ module KFPS2KB_Send_Data #(
                         + send_data[6]
                         + send_data[7]);
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             shift_register <= 10'b11_1111_1111;
         else if (send_request_trigger)
@@ -120,23 +143,25 @@ module KFPS2KB_Send_Data #(
         endcase
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             state <= READY;
         else
             state <= next_state;
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             state_counter <= 16'h00;
         else if (state != next_state)
             state_counter <= 16'h00;
-        else
+        else if (p_clock_posedge)
             state_counter <= state_counter + 16'h01;
+        else
+            state_counter <= state_counter;
     end
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             send_bit_count <= 8'h00;
         else if (state == SEND)
@@ -153,7 +178,7 @@ module KFPS2KB_Send_Data #(
     // Output
     //
     // device_clock_out
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             device_clock_out <= 1'b1;
         else if ((state == CLKLOW) || (state == STARTBIT))
@@ -163,7 +188,7 @@ module KFPS2KB_Send_Data #(
     end
 
     // device_data_out
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             device_data_out <= 1'b1;
         else if (state == STARTBIT)

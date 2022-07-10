@@ -12,7 +12,7 @@ module cga(
     input clk,
 
     // ISA bus
-    input[15:0] bus_a,
+    input[14:0] bus_a,
     input bus_ior_l,
     input bus_iow_l,
     input bus_memr_l,
@@ -38,7 +38,8 @@ module cga(
     output[6:0] comp_video,
 
 	 input splashscreen,
-    input thin_font
+    input thin_font,
+	 input tandy_video
     );
 
     parameter MDA_70HZ = 0;
@@ -53,6 +54,7 @@ module cga(
 
     wire crtc_cs;
     wire status_cs;
+	 wire tandy_newcolorsel_cs;
     wire colorsel_cs;
     wire control_cs;
     //wire bus_mem_cs;
@@ -64,6 +66,10 @@ module cga(
     reg[7:0] cga_control_reg = 8'b0010_1000; // (TEXT)
 	 //reg[7:0] cga_control_reg = 8'b0010_1010; // (GFX 320 x 200)
     reg[7:0] cga_color_reg = 8'b0000_0000;
+	 reg[7:0] tandy_color_reg = 8'b0000_0000;
+	 reg[3:0] tandy_newcolor = 4'b0000;
+	 reg tandy_palette_set;
+	 
     wire hres_mode;
     wire grph_mode;
     wire bw_mode;
@@ -134,8 +140,9 @@ module cga(
     assign vsync = ~vsync_l;
 
     // Mapped IO
-    assign crtc_cs = (bus_a[15:3] == IO_BASE_ADDR[15:3]) & ~bus_aen; // 3D4/3D5
+    assign crtc_cs = (bus_a[14:3] == IO_BASE_ADDR[14:3]) & ~bus_aen; // 3D4/3D5
     assign status_cs = (bus_a == IO_BASE_ADDR + 20'hA) & ~bus_aen;
+	 assign tandy_newcolorsel_cs = (bus_a == IO_BASE_ADDR + 20'hE) & ~bus_aen;	 
 	 assign control_cs = (bus_a == IO_BASE_ADDR + 16'h8) & ~bus_aen;
     assign colorsel_cs = (bus_a == IO_BASE_ADDR + 20'h9) & ~bus_aen;	 
     // Memory-mapped from B0000 to B7FFF
@@ -227,19 +234,26 @@ endgenerate
     assign blink_enabled = cga_control_reg[5];
 
     // FIXME: temporary for testing
-    assign tandy_16_mode = cga_control_reg[6];
+    assign tandy_16_mode = tandy_video; //cga_control_reg[6];
 
     assign hsync = hsync_int;
 
     // Update control or color register
     always @ (posedge clk)
     begin
+        tandy_palette_set <= 1'b0;
         if (~bus_iow_synced_l) begin
             if (control_cs) begin
                 cga_control_reg <= bus_d;
             end else if (colorsel_cs) begin
                 cga_color_reg <= bus_d;
+            end else if (status_cs) begin
+                tandy_color_reg <= bus_d;
+            end else if (tandy_newcolorsel_cs && tandy_color_reg[7:4] == 4'b0001) begin
+                tandy_newcolor <= bus_d[3:0];
+					 tandy_palette_set <= 1'b1;
             end
+
         end
     end
 
@@ -327,6 +341,9 @@ endgenerate
         .vsync(vsync_l),
         .video_enabled(video_enabled),
         .cga_color_reg(cga_color_reg),
+        .tandy_palette_color(tandy_color_reg[3:0]),
+        .tandy_newcolor(tandy_newcolor),
+        .tandy_palette_set(tandy_palette_set),
         .video(video)
     );
 

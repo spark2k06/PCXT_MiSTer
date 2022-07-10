@@ -28,7 +28,7 @@ module KF8259_Interrupt_Request (
         //
         // Edge Sense
         //
-        always_ff @(negedge clock, posedge reset) begin
+        always_ff @(posedge clock, posedge reset) begin
         if (reset)
             low_input_latch[ir_bit_no] <= 1'b0;
         else if (clear_interrupt_request[ir_bit_no])
@@ -44,7 +44,7 @@ module KF8259_Interrupt_Request (
         //
         // Request Latch
         //
-        always_ff @(negedge clock, posedge reset) begin
+        always_ff @(posedge clock, posedge reset) begin
             if (reset)
                 interrupt_request_register[ir_bit_no] <= 1'b0;
             else if (clear_interrupt_request[ir_bit_no])

@@ -35,7 +35,7 @@ module KF8255_Port (
     //
     // Select Input(Hi-Z) or Output
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_io <= `PORT_INPUT;
         else
@@ -52,7 +52,7 @@ module KF8255_Port (
     //
     // Output
     //
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             port_out <= 8'b00000000;
         else if (update_mode)
@@ -69,7 +69,7 @@ module KF8255_Port (
     //
     logic   [7:0]   read_tmp;
 
-    always_ff @(negedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset) begin
         if (reset)
             read_tmp <= 8'b00000000;
         else if (update_mode)

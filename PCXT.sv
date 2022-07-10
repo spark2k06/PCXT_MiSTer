@@ -206,21 +206,22 @@ assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 localparam CONF_STR = {
 	"PCXT;;",
 	"-;",
-	"O3,Splash Screen,Yes,No;",
+	"O7,Splash Screen,Yes,No;",
 	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
 	"-;",
 	"OA,Adlib,On,Invisible;",
 	"-;",
 	"OB,Lo-tech 2MB EMS, Enabled, Disabled;",
-	"OCD,EMS Frame,A000,C000,D000,E000;",
+	"OCD,EMS Frame,A000,C000,D000;",
 	"-;",
-	"O4,Video Output,Tandy/CGA,MDA;",
-	"O12,CGA RGB,Color,Green,Amber,B/W;",
+	"O34,Video Output,CGA,Tandy,MDA;",
+	"O12,CGA/Tandy RGB,Color,Green,Amber,B/W;",
 	"O56,MDA RGB,Green,Amber,B/W;",
 	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
 	//"O78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",	
 	"-;",
-	"F1,ROM,Load ROM;",	
+	"F1,ROM,Load BIOS  (F000);",	
+	"F2,ROM,Load XTIDE (EC00);",	
 	"-;",
 	"T0,Reset;",
 	"R0,Reset and close OSD;",
@@ -323,7 +324,7 @@ reg clk_14_318 = 1'b0;
 //reg clk_7_16 = 1'b0;
 wire clk_4_77;
 wire clk_cpu;
-wire cen_opl2;
+wire clk_opl2;
 wire peripheral_clock;
 
 pll pll
@@ -333,7 +334,7 @@ pll pll
 	.outclk_0(clk_100),
 	.outclk_1(clk_28_636),	
 	.outclk_2(clk_uart),
-	.outclk_3(cen_opl2),
+	.outclk_3(clk_opl2),
 	.outclk_4(clk_56_875),
 	.locked(pll_locked)
 );
@@ -352,9 +353,6 @@ wire ce_pix;
 assign CLK_VIDEO = clk_28_636;
 assign CE_PIXEL = 1'b1;
 
-//assign clk_cpu = status[x] ? clk_7_16 : clk_4_77;
-assign clk_cpu = clk_4_77;
-
 always @(posedge clk_28_636)
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
 	
@@ -371,6 +369,28 @@ clk_div3 clk_normal // 4.77MHz
 
 always @(posedge clk_4_77)
 	peripheral_clock <= ~peripheral_clock; // 2.385Mhz
+
+logic  clk_cpu_ff_1;
+logic  clk_cpu_ff_2;
+
+always @(posedge clk_100) begin
+    clk_cpu_ff_1 <= clk_4_77;
+    clk_cpu_ff_2 <= clk_cpu_ff_1;
+    clk_cpu      <= clk_cpu_ff_2;
+end
+
+logic   clk_opl2_ff_1;
+logic   clk_opl2_ff_2;
+logic   clk_opl2_ff_3;
+logic   cen_opl2;
+
+always @(posedge clk_100) begin
+    clk_opl2_ff_1 <= clk_opl2;
+    clk_opl2_ff_2 <= clk_opl2_ff_1;
+    clk_opl2_ff_3 <= clk_opl2_ff_2;
+    cen_opl2 <= clk_opl2_ff_2 & ~clk_opl2_ff_3;
+end
+
 
 //////////////////////////////////////////////////////////////////
 
@@ -395,20 +415,6 @@ always @(posedge CLK_50M, posedge reset_wire) begin
 	else begin
 		reset <= 1'b0;
 		reset_count <= reset_count;
-	end
-end
-
-logic reset_chipset_ff = 1'b1;
-logic reset_chipset = 1'b1;
-
-always @(negedge clk_4_77, posedge reset) begin
-	if (reset) begin
-		reset_chipset_ff <= 1'b1;
-		reset_chipset <= 1'b1;
-	end
-	else begin
-		reset_chipset_ff <= reset;
-		reset_chipset <= reset_chipset_ff;
 	end
 end
 
@@ -480,7 +486,7 @@ end
 	always @ (posedge clk_14_318) begin
 	
 		if (splashscreen) begin
-			if (status[3])
+			if (status[7])
 				splashscreen <= 0;
 			else if(splash_cnt2 == 5) // 5 seconds delay
 				splashscreen <= 0;
@@ -547,15 +553,23 @@ end
     logic   [7:0]   port_c_in;	 
 	 reg     [7:0]   sw;
 	 
-	 assign  sw = status[4] ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (MDA or CGA 80)
+	 wire tandy_mode;
+	 wire mda_mode;
+	 assign tandy_mode = (status[4:3] == 1);
+	 assign mda_mode = (status[4:3] == 2);
+	 
+	 
+	 
+	 assign  sw = mda_mode ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (MDA or CGA 80)
 	 assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
    CHIPSET u_CHIPSET (
-        .clock                              (clk_cpu),
+        .clock                              (clk_100),
+        .cpu_clock                            (clk_cpu),
 		  .clk_sys                            (CLK_50M),
 		  .peripheral_clock                   (peripheral_clock),
 		  
-        .reset                              (reset_chipset),
+        .reset                              (reset_cpu),
         .sdram_reset                        (reset),
         .cpu_address                        (cpu_address),
         .cpu_data_bus                       (cpu_data_bus),
@@ -565,7 +579,7 @@ end
 		  .processor_ready                    (processor_ready),
         .interrupt_to_cpu                   (interrupt_to_cpu),
         .splashscreen                       (splashscreen),
-		  .video_output                       (status[4]),
+		  .video_output                       (mda_mode),
         .clk_vga_cga                        (clk_28_636),
         .enable_cga                         (1'b1),
         .clk_vga_mda                        (clk_56_875),
@@ -613,7 +627,9 @@ end
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
+		  .tandy_video                        (tandy_mode),
 		  .tandy_snd_e                        (tandy_snd_e),
+		  .tandy_snd_rdy                      (tandy_snd_rdy),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
 		  .ioctl_wr                           (ioctl_wr),
@@ -649,6 +665,7 @@ end
 	
 	wire speaker_out;
 	wire  [7:0]   tandy_snd_e;
+	wire tandy_snd_rdy;
 
 	wire [15:0] jtopl2_snd_e;	
 	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + {tandy_snd_e, 6'd0}; // signed mixer
@@ -670,7 +687,7 @@ end
 	  .CLK(clk_cpu),
 
 	  .RESET(reset_cpu),
-	  .READY(processor_ready),	  
+	  .READY(processor_ready),// && tandy_snd_rdy),	  
 	  .NMI(1'b0),
 	  .INTR(interrupt_to_cpu),
 
@@ -767,9 +784,9 @@ end
 		endcase
 	end
 
-	assign VGA_R = {status[4] ? r : raux, 2'b0};
-	assign VGA_G = {status[4] ? g : gaux, 2'b0};
-	assign VGA_B = {status[4] ? b : baux, 2'b0};
+	assign VGA_R = {mda_mode ? r : raux, 2'b0};
+	assign VGA_G = {mda_mode ? g : gaux, 2'b0};
+	assign VGA_B = {mda_mode ? b : baux, 2'b0};
 
 /*
 // SRAM management

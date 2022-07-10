@@ -4,6 +4,7 @@
 //
 module CHIPSET (
     input   logic           clock,
+    input   logic           cpu_clock,
 	 input   logic           clk_sys,
     input   logic           peripheral_clock,
     input   logic           reset,
@@ -77,8 +78,11 @@ module CHIPSET (
 	 input   logic           clk_en_opl2,
 	 output  logic   [15:0]  jtopl2_snd_e,
 	 input   logic           adlibhide,
-	 // TANDY SND
+	 // TANDY
+	 input   logic           tandy_video,
 	 output  logic   [7:0]   tandy_snd_e,
+	 output  logic           tandy_snd_rdy,
+	 
 	 // IOCTL
     input   logic           ioctl_download,
     input   logic   [7:0]   ioctl_index,
@@ -127,7 +131,10 @@ module CHIPSET (
     logic   [7:0]   internal_data_bus_ram;
     logic           data_bus_out_from_chipset;
     logic           internal_data_bus_direction;
-	 
+    logic           no_command_state;
+
+    logic           prev_timer_count_1;
+    logic           DRQ0;
 	 
 	 logic   [6:0]   map_ems[0:3];
 	 logic           ena_ems[0:3];
@@ -137,8 +144,27 @@ module CHIPSET (
 	 logic           ems_b4;
 	 
 
+   always_ff @(posedge clock) begin
+       if (reset)
+            prev_timer_count_1 <= 1'b1;
+        else
+            prev_timer_count_1 <= timer_counter_out[1];
+    end
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            DRQ0 <= 1'b0;
+        else if (~dma_acknowledge_n[0])
+            DRQ0 <= 1'b0;
+        else if (~prev_timer_count_1 & timer_counter_out[1])
+            DRQ0 <= 1'b1;
+        else
+            DRQ0 <= DRQ0;
+    end
+
     READY u_READY (
         .clock                              (clock),
+        .cpu_clock                          (cpu_clock),
         .reset                              (reset),
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
@@ -153,6 +179,7 @@ module CHIPSET (
 
     BUS_ARBITER u_BUS_ARBITER (
         .clock                              (clock),
+        .cpu_clock                          (cpu_clock),
         .reset                              (reset),
         .cpu_address                        (cpu_address),
         .cpu_data_bus                       (cpu_data_bus),
@@ -183,7 +210,8 @@ module CHIPSET (
         .memory_write_n                     (memory_write_n),
         .memory_write_n_ext                 (memory_write_n_ext),
         .memory_write_n_direction           (memory_write_n_direction),
-        .dma_request                        (dma_request),
+        .no_command_state                   (no_command_state),
+        .dma_request                        ({dma_request[3:1], DRQ0}),
         .dma_acknowledge_n                  (dma_acknowledge_n),
         .address_enable_n                   (address_enable_n),
         .terminal_count_n                   (terminal_count_n)
@@ -240,6 +268,8 @@ module CHIPSET (
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
 		  .tandy_snd_e                        (tandy_snd_e),
+		  .tandy_video                        (tandy_video),
+		  .tandy_snd_rdy                      (tandy_snd_rdy),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
 		  .ioctl_wr                           (ioctl_wr),
@@ -274,6 +304,7 @@ module CHIPSET (
         .data_bus_out                       (internal_data_bus_ram),
         .memory_read_n                      (memory_read_n),
         .memory_write_n                     (memory_write_n),
+        .no_command_state                   (no_command_state),
         .memory_access_ready                (memory_access_ready),
         .ram_address_select_n               (ram_address_select_n),
         .sdram_address                      (sdram_address),

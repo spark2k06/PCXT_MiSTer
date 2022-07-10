@@ -7,6 +7,7 @@
 
 module KF8237 (
     input   logic           clock,
+    input   logic           cpu_clock,
     input   logic           reset,
     input   logic           chip_select_n,
     input   logic           ready,
@@ -34,6 +35,22 @@ module KF8237 (
 );
 
     //
+    // CPU clock edge
+    //
+    logic   prev_cpu_clock;
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            prev_cpu_clock <= 1'b0;
+        else
+            prev_cpu_clock <= cpu_clock;
+    end
+
+    wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
+    wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
+
+
+    //
     // Data Bus Buffer & Read/Write Control Logic (1)
     //
     logic           lock_bus_control;
@@ -46,6 +63,7 @@ module KF8237 (
     logic   [3:0]   write_base_and_current_address;
     logic   [3:0]   write_base_and_current_word_count;
     logic           clear_byte_pointer;
+    logic           set_byte_pointer;
     logic           master_clear;
     logic           clear_mask_register;
     logic           read_temporary_register;
@@ -78,6 +96,7 @@ module KF8237 (
         .write_base_and_current_word_count  (write_base_and_current_word_count),
         // -- software command
         .clear_byte_pointer                 (clear_byte_pointer),
+        .set_byte_pointer                   (set_byte_pointer),
         .master_clear                       (master_clear),
         .clear_mask_register                (clear_mask_register),
         // -- read
@@ -100,6 +119,8 @@ module KF8237 (
 
     KF8237_Priority_Encoder u_Priority_Encoder (
         .clock                              (clock),
+        .cpu_clock_posedge                  (cpu_clock_posedge),
+        .cpu_clock_negedge                  (cpu_clock_negedge),
         .reset                              (reset),
 
         // Internal Bus
@@ -140,6 +161,8 @@ module KF8237 (
 
     KF8237_Address_And_Count_Registers u_Address_And_Count_Registers (
         .clock                              (clock),
+        .cpu_clock_posedge                  (cpu_clock_posedge),
+        .cpu_clock_negedge                  (cpu_clock_negedge),
         .reset                              (reset),
 
         // Internal Bus
@@ -150,6 +173,7 @@ module KF8237 (
         .write_base_and_current_word_count  (write_base_and_current_word_count),
         // -- software command
         .clear_byte_pointer                 (clear_byte_pointer),
+        .set_byte_pointer                   (set_byte_pointer),
         .master_clear                       (master_clear),
         // -- read
         .read_current_address               (read_current_address),
@@ -176,6 +200,8 @@ module KF8237 (
 
     KF8237_Timing_And_Control u_Timing_And_Control (
         .clock                              (clock),
+        .cpu_clock_posedge                  (cpu_clock_posedge),
+        .cpu_clock_negedge                  (cpu_clock_negedge),
         .reset                              (reset),
 
         // Internal Bus

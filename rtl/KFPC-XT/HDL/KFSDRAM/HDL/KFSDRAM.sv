@@ -13,9 +13,9 @@ module KFSDRAM #(
     parameter sdram_no_refresh      = 1'b0,
     parameter sdram_trc             = 16'd5-16'd1,
     parameter sdram_tras            = 16'd8-16'd1,
-    parameter sdram_trp             = 16'd2-16'd1,
+    parameter sdram_trp             = 16'd1-16'd1,
     parameter sdram_tmrd            = 16'd2-16'd1,
-    parameter sdram_trcd            = 16'd6-16'd1,
+    parameter sdram_trcd            = 16'd1-16'd1,
     parameter sdram_tdpl            = 16'd2-16'd1,
     parameter cas_latency           = 3'b011,
     parameter sdram_init_wait       = 16'd10000,
@@ -33,8 +33,10 @@ module KFSDRAM #(
     output  logic   [sdram_data_width-1:0]      data_out,
     input   logic                               write_request,
     input   logic                               read_request,
+    input   logic                               enable_refresh,
     output  logic                               write_flag,
     output  logic                               read_flag,
+    output  logic                               refresh_mode,
     output  logic                               idle,
 
     // SDRAM
@@ -107,7 +109,7 @@ module KFSDRAM #(
                     next_state = WRITE_ACT;
                 else if (read_request)
                     next_state = READ_ACT;
-                else if ((~sdram_no_refresh) && (refresh_counter == sdram_refresh_cycle))
+                else if ((~sdram_no_refresh) && (enable_refresh) && (refresh_counter == sdram_refresh_cycle))
                     next_state = REFRESH_PALL;
             end
             WRITE_ACT: begin
@@ -424,6 +426,7 @@ module KFSDRAM #(
     // Status
     //
     assign  idle            = (state == IDLE);
+    assign  refresh_mode    = (state == REFRESH_PALL) || (state == REFRESH);
     assign  write_flag      = (state == WRITE);
     assign  read_flag_tmp   = (state == READ) && (next_state == READ)  && (state_counter > cas_latency);
 

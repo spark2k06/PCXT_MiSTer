@@ -12,7 +12,7 @@ module mda(
     input clk,
 
     // ISA bus
-    input[15:0] bus_a,
+    input[14:0] bus_a,
     input bus_ior_l,
     input bus_iow_l,
     input bus_memr_l,
@@ -109,7 +109,7 @@ module mda(
     assign vsync = ~vsync_l;
 
     // Mapped IO
-    assign crtc_cs = (bus_a[15:3] == IO_BASE_ADDR[15:3]) & ~bus_aen; // 3B4/3B5
+    assign crtc_cs = (bus_a[14:3] == IO_BASE_ADDR[14:3]) & ~bus_aen; // 3B4/3B5
     assign status_cs = (bus_a == IO_BASE_ADDR + 20'hA) & ~bus_aen;
 	 assign control_cs = (bus_a == IO_BASE_ADDR + 16'h8) & ~bus_aen;
 
