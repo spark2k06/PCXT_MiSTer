@@ -87,9 +87,9 @@ module PERIPHERALS #(
 	 output  logic           ems_b1,
 	 output  logic           ems_b2,
 	 output  logic           ems_b3,
-	 output  logic           ems_b4
-
-	 
+	 output  logic           ems_b4,
+     // Mode Switch
+    input   logic           tandy_mode
 );
     //
     // chip select
@@ -277,7 +277,7 @@ module PERIPHERALS #(
     logic           lock_recv_clock;
 
     wire    clear_keycode = port_b_out[7];
-    wire    ps2_reset_n   = port_b_out[6];
+    wire    ps2_reset_n   = ~tandy_mode ? port_b_out[6] : 1'b1;
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)

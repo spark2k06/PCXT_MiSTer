@@ -658,8 +658,8 @@ end
         .sdram_ldqm                         (SDRAM_DQML),
         .sdram_udqm                         (SDRAM_DQMH),
 		  .ems_enabled                        (~status[11]),
-		  .ems_address                        (status[13:12])
-    
+		  .ems_address                        (status[13:12]),
+        .tandy_mode                         (tandy_mode)
     );
 	
 	wire speaker_out;
