@@ -168,7 +168,7 @@ module CHIPSET (
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
         .dma_wait_n                         (dma_wait_n),
-        .io_channel_ready                   (io_channel_ready & memory_access_ready),// & tandy_snd_rdy),
+        .io_channel_ready                   (io_channel_ready & memory_access_ready & tandy_snd_rdy),
         .io_read_n                          (io_read_n),
         .io_write_n                         (io_write_n),
         .memory_read_n                      (memory_read_n),
