@@ -347,28 +347,6 @@ module PERIPHERALS #(
 		.sample()
 	);	
 	
-	logic prev_io_write_n_1;
-	logic prev_io_write_n_2;
-	logic prev_io_write_n_3;
-	logic prev_io_write_n_4;
-	logic prev_io_write_n_tandy;
-	reg [7:0] write_to_tandy_snd = 8'hFF;
-	
-	//wire TANDY_SND_RDY;
-	always_ff @(posedge clock) begin		
-		prev_io_write_n_1 <= io_write_n;
-		prev_io_write_n_2 <= prev_io_write_n_1;
-		prev_io_write_n_3 <= prev_io_write_n_2;
-		prev_io_write_n_4 <= prev_io_write_n_3;
-		prev_io_write_n_tandy <= prev_io_write_n_4;
-	end	
-	
-	always_ff @(posedge clock) begin
-		if (~io_write_n)
-			write_to_tandy_snd <= internal_data_bus;
-		else
-			write_to_tandy_snd <= write_to_tandy_snd;
-	end
 
 	// Tandy sound
 	sn76489_top sn76489
@@ -377,9 +355,9 @@ module PERIPHERALS #(
 		.clock_en_i(clk_en_opl2), // 3.579MHz
 		.res_n_i(~reset),
 		.ce_n_i(tandy_chip_select_n),
-		.we_n_i(~prev_io_write_n_4 & prev_io_write_n_tandy), // io_write_n
+		.we_n_i(io_write_n),
 		.ready_o(tandy_snd_rdy),
-		.d_i(write_to_tandy_snd), // internal_data_bus
+		.d_i(internal_data_bus),
 		.aout_o(tandy_snd_e)
 	);	
 	
