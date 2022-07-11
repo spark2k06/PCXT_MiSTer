@@ -115,28 +115,30 @@ module PERIPHERALS #(
         end
     end
 
-    assign  dma_chip_select_n       = chip_select_n[0];
-    wire    interrupt_chip_select_n = chip_select_n[1];
-    wire    timer_chip_select_n     = chip_select_n[2];
-    wire    ppi_chip_select_n       = chip_select_n[3];
-    assign  dma_page_chip_select_n  = chip_select_n[4];
+	 wire    iorq = ~io_read_n | ~io_write_n;
 	 
-	 wire    tandy_chip_select_n    = ~(~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
-	 wire    opl_chip_select_n      = ~(~address_enable_n && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
-    wire    cga_chip_select_n      = ~(~address_enable_n && enable_cga & (address[19:15] == 6'b10111)); // B8000 - BFFFF (32 KB)
-	 wire    mda_chip_select_n      = ~(~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (32 KB)	 
-	 wire    bios_select_n          = ~(~address_enable_n && address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
-	 wire    xtide_select_n         = ~(~address_enable_n && address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
+    assign  dma_chip_select_n       = iorq && chip_select_n[0];
+    wire    interrupt_chip_select_n = iorq && chip_select_n[1];
+    wire    timer_chip_select_n     = iorq && chip_select_n[2];
+    wire    ppi_chip_select_n       = iorq && chip_select_n[3];
+    assign  dma_page_chip_select_n  = iorq && chip_select_n[4];
+	 
+	 wire    tandy_chip_select_n    = ~(iorq && ~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
+	 wire    opl_chip_select_n      = ~(iorq && ~address_enable_n && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
+    wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 6'b10111)); // B8000 - BFFFF (32 KB)
+	 wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (32 KB)	 
+	 wire    bios_select_n          = ~(~iorq && ~address_enable_n && address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
+	 wire    xtide_select_n         = ~(~iorq && ~address_enable_n && address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
 	 wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
-	 wire    lpt_cs                 =  (~address_enable_n && {address[15:3], 3'd0} == 16'h0378);
+	 wire    lpt_cs                 =  (iorq && ~address_enable_n && {address[15:3], 3'd0} == 16'h0378);
 	 
 	 
 	 wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1010 : (ems_address == 2'b01) ? 4'b1100 : 4'b1101;
-	 wire    ems_oe                 = (~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h	 
-	 assign  ems_b1                 = (ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // A0000h - C0000h - D0000h
-	 assign  ems_b2                 = (ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // A4000h - C4000h - D4000h
-	 assign  ems_b3                 = (ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // A8000h - C8000h - D8000h
-	 assign  ems_b4                 = (ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // AC000h - CC000h - DC000h
+	 wire    ems_oe                 = (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h	 
+	 assign  ems_b1                 = (~iorq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // A0000h - C0000h - D0000h
+	 assign  ems_b2                 = (~iorq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // A4000h - C4000h - D4000h
+	 assign  ems_b3                 = (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // A8000h - C8000h - D8000h
+	 assign  ems_b4                 = (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // AC000h - CC000h - DC000h
 	 
 	 always_ff @(posedge clock, posedge reset)
     begin
@@ -354,7 +356,7 @@ module PERIPHERALS #(
 		.clock_i(clock),
 		.clock_en_i(clk_en_opl2), // 3.579MHz
 		.res_n_i(~reset),
-		.ce_n_i(~(~tandy_chip_select_n & ~io_write_n)),
+		.ce_n_i(tandy_chip_select_n),
 		.we_n_i(io_write_n),
 		.ready_o(tandy_snd_rdy),
 		.d_i(internal_data_bus),
@@ -408,7 +410,8 @@ module PERIPHERALS #(
             lpt_data <= internal_data_bus;				
         
 	end
-
+	
+	wire iorq_uart = (io_write_n & ~prev_io_write_n) || (~io_read_n  & prev_io_read_n);
 	uart uart1
 	(
 		.clk               (clock),
@@ -420,7 +423,7 @@ module PERIPHERALS #(
 		.read              (~io_read_n  & prev_io_read_n),
 		.write             (io_write_n & ~prev_io_write_n),
 		.readdata          (uart_readdata_1),
-		.cs                (uart_cs),
+		.cs                (uart_cs & iorq_uart),
 
 		.rx                (uart_rx),
 		.tx                (uart_tx),
