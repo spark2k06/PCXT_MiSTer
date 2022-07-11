@@ -628,8 +628,7 @@ end
 		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
 		  .tandy_video                        (tandy_mode),
-		  .tandy_snd_e                        (tandy_snd_e),
-		  .tandy_snd_rdy                      (tandy_snd_rdy),
+		  .tandy_snd_e                        (tandy_snd_e),		  
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
 		  .ioctl_wr                           (ioctl_wr),
@@ -687,7 +686,7 @@ end
 	  .CLK(clk_cpu),
 
 	  .RESET(reset_cpu),
-	  .READY(processor_ready),// && tandy_snd_rdy),	  
+	  .READY(processor_ready),
 	  .NMI(1'b0),
 	  .INTR(interrupt_to_cpu),
 
