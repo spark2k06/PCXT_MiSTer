@@ -119,7 +119,7 @@ module cga(
 	 
 	 assign de_o = display_enable;
 	 
-	 assign ram_a = {4'b0001, pixel_addr14, pixel_addr13, crtc_addr[11:0],
+	 assign ram_a = {4'h0, pixel_addr14, pixel_addr13, crtc_addr[11:0],
                     vram_read_a0};
 						  
 	 assign ram_1_d = ram_d;

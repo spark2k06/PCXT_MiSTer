@@ -199,7 +199,7 @@ module cga_pixel(
         .c0(pix_bits[0]),
         .c1(pix_bits[1]),
         .pix_640(pix_640),
-        .pix_tandy(tandy_bits), // tandy_palette[tandy_bits]
+        .pix_tandy(tandy_bits),
         .pix_out(video_out)
     );
 

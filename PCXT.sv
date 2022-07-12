@@ -206,19 +206,20 @@ assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 localparam CONF_STR = {
 	"PCXT;;",
 	"-;",
-	"O7,Splash Screen,Yes,No;",
-	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
+	"O3,Model,IBM PCXT,Tandy 1000;",
 	"-;",
 	"OA,Adlib,On,Invisible;",
-	"-;",
+	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
 	"OB,Lo-tech 2MB EMS, Enabled, Disabled;",
 	"OCD,EMS Frame,A000,C000,D000;",
 	"-;",
-	"O34,Video Output,CGA,Tandy,MDA;",
+	"O4,Video Output,CGA/Tandy,MDA;",
 	"O12,CGA/Tandy RGB,Color,Green,Amber,B/W;",
 	"O56,MDA RGB,Green,Amber,B/W;",
 	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
 	//"O78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",	
+	"-;",
+	"O7,Splash Screen,Yes,No;",	
 	"-;",
 	"F1,ROM,Load BIOS  (F000);",	
 	"F2,ROM,Load XTIDE (EC00);",	
@@ -553,11 +554,8 @@ end
     logic   [7:0]   port_c_in;	 
 	 reg     [7:0]   sw;
 	 
-	 wire tandy_mode;
-	 wire mda_mode;
-	 assign tandy_mode = (status[4:3] == 1);
-	 assign mda_mode = (status[4:3] == 2);
-	 
+	 wire tandy_mode = status[3];
+	 wire mda_mode = status[4];	 
 	 
 	 
 	 assign  sw = mda_mode ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (MDA or CGA 80)
