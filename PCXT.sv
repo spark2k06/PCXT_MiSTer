@@ -186,7 +186,6 @@ assign VGA_SCALER = 0;
 assign HDMI_FREEZE = 0;
 
 assign AUDIO_S = 1;
-assign AUDIO_L = AUDIO_R;
 assign AUDIO_MIX = 0;
 
 assign LED_DISK = 0;
@@ -209,6 +208,7 @@ localparam CONF_STR = {
 	"O3,Model,IBM PCXT,Tandy 1000;",
 	"-;",
 	"OA,Adlib,On,Invisible;",
+	"OE,DSS/Covox,Unplugged,Plugged;",
 	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
 	"OB,Lo-tech 2MB EMS, Enabled, Disabled;",
 	"OCD,EMS Frame,A000,C000,D000;",
@@ -353,6 +353,18 @@ wire ce_pix;
 
 assign CLK_VIDEO = clk_28_636;
 assign CE_PIXEL = 1'b1;
+
+reg         cen_44100;
+reg  [31:0] cen_44100_cnt;
+wire [31:0] cen_44100_cnt_next = cen_44100_cnt + 16'd44100;
+always @(posedge CLK_50M) begin
+	cen_44100 <= 0;
+	cen_44100_cnt <= cen_44100_cnt_next;
+	if (cen_44100_cnt_next >= (50000000)) begin
+		cen_44100 <= 1;
+		cen_44100_cnt <= cen_44100_cnt_next - (50000000);
+	end
+end
 
 always @(posedge clk_28_636)
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
@@ -622,17 +634,18 @@ end
 	     .ps2_data                           (device_data),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
+		  .clk_en_44100                       (cen_44100),
+		  .dss_covox_en                       (status[14]),
+		  .lclamp                             (AUDIO_L),
+		  .rclamp                             (AUDIO_R),		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
-		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
 		  .tandy_video                        (tandy_mode),
-		  .tandy_snd_e                        (tandy_snd_e),		  
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
 		  .ioctl_wr                           (ioctl_wr),
 		  .ioctl_addr                         (ioctl_addr),
-		  .ioctl_data                         (ioctl_data),
-		  
+		  .ioctl_data                         (ioctl_data),		  
 		  .clk_uart                          (clk_uart),
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
@@ -659,23 +672,14 @@ end
 		  .ems_address                        (status[13:12]),
         .tandy_mode                         (tandy_mode)
     );
-	
-	wire speaker_out;
-	wire  [7:0]   tandy_snd_e;
-	wire tandy_snd_rdy;
 
-	wire [15:0] jtopl2_snd_e;	
-	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + {tandy_snd_e, 6'd0}; // signed mixer
-	
 	wire [15:0] SDRAM_DQ_IN;
 	wire [15:0] SDRAM_DQ_OUT;
 	wire        SDRAM_DQ_IO;
 	
 	assign SDRAM_DQ_IN = SDRAM_DQ;
 	assign SDRAM_DQ = ~SDRAM_DQ_IO ? SDRAM_DQ_OUT : 16'hZZZZ;			
-	
-	assign AUDIO_R = sndmix >> 1;
-	
+
 	wire s6_3_mux;
 	wire [2:0] SEGMENT;
 

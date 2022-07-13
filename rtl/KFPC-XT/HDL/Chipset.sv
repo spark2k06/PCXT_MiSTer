@@ -74,14 +74,16 @@ module CHIPSET (
     input   logic           ps2_data,
     output  logic           ps2_clock_out,
     output  logic           ps2_data_out,
+	 // SOUND
+	 input   logic           clk_en_44100, // COVOX/DSS clock enable
+	 input   logic           dss_covox_en,
+	 output  logic   [15:0]  lclamp,
+	 output  logic   [15:0]  rclamp,
 	 // JTOPL	 
 	 input   logic           clk_en_opl2,
-	 output  logic   [15:0]  jtopl2_snd_e,
 	 input   logic           adlibhide,
 	 // TANDY
 	 input   logic           tandy_video,
-	 output  logic   [7:0]   tandy_snd_e,	 
-	 
 	 // IOCTL
     input   logic           ioctl_download,
     input   logic   [7:0]   ioctl_index,
@@ -265,10 +267,12 @@ module CHIPSET (
         .ps2_data                           (ps2_data),
         .ps2_clock_out                      (ps2_clock_out),
         .ps2_data_out                       (ps2_data_out),
+		  .clk_en_44100                       (clk_en_44100),
+		  .dss_covox_en                       (dss_covox_en),
+		  .lclamp                             (lclamp),
+		  .rclamp                             (rclamp),
 		  .clk_en_opl2                        (clk_en_opl2),
-		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
-		  .tandy_snd_e                        (tandy_snd_e),
 		  .tandy_video                        (tandy_video),
 		  .tandy_snd_rdy                      (tandy_snd_rdy),
 		  .ioctl_download                     (ioctl_download),

@@ -7,7 +7,7 @@ module PERIPHERALS #(
 ) (
     input   logic           clock,
 	 input   logic           clk_sys,
-    input   logic           peripheral_clock,
+    input   logic           peripheral_clock,	 
     input   logic           reset,
     // CPU
     output  logic           interrupt_to_cpu,
@@ -56,13 +56,16 @@ module PERIPHERALS #(
     input   logic           ps2_data,
     output  logic           ps2_clock_out,
     output  logic           ps2_data_out,
+	 // SOUND
+	 input   logic           clk_en_44100, // COVOX/DSS clock enable
+	 input   logic           dss_covox_en,
+	 output  logic   [15:0]  lclamp,
+	 output  logic   [15:0]  rclamp,
 	 // JTOPL	 
-	 input   logic           clk_en_opl2,
-	 output  logic   [15:0]  jtopl2_snd_e,
+	 input   logic           clk_en_opl2,	 
 	 input   logic           adlibhide,
 	 // TANDY
-	 input   logic           tandy_video,
-	 output  logic   [7:0]   tandy_snd_e,
+	 input   logic           tandy_video,	 
 	 output  logic           tandy_snd_rdy,
 	 // IOCTL
     input   logic           ioctl_download,
@@ -131,6 +134,7 @@ module PERIPHERALS #(
 	 wire    xtide_select_n         = ~(~iorq && ~address_enable_n && address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
 	 wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
 	 wire    lpt_cs                 =  (iorq && ~address_enable_n && {address[15:3], 3'd0} == 16'h0378);
+	 wire    lpt_ctl_cs             =  (iorq && ~address_enable_n && {address[15:3], 3'd0} == 16'h0379);
 	 
 	 
 	 wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1010 : (ems_address == 2'b01) ? 4'b1100 : 4'b1101;
@@ -330,8 +334,9 @@ module PERIPHERALS #(
     end
 
 
+	wire [15:0] jtopl2_snd_e;
    wire [7:0] jtopl2_dout;
-	wire [7:0]opl32_data;	
+	wire [7:0] opl32_data;
    assign opl32_data = adlibhide ? 8'hFF : jtopl2_dout;
 	 
 	jtopl2 jtopl2_inst
@@ -351,6 +356,7 @@ module PERIPHERALS #(
 	
 
 	// Tandy sound
+	wire [7:0] tandy_snd_e;
 	sn76489_top sn76489
 	(
 		.clock_i(clock),
@@ -361,7 +367,26 @@ module PERIPHERALS #(
 		.ready_o(tandy_snd_rdy),
 		.d_i(internal_data_bus),
 		.aout_o(tandy_snd_e)
-	);	
+	);
+	
+	wire dss_full;
+	soundwave sound_gen
+	(
+		.CLK(clock),
+		.clk_en(clk_en_44100),
+		.data(internal_data_bus),
+		.we(dss_covox_en && lpt_cs && ~io_write_n),
+//		.word(WORD),
+		.speaker(speaker_out),
+		.tandy_snd(tandy_snd_e),
+		.opl2left(jtopl2_snd_e),
+		.opl2right(jtopl2_snd_e),
+//		.full(sq_full), // when not full, write max 2x1152 16bit samples
+		.dss_full(dss_full),
+		.lclamp(lclamp),
+		.rclamp(rclamp)
+	);
+
 	
 	    logic   keybord_interrupt_ff;
     always_ff @(posedge clock, posedge reset) begin
@@ -724,6 +749,10 @@ module PERIPHERALS #(
             data_bus_out_from_chipset = 1'b1;				
 				data_bus_out = lpt_data;
         end
+		  else if ((lpt_ctl_cs) && (~io_read_n)) begin
+            data_bus_out_from_chipset = 1'b1;				
+				data_bus_out = {1'bx, dss_full, 6'bxxxxxx};
+        end		  
         else begin
             data_bus_out_from_chipset = 1'b0;
             data_bus_out = 8'b00000000;
