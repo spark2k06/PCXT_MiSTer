@@ -230,7 +230,8 @@ assign pfq_empty = ( (pfq_addr_in[2]==pfq_addr_out[2]) && (pfq_addr_in[1:0]==pfq
 
 
 // Instruction cycle accuracy counter. This can be tied to '1' to disable x86 cycle compatibiliy.
-assign BIU_CLK_COUNTER_ZERO = (clock_cycle_counter==13'h0000) ? 1'b1 : 1'b0;
+//assign BIU_CLK_COUNTER_ZERO = (clock_cycle_counter==13'h0000) ? 1'b1 : 1'b0;
+assign BIU_CLK_COUNTER_ZERO = 1'b1;
 
 
                                                         
@@ -361,7 +362,7 @@ else
       end
 
     // INTR sampled on the rising edge of the CLK
-    if (clk_d4==1'b0 && clk_d3==1'b0 && clk_d2==1'b1)
+    if (clk_d2==1'b0 && clk_d1==1'b0 && CLK==1'b1)
       begin
         BIU_INTR <= intr_d3;
       end
@@ -592,7 +593,7 @@ else
                       // Jump Request
                       8'h19 : begin
                                 biu_done_int <= 1'b1;
-                                biu_state <= 8'h46;
+                                biu_state <= 8'h0C;
                               end
                                 
                       default : ;             
@@ -627,7 +628,7 @@ else
                   end
                   
                 S6_3_MUX <= 1'b0;
-                if (clk_d4==1'b0 && clk_d3==1'b0 && clk_d2==1'b1) // Wait until next CLK rising edge
+                if (clk_d2==1'b0 && clk_d1==1'b0 && CLK==1'b1) // Wait until next CLK rising edge
                   begin
                     s2_s0_out_int <= s_bits;
                   end
@@ -637,73 +638,104 @@ else
                   end
               end
         
-      
-      
+      8'h02 : 
+              begin 
+                if (~(clk_d2==1'b1 && clk_d1==1'b1 && CLK==1'b0))
+                    biu_state <= 8'h02;
+              end
+
       // On the next falling CLK edge, switch the S[6:3] bits mode and float the AD[7:0] bus if it is a read cycle, and mux data to the databus
       // Assert the LOCK_n signal on the first cycle of an INTA cycle.
-      8'h1A : begin
-                if (s_bits==3'b000 && byte_num==1'b0)
+      8'h03 : begin
+                if (clk_d2==1'b1 && clk_d1==1'b1 && CLK==1'b0)
                   begin
-                    biu_lock_n_int <= 1'b0;
-                  end
-                else
-                  begin
-                    biu_lock_n_int <= 1'b1;
-                  end        
+                    if (s_bits==3'b000 && byte_num==1'b0)
+                      begin
+                        biu_lock_n_int <= 1'b0;
+                      end
+                    else
+                      begin
+                        biu_lock_n_int <= 1'b1;
+                      end        
       
-                S6_3_MUX <= 1'b1;
-                
-                AD_OE <= s_bits[1]; // Turn off bus drivers for read cycles
-                  
-                if (word_cycle==1'b1 && byte_num==1'b1)
-                  begin
-                    AD_OUT[7:0] <= EU_BIU_DATAOUT[15:8];
+                    S6_3_MUX <= 1'b1;
+                    
+                    AD_OE <= s_bits[1]; // Turn off bus drivers for read cycles
+                      
+                    if (word_cycle==1'b1 && byte_num==1'b1)
+                      begin
+                        AD_OUT[7:0] <= EU_BIU_DATAOUT[15:8];
+                      end
+                    else
+                      begin
+                        AD_OUT[7:0] <= EU_BIU_DATAOUT[7:0];
+                      end
                   end
                 else
                   begin
-                    AD_OUT[7:0] <= EU_BIU_DATAOUT[7:0];
+                    biu_state <= 8'h03;
                   end
               end
-              
 
-              
+
       //  On the next falling CLK edge, sample the READY signal
-      8'h36 : begin  
-                if (ready_d3==1'b0)    // Not ready yet, wait another clock cycle
+      8'h05 : begin  
+                if (clk_d3==1'b1 && clk_d2==1'b1 && clk_d1==1'b0)
                   begin
-                    biu_state <= 8'h22;
+                    if (READY_IN==1'b0)    // Not ready yet, wait another clock cycle
+                      begin
+                        biu_state <= 8'h05;
+                      end
+                    else
+                      begin
+                        s2_s0_out_int <= 3'b111;
+                      end
                   end
                 else
                   begin
-                    s2_s0_out_int <= 3'b111;
+                        biu_state <= 8'h05;
+                  end
+              end
+              
+      8'h06 : begin  
+                if (clk_d2==1'b1 && clk_d1==1'b1 && CLK==1'b0)
+                  begin
+                    latched_data_in <= AD_IN;
+                  end
+                else
+                  begin
+                    biu_state <= 8'h06;
                   end
               end
 
-              
               
       //  On the next rising CLK edge, sample the data.
-      8'h3D : begin
-                latched_data_in <= ad_in_int;
-                
-                // If a code fetch, then write data to the prefetch queue
-                if (s_bits==3'b100)
+      8'h07 : begin
+                if (clk_d2==1'b0 && clk_d1==1'b0 && CLK==1'b1)
                   begin
-                     pfq_write <= 1'b1;
-                  end            
-                  
+                    // If a code fetch, then write data to the prefetch queue
+                    if (s_bits==3'b100)
+                      begin
+                         pfq_write <= 1'b1;
+                      end            
+                  end
+                else
+                  begin
+                    biu_state <= 8'h07;
+                  end
               end
                     
 
                     
       //  Debounce the prefetch queue write pulse and increment the prefetch queue address.
-      8'h3E : begin
+      8'h08 : begin
                 pfq_write <= 1'b0; 
               end
             
             
             
       //  Steer the data
-      8'h40 : begin
+      8'h0A : begin
                 if (s_bits!=3'b000 && (word_cycle==1'b1 && byte_num==1'b1))
                   begin
                     biu_return_data_int[15:8] <= latched_data_in[7:0];
@@ -717,29 +749,36 @@ else
                 
                 
       //  On the next falling CLK edge, the cycle is complete.
-      8'h45 : begin           
-                 addr_out_temp[15:0] <=  addr_out_temp[15:0] + 1;
-                 if (word_cycle==1'b1 && byte_num==1'b0)
-                   begin        
-                     byte_num <= 1'b1;                   
-                     biu_state <= 8'h50;
-                   end
-                 else
-                   begin
-                     if (s_bits!=3'b100)
-                       begin
-                         biu_done_int <= 1'b1;
-                       end
-                   end
+      8'h0B : begin           
+                if (clk_d2==1'b1 && clk_d1==1'b1 && CLK==1'b0)
+                  begin
+                    addr_out_temp[15:0] <=  addr_out_temp[15:0] + 1;
+                    if (word_cycle==1'b1 && byte_num==1'b0)
+                      begin        
+                        byte_num <= 1'b1;                   
+                        biu_state <= 8'h58;
+                      end
+                    else
+                      begin
+                        if (s_bits!=3'b100)
+                          begin
+                            biu_done_int <= 1'b1;
+                          end
+                      end
+                  end
+                else
+                  begin
+                    biu_state <= 8'h0B;
+                  end
               end
              
               
-      8'h46 : begin 
+      8'h0C : begin 
                 biu_done_int <= 1'b0;               
               end
              
               
-      8'h4E : begin 
+      8'h0D : begin 
                 biu_state <= 8'h00;
               end
                 

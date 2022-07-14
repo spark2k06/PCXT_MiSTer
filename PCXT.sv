@@ -322,7 +322,7 @@ wire clk_100;
 wire clk_28_636;
 wire clk_56_875;
 reg clk_14_318 = 1'b0;
-//reg clk_7_16 = 1'b0;
+reg clk_7_16 = 1'b0;
 wire clk_4_77;
 wire clk_cpu;
 wire clk_opl2;
@@ -370,8 +370,8 @@ always @(posedge clk_28_636)
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
 	
 
-//always @(posedge clk_14_318)
-//	clk_7_16 <= ~clk_7_16; // 7.16Mhz
+always @(posedge clk_14_318)
+	clk_7_16 <= ~clk_7_16; // 7.16Mhz
 	
 	
 clk_div3 clk_normal // 4.77MHz
@@ -383,11 +383,14 @@ clk_div3 clk_normal // 4.77MHz
 always @(posedge clk_4_77)
 	peripheral_clock <= ~peripheral_clock; // 2.385Mhz
 
+logic  select_7_16;
+assign  select_7_16 = 1'b1;
+
 logic  clk_cpu_ff_1;
 logic  clk_cpu_ff_2;
 
 always @(posedge clk_100) begin
-    clk_cpu_ff_1 <= clk_4_77;
+    clk_cpu_ff_1 <= ~select_7_16 ? clk_4_77 : clk_7_16;
     clk_cpu_ff_2 <= clk_cpu_ff_1;
     clk_cpu      <= clk_cpu_ff_2;
 end

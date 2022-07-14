@@ -45,15 +45,11 @@ module RAM (
 
     state_t         state;
     state_t         next_state;
-    logic   [21:0]  latch_address_ff;
     logic   [21:0]  latch_address;
-    logic   [7:0]   latch_data_ff;
     logic   [7:0]   latch_data;
     logic           write_command_ff_1;
-    logic           write_command_ff_2;
     logic           write_command;
     logic           read_command_ff_1;
-    logic           read_command_ff_2;
     logic           read_command;
     logic           no_command_state_ff_1;
     logic           no_command_state_ff_2;
@@ -77,40 +73,31 @@ module RAM (
     // Address
     always_ff @(posedge sdram_clock, posedge sdram_reset) begin
         if (sdram_reset)
-            latch_address_ff   <= 0;
+            latch_address   <= 0;
         else begin
 		  			
 			  if (ems_b1)
-					latch_address_ff   <= {1'b1, map_ems[0], address[13:0]};
+					latch_address   <= {1'b1, map_ems[0], address[13:0]};
 			  else if (ems_b2)
-					latch_address_ff   <= {1'b1, map_ems[1], address[13:0]};
+					latch_address   <= {1'b1, map_ems[1], address[13:0]};
 			  else if (ems_b3)
-					latch_address_ff   <= {1'b1, map_ems[2], address[13:0]};
+					latch_address   <= {1'b1, map_ems[2], address[13:0]};
 			  else if (ems_b4)
-					latch_address_ff   <= {1'b1, map_ems[3], address[13:0]};
+					latch_address   <= {1'b1, map_ems[3], address[13:0]};
 			  else
-					latch_address_ff   <= {2'b00, address};
+					latch_address   <= {2'b00, address};
 				
 		  end
 		  
     end
 
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset)
-            latch_address   <= 0;
-        else
-            latch_address   <= latch_address_ff;
-    end
-
     // Data Bus
     always_ff @(posedge sdram_clock, posedge sdram_reset) begin
         if (sdram_reset) begin
-            latch_data_ff   <= 0;
-            latch_data      <= 0;
+            latch_data  <= 0;
         end
         else begin
-            latch_data_ff   <= internal_data_bus;
-            latch_data      <= latch_data_ff;
+            latch_data  <= internal_data_bus;
         end
     end
 
@@ -118,13 +105,11 @@ module RAM (
     always_ff @(posedge sdram_clock, posedge sdram_reset) begin
         if (sdram_reset) begin
             write_command_ff_1  <= 1'b0;
-            write_command_ff_2  <= 1'b0;
             write_command       <= 1'b0;
         end
         else begin
             write_command_ff_1  <= ~ram_address_select_n & ~memory_write_n;
-            write_command_ff_2  <= write_command_ff_1;
-            write_command       <= write_command_ff_2;
+            write_command       <= write_command_ff_1;
         end
     end
 
@@ -132,13 +117,11 @@ module RAM (
     always_ff @(posedge sdram_clock, posedge sdram_reset) begin
         if (sdram_reset) begin
             read_command_ff_1   <= 1'b0;
-            read_command_ff_2   <= 1'b0;
             read_command        <= 1'b0;
         end
         else begin
             read_command_ff_1   <= ~ram_address_select_n & ~memory_read_n;
-            read_command_ff_2   <= read_command_ff_1;
-            read_command        <= read_command_ff_2;
+            read_command        <= read_command_ff_1;
         end
     end
 
