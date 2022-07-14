@@ -333,10 +333,10 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_100),
-	.outclk_1(clk_28_636),	
-	.outclk_2(clk_uart),
-	.outclk_3(clk_opl2),
-	.outclk_4(clk_56_875),
+	.outclk_1(clk_56_875),
+	.outclk_2(clk_28_636),
+	.outclk_3(clk_uart),
+	.outclk_4(clk_opl2),
 	.locked(pll_locked)
 );
 
