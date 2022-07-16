@@ -107,10 +107,16 @@ module video_monochrome_converter
 				B_OUT <= mono; 
 			end
 			// Red monitor mode
-			3'b101	: begin
+			3'b100	: begin
 				R_OUT <= mono < 8'h8 ? 8'h8 : mono;	
 				G_OUT <= 8'b0;
 				B_OUT <= 8'b1; 
+			end
+			// Blue
+			3'b101	: begin
+				R_OUT <= 8'b0; 
+				G_OUT <= shifted_mono;
+				B_OUT <= mono < 8'h8 ? 8'h8 : mono;	
 			end
 			// Fuchsia
 			3'b110	: begin
@@ -118,16 +124,10 @@ module video_monochrome_converter
 				G_OUT <= 8'b0;
 				B_OUT <= shifted_mono;
 			end
-			// Violet
+			// Purple
 			3'b111	: begin
 				R_OUT <= shifted_mono;
 				G_OUT <= 8'b0;
-				B_OUT <= mono < 8'h8 ? 8'h8 : mono;	
-			end
-			// Myster mode
-			3'b100	: begin
-				R_OUT <= 8'b0; 
-				G_OUT <= shifted_mono;
 				B_OUT <= mono < 8'h8 ? 8'h8 : mono;	
 			end
 			// Color mode i.e. 3'b000
