@@ -230,8 +230,7 @@ assign pfq_empty = ( (pfq_addr_in[2]==pfq_addr_out[2]) && (pfq_addr_in[1:0]==pfq
 
 
 // Instruction cycle accuracy counter. This can be tied to '1' to disable x86 cycle compatibiliy.
-//assign BIU_CLK_COUNTER_ZERO = (clock_cycle_counter==13'h0000) ? 1'b1 : 1'b0;
-assign BIU_CLK_COUNTER_ZERO = 1'b1;
+assign BIU_CLK_COUNTER_ZERO = (clock_cycle_counter==13'h0000) ? 1'b1 : 1'b0;
 
 
                                                         

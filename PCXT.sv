@@ -396,8 +396,8 @@ clk_div3 clk_normal // 4.77MHz
 always @(posedge clk_4_77)
 	peripheral_clock <= ~peripheral_clock; // 2.385Mhz
 
-logic  select_7_16;
-assign  select_7_16 = 1'b1;
+logic  turbo_mode;
+assign  turbo_mode = 1'b1;
 
 logic  clk_cpu_ff_1;
 logic  clk_cpu_ff_2;
@@ -693,7 +693,9 @@ end
 	  .lock_n(lock_n),
 	  .s6_3_mux(s6_3_mux),
 	  .s2_s0_out(processor_status),
-	  .SEGMENT(SEGMENT)
+	  .SEGMENT(SEGMENT),
+
+      .turbo_mode(turbo_mode)
 	);
 	
 	/// UART
