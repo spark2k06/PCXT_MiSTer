@@ -186,7 +186,6 @@ assign VGA_SCALER = 0;
 assign HDMI_FREEZE = 0;
 
 assign AUDIO_S = 1;
-assign AUDIO_L = AUDIO_R;
 assign AUDIO_MIX = 0;
 
 assign LED_DISK = 0;
@@ -198,6 +197,14 @@ assign BUTTONS = 0;
 
 //////////////////////////////////////////////////////////////////
 
+// Status Bit Map:
+//             Upper                             Lower              
+// 0         1         2         3          4         5         6   
+// 01234567890123456789012345678901 23456789012345678901234567890123
+// 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
+//    XXXXXXXXXXXXXX
+
+
 wire [1:0] ar = status[9:8];
 assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
 assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
@@ -207,18 +214,25 @@ localparam CONF_STR = {
 	"PCXT;;",
 	"-;",
 	"O7,Splash Screen,Yes,No;",
-	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
 	"-;",
-	"OA,Adlib,On,Invisible;",
-	"-;",
-	"OB,Lo-tech 2MB EMS, Enabled, Disabled;",
-	"OCD,EMS Frame,A000,C000,D000;",
-	"-;",
-	"O34,Video Output,CGA,Tandy,MDA;",
-	"O12,CGA/Tandy RGB,Color,Green,Amber,B/W;",
-	"O56,MDA RGB,Green,Amber,B/W;",
-	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
-	//"O78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",	
+	"P1,Audio & Video;",
+	"P1-;",
+	"P1OA,Adlib,On,Invisible;",
+	"P1O7,DSS/Covox,Unplugged,Plugged;",
+	"P1-;",
+	"P1O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
+	"P1O4,Video Output,CGA/Tandy,MDA;",
+	"P1OEG,Display Mode,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
+	//"PO78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
+	"P1O56,MDA RGB,Green,Amber,B/W;",
+	"P2,Hardware;",
+	"P2-;",
+	"P2O3,Model,IBM PCXT,Tandy 1000;",
+	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",
+	"P2-;",
+	"P2OB,Lo-tech 2MB EMS, Enabled, Disabled;",
+	"P2OCD,EMS Frame,A000,C000,D000;",
+	"P2-;",
 	"-;",
 	"F1,ROM,Load BIOS  (F000);",	
 	"F2,ROM,Load XTIDE (EC00);",	
@@ -332,10 +346,10 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(clk_100),
-	.outclk_1(clk_28_636),	
-	.outclk_2(clk_uart),
-	.outclk_3(clk_opl2),
-	.outclk_4(clk_56_875),
+	.outclk_1(clk_56_875),
+	.outclk_2(clk_28_636),
+	.outclk_3(clk_uart),
+	.outclk_4(clk_opl2),
 	.locked(pll_locked)
 );
 
@@ -352,6 +366,18 @@ wire ce_pix;
 
 assign CLK_VIDEO = clk_28_636;
 assign CE_PIXEL = 1'b1;
+
+reg         cen_44100;
+reg  [31:0] cen_44100_cnt;
+wire [31:0] cen_44100_cnt_next = cen_44100_cnt + 16'd44100;
+always @(posedge CLK_50M) begin
+	cen_44100 <= 0;
+	cen_44100_cnt <= cen_44100_cnt_next;
+	if (cen_44100_cnt_next >= (50000000)) begin
+		cen_44100 <= 1;
+		cen_44100_cnt <= cen_44100_cnt_next - (50000000);
+	end
+end
 
 always @(posedge clk_28_636)
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
@@ -453,32 +479,10 @@ end
 //////////////////////////////////////////////////////////////////
 
 	wire [5:0] r, g, b;	
-	reg [5:0] raux, gaux, baux;	
-		
-	reg [5:0]red_weight[0:63] = '{ // 0.2126*R
-	6'h00, 6'h01, 6'h01, 6'h01, 6'h01, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h04,
-	6'h04, 6'h04, 6'h04, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h06, 6'h06, 6'h06, 6'h06, 6'h06, 6'h07, 6'h07, 6'h07,
-	6'h07, 6'h08, 6'h08, 6'h08, 6'h08, 6'h08, 6'h09, 6'h09, 6'h09, 6'h09, 6'h09, 6'h0a, 6'h0a, 6'h0a, 6'h0a, 6'h0a,
-	6'h0b, 6'h0b, 6'h0b, 6'h0b, 6'h0c, 6'h0c, 6'h0c, 6'h0c, 6'h0c, 6'h0d, 6'h0d, 6'h0d, 6'h0d, 6'h0d, 6'h0e, 6'h0e
-	};
+	reg [7:0] raux, gaux, baux;	
 	
-	reg [5:0]green_weight[0:63] = '{ // 0.7152*G
-	6'h00, 6'h01, 6'h02, 6'h03, 6'h03, 6'h04, 6'h05, 6'h06, 6'h06, 6'h07, 6'h08, 6'h08, 6'h09, 6'h0a, 6'h0b, 6'h0b,
-	6'h0c, 6'h0d, 6'h0d, 6'h0e, 6'h0f, 6'h10, 6'h10, 6'h11, 6'h12, 6'h12, 6'h13, 6'h14, 6'h15, 6'h15, 6'h16, 6'h17,
-	6'h17, 6'h18, 6'h19, 6'h1a, 6'h1a, 6'h1b, 6'h1c, 6'h1c, 6'h1d, 6'h1e, 6'h1f, 6'h1f, 6'h20, 6'h21, 6'h21, 6'h22,
-	6'h23, 6'h24, 6'h24, 6'h25, 6'h26, 6'h26, 6'h27, 6'h28, 6'h29, 6'h29, 6'h2a, 6'h2a, 6'h2a, 6'h2b, 6'h2b, 6'h2b
-	};
-	
-	reg [5:0]blue_weight[0:63] = '{ // 0.0722*B
-	6'h00, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h02, 6'h02,
-	6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h03, 6'h03, 6'h03, 6'h03,
-	6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04,
-	6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05
-	};
-
 	wire de_o;
 	
-
 	reg [24:0] splash_cnt = 0;
 	reg [3:0] splash_cnt2 = 0;
 	reg splashscreen = 1;
@@ -553,11 +557,8 @@ end
     logic   [7:0]   port_c_in;	 
 	 reg     [7:0]   sw;
 	 
-	 wire tandy_mode;
-	 wire mda_mode;
-	 assign tandy_mode = (status[4:3] == 1);
-	 assign mda_mode = (status[4:3] == 2);
-	 
+	 wire tandy_mode = status[3];
+	 wire mda_mode = status[4];	 
 	 
 	 
 	 assign  sw = mda_mode ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (MDA or CGA 80)
@@ -624,18 +625,18 @@ end
 	     .ps2_data                           (device_data),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
+		  .clk_en_44100                       (cen_44100),
+		  .dss_covox_en                       (status[7]),
+		  .lclamp                             (AUDIO_L),
+		  .rclamp                             (AUDIO_R),		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
-		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
 		  .tandy_video                        (tandy_mode),
-		  .tandy_snd_e                        (tandy_snd_e),
-		  .tandy_snd_rdy                      (tandy_snd_rdy),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
 		  .ioctl_wr                           (ioctl_wr),
 		  .ioctl_addr                         (ioctl_addr),
-		  .ioctl_data                         (ioctl_data),
-		  
+		  .ioctl_data                         (ioctl_data),		  
 		  .clk_uart                          (clk_uart),
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
@@ -659,26 +660,17 @@ end
         .sdram_ldqm                         (SDRAM_DQML),
         .sdram_udqm                         (SDRAM_DQMH),
 		  .ems_enabled                        (~status[11]),
-		  .ems_address                        (status[13:12])
-    
+		  .ems_address                        (status[13:12]),
+        .tandy_mode                         (tandy_mode)
     );
-	
-	wire speaker_out;
-	wire  [7:0]   tandy_snd_e;
-	wire tandy_snd_rdy;
 
-	wire [15:0] jtopl2_snd_e;	
-	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + {tandy_snd_e, 6'd0}; // signed mixer
-	
 	wire [15:0] SDRAM_DQ_IN;
 	wire [15:0] SDRAM_DQ_OUT;
 	wire        SDRAM_DQ_IO;
 	
 	assign SDRAM_DQ_IN = SDRAM_DQ;
 	assign SDRAM_DQ = ~SDRAM_DQ_IO ? SDRAM_DQ_OUT : 16'hZZZZ;			
-	
-	assign AUDIO_R = sndmix >> 1;
-	
+
 	wire s6_3_mux;
 	wire [2:0] SEGMENT;
 
@@ -687,7 +679,7 @@ end
 	  .CLK(clk_cpu),
 
 	  .RESET(reset_cpu),
-	  .READY(processor_ready),// && tandy_snd_rdy),	  
+	  .READY(processor_ready),
 	  .NMI(1'b0),
 	  .INTR(interrupt_to_cpu),
 
@@ -753,40 +745,25 @@ end
 	);
 	*/
 
+	video_monochrome_converter video_mono 
+	(
+		.clk_vid(CLK_VIDEO),
+		.ce_pix(CE_PIXEL),
+		
+		.R({r, 2'b0}),
+		.G({g, 2'b0}),
+		.B({b, 2'b0}),
 
-	//CGA
-	always @ (status[2:1], r, g, b) begin		
-		case(status[2:1])
-			// Verde
-			2'b01	: begin
-				raux = 6'b0;
-				gaux = red_weight[r] + green_weight[g] + blue_weight[b];				
-				baux = 6'b0;
-			end
-			// Ambar
-			2'b10	: begin
-				raux = red_weight[r] + green_weight[g] + blue_weight[b];
-				gaux = (red_weight[r] + green_weight[g] + blue_weight[b]) >> 1;
-				baux = 6'b0;
-			end
-			// Blanco y negro
-			2'b11	: begin
-				raux = red_weight[r] + green_weight[g] + blue_weight[b];
-				gaux = red_weight[r] + green_weight[g] + blue_weight[b];
-				baux = red_weight[r] + green_weight[g] + blue_weight[b];
-			end
-			// Color
-			default: begin
-				raux = r;
-				gaux = g;
-				baux = b;
-			end
-		endcase
-	end
+		.gfx_mode({status[16:14]}),
+		
+		.R_OUT(raux),
+		.G_OUT(gaux),
+		.B_OUT(baux)	
+	);
 
-	assign VGA_R = {mda_mode ? r : raux, 2'b0};
-	assign VGA_G = {mda_mode ? g : gaux, 2'b0};
-	assign VGA_B = {mda_mode ? b : baux, 2'b0};
+	assign VGA_R = {mda_mode ? r : raux };
+	assign VGA_G = {mda_mode ? g : gaux };
+	assign VGA_B = {mda_mode ? b : baux };
 
 /*
 // SRAM management

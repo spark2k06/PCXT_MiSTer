@@ -56,7 +56,7 @@ module cga_pixel(
     wire load_shifter;
     wire [2:0] charpix_sel;
     reg[3:0] video_out;
-    assign video = tandy_16_mode ? tandy_palette[video_out] : video_out;
+    assign video = (tandy_16_mode && hres_mode) ? tandy_palette[video_out] : video_out;
 
     // Character ROM
     reg[7:0] char_rom[0:4095];
@@ -188,7 +188,7 @@ module cga_pixel(
         .grph_mode(grph_mode),
         .bw_mode(bw_mode),
         .mode_640(mode_640),
-        .tandy_16_mode(tandy_16_mode),
+        .tandy_16_mode(tandy_16_mode && hres_mode),
         .display_enable(display_enable_del[0]),
         .blink_enabled(blink_enabled),
         .blink(blink),
@@ -199,7 +199,7 @@ module cga_pixel(
         .c0(pix_bits[0]),
         .c1(pix_bits[1]),
         .pix_640(pix_640),
-        .pix_tandy(tandy_bits), // tandy_palette[tandy_bits]
+        .pix_tandy(tandy_bits),
         .pix_out(video_out)
     );
 
