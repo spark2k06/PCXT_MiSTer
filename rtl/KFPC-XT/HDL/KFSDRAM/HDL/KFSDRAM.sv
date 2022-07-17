@@ -106,9 +106,9 @@ module KFSDRAM #(
             end
             IDLE: begin
                 if (write_request)
-                    next_state = WRITE_ACT;
+                    next_state = WRITE;
                 else if (read_request)
-                    next_state = READ_ACT;
+                    next_state = READ;
                 else if ((~sdram_no_refresh) && (enable_refresh) && (refresh_counter == sdram_refresh_cycle))
                     next_state = REFRESH_PALL;
             end
@@ -315,15 +315,39 @@ module KFSDRAM #(
                     sdram_dq_io     <= 1'b1;
                 end
                 IDLE : begin
-                    sdram_address   <= 0;
-                    sdram_cke       <= 1'b1;
-                    sdram_cs        <= 1'b0;
-                    sdram_ras       <= 1'b1;
-                    sdram_cas       <= 1'b1;
-                    sdram_we        <= 1'b1;
-                    sdram_ba        <= 0;
-                    sdram_dq_out    <= 0;
-                    sdram_dq_io     <= 1'b1;
+                    if (next_state == WRITE) begin
+                        sdram_address   <= address[`ROW_ADDRESS_TOP:`ROW_ADDRESS_BOTTOM];
+                        sdram_cke       <= 1'b1;
+                        sdram_cs        <= 1'b0;
+                        sdram_ras       <= 1'b0;
+                        sdram_cas       <= 1'b1;
+                        sdram_we        <= 1'b1;
+                        sdram_ba        <= address[`BANK_ADDRESS_TOP:`BANK_ADDRESS_BOTTOM];
+                        sdram_dq_out    <= 0;
+                        sdram_dq_io     <= 1'b1;
+                    end
+                    else if (next_state == READ) begin
+                        sdram_address   <= address[`ROW_ADDRESS_TOP:`ROW_ADDRESS_BOTTOM];
+                        sdram_cke       <= 1'b1;
+                        sdram_cs        <= 1'b0;
+                        sdram_ras       <= 1'b0;
+                        sdram_cas       <= 1'b1;
+                        sdram_we        <= 1'b1;
+                        sdram_ba        <= address[`BANK_ADDRESS_TOP:`BANK_ADDRESS_BOTTOM];
+                        sdram_dq_out    <= 0;
+                        sdram_dq_io     <= 1'b1;
+                    end
+                    else begin
+                        sdram_address   <= 0;
+                        sdram_cke       <= 1'b1;
+                        sdram_cs        <= 1'b0;
+                        sdram_ras       <= 1'b1;
+                        sdram_cas       <= 1'b1;
+                        sdram_we        <= 1'b1;
+                        sdram_ba        <= 0;
+                        sdram_dq_out    <= 0;
+                        sdram_dq_io     <= 1'b1;
+                    end
                 end
                 WRITE_ACT: begin
                     sdram_address   <= (send_cmd_timing) ? address[`ROW_ADDRESS_TOP:`ROW_ADDRESS_BOTTOM] : 0;
