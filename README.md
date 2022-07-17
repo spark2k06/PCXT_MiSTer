@@ -34,6 +34,21 @@ In the SW folder there is also a file called "boot.rom" which contains Sergey Ki
 
 # ChangeLog
 
+### Beta 1.4
+
+* Rewiring with sn76489
+* Temporary removal of the signal from tandy_snd_rdy
+* Fix bug of the access to the CS signal in Tandy sound module
+* In tandy mode, the keyboard reset signal is not used
+* Added new IORQ signal
+* Restructuring of the OSD menu
+* Added DSS/Covox support
+* UART port speed increase to 921.6Kbps
+* CGA Mode Detection 320x200x4
+* Add video monochrome converter module
+* Integrate module into core + OSD menu tweaks
+* Fix COVOX OSD option
+
 ### Beta 1.3
 
 * Unified chipset clock at 100 MHz.
