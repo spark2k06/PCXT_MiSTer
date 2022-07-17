@@ -202,7 +202,7 @@ assign BUTTONS = 0;
 // 0         1         2         3          4         5         6   
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-//    XXXX XXXXXXXXX
+//    XXXXXXXXXXXXXX
 
 
 wire [1:0] ar = status[9:8];
@@ -218,7 +218,7 @@ localparam CONF_STR = {
 	"P1,Audio & Video;",
 	"P1-;",
 	"P1OA,Adlib,On,Invisible;",
-	"P1OE,DSS/Covox,Unplugged,Plugged;",
+	"P1O7,DSS/Covox,Unplugged,Plugged;",
 	"P1-;",
 	"P1O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
 	"P1O4,Video Output,CGA/Tandy,MDA;",
@@ -626,7 +626,7 @@ end
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
 		  .clk_en_44100                       (cen_44100),
-		  .dss_covox_en                       (status[14]),
+		  .dss_covox_en                       (status[7]),
 		  .lclamp                             (AUDIO_L),
 		  .rclamp                             (AUDIO_R),		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
