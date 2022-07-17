@@ -403,7 +403,7 @@ logic  clk_cpu_ff_1;
 logic  clk_cpu_ff_2;
 
 always @(posedge clk_100) begin
-    clk_cpu_ff_1 <= ~select_7_16 ? clk_4_77 : clk_7_16;
+    clk_cpu_ff_1 <= ~turbo_mode ? clk_4_77 : clk_14_318; //clk_7_16;
     clk_cpu_ff_2 <= clk_cpu_ff_1;
     clk_cpu      <= clk_cpu_ff_2;
 end
