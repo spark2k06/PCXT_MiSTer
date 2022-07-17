@@ -197,6 +197,14 @@ assign BUTTONS = 0;
 
 //////////////////////////////////////////////////////////////////
 
+// Status Bit Map:
+//             Upper                             Lower              
+// 0         1         2         3          4         5         6   
+// 01234567890123456789012345678901 23456789012345678901234567890123
+// 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
+//    XXXXXXXXXXXXXX
+
+
 wire [1:0] ar = status[9:8];
 assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
 assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
@@ -205,21 +213,26 @@ assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 localparam CONF_STR = {
 	"PCXT;;",
 	"-;",
-	"O3,Model,IBM PCXT,Tandy 1000;",
+	"O7,Splash Screen,Yes,No;",
 	"-;",
-	"OA,Adlib,On,Invisible;",
-	"OE,DSS/Covox,Unplugged,Plugged;",
-	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",	
-	"OB,Lo-tech 2MB EMS, Enabled, Disabled;",
-	"OCD,EMS Frame,A000,C000,D000;",
-	"-;",
-	"O4,Video Output,CGA/Tandy,MDA;",
-	"O12,CGA/Tandy RGB,Color,Green,Amber,B/W;",
-	"O56,MDA RGB,Green,Amber,B/W;",
-	"O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
-	//"O78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",	
-	"-;",
-	"O7,Splash Screen,Yes,No;",	
+	"P1,Audio & Video;",
+	"P1-;",
+	"P1OA,Adlib,On,Invisible;",
+	"P1O7,DSS/Covox,Unplugged,Plugged;",
+	"P1-;",
+	"P1O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
+	"P1O4,Video Output,CGA/Tandy,MDA;",
+	"P1OEG,Display Mode,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
+	//"PO78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
+	"P1O56,MDA RGB,Green,Amber,B/W;",
+	"P2,Hardware;",
+	"P2-;",
+	"P2O3,Model,IBM PCXT,Tandy 1000;",
+	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",
+	"P2-;",
+	"P2OB,Lo-tech 2MB EMS, Enabled, Disabled;",
+	"P2OCD,EMS Frame,A000,C000,D000;",
+	"P2-;",
 	"-;",
 	"F1,ROM,Load BIOS  (F000);",	
 	"F2,ROM,Load XTIDE (EC00);",	
@@ -469,32 +482,10 @@ end
 //////////////////////////////////////////////////////////////////
 
 	wire [5:0] r, g, b;	
-	reg [5:0] raux, gaux, baux;	
-		
-	reg [5:0]red_weight[0:63] = '{ // 0.2126*R
-	6'h00, 6'h01, 6'h01, 6'h01, 6'h01, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h04,
-	6'h04, 6'h04, 6'h04, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h06, 6'h06, 6'h06, 6'h06, 6'h06, 6'h07, 6'h07, 6'h07,
-	6'h07, 6'h08, 6'h08, 6'h08, 6'h08, 6'h08, 6'h09, 6'h09, 6'h09, 6'h09, 6'h09, 6'h0a, 6'h0a, 6'h0a, 6'h0a, 6'h0a,
-	6'h0b, 6'h0b, 6'h0b, 6'h0b, 6'h0c, 6'h0c, 6'h0c, 6'h0c, 6'h0c, 6'h0d, 6'h0d, 6'h0d, 6'h0d, 6'h0d, 6'h0e, 6'h0e
-	};
+	reg [7:0] raux, gaux, baux;	
 	
-	reg [5:0]green_weight[0:63] = '{ // 0.7152*G
-	6'h00, 6'h01, 6'h02, 6'h03, 6'h03, 6'h04, 6'h05, 6'h06, 6'h06, 6'h07, 6'h08, 6'h08, 6'h09, 6'h0a, 6'h0b, 6'h0b,
-	6'h0c, 6'h0d, 6'h0d, 6'h0e, 6'h0f, 6'h10, 6'h10, 6'h11, 6'h12, 6'h12, 6'h13, 6'h14, 6'h15, 6'h15, 6'h16, 6'h17,
-	6'h17, 6'h18, 6'h19, 6'h1a, 6'h1a, 6'h1b, 6'h1c, 6'h1c, 6'h1d, 6'h1e, 6'h1f, 6'h1f, 6'h20, 6'h21, 6'h21, 6'h22,
-	6'h23, 6'h24, 6'h24, 6'h25, 6'h26, 6'h26, 6'h27, 6'h28, 6'h29, 6'h29, 6'h2a, 6'h2a, 6'h2a, 6'h2b, 6'h2b, 6'h2b
-	};
-	
-	reg [5:0]blue_weight[0:63] = '{ // 0.0722*B
-	6'h00, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h01, 6'h02, 6'h02,
-	6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h03, 6'h03, 6'h03, 6'h03,
-	6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04,
-	6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05
-	};
-
 	wire de_o;
 	
-
 	reg [24:0] splash_cnt = 0;
 	reg [3:0] splash_cnt2 = 0;
 	reg splashscreen = 1;
@@ -638,7 +629,7 @@ end
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
 		  .clk_en_44100                       (cen_44100),
-		  .dss_covox_en                       (status[14]),
+		  .dss_covox_en                       (status[7]),
 		  .lclamp                             (AUDIO_L),
 		  .rclamp                             (AUDIO_R),		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
@@ -757,40 +748,25 @@ end
 	);
 	*/
 
+	video_monochrome_converter video_mono 
+	(
+		.clk_vid(CLK_VIDEO),
+		.ce_pix(CE_PIXEL),
+		
+		.R({r, 2'b0}),
+		.G({g, 2'b0}),
+		.B({b, 2'b0}),
 
-	//CGA
-	always @ (status[2:1], r, g, b) begin		
-		case(status[2:1])
-			// Verde
-			2'b01	: begin
-				raux = 6'b0;
-				gaux = red_weight[r] + green_weight[g] + blue_weight[b];				
-				baux = 6'b0;
-			end
-			// Ambar
-			2'b10	: begin
-				raux = red_weight[r] + green_weight[g] + blue_weight[b];
-				gaux = (red_weight[r] + green_weight[g] + blue_weight[b]) >> 1;
-				baux = 6'b0;
-			end
-			// Blanco y negro
-			2'b11	: begin
-				raux = red_weight[r] + green_weight[g] + blue_weight[b];
-				gaux = red_weight[r] + green_weight[g] + blue_weight[b];
-				baux = red_weight[r] + green_weight[g] + blue_weight[b];
-			end
-			// Color
-			default: begin
-				raux = r;
-				gaux = g;
-				baux = b;
-			end
-		endcase
-	end
+		.gfx_mode({status[16:14]}),
+		
+		.R_OUT(raux),
+		.G_OUT(gaux),
+		.B_OUT(baux)	
+	);
 
-	assign VGA_R = {mda_mode ? r : raux, 2'b0};
-	assign VGA_G = {mda_mode ? g : gaux, 2'b0};
-	assign VGA_B = {mda_mode ? b : baux, 2'b0};
+	assign VGA_R = {mda_mode ? r : raux };
+	assign VGA_G = {mda_mode ? g : gaux };
+	assign VGA_B = {mda_mode ? b : baux };
 
 /*
 // SRAM management
