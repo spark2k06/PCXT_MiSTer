@@ -213,6 +213,9 @@ assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 localparam CONF_STR = {
 	"PCXT;;",
 	"-;",
+   "O3,Model,IBM PCXT,Tandy 1000;",
+	//"OHI,CPU Speed,4.77Mhz,7.16Mhz,14.318MHz;", // These bits are reserved until it can be used
+	"-;",
 	"O7,Splash Screen,Yes,No;",
 	"-;",
 	"P1,Audio & Video;",
@@ -226,9 +229,6 @@ localparam CONF_STR = {
 	//"PO78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"P1O56,MDA RGB,Green,Amber,B/W;",
 	"P2,Hardware;",
-	"P2-;",
-	"P2O3,Model,IBM PCXT,Tandy 1000;",
-	//"O4,CPU Speed,4.77Mhz,7.16Mhz;",
 	"P2-;",
 	"P2OB,Lo-tech 2MB EMS, Enabled, Disabled;",
 	"P2OCD,EMS Frame,A000,C000,D000;",
