@@ -202,7 +202,7 @@ assign BUTTONS = 0;
 // 0         1         2         3          4         5         6   
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-//    XXXXXXXXXXXXXX
+//    XX  XXXXXXXXXX
 
 
 wire [1:0] ar = status[9:8];
@@ -225,9 +225,8 @@ localparam CONF_STR = {
 	"P1-;",
 	"P1O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
 	"P1O4,Video Output,CGA/Tandy,MDA;",
-	"P1OEG,Display Mode,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
+	"P1OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
 	//"PO78,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-	"P1O56,MDA RGB,Green,Amber,B/W;",
 	"P2,Hardware;",
 	"P2-;",
 	"P2OB,Lo-tech 2MB EMS, Enabled, Disabled;",
@@ -557,8 +556,9 @@ end
     logic   [7:0]   port_c_in;	 
 	 reg     [7:0]   sw;
 	 
-	 wire tandy_mode = status[3];
-	 wire mda_mode = status[4];	 
+	wire tandy_mode = status[3];
+	wire mda_mode = status[4];	 
+	wire [2:0] screen_mode = status[16:14];
 	 
 	 
 	 assign  sw = mda_mode ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (MDA or CGA 80)
@@ -585,7 +585,7 @@ end
         .enable_cga                         (1'b1),
         .clk_vga_mda                        (clk_56_875),
         .enable_mda                         (1'b1),
-		  .mda_rgb                            (status[6:5]),
+		.mda_rgb                            (2'b10), // always B&W - monochrome monitor tint handled down below
         .de_o                               (VGA_DE),
         .VGA_R                              (r),
         .VGA_G                              (g),
@@ -754,16 +754,16 @@ end
 		.G({g, 2'b0}),
 		.B({b, 2'b0}),
 
-		.gfx_mode({status[16:14]}),
+		.gfx_mode(screen_mode),
 		
 		.R_OUT(raux),
 		.G_OUT(gaux),
 		.B_OUT(baux)	
 	);
 
-	assign VGA_R = {mda_mode ? r : raux };
-	assign VGA_G = {mda_mode ? g : gaux };
-	assign VGA_B = {mda_mode ? b : baux };
+	assign VGA_R = raux;
+	assign VGA_G = gaux;
+	assign VGA_B = baux;
 
 /*
 // SRAM management
