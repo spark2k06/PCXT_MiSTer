@@ -334,7 +334,7 @@ wire clk_100;
 wire clk_28_636;
 wire clk_56_875;
 reg clk_14_318 = 1'b0;
-//reg clk_7_16 = 1'b0;
+reg clk_7_16 = 1'b0;
 wire clk_4_77;
 wire clk_cpu;
 wire clk_opl2;
@@ -364,7 +364,6 @@ wire ce_pix;
 //wire [7:0] video;
 
 assign CLK_VIDEO = clk_28_636;
-assign CE_PIXEL = 1'b1;
 
 reg         cen_44100;
 reg  [31:0] cen_44100_cnt;
@@ -380,12 +379,12 @@ end
 
 always @(posedge clk_28_636)
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
-	
 
-//always @(posedge clk_14_318)
-//	clk_7_16 <= ~clk_7_16; // 7.16Mhz
-	
-	
+always @(posedge clk_14_318) begin
+	clk_7_16 <= ~clk_7_16; // 7.16Mhz
+	CE_PIXEL <= mda_mode ? 1'b1 : clk_7_16;
+end
+
 clk_div3 clk_normal // 4.77MHz
 (
 	.clk(clk_14_318),
