@@ -17,7 +17,9 @@ module i8088
     output              lock_n,
     output              s6_3_mux,
     output [2:0]        s2_s0_out,
-    output [2:0]        SEGMENT
+    output [2:0]        SEGMENT,
+
+    input               turbo_mode
 
   );
 
@@ -104,7 +106,7 @@ mcl86_eu_core               EU_CORE
     .EU_PREFIX_LOCK         (t_eu_prefix_lock),
     .EU_FLAG_I              (t_eu_flag_i),
     .BIU_DONE               (t_biu_done),
-    .BIU_CLK_COUNTER_ZERO   (t_biu_clk_counter_zero),
+    .BIU_CLK_COUNTER_ZERO   (~turbo_mode ? t_biu_clk_counter_zero : 1'b1),
     .BIU_NMI_CAUGHT         (t_biu_nmi_caught),
     .BIU_NMI_DEBOUNCE       (t_biu_nmi_debounce),
     .BIU_INTR               (t_biu_intr),
