@@ -279,6 +279,7 @@ module PERIPHERALS #(
     logic           ps2_send_clock;
     logic           keybord_irq;
     logic   [7:0]   keycode;
+    logic   [7:0]   tandy_keycode;
     logic           prev_ps2_reset;
     logic           lock_recv_clock;
 
@@ -324,6 +325,16 @@ module PERIPHERALS #(
         // I/O
         .send_request               (~prev_ps2_reset_n & ps2_reset_n),
         .send_data                  (8'hFF)
+    );
+
+    // Convert Tandy scancode
+    Tandy_Scancode_Converter u_Tandy_Scancode_Converter (
+        .clock                      (clock),
+        .reset                      (reset),
+
+        .scancode                   (keycode),
+        .keybord_irq                (keybord_irq),
+        .convert_data               (tandy_keycode)
     );
 
     always_ff @(posedge clock, posedge reset) begin
@@ -419,7 +430,7 @@ module PERIPHERALS #(
             port_a_in   <= 8'h00;
         end
         else begin
-            keycode_ff  <= keycode;
+            keycode_ff  <= ~tandy_mode ? keycode : tandy_keycode;
             port_a_in   <= keycode_ff;
         end
     end

@@ -122,7 +122,7 @@ module cga_pixel(
     begin
         // Only load character bits at this point
         if (charrom_read) begin
-            charbits <= char_rom[{~thin_font, 11'b0} | rom_addr];
+            charbits <= ((row_addr > 5'd7) && tandy_16_mode) ? 8'b0 : char_rom[{~thin_font, 11'b0} | rom_addr];
         end
     end
 
