@@ -34,6 +34,16 @@ In the SW folder there is also a file called "boot.rom" which contains Sergey Ki
 
 # ChangeLog
 
+### Beta 1.5
+
+* Restructuring the OSD menu 
+* Fix MDA brightness
+* Added Tandy key scan code converter.
+* Update files.qip
+* Fix CGA video resolution (is now 640x200)
+* Fix CGA Initial text mode
+* Tandy's 225 mode fix 
+
 ### Beta 1.4
 
 * Rewiring with sn76489
