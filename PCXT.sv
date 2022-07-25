@@ -26,7 +26,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [47:0] HPS_BUS,
+	inout  [48:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -49,6 +49,7 @@ module emu
 	output        VGA_F1,
 	output [1:0]  VGA_SL,
 	output        VGA_SCALER, // Force VGA scaler
+	output        VGA_DISABLE,
 
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
@@ -183,6 +184,7 @@ assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DD
 assign VGA_SL = 0;
 assign VGA_F1 = 0;
 assign VGA_SCALER = 0;
+assign VGA_DISABLE = 0;
 assign HDMI_FREEZE = 0;
 
 assign AUDIO_S = 1;
@@ -367,7 +369,7 @@ assign CLK_VIDEO = clk_28_636;
 
 reg         cen_44100;
 reg  [31:0] cen_44100_cnt;
-wire [31:0] cen_44100_cnt_next = cen_44100_cnt + 16'd44100;
+wire [31:0] cen_44100_cnt_next = cen_44100_cnt + 32'd44100;
 always @(posedge CLK_50M) begin
 	cen_44100 <= 0;
 	cen_44100_cnt <= cen_44100_cnt_next;
