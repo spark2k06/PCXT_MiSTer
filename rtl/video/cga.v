@@ -30,8 +30,10 @@ module cga(
 	 
     // Video outputs
     output hsync,
+	output hblank,
     output dbl_hsync,
     output vsync,
+	output vblank,
 	 output de_o,
     output[3:0] video,
     output[3:0] dbl_video,
@@ -270,6 +272,8 @@ endgenerate
         .lock(1'b0),
         .hsync(hsync_int),
         .vsync(vsync_l),
+		.hblank(hblank),
+		.vblank(vblank),
         .display_enable(display_enable),
         .cursor(cursor),
         .mem_addr(crtc_addr),

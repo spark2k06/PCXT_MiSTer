@@ -32,6 +32,8 @@ module CHIPSET (
     output  logic   [5:0]   VGA_B,
     output  logic           VGA_HSYNC,
     output  logic           VGA_VSYNC,
+    output  logic           VGA_HBlank,
+	output  logic           VGA_VBlank,
     // I/O Ports
     output  logic   [19:0]  address,
     input   logic   [19:0]  address_ext,
@@ -243,6 +245,8 @@ module CHIPSET (
         .VGA_B                              (VGA_B),
         .VGA_HSYNC                          (VGA_HSYNC),
         .VGA_VSYNC                          (VGA_VSYNC),
+		.VGA_HBlank                         (VGA_HBlank),
+        .VGA_VBlank                         (VGA_VBlank),
         .address                            (address),
         .internal_data_bus                  (internal_data_bus),
         .data_bus_out                       (internal_data_bus_chipset),

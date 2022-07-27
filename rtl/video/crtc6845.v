@@ -24,6 +24,8 @@ module crtc6845(
     // Video control signals
     output hsync,
     output vsync,
+	output hblank,
+    output vblank,
     output display_enable,
     output cursor,
     output [13:0] mem_addr,
@@ -147,6 +149,8 @@ module crtc6845(
     assign vsync = vs;
     assign hsync = hs;
     assign display_enable = hdisp & vdisp;
+	 assign hblank = ~hdisp;
+	 assign vblank = ~vdisp;
 
     assign row_addr = v_scancount;
 
