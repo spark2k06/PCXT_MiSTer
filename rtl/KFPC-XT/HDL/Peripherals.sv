@@ -29,7 +29,9 @@ module PERIPHERALS #(
     output  logic   [5:0]   VGA_G,
     output  logic   [5:0]   VGA_B,
     output  logic           VGA_HSYNC,
-    output  logic           VGA_VSYNC,	 
+    output  logic           VGA_VSYNC,
+	 output  logic           VGA_HBlank,
+	 output  logic           VGA_VBlank,	 
     // I/O Ports
     input   logic   [19:0]  address,
     input   logic   [7:0]   internal_data_bus,
@@ -486,12 +488,16 @@ module PERIPHERALS #(
     reg   [5:0]   B_CGA;
     reg           HSYNC_CGA;
     reg           VSYNC_CGA;
-	 
+	 reg           HBLANK_CGA;
+	 reg           VBLANK_CGA;
+	 	 
     reg   [5:0]   R_MDA;
     reg   [5:0]   G_MDA;
     reg   [5:0]   B_MDA;
     reg           HSYNC_MDA;
     reg           VSYNC_MDA;
+ 	 reg           HBLANK_MDA;
+	 reg           VBLANK_MDA;
 	 
 	 reg           de_o_cga;
 	 reg           de_o_mda;
@@ -505,6 +511,10 @@ module PERIPHERALS #(
 	 assign VGA_B = video_output ? B_MDA : B_CGA;	 
 	 assign VGA_HSYNC = video_output ? HSYNC_MDA : HSYNC_CGA;
 	 assign VGA_VSYNC = video_output ? VSYNC_MDA : VSYNC_CGA;
+	 
+	 assign VGA_HBlank = video_output ? HBLANK_MDA : HBLANK_CGA;
+	 assign VGA_VBlank = video_output ? VBLANK_MDA : VBLANK_CGA;
+	 
 	 assign de_o = video_output ? de_o_mda : de_o_cga;
 	 
 	 wire MDA_VRAM_ENABLE;
@@ -542,7 +552,9 @@ module PERIPHERALS #(
         .ram_a                      (MDA_VRAM_ADDR),
         .ram_d                      (MDA_VRAM_DOUT),
         .hsync                      (HSYNC_MDA),
+		.hblank                     (HBLANK_MDA),
         .vsync                      (VSYNC_MDA),
+		.vblank                     (VBLANK_MDA),
         .intensity                  (intensity),
         .video                      (video_mda),
 		  .de_o                       (de_o_mda)		  
@@ -596,8 +608,10 @@ module PERIPHERALS #(
         .ram_a                      (CGA_VRAM_ADDR),
         .ram_d                      (CGA_VRAM_DOUT),
 		  .hsync                      (HSYNC_CGA),       
+		  .hblank                     (HBLANK_CGA),
     //    .dbl_hsync                  (HSYNC_CGA),              // scandoubler
         .vsync                      (VSYNC_CGA),
+		  .vblank                     (VBLANK_CGA),
 		  .de_o                       (de_o_cga),
         .video                      (video_cga),
         .dbl_video                  (vga_video),                // scandoubler

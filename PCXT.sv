@@ -26,7 +26,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [47:0] HPS_BUS,
+	inout  [48:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -49,6 +49,7 @@ module emu
 	output        VGA_F1,
 	output [1:0]  VGA_SL,
 	output        VGA_SCALER, // Force VGA scaler
+	output        VGA_DISABLE,
 
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
@@ -180,9 +181,10 @@ assign USER_OUT = '1;
 assign SDRAM_CLK = CLK_50M;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
 
-assign VGA_SL = 0;
+
 assign VGA_F1 = 0;
 assign VGA_SCALER = 0;
+assign VGA_DISABLE = 0;
 assign HDMI_FREEZE = 0;
 
 assign AUDIO_S = 1;
@@ -202,7 +204,7 @@ assign BUTTONS = 0;
 // 0         1         2         3          4         5         6   
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-//    XX  XXXXXXXXXX
+//  XXXX  XXXXXXXXXX
 
 
 wire [1:0] ar = status[9:8];
@@ -360,14 +362,14 @@ wire HBlank;
 wire HSync;
 wire VBlank;
 wire VSync;
-wire ce_pix;
+wire ce_pixel;
 //wire [7:0] video;
 
-assign CLK_VIDEO = clk_28_636;
+assign CLK_VIDEO = clk_56_875;
 
 reg         cen_44100;
 reg  [31:0] cen_44100_cnt;
-wire [31:0] cen_44100_cnt_next = cen_44100_cnt + 16'd44100;
+wire [31:0] cen_44100_cnt_next = cen_44100_cnt + 32'd44100;
 always @(posedge CLK_50M) begin
 	cen_44100 <= 0;
 	cen_44100_cnt <= cen_44100_cnt_next;
@@ -377,12 +379,13 @@ always @(posedge CLK_50M) begin
 	end
 end
 
-always @(posedge clk_28_636)
+always @(posedge clk_28_636) begin
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
+	ce_pixel <= mda_mode ? clk_14_318 : clk_14_318; // MDA needs rework, but displays at half res
+end
 
 always @(posedge clk_14_318) begin
 	clk_7_16 <= ~clk_7_16; // 7.16Mhz
-	CE_PIXEL <= mda_mode ? 1'b1 : clk_7_16;
 end
 
 clk_div3 clk_normal // 4.77MHz
@@ -555,6 +558,7 @@ end
     logic   [7:0]   port_c_in;	 
 	 reg     [7:0]   sw;
 	 
+	wire [1:0] scale = status[2:1];
 	wire tandy_mode = status[3];
 	wire mda_mode = status[4];	 
 	wire [2:0] screen_mode = status[16:14];
@@ -585,12 +589,14 @@ end
         .clk_vga_mda                        (clk_56_875),
         .enable_mda                         (1'b1),
 		.mda_rgb                            (2'b10), // always B&W - monochrome monitor tint handled down below
-        .de_o                               (VGA_DE),
+        //.de_o                               (VGA_DE),
         .VGA_R                              (r),
         .VGA_G                              (g),
         .VGA_B                              (b),
-        .VGA_HSYNC                          (VGA_HS),
-        .VGA_VSYNC                          (VGA_VS),
+        .VGA_HSYNC                          (HSync),
+        .VGA_VSYNC                          (VSync),
+		.VGA_HBlank	  				        (HBlank),
+		.VGA_VBlank							(VBlank),
 //      .address                            (address),
         .address_ext                        (20'hFFFFF),
 //      .address_direction                  (address_direction),
@@ -747,7 +753,7 @@ end
 	video_monochrome_converter video_mono 
 	(
 		.clk_vid(CLK_VIDEO),
-		.ce_pix(CE_PIXEL),
+		.ce_pix(ce_pixel),
 		
 		.R({r, 2'b0}),
 		.G({g, 2'b0}),
@@ -760,9 +766,41 @@ end
 		.B_OUT(baux)	
 	);
 
+	/*
 	assign VGA_R = raux;
 	assign VGA_G = gaux;
 	assign VGA_B = baux;
+	assign VGA_HS = HSync;
+	assign VGA_VS = VSync;
+	assign VGA_DE = ~(HBlank | VBlank);
+	assign CE_PIXEL = ce_pixel;
+	*/
+	
+	assign VGA_SL = {scale==3, scale==2};
+	
+	
+    wire   scandoubler = (scale>0); //|| forced_scandoubler);
+	video_mixer #(.LINE_LENGTH(640), .GAMMA(1)) video_mixer
+	(
+		.*,
+		
+		.CLK_VIDEO(CLK_VIDEO),
+		.ce_pix(ce_pixel),
+
+		.freeze_sync(),
+		
+		.R(raux),
+		.G(gaux),
+		.B(baux),
+		
+		.HBlank(HBlank),
+		.VBlank(VBlank),
+		.HSync(HSync),
+		.VSync(VSync),
+		
+		.scandoubler(scandoubler),
+		.hq2x(scale==1)
+	);
 
 /*
 // SRAM management
