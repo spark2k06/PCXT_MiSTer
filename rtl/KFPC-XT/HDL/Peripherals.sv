@@ -146,15 +146,36 @@ module PERIPHERALS #(
 	 assign  ems_b3                 = (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // A8000h - C8000h - D8000h
 	 assign  ems_b4                 = (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // AC000h - CC000h - DC000h
 	 
+
+    logic   [1:0]   ems_access_address;
+    logic           ems_write_enable;
+    logic   [7:0]   write_map_ems_data;
+    logic           write_map_ena_data;
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset) begin
+            ems_access_address  <= 2'b11;
+            ems_write_enable    <= 1'b0;
+            write_map_ems_data  <= 1'b0;
+            write_map_ena_data  <= 1'b0;
+        end
+        else begin
+            ems_access_address  <= address[1:0];
+            ems_write_enable    <= ems_oe && ~io_write_n;
+            write_map_ems_data  <= (internal_data_bus == 8'hFF) ? 7'hFF : (internal_data_bus < 8'h80) ? internal_data_bus[6:0] : map_ems[address[1:0]];
+            write_map_ena_data  <= (internal_data_bus == 8'hFF) ? 1'b0  : (internal_data_bus < 8'h80) ? 1'b1 : ena_ems[address[1:0]];
+        end
+    end
+
 	 always_ff @(posedge clock, posedge reset)
     begin
         if (reset) begin
 		      map_ems = '{7'h00, 7'h00, 7'h00, 7'h00};
             ena_ems = '{1'b0, 1'b0, 1'b0, 1'b0};
         end
-        else if (ems_oe && ~io_write_n) begin
-					map_ems[address[1:0]] <= (internal_data_bus == 8'hFF) ? 7'hFF : (internal_data_bus < 8'h80) ? internal_data_bus[6:0] : map_ems[address[1:0]];
-					ena_ems[address[1:0]] <= (internal_data_bus == 8'hFF) ? 1'b0 : (internal_data_bus < 8'h80) ? 1'b1 : ena_ems[address[1:0]];
+        else if (ems_write_enable) begin
+					map_ems[ems_access_address] <= write_map_ems_data;
+					ena_ems[ems_access_address] <= write_map_ena_data;
 		  end
     end
 
@@ -193,26 +214,30 @@ module PERIPHERALS #(
     //
     // 8253
     //
-    // Clock domain crossing
-    logic   timer_clock_ff_1;
-    always_ff @(posedge peripheral_clock, posedge reset) begin
-        if (reset)
-            timer_clock_ff_1 <= 1'b0;
-        else
-            timer_clock_ff_1 <= ~timer_clock_ff_1;
-    end
-
-    logic   timer_clock_ff_2;
-    logic   timer_clock;
+    logic   prev_p_clock_1;
+    logic   prev_p_clock_2;
     always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
-            timer_clock_ff_2    <= 1'b0;
-            timer_clock         <= 1'b0;
+            prev_p_clock_1 <= 1'b0;
+            prev_p_clock_2 <= 1'b0;
         end
         else begin
-            timer_clock_ff_2    <= timer_clock_ff_1;
-            timer_clock         <= timer_clock_ff_2;
+            prev_p_clock_1 <= peripheral_clock;
+            prev_p_clock_2 <= prev_p_clock_1;
+
         end
+    end
+
+    wire    p_clock_posedge = prev_p_clock_1 & ~prev_p_clock_2;
+
+    logic   timer_clock;
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            timer_clock         <= 1'b0;
+        else if (p_clock_posedge)
+            timer_clock         <= ~timer_clock;
+        else
+            timer_clock         <= timer_clock;
     end
 
     logic   [7:0]   timer_data_bus_out;
@@ -482,6 +507,76 @@ module PERIPHERALS #(
 		else
 			uart_readdata <= uart_readdata;
 	end
+
+
+     logic  [14:0]  video_io_address;
+     logic  [7:0]   video_io_data;
+     logic          video_io_write_n;
+     logic          video_io_read_n;
+     logic          video_address_enable_n;
+     logic  [14:0]  mda_io_address_1;
+     logic  [14:0]  mda_io_address_2;
+     logic  [7:0]   mda_io_data_1;
+     logic  [7:0]   mda_io_data_2;
+     logic          mda_io_write_n_1;
+     logic          mda_io_write_n_2;
+     logic          mda_io_write_n_3;
+     logic          mda_io_read_n_1;
+     logic          mda_io_read_n_2;
+     logic          mda_io_read_n_3;
+     logic          mda_address_enable_n_1;
+     logic          mda_address_enable_n_2;
+     logic  [14:0]  cga_io_address_1;
+     logic  [14:0]  cga_io_address_2;
+     logic  [7:0]   cga_io_data_1;
+     logic  [7:0]   cga_io_data_2;
+     logic          cga_io_write_n_1;
+     logic          cga_io_write_n_2;
+     logic          cga_io_write_n_3;
+     logic          cga_io_read_n_1;
+     logic          cga_io_read_n_2;
+     logic          cga_io_read_n_3;
+     logic          cga_address_enable_n_1;
+     logic          cga_address_enable_n_2;
+
+    always_ff @(posedge clock) begin
+        video_io_address        <= address[14:0];
+        video_io_data           <= internal_data_bus;
+        video_io_write_n        <= io_write_n;
+        video_io_read_n         <= io_read_n;
+        video_address_enable_n  <= address_enable_n;
+    end
+
+    always_ff @(posedge clk_vga_mda) begin
+        mda_io_address_1        <= video_io_address;
+        mda_io_address_2        <= mda_io_address_1;
+        mda_io_data_1           <= video_io_data;
+        mda_io_data_2           <= mda_io_data_1;
+        mda_io_write_n_1        <= video_io_write_n;
+        mda_io_write_n_2        <= mda_io_write_n_1;
+        mda_io_write_n_3        <= mda_io_write_n_2;
+        mda_io_read_n_1         <= video_io_read_n;
+        mda_io_read_n_2         <= mda_io_read_n_1;
+        mda_io_read_n_3         <= mda_io_read_n_2;
+        mda_address_enable_n_1  <= video_address_enable_n;
+        mda_address_enable_n_2  <= mda_address_enable_n_1;
+    end
+
+    always_ff @(posedge clk_vga_cga) begin
+        cga_io_address_1    <= video_io_address;
+        cga_io_address_2    <= cga_io_address_1;
+        cga_io_data_1       <= video_io_data;
+        cga_io_data_2       <= cga_io_data_1;
+        cga_io_write_n_1    <= video_io_write_n;
+        cga_io_write_n_2    <= cga_io_write_n_1;
+        cga_io_write_n_3    <= cga_io_write_n_2;
+        cga_io_read_n_1     <= video_io_read_n;
+        cga_io_read_n_2     <= cga_io_read_n_1;
+        cga_io_read_n_3     <= cga_io_read_n_2;
+        cga_address_enable_n_1  <= video_address_enable_n;
+        cga_address_enable_n_2  <= cga_address_enable_n_1;
+    end
+
 	 
     reg   [5:0]   R_CGA;
     reg   [5:0]   G_CGA;
@@ -521,7 +616,11 @@ module PERIPHERALS #(
 	 wire [18:0] MDA_VRAM_ADDR;
 	 wire [7:0] MDA_VRAM_DOUT;
 	 wire MDA_CRTC_OE;
+	 wire MDA_CRTC_OE_1;
+	 wire MDA_CRTC_OE_2;
 	 wire [7:0] MDA_CRTC_DOUT;
+	 wire [7:0] MDA_CRTC_DOUT_1;
+	 wire [7:0] MDA_CRTC_DOUT_2;
 	 
 	 wire intensity;
 	 
@@ -539,15 +638,15 @@ module PERIPHERALS #(
 	 
     mda mda1 (
         .clk                        (clk_vga_mda),
-        .bus_a                      (address[14:0]),
-        .bus_ior_l                  (io_read_n),
-        .bus_iow_l                  (io_write_n),
+        .bus_a                      (mda_io_address_2),
+        .bus_ior_l                  (mda_io_read_n_3),
+        .bus_iow_l                  (mda_io_write_n_3),
         .bus_memr_l                 (1'd0),
         .bus_memw_l                 (1'd0),
-        .bus_d                      (internal_data_bus),
+        .bus_d                      (mda_io_data_2),
         .bus_out                    (MDA_CRTC_DOUT),
         .bus_dir                    (MDA_CRTC_OE),
-        .bus_aen                    (address_enable_n),
+        .bus_aen                    (mda_address_enable_n_2),
         .ram_we_l                   (MDA_VRAM_ENABLE),
         .ram_a                      (MDA_VRAM_ADDR),
         .ram_d                      (MDA_VRAM_DOUT),
@@ -559,13 +658,24 @@ module PERIPHERALS #(
         .video                      (video_mda),
 		  .de_o                       (de_o_mda)		  
     );
+
+    always_ff @(posedge clock) begin
+        MDA_CRTC_DOUT_1 <= MDA_CRTC_DOUT;
+        MDA_CRTC_DOUT_2 <= MDA_CRTC_DOUT_1;
+        MDA_CRTC_OE_1   <= MDA_CRTC_OE;
+        MDA_CRTC_OE_2   <= MDA_CRTC_OE_1;
+    end
 	 
 	 
 	 wire CGA_VRAM_ENABLE;
 	 wire [18:0] CGA_VRAM_ADDR;
 	 wire [7:0] CGA_VRAM_DOUT;
 	 wire CGA_CRTC_OE;
+	 wire CGA_CRTC_OE_1;
+	 wire CGA_CRTC_OE_2;
 	 wire [7:0] CGA_CRTC_DOUT;
+	 wire [7:0] CGA_CRTC_DOUT_1;
+	 wire [7:0] CGA_CRTC_DOUT_2;
 	 	
     // Sets up the card to generate a video signal
     // that will work with a standard VGA monitor
@@ -595,15 +705,15 @@ module PERIPHERALS #(
 
 	 cga cga1 (
 	     .clk                        (clk_vga_cga),
-		  .bus_a                      (address[14:0]),
-		  .bus_ior_l                  (io_read_n),
-		  .bus_iow_l                  (io_write_n),
+		  .bus_a                      (cga_io_address_2),
+		  .bus_ior_l                  (cga_io_read_n_3),
+		  .bus_iow_l                  (cga_io_write_n_3),
         .bus_memr_l                 (1'd0),
         .bus_memw_l                 (1'd0),  
-		  .bus_d                      (internal_data_bus),
+		  .bus_d                      (cga_io_data_2),
 		  .bus_out                    (CGA_CRTC_DOUT),
 		  .bus_dir                    (CGA_CRTC_OE),
-		  .bus_aen                    (address_enable_n),
+		  .bus_aen                    (cga_address_enable_n_2),
         .ram_we_l                   (CGA_VRAM_ENABLE),
         .ram_a                      (CGA_VRAM_ADDR),
         .ram_d                      (CGA_VRAM_DOUT),
@@ -619,6 +729,14 @@ module PERIPHERALS #(
         .thin_font                  (thin_font),
 		  .tandy_video                (tandy_video)
     );
+
+    always_ff @(posedge clock) begin
+        CGA_CRTC_OE_1   <= CGA_CRTC_OE;
+        CGA_CRTC_OE_2   <= CGA_CRTC_OE_1;
+        CGA_CRTC_DOUT_1 <= CGA_CRTC_DOUT;
+        CGA_CRTC_DOUT_2 <= CGA_CRTC_DOUT_1;
+    end
+
 
     defparam cga1.BLINK_MAX = 24'd4772727;
 	 defparam mda1.BLINK_MAX = 24'd9100000;
@@ -750,13 +868,13 @@ module PERIPHERALS #(
             data_bus_out_from_chipset = 1'b1;
             data_bus_out = xtide_cpu_dout;
         end
-		  else if (CGA_CRTC_OE) begin
+		  else if (CGA_CRTC_OE_2) begin
             data_bus_out_from_chipset = 1'b1;
-            data_bus_out = CGA_CRTC_DOUT;			
+            data_bus_out = CGA_CRTC_DOUT_2;			
         end
-		  else if (MDA_CRTC_OE) begin
+		  else if (MDA_CRTC_OE_2) begin
             data_bus_out_from_chipset = 1'b1;
-            data_bus_out = MDA_CRTC_DOUT;			
+            data_bus_out = MDA_CRTC_DOUT_2;			
         end
 		  else if ((~opl_chip_select_n) && (~io_read_n)) begin
             data_bus_out_from_chipset = 1'b1;

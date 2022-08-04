@@ -178,7 +178,7 @@ assign USER_OUT = '1;
 //assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 //assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 //assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
-assign SDRAM_CLK = CLK_50M;
+assign SDRAM_CLK = clk_chipset;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
 
 
@@ -292,7 +292,7 @@ wire        adlibhide = status[10];
 
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 (
-	.clk_sys(CLK_50M),
+	.clk_sys(clk_chipset),
 	.HPS_BUS(HPS_BUS),
 	.EXT_BUS(),
 	.gamma_bus(gamma_bus),
@@ -346,7 +346,9 @@ reg clk_14_318 = 1'b0;
 reg clk_7_16 = 1'b0;
 wire clk_4_77;
 wire clk_cpu;
+wire pclk;
 wire clk_opl2;
+wire clk_chipset;
 wire peripheral_clock;
 
 pll pll
@@ -358,6 +360,7 @@ pll pll
 	.outclk_2(clk_28_636),
 	.outclk_3(clk_uart),
 	.outclk_4(clk_opl2),
+	.outclk_5(clk_chipset),
 	.locked(pll_locked)
 );
 
@@ -407,10 +410,16 @@ always @(posedge clk_4_77)
 logic  clk_cpu_ff_1;
 logic  clk_cpu_ff_2;
 
-always @(posedge clk_100) begin
+logic  pclk_ff_1;
+logic  pclk_ff_2;
+
+always @(posedge clk_chipset) begin
     clk_cpu_ff_1 <= clk_4_77;
     clk_cpu_ff_2 <= clk_cpu_ff_1;
     clk_cpu      <= clk_cpu_ff_2;
+    pclk_ff_1    <= peripheral_clock;
+    pclk_ff_2    <= pclk_ff_1;
+    pclk         <= pclk_ff_2;
 end
 
 logic   clk_opl2_ff_1;
@@ -418,7 +427,7 @@ logic   clk_opl2_ff_2;
 logic   clk_opl2_ff_3;
 logic   cen_opl2;
 
-always @(posedge clk_100) begin
+always @(posedge clk_chipset) begin
     clk_opl2_ff_1 <= clk_opl2;
     clk_opl2_ff_2 <= clk_opl2_ff_1;
     clk_opl2_ff_3 <= clk_opl2_ff_2;
@@ -456,14 +465,14 @@ logic reset_cpu_ff = 1'b1;
 logic reset_cpu = 1'b1;
 logic [15:0] reset_cpu_count = 16'h0000;
 
-always @(negedge clk_100, posedge reset) begin
+always @(negedge clk_chipset, posedge reset) begin
 	if (reset)
 		reset_cpu_ff <= 1'b1;
 	else
 		reset_cpu_ff <= reset;
 end
 
-always @(negedge clk_100, posedge reset) begin
+always @(negedge clk_chipset, posedge reset) begin
 	if (reset) begin
 		reset_cpu <= 1'b1;
 		reset_cpu_count <= 16'h0000;
@@ -518,7 +527,7 @@ end
     logic   device_clock_ff;
     logic   device_clock;
 
-    always_ff @(negedge clk_cpu, posedge reset)
+    always_ff @(negedge clk_chipset, posedge reset)
     begin
         if (reset) begin
             device_clock_ff <= 1'b0;
@@ -537,7 +546,7 @@ end
     logic   device_data_ff;
     logic   device_data;
 
-    always_ff @(negedge clk_cpu, posedge reset)
+    always_ff @(negedge clk_chipset, posedge reset)
     begin
         if (reset) begin
             device_data_ff <= 1'b0;
@@ -575,10 +584,10 @@ end
 	 assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
    CHIPSET u_CHIPSET (
-        .clock                              (clk_100),
+        .clock                              (clk_chipset),
         .cpu_clock                            (clk_cpu),
-		  .clk_sys                            (CLK_50M),
-		  .peripheral_clock                   (peripheral_clock),
+		  .clk_sys                            (clk_chipset),
+		  .peripheral_clock                   (pclk),
 		  
         .reset                              (reset_cpu),
         .sdram_reset                        (reset),
@@ -733,7 +742,7 @@ end
 	wire uart_dsr = UART_DSR;
 	wire uart_dcd = UART_DTR;
 
-	always @(posedge clk_cpu) begin
+	always @(posedge clk_100) begin
 		if (address_latch_enable)
 			cpu_address <= cpu_ad_out;
 		else
