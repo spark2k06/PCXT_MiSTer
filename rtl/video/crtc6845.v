@@ -139,6 +139,7 @@ module crtc6845(
     reg hs = 1'b0;
     reg hdisp = 1'b1;
     reg vdisp = 1'b1;
+    reg [6:0] hdisp_del;
 
     wire cur_on;
     wire blink;
@@ -149,8 +150,8 @@ module crtc6845(
     assign vsync = vs;
     assign hsync = hs;
     assign display_enable = hdisp & vdisp;
-	 assign hblank = ~hdisp;
-	 assign vblank = ~vdisp;
+    assign hblank = ~hdisp_del[5];
+    assign vblank = ~vdisp;
 
     assign row_addr = v_scancount;
 
@@ -161,6 +162,7 @@ module crtc6845(
     // Horizontal counter
     always @ (posedge clk)
     begin
+        hdisp_del <= {hdisp_del[5], hdisp_del[4], hdisp_del[3], hdisp_del[2], hdisp_del[1], hdisp_del[0], hdisp};		  	  
         if (divclk) begin
             if (h_count == h_total) begin
                 h_count <= 8'd0;
