@@ -8,6 +8,7 @@ module PERIPHERALS #(
     input   logic           clock,
 	 input   logic           clk_sys,
     input   logic           peripheral_clock,	 
+	 input   logic           color,
     input   logic           reset,
     // CPU
     output  logic           interrupt_to_cpu,
@@ -727,7 +728,8 @@ module PERIPHERALS #(
         .dbl_video                  (vga_video),                // scandoubler
 		  .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
-		  .tandy_video                (tandy_video)
+		  .tandy_video                (tandy_video),
+		  .color                      (color)
     );
 
     always_ff @(posedge clock) begin

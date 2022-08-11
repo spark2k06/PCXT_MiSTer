@@ -7,6 +7,7 @@ module CHIPSET (
     input   logic           cpu_clock,
 	 input   logic           clk_sys,
     input   logic           peripheral_clock,
+	 input   logic           color,
     input   logic           reset,
     input   logic           sdram_reset,
     // CPU
@@ -227,6 +228,7 @@ module CHIPSET (
 		  .clk_sys                            (clk_sys),
 		  .clk_uart                           (clk_uart),
         .peripheral_clock                   (peripheral_clock),
+		  .color                              (color),
         .reset                              (reset),
         .interrupt_to_cpu                   (interrupt_to_cpu),
         .interrupt_acknowledge_n            (interrupt_acknowledge_n),

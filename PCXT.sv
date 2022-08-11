@@ -588,7 +588,7 @@ end
         .cpu_clock                            (clk_cpu),
 		  .clk_sys                            (clk_chipset),
 		  .peripheral_clock                   (pclk),
-		  
+		  .color										  (screen_mode == 3'd0),
         .reset                              (reset_cpu),
         .sdram_reset                        (reset),
         .cpu_address                        (cpu_address),
