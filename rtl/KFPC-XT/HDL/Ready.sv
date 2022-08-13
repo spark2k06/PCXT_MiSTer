@@ -35,56 +35,92 @@ module READY (
     wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
     wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
 
+
     //
     // Ready/Wait Signal
     //
-    logic   ready_n_or_wait;
     logic   prev_bus_state;
+    logic   ready_n_or_wait;
+    logic   ready_n_or_wait_Qn;
+    logic   prev_ready_n_or_wait;
 
     wire    bus_state = ~io_read_n | ~io_write_n | (dma0_acknowledge_n & ~memory_read_n & address_enable_n);
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             prev_bus_state <= 1'b1;
-        else if (cpu_clock_posedge)
-            prev_bus_state <= bus_state;
         else
-            prev_bus_state <= prev_bus_state;
+            prev_bus_state <= bus_state;
     end
 
-    wire timing_to_check_ready = (~prev_bus_state) & (bus_state);
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset) begin
+            ready_n_or_wait     <= 1'b1;
+            ready_n_or_wait_Qn  <= 1'b0;
+        end
+        else if (~io_channel_ready & prev_ready_n_or_wait) begin
+            ready_n_or_wait     <= 1'b1;
+            ready_n_or_wait_Qn  <= 1'b1;
+        end
+        else if (~io_channel_ready & ~prev_ready_n_or_wait) begin
+            ready_n_or_wait     <= 1'b1;
+            ready_n_or_wait_Qn  <= 1'b0;
+        end
+        else if (io_channel_ready & prev_ready_n_or_wait) begin
+            ready_n_or_wait     <= 1'b0;
+            ready_n_or_wait_Qn  <= 1'b1;
+        end
+        else if (~prev_bus_state & bus_state) begin
+            ready_n_or_wait     <= 1'b1;
+            ready_n_or_wait_Qn  <= 1'b0;
+        end
+        else begin
+            ready_n_or_wait     <= ready_n_or_wait;
+            ready_n_or_wait_Qn  <= ready_n_or_wait_Qn;
+        end
+    end
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
-            ready_n_or_wait <= 1'b1;
+            prev_ready_n_or_wait    <= 1'b0;
         else if (cpu_clock_posedge)
-            if (io_channel_ready)
-                if ((ready_n_or_wait == 1'b0) && (timing_to_check_ready))
-                    ready_n_or_wait <= 1'b1;
-                else
-                    ready_n_or_wait <= 1'b0;
-            else
-                ready_n_or_wait <= 1'b1;
+            prev_ready_n_or_wait    <= ready_n_or_wait;
         else
-            ready_n_or_wait <= ready_n_or_wait;
+            prev_ready_n_or_wait    <= prev_ready_n_or_wait;
     end
+
 
     //
     // Ready to DMA
     //
-    assign  dma_ready = ~ready_n_or_wait;
+    assign  dma_ready = ~prev_ready_n_or_wait & ready_n_or_wait_Qn;
+
 
     //
     // Ready Signal (Instead of 8284)
     //
+    logic   processor_ready_ff_1;
+    logic   processor_ready_ff_2;
+
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
-            processor_ready <= 1'b0;
-        else if (cpu_clock_negedge)
-            processor_ready <= dma_wait_n & ~ready_n_or_wait;
+            processor_ready_ff_1    <= 1'b0;
+        else if (cpu_clock_posedge)
+            processor_ready_ff_1    <= dma_wait_n & ~ready_n_or_wait;
         else
-            processor_ready <= processor_ready;
+            processor_ready_ff_1    <= processor_ready_ff_1;
     end
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            processor_ready_ff_2    <= 1'b0;
+        else if (cpu_clock_negedge)
+            processor_ready_ff_2    <= processor_ready_ff_1 & dma_wait_n & ~ready_n_or_wait;
+        else
+            processor_ready_ff_2    <= processor_ready_ff_2;
+    end
+
+    assign  processor_ready = processor_ready_ff_2;
 
 endmodule
 
