@@ -42,7 +42,9 @@ module cga(
 	 input splashscreen,
     input thin_font,
 	 input tandy_video,
-	 input color
+	 input color,
+	 output grph_mode,
+	 output hres_mode
     );
 
     parameter MDA_70HZ = 0;
@@ -73,8 +75,6 @@ module cga(
 	 reg[3:0] tandy_newcolor = 4'b0000;
 	 reg tandy_palette_set;
 	 
-    wire hres_mode;
-    wire grph_mode;
     wire bw_mode;
     wire mode_640;
     wire tandy_16_mode;

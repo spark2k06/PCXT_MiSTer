@@ -97,6 +97,10 @@ module PERIPHERALS #(
      // Mode Switch
     input   logic           tandy_mode
 );
+    
+	 wire grph_mode;
+	 wire hres_mode;
+	 
     //
     // chip select
     //
@@ -131,8 +135,8 @@ module PERIPHERALS #(
 	 
 	 wire    tandy_chip_select_n    = ~(iorq && ~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
 	 wire    opl_chip_select_n      = ~(iorq && ~address_enable_n && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
-    wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 6'b10111)); // B8000 - BFFFF (32 KB)
-	 wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (32 KB)	 
+    wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
+	 wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:14] == 6'b101100)); // B0000 - B7FFF (16 KB)
 	 wire    bios_select_n          = ~(~iorq && ~address_enable_n && address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
 	 wire    xtide_select_n         = ~(~iorq && ~address_enable_n && address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
 	 wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
@@ -729,7 +733,9 @@ module PERIPHERALS #(
 		  .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
 		  .tandy_video                (tandy_video),
-		  .color                      (color)
+		  .color                      (color),
+		  .grph_mode                  (grph_mode),
+		  .hres_mode                  (hres_mode)
     );
 
     always_ff @(posedge clock) begin
@@ -752,13 +758,13 @@ module PERIPHERALS #(
         .clka                       (clock),
         .ena                        (~cga_chip_select_n),
         .wea                        (~memory_write_n),
-        .addra                      (address[14:0]),
+        .addra                      ((tandy_mode & grph_mode & hres_mode) ? address[14:0] : address[13:0]),
         .dina                       (internal_data_bus),
         .douta                      (cga_vram_cpu_dout),
         .clkb                       (clk_vga_cga),
         .web                        (1'b0),
         .enb                        (CGA_VRAM_ENABLE),
-        .addrb                      (CGA_VRAM_ADDR[14:0]),
+        .addrb                      ((tandy_mode & grph_mode & hres_mode) ? CGA_VRAM_ADDR[14:0] : CGA_VRAM_ADDR[13:0]),
         .dinb                       (8'h0),
         .doutb                      (CGA_VRAM_DOUT)
 	);
@@ -769,13 +775,13 @@ module PERIPHERALS #(
         .clka                       (clock),
         .ena                        (~mda_chip_select_n),
         .wea                        (~memory_write_n),
-        .addra                      (address[14:0]),
+        .addra                      (address[13:0]),
         .dina                       (internal_data_bus),
         .douta                      (mda_vram_cpu_dout),
         .clkb                       (clk_vga_mda),
         .web                        (1'b0),
         .enb                        (MDA_VRAM_ENABLE),
-        .addrb                      (MDA_VRAM_ADDR[14:0]),
+        .addrb                      (MDA_VRAM_ADDR[13:0]),
         .dinb                       (8'h0),
         .doutb                      (MDA_VRAM_DOUT)
 	);
