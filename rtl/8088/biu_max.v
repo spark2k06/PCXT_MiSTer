@@ -86,8 +86,9 @@ module biu_max
     output [15:0]       BIU_REGISTER_DS,
     output [15:0]       BIU_REGISTER_RM,
     output [15:0]       BIU_REGISTER_REG,
-    output [15:0]       BIU_RETURN_DATA
+    output [15:0]       BIU_RETURN_DATA,
     
+    input               turbo_mode
 
   );
 
@@ -589,7 +590,7 @@ else
                       // Jump Request
                       8'h19 : begin
                                 biu_done_int <= 1'b1;
-                                biu_state <= 8'h0A;
+                                biu_state <= 8'h0B;
                               end
                                 
                       default : ;             
@@ -691,9 +692,9 @@ else
 
               
               
-      //  On the next falling CLK edge, sample the data.
+      //  On the next CLK edge, sample the data.
       8'h06 : begin
-                if (clk_negedge)
+                if ((~turbo_mode & clk_posedge) || (turbo_mode & clk_negedge))
                   begin
                     latched_data_in <= ad_in_int;
                     
@@ -728,33 +729,46 @@ else
                   begin
                     biu_return_data_int[15:0] <= { 8'h00 , latched_data_in[7:0] };
                   end
+              end
 
-                //  The cycle is complete.
-                addr_out_temp[15:0] <=  addr_out_temp[15:0] + 1;
-                if (word_cycle==1'b1 && byte_num==1'b0)
-                  begin        
-                    byte_num <= 1'b1;                   
-                    biu_state <= 8'h50;
+      //  The cycle is complete.
+      8'h0A : begin 
+                if (turbo_mode | clk_negedge)
+                  begin
+                    addr_out_temp[15:0] <=  addr_out_temp[15:0] + 1;
+                    if (word_cycle==1'b1 && byte_num==1'b0)
+                      begin        
+                        byte_num <= 1'b1;                   
+                        biu_state <= 8'h50;
+                      end
+                    else
+                      begin
+                        if (s_bits!=3'b100)
+                          begin
+                            biu_done_int <= 1'b1;
+                          end
+                      end
                   end
                 else
                   begin
-                    if (s_bits!=3'b100)
-                      begin
-                        biu_done_int <= 1'b1;
-                      end
+                    biu_state <= 8'h0A;
                   end
               end
               
               
-      8'h0A : begin 
+      8'h0B : begin 
                 biu_done_int <= 1'b0;               
               end
              
               
-      8'h0B : begin 
+      8'h0C : begin 
                 biu_state <= 8'h00;
               end
                 
+
+
+
+
               
       8'h50 : begin 
                 biu_state <= 8'h01;
