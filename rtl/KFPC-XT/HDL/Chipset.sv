@@ -305,10 +305,8 @@ module CHIPSET (
     );
 
     RAM u_RAM (
-        .clock                              (clock),
-        .sdram_clock                        (sdram_clock),
-        .reset                              (reset),
-        .sdram_reset                        (sdram_reset),
+        .clock                              (sdram_clock),
+        .reset                              (sdram_reset),
         .enable_sdram                       (enable_sdram),
         .address                            (address),
         .internal_data_bus                  (internal_data_bus),
