@@ -778,7 +778,7 @@ module PERIPHERALS #(
         .clka                       (clock),
         .ena                        (~cga_chip_select_n_1),
         .wea                        (~video_memory_write_n),
-        .addra                      (video_ram_address),
+	.addra                      ((tandy_mode & grph_mode & hres_mode) ? video_ram_address : video_ram_address[13:0]),
         .dina                       (video_ram_data),
         .douta                      (cga_vram_cpu_dout),
         .clkb                       (clk_vga_cga),
