@@ -216,7 +216,7 @@ localparam CONF_STR = {
 	"PCXT;;",
 	"-;",
    "O3,Model,IBM PCXT,Tandy 1000;",
-	//"OHI,CPU Speed,4.77Mhz,7.16Mhz,14.318MHz;", // These bits are reserved until it can be used
+	"OHI,CPU Speed,4.77Mhz,7.16Mhz,14.318MHz;",
 	"-;",
 	"O7,Splash Screen,Yes,No;",
 	"-;",
@@ -407,6 +407,9 @@ clk_div3 clk_normal // 4.77MHz
 always @(posedge clk_4_77)
 	peripheral_clock <= ~peripheral_clock; // 2.385Mhz
 
+logic  turbo_mode;
+assign  turbo_mode = (status[18:17] == 2'b01 || status[18:17] == 2'b10);
+
 logic  clk_cpu_ff_1;
 logic  clk_cpu_ff_2;
 
@@ -414,7 +417,7 @@ logic  pclk_ff_1;
 logic  pclk_ff_2;
 
 always @(posedge clk_chipset) begin
-    clk_cpu_ff_1 <= clk_4_77;
+    clk_cpu_ff_1 <= (status[18:17] == 2'b10) ? clk_14_318 : (status[18:17] == 2'b01) ? clk_7_16 : clk_4_77;
     clk_cpu_ff_2 <= clk_cpu_ff_1;
     clk_cpu      <= clk_cpu_ff_2;
     pclk_ff_1    <= peripheral_clock;
@@ -711,7 +714,9 @@ end
 	  .lock_n(lock_n),
 	  .s6_3_mux(s6_3_mux),
 	  .s2_s0_out(processor_status),
-	  .SEGMENT(SEGMENT)
+	  .SEGMENT(SEGMENT),
+
+      .turbo_mode(turbo_mode)
 	);
 	
 	/// UART
