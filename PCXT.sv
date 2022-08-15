@@ -409,8 +409,15 @@ clk_div3 clk_normal // 4.77MHz
 always @(posedge clk_4_77)
 	peripheral_clock <= ~peripheral_clock; // 2.385Mhz
 
+logic  biu_done;
 logic  turbo_mode;
-assign  turbo_mode = (status[18:17] == 2'b01 || status[18:17] == 2'b10);
+
+always @(posedge clk_chipset) begin
+    if (biu_done)
+        turbo_mode  <= (status[18:17] == 2'b01 || status[18:17] == 2'b10);
+    else
+        turbo_mode  <= turbo_mode;
+end
 
 logic  clk_cpu_ff_1;
 logic  clk_cpu_ff_2;
@@ -718,6 +725,7 @@ end
 	  .s2_s0_out(processor_status),
 	  .SEGMENT(SEGMENT),
 
+      .biu_done(biu_done),
       .turbo_mode(turbo_mode)
 	);
 	

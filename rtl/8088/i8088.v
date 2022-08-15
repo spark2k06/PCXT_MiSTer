@@ -19,6 +19,7 @@ module i8088
     output [2:0]        s2_s0_out,
     output [2:0]        SEGMENT,
 
+    output              biu_done,
     input               turbo_mode
 
   );
@@ -26,6 +27,7 @@ module i8088
 //------------------------------------------------------------------------
 
 assign dout = ad_out[7:0];
+assign biu_done = t_biu_done;
 
 // Internal Signals
 
@@ -87,8 +89,8 @@ biu_max                     BIU_CORE
     .BIU_REGISTER_DS        (t_biu_register_ds),
     .BIU_REGISTER_RM        (t_biu_register_rm),
     .BIU_REGISTER_REG       (t_biu_register_reg),
-    .BIU_RETURN_DATA        (t_biu_return_data)
-
+    .BIU_RETURN_DATA        (t_biu_return_data),
+    .turbo_mode             (turbo_mode)
   );
 
 //------------------------------------------------------------------------
