@@ -4,9 +4,7 @@
 //
 module RAM (
     input   logic           clock,
-    input   logic           sdram_clock,
     input   logic           reset,
-    input   logic           sdram_reset,
     input   logic           enable_sdram,
     // I/O Ports
     input   logic   [19:0]  address,
@@ -17,8 +15,6 @@ module RAM (
     input   logic           no_command_state,
     output  logic           memory_access_ready,
     output  logic           ram_address_select_n,
-    // VRAM FIFO
-    // TODO:
     // SDRAM
     output  logic   [12:0]  sdram_address,
     output  logic           sdram_cke,
@@ -32,131 +28,79 @@ module RAM (
     output  logic           sdram_dq_io,
     output  logic           sdram_ldqm,
     output  logic           sdram_udqm,
-	 // EMS	 
-	 input   logic   [6:0]   map_ems[0:3],	 
-	 input   logic           ems_b1,
-	 input   logic           ems_b2,
-	 input   logic           ems_b3,
-	 input   logic           ems_b4
-	 
+     // EMS
+     input   logic   [6:0]   map_ems[0:3],
+     input   logic           ems_b1,
+     input   logic           ems_b2,
+     input   logic           ems_b3,
+     input   logic           ems_b4
+
 );
 
     typedef enum {IDLE, RAM_WRITE_1, RAM_WRITE_2, RAM_READ_1, RAM_READ_2, COMPLETE_RAM_RW, WAIT} state_t;
 
     state_t         state;
     state_t         next_state;
-    logic   [21:0]  latch_address_ff;
     logic   [21:0]  latch_address;
-    logic   [7:0]   latch_data_ff;
     logic   [7:0]   latch_data;
-    logic           write_command_ff_1;
-    logic           write_command_ff_2;
     logic           write_command;
-    logic           read_command_ff_1;
-    logic           read_command_ff_2;
     logic           read_command;
-    logic           no_command_state_ff_1;
-    logic           no_command_state_ff_2;
-    logic           no_command_state_ff_3;
+    logic           prev_no_command_state;
     logic           enable_refresh;
 
     logic           access_ready;
 
     //
     // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xEBFFF)
-    //	 
-	 assign  ram_address_select_n = ~(enable_sdram && 
-	                                ~(address[19:16] == 4'b1111) &&  // B0000h reserved for VRAM
-											  ~(address[19:16] == 4'b1011) &&  // F0000h reserved for BIOS
-											  ~(address[19:14] == 6'b111011)); // EC000h reserved for XTIDE
-											  
+    //
+    assign ram_address_select_n = ~(enable_sdram && 
+                                   ~(address[19:16] == 4'b1111) &&  // B0000h reserved for VRAM
+                                             ~(address[19:16] == 4'b1011) &&  // F0000h reserved for BIOS
+                                             ~(address[19:14] == 6'b111011)); // EC000h reserved for XTIDE
+
 
     //
-    // Latch I/O Ports
+    // I/O Ports
     //
     // Address
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset)
-            latch_address_ff   <= 0;
-        else begin
-		  			
-			  if (ems_b1)
-					latch_address_ff   <= {1'b1, map_ems[0], address[13:0]};
-			  else if (ems_b2)
-					latch_address_ff   <= {1'b1, map_ems[1], address[13:0]};
-			  else if (ems_b3)
-					latch_address_ff   <= {1'b1, map_ems[2], address[13:0]};
-			  else if (ems_b4)
-					latch_address_ff   <= {1'b1, map_ems[3], address[13:0]};
-			  else
-					latch_address_ff   <= {2'b00, address};
-				
-		  end
-		  
-    end
-
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset)
-            latch_address   <= 0;
+    always_comb begin
+        if (ems_b1)
+            latch_address   = {1'b1, map_ems[0], address[13:0]};
+        else if (ems_b2)
+            latch_address   = {1'b1, map_ems[1], address[13:0]};
+        else if (ems_b3)
+            latch_address   = {1'b1, map_ems[2], address[13:0]};
+        else if (ems_b4)
+            latch_address   = {1'b1, map_ems[3], address[13:0]};
         else
-            latch_address   <= latch_address_ff;
+            latch_address   = {2'b00, address};
     end
 
-    // Data Bus
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset) begin
-            latch_data_ff   <= 0;
+    // Data
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
             latch_data      <= 0;
-        end
-        else begin
-            latch_data_ff   <= internal_data_bus;
-            latch_data      <= latch_data_ff;
-        end
+        else
+            latch_data      <= internal_data_bus;
     end
 
     // Write Command
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset) begin
-            write_command_ff_1  <= 1'b0;
-            write_command_ff_2  <= 1'b0;
-            write_command       <= 1'b0;
-        end
-        else begin
-            write_command_ff_1  <= ~ram_address_select_n & ~memory_write_n;
-            write_command_ff_2  <= write_command_ff_1;
-            write_command       <= write_command_ff_2;
-        end
-    end
+    assign write_command = ~ram_address_select_n & ~memory_write_n;
 
     // Read Command
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset) begin
-            read_command_ff_1   <= 1'b0;
-            read_command_ff_2   <= 1'b0;
-            read_command        <= 1'b0;
-        end
-        else begin
-            read_command_ff_1   <= ~ram_address_select_n & ~memory_read_n;
-            read_command_ff_2   <= read_command_ff_1;
-            read_command        <= read_command_ff_2;
-        end
-    end
+    assign read_command  = ~ram_address_select_n & ~memory_read_n;
 
     // Generate refresh timing
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset) begin
-            no_command_state_ff_1 <= 1'b0;
-            no_command_state_ff_2 <= 1'b0;
-            no_command_state_ff_3 <= 1'b0;
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset) begin
+            prev_no_command_state   <= 1'b0;
         end
         else begin
-            no_command_state_ff_1 <= no_command_state;
-            no_command_state_ff_2 <= no_command_state_ff_1;
-            no_command_state_ff_3 <= no_command_state_ff_2;
+            prev_no_command_state   <= no_command_state;
         end
     end
 
-    assign  enable_refresh  = no_command_state_ff_2 & ~no_command_state_ff_3;
+    assign  enable_refresh  = no_command_state & ~prev_no_command_state;
 
 
     //
@@ -174,8 +118,8 @@ module RAM (
     logic           refresh_mode;
 
     KFSDRAM u_KFSDRAM (
-        .sdram_clock        (sdram_clock),
-        .sdram_reset        (sdram_reset),
+        .sdram_clock        (clock),
+        .sdram_reset        (reset),
         .address            (access_address),
         .access_num         (access_num),
         .data_in            (access_data_in),
@@ -247,8 +191,8 @@ module RAM (
         endcase
     end
 
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset)
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
             state = IDLE;
         else
             state = next_state;
@@ -261,11 +205,11 @@ module RAM (
     always_comb begin
         casez (state)
             IDLE: begin
-                access_address  = 25'h0000000;
-                access_num      = 10'h000;
-                access_data_in  = 16'h0000;
-                write_request   = 1'b0;
-                read_request    = 1'b0;
+                access_address  = {7'h00, latch_address};
+                access_num      = 10'h001;
+                access_data_in  = {8'h00, latch_data};
+                write_request   = write_command ? 1'b1 : 1'b0;
+                read_request    = read_command  ? 1'b1 : 1'b0;
                 sdram_ldqm      = 1'b0;
                 sdram_udqm      = 1'b0;
             end
@@ -330,32 +274,23 @@ module RAM (
     //
     // Databus Out
     //
-    logic   [15:0]  data_out_tmp;
-
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset)
-            data_out_tmp <= 0;
-        else if (read_flag)
-            data_out_tmp <= access_data_out;
-        else if (read_command)
-            data_out_tmp <= data_out_tmp;
-        else
-            data_out_tmp <= 0;
-    end
-
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             data_bus_out <= 0;
+        else if (read_flag)
+            data_bus_out <= access_data_out[7:0];
+        else if (read_command)
+            data_bus_out <= data_bus_out;
         else
-            data_bus_out <= data_out_tmp[7:0];
+            data_bus_out <= 0;
     end
 
 
     //
     // Ready/Wait Signal
     //
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset)
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
             access_ready <= 1'b0;
         else if (state == COMPLETE_RAM_RW)
             access_ready <= 1'b1;

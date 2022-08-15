@@ -5,19 +5,17 @@
 // Written by kitune-san
 //
 module KFSDRAM #(
-    // IS42S16320F-7TL (32Mx16)
     parameter sdram_col_width       = 9,
     parameter sdram_row_width       = 13,
     parameter sdram_bank_width      = 2,
     parameter sdram_data_width      = 16,
     parameter sdram_no_refresh      = 1'b0,
     parameter sdram_trc             = 16'd5-16'd1,
-    parameter sdram_tras            = 16'd8-16'd1,
     parameter sdram_trp             = 16'd1-16'd1,
     parameter sdram_tmrd            = 16'd2-16'd1,
     parameter sdram_trcd            = 16'd1-16'd1,
     parameter sdram_tdpl            = 16'd2-16'd1,
-    parameter cas_latency           = 3'b011,
+    parameter cas_latency           = 3'b010,
     parameter sdram_init_wait       = 16'd10000,
     parameter sdram_refresh_cycle   = 16'd00100
 ) (
@@ -57,7 +55,7 @@ module KFSDRAM #(
     `define BANK_ADDRESS_TOP        (sdram_col_width + sdram_row_width + sdram_bank_width - 1)
     `define BANK_ADDRESS_BOTTOM     (sdram_col_width + sdram_row_width)
 
-    typedef enum { INIT, PALL, INIT_CBR_1, INIT_CBR_2, MRS, REFRESH_PALL, REFRESH, IDLE, WRITE_ACT, WRITE, PRECHARGE_WAIT, READ_ACT, READ, PRECHARGE } state_t;
+    typedef enum { INIT, PALL, INIT_CBR_1, INIT_CBR_2, MRS, REFRESH_PALL, REFRESH, IDLE, WRITE, PRECHARGE_WAIT, READ, PRECHARGE } state_t;
 
     state_t                             state;
     state_t                             next_state;
@@ -67,7 +65,6 @@ module KFSDRAM #(
     logic   [sdram_col_width-1:0]       read_counter;
     logic                               send_cmd_timing;
     logic                               end_read_cmd;
-    logic                               read_flag_tmp;
 
     //
     // State Machine
@@ -106,15 +103,11 @@ module KFSDRAM #(
             end
             IDLE: begin
                 if (write_request)
-                    next_state = WRITE_ACT;
+                    next_state = WRITE;
                 else if (read_request)
-                    next_state = READ_ACT;
+                    next_state = READ;
                 else if ((~sdram_no_refresh) && (enable_refresh) && (refresh_counter == sdram_refresh_cycle))
                     next_state = REFRESH_PALL;
-            end
-            WRITE_ACT: begin
-                if (state_counter == sdram_trcd)
-                    next_state = WRITE;
             end
             WRITE: begin
                 if (access_counter == (access_num - 1))
@@ -123,10 +116,6 @@ module KFSDRAM #(
             PRECHARGE_WAIT: begin
                 if (state_counter == sdram_tdpl)
                     next_state = PRECHARGE;
-            end
-            READ_ACT: begin
-                if (state_counter == sdram_trcd)
-                    next_state = READ;
             end
             READ: begin
                 if ((end_read_cmd) && (read_counter == access_num))
@@ -315,26 +304,39 @@ module KFSDRAM #(
                     sdram_dq_io     <= 1'b1;
                 end
                 IDLE : begin
-                    sdram_address   <= 0;
-                    sdram_cke       <= 1'b1;
-                    sdram_cs        <= 1'b0;
-                    sdram_ras       <= 1'b1;
-                    sdram_cas       <= 1'b1;
-                    sdram_we        <= 1'b1;
-                    sdram_ba        <= 0;
-                    sdram_dq_out    <= 0;
-                    sdram_dq_io     <= 1'b1;
-                end
-                WRITE_ACT: begin
-                    sdram_address   <= (send_cmd_timing) ? address[`ROW_ADDRESS_TOP:`ROW_ADDRESS_BOTTOM] : 0;
-                    sdram_cke       <= 1'b1;
-                    sdram_cs        <= 1'b0;
-                    sdram_ras       <= (send_cmd_timing) ? 1'b0 : 1'b1;
-                    sdram_cas       <= 1'b1;
-                    sdram_we        <= 1'b1;
-                    sdram_ba        <= (send_cmd_timing) ? address[`BANK_ADDRESS_TOP:`BANK_ADDRESS_BOTTOM] : 0;
-                    sdram_dq_out    <= 0;
-                    sdram_dq_io     <= 1'b1;
+                    if (next_state == WRITE) begin
+                        sdram_address   <= address[`ROW_ADDRESS_TOP:`ROW_ADDRESS_BOTTOM];
+                        sdram_cke       <= 1'b1;
+                        sdram_cs        <= 1'b0;
+                        sdram_ras       <= 1'b0;
+                        sdram_cas       <= 1'b1;
+                        sdram_we        <= 1'b1;
+                        sdram_ba        <= address[`BANK_ADDRESS_TOP:`BANK_ADDRESS_BOTTOM];
+                        sdram_dq_out    <= 0;
+                        sdram_dq_io     <= 1'b1;
+                    end
+                    else if (next_state == READ) begin
+                        sdram_address   <= address[`ROW_ADDRESS_TOP:`ROW_ADDRESS_BOTTOM];
+                        sdram_cke       <= 1'b1;
+                        sdram_cs        <= 1'b0;
+                        sdram_ras       <= 1'b0;
+                        sdram_cas       <= 1'b1;
+                        sdram_we        <= 1'b1;
+                        sdram_ba        <= address[`BANK_ADDRESS_TOP:`BANK_ADDRESS_BOTTOM];
+                        sdram_dq_out    <= 0;
+                        sdram_dq_io     <= 1'b1;
+                    end
+                    else begin
+                        sdram_address   <= 0;
+                        sdram_cke       <= 1'b1;
+                        sdram_cs        <= 1'b0;
+                        sdram_ras       <= 1'b1;
+                        sdram_cas       <= 1'b1;
+                        sdram_we        <= 1'b1;
+                        sdram_ba        <= 0;
+                        sdram_dq_out    <= 0;
+                        sdram_dq_io     <= 1'b1;
+                    end
                 end
                 WRITE: begin
                     sdram_address[sdram_col_width-1:0]  <= address[sdram_col_width-1:0] + access_counter;
@@ -356,17 +358,6 @@ module KFSDRAM #(
                     sdram_cas       <= 1'b1;
                     sdram_we        <= 1'b1;
                     sdram_ba        <= 0;
-                    sdram_dq_out    <= 0;
-                    sdram_dq_io     <= 1'b1;
-                end
-                READ_ACT: begin
-                    sdram_address   <= (send_cmd_timing) ? address[`ROW_ADDRESS_TOP:`ROW_ADDRESS_BOTTOM] : 0;
-                    sdram_cke       <= 1'b1;
-                    sdram_cs        <= 1'b0;
-                    sdram_ras       <= (send_cmd_timing) ? 1'b0 : 1'b1;
-                    sdram_cas       <= 1'b1;
-                    sdram_we        <= 1'b1;
-                    sdram_ba        <= (send_cmd_timing) ? address[`BANK_ADDRESS_TOP:`BANK_ADDRESS_BOTTOM] : 0;
                     sdram_dq_out    <= 0;
                     sdram_dq_io     <= 1'b1;
                 end
@@ -414,12 +405,7 @@ module KFSDRAM #(
     //
     // Input Data
     //
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset)
-            data_out    <= 0;
-        else
-            data_out    <= sdram_dq_in;
-    end
+    assign data_out = sdram_dq_in;
 
 
     //
@@ -428,13 +414,6 @@ module KFSDRAM #(
     assign  idle            = (state == IDLE);
     assign  refresh_mode    = (state == REFRESH_PALL) || (state == REFRESH);
     assign  write_flag      = (state == WRITE);
-    assign  read_flag_tmp   = (state == READ) && (next_state == READ)  && (state_counter > cas_latency);
-
-    always_ff @(posedge sdram_clock, posedge sdram_reset) begin
-        if (sdram_reset)
-            read_flag   <= 1'b0;
-        else
-            read_flag   <= read_flag_tmp;
-    end
+    assign  read_flag       = (state == READ) && (next_state == READ)  && (state_counter > cas_latency);
 
 endmodule
