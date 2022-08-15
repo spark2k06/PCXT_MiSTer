@@ -514,6 +514,11 @@ module PERIPHERALS #(
 	end
 
 
+     logic  [14:0]  video_ram_address;
+     logic  [7:0]   video_ram_data;
+     logic          video_memory_write_n;
+     logic          mda_chip_select_n_1;
+     logic          cga_chip_select_n_1;
      logic  [14:0]  video_io_address;
      logic  [7:0]   video_io_data;
      logic          video_io_write_n;
@@ -545,8 +550,23 @@ module PERIPHERALS #(
      logic          cga_address_enable_n_2;
 
     always_ff @(posedge clock) begin
-        video_io_address        <= address[14:0];
-        video_io_data           <= internal_data_bus;
+        if (~io_write_n | ~io_read_n) begin
+            video_io_address    <= address[14:0];
+            video_io_data       <= internal_data_bus;
+        end
+        else begin
+            video_io_address    <= video_io_address;
+            video_io_data       <= video_io_data;
+        end
+    end
+
+    always_ff @(posedge clock) begin
+        video_ram_address       <= address[14:0];
+        video_ram_data          <= internal_data_bus;
+        video_memory_write_n    <= memory_write_n;
+        mda_chip_select_n_1     <= mda_chip_select_n;
+        cga_chip_select_n_1     <= cga_chip_select_n;
+
         video_io_write_n        <= io_write_n;
         video_io_read_n         <= io_read_n;
         video_address_enable_n  <= address_enable_n;
@@ -756,10 +776,10 @@ module PERIPHERALS #(
     vram cga_vram
 	 (
         .clka                       (clock),
-        .ena                        (~cga_chip_select_n),
-        .wea                        (~memory_write_n),
-        .addra                      ((tandy_mode & grph_mode & hres_mode) ? address[14:0] : address[13:0]),
-        .dina                       (internal_data_bus),
+        .ena                        (~cga_chip_select_n_1),
+        .wea                        (~video_memory_write_n),
+        .addra                      (video_ram_address),
+        .dina                       (video_ram_data),
         .douta                      (cga_vram_cpu_dout),
         .clkb                       (clk_vga_cga),
         .web                        (1'b0),
@@ -773,10 +793,10 @@ module PERIPHERALS #(
     vram mda_vram
 	 (
         .clka                       (clock),
-        .ena                        (~mda_chip_select_n),
-        .wea                        (~memory_write_n),
-        .addra                      (address[13:0]),
-        .dina                       (internal_data_bus),
+        .ena                        (~mda_chip_select_n_1),
+        .wea                        (~video_memory_write_n),
+        .addra                      (video_ram_address),
+        .dina                       (video_ram_data),
         .douta                      (mda_vram_cpu_dout),
         .clkb                       (clk_vga_mda),
         .web                        (1'b0),
@@ -786,6 +806,15 @@ module PERIPHERALS #(
         .doutb                      (MDA_VRAM_DOUT)
 	);
 	
+    logic   [15:0]  rom_address;
+    logic           bios_select_n_1;
+    logic           xtide_select_n_1;
+
+    always_ff @(posedge clock) begin
+        rom_address      <= address[15:0];
+        bios_select_n_1  <= bios_select_n;
+        xtide_select_n_1 <= xtide_select_n;
+    end
 
    wire bios_loader  = (ioctl_download && ioctl_index < 2 && ioctl_addr[24:16] == 9'b000000000);
    wire xtide_loader = ((ioctl_download && ioctl_index == 2) ||
@@ -794,9 +823,9 @@ module PERIPHERALS #(
 	bios bios
 	(
         .clka(bios_loader ? clk_sys : clock),
-        .ena((~bios_select_n) || ioctl_download),
+        .ena((~bios_select_n_1) || ioctl_download),
         .wea(bios_loader && ioctl_wr),
-        .addra(bios_loader ? ioctl_addr[15:0] : address[15:0]),
+        .addra(bios_loader ? ioctl_addr[15:0] : rom_address[15:0]),
         .dina(ioctl_data),
         .douta(bios_cpu_dout)
 	);
@@ -804,9 +833,9 @@ module PERIPHERALS #(
 	xtide xtide
 	(
         .clka(xtide_loader ? clk_sys : clock),
-        .ena((~xtide_select_n) || ioctl_download),
+        .ena((~xtide_select_n_1) || ioctl_download),
         .wea(xtide_loader && ioctl_wr),
-        .addra(xtide_loader ? ioctl_addr[13:0] : address[13:0]),
+        .addra(xtide_loader ? ioctl_addr[13:0] : rom_address[13:0]),
         .dina(ioctl_data),
         .douta(xtide_cpu_dout)
 	);
@@ -843,70 +872,70 @@ module PERIPHERALS #(
     //
     // data_bus_out
     //
-    always_comb begin
+    always_ff @(posedge clock) begin
         if (~interrupt_acknowledge_n) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = interrupt_data_bus_out;
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= interrupt_data_bus_out;
         end
         else if ((~interrupt_chip_select_n) && (~io_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = interrupt_data_bus_out;
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= interrupt_data_bus_out;
         end
         else if ((~timer_chip_select_n) && (~io_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = timer_data_bus_out;
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= timer_data_bus_out;
         end
         else if ((~ppi_chip_select_n) && (~io_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = ppi_data_bus_out;
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= ppi_data_bus_out;
         end
         else if ((~cga_chip_select_n) && (~memory_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = cga_vram_cpu_dout;
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= cga_vram_cpu_dout;
         end
         else if ((~mda_chip_select_n) && (~memory_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = mda_vram_cpu_dout;
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= mda_vram_cpu_dout;
         end
 		  else if ((~bios_select_n) && (~memory_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = bios_cpu_dout;
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= bios_cpu_dout;
         end
 		  else if ((~xtide_select_n) && (~memory_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = xtide_cpu_dout;
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= xtide_cpu_dout;
         end
 		  else if (CGA_CRTC_OE_2) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = CGA_CRTC_DOUT_2;			
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= CGA_CRTC_DOUT_2;			
         end
 		  else if (MDA_CRTC_OE_2) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = MDA_CRTC_DOUT_2;			
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= MDA_CRTC_DOUT_2;			
         end
 		  else if ((~opl_chip_select_n) && (~io_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = opl32_data;			
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= opl32_data;			
         end
 		  else if ((uart_cs) && (~io_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;
-            data_bus_out = uart_readdata;			
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= uart_readdata;			
         end
 		  else if ((ems_oe) && (~io_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;				
-				data_bus_out = ena_ems[address[1:0]] ? map_ems[address[1:0]] : 8'hFF;            
+            data_bus_out_from_chipset <= 1'b1;				
+				data_bus_out <= ena_ems[address[1:0]] ? map_ems[address[1:0]] : 8'hFF;            
         end
 		  else if ((lpt_cs) && (~io_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;				
-				data_bus_out = lpt_data;
+            data_bus_out_from_chipset <= 1'b1;				
+				data_bus_out <= lpt_data;
         end
 		  else if ((lpt_ctl_cs) && (~io_read_n)) begin
-            data_bus_out_from_chipset = 1'b1;				
-				data_bus_out = {1'bx, dss_full, 6'bxxxxxx};
+            data_bus_out_from_chipset <= 1'b1;				
+				data_bus_out <= {1'bx, dss_full, 6'bxxxxxx};
         end		  
         else begin
-            data_bus_out_from_chipset = 1'b0;
-            data_bus_out = 8'b00000000;
+            data_bus_out_from_chipset <= 1'b0;
+            data_bus_out <= 8'b00000000;
         end
     end
 
