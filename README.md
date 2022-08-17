@@ -32,6 +32,8 @@ Initially, and until an 8-bit IDE module compatible with XTIDE is available, flo
 
 By default it is set to 115200, but this speed does not work, as XTIDE does not identify it... The most suitable speed is 460800, although 921600 is possible to use only with the CPU speed at 14.318MHz.
 
+The FDD image is recognised by XTIDE as B:, so to boot from floppy disk when booting, the 'B' key must be pressed when the XTIDE boot screen appears.
+
 # To-do list and challenges
 
 * Refactor Graphics Gremlin module, the new KFPC-XT system will make this refactor possible.
