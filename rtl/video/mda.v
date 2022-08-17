@@ -30,7 +30,9 @@ module mda(
 	 
     // Video outputs
     output hsync,
+	output hblank,
     output vsync,
+	output vblank,
 	 output de_o,
     output video,
     output intensity
@@ -168,6 +170,8 @@ module mda(
         .lock(MDA_70HZ == 1),
         .hsync(hsync_int),
         .vsync(vsync_l),
+		.hblank(hblank),
+		.vblank(vblank),
         .display_enable(display_enable),
         .cursor(cursor),
         .mem_addr(crtc_addr),

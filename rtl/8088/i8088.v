@@ -17,13 +17,17 @@ module i8088
     output              lock_n,
     output              s6_3_mux,
     output [2:0]        s2_s0_out,
-    output [2:0]        SEGMENT
+    output [2:0]        SEGMENT,
+
+    output              biu_done,
+    input               turbo_mode
 
   );
 
 //------------------------------------------------------------------------
 
 assign dout = ad_out[7:0];
+assign biu_done = t_biu_done;
 
 // Internal Signals
 
@@ -85,8 +89,8 @@ biu_max                     BIU_CORE
     .BIU_REGISTER_DS        (t_biu_register_ds),
     .BIU_REGISTER_RM        (t_biu_register_rm),
     .BIU_REGISTER_REG       (t_biu_register_reg),
-    .BIU_RETURN_DATA        (t_biu_return_data)
-
+    .BIU_RETURN_DATA        (t_biu_return_data),
+    .turbo_mode             (turbo_mode)
   );
 
 //------------------------------------------------------------------------
@@ -104,7 +108,7 @@ mcl86_eu_core               EU_CORE
     .EU_PREFIX_LOCK         (t_eu_prefix_lock),
     .EU_FLAG_I              (t_eu_flag_i),
     .BIU_DONE               (t_biu_done),
-    .BIU_CLK_COUNTER_ZERO   (t_biu_clk_counter_zero),
+    .BIU_CLK_COUNTER_ZERO   (~turbo_mode ? t_biu_clk_counter_zero : 1'b1),
     .BIU_NMI_CAUGHT         (t_biu_nmi_caught),
     .BIU_NMI_DEBOUNCE       (t_biu_nmi_debounce),
     .BIU_INTR               (t_biu_intr),

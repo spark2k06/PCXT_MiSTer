@@ -30,8 +30,10 @@ module cga(
 	 
     // Video outputs
     output hsync,
+	output hblank,
     output dbl_hsync,
     output vsync,
+	output vblank,
 	 output de_o,
     output[3:0] video,
     output[3:0] dbl_video,
@@ -39,7 +41,10 @@ module cga(
 
 	 input splashscreen,
     input thin_font,
-	 input tandy_video
+	 input tandy_video,
+	 input color,
+	 output grph_mode,
+	 output hres_mode
     );
 
     parameter MDA_70HZ = 0;
@@ -70,8 +75,6 @@ module cga(
 	 reg[3:0] tandy_newcolor = 4'b0000;
 	 reg tandy_palette_set;
 	 
-    wire hres_mode;
-    wire grph_mode;
     wire bw_mode;
     wire mode_640;
     wire tandy_16_mode;
@@ -270,11 +273,15 @@ endgenerate
         .lock(1'b0),
         .hsync(hsync_int),
         .vsync(vsync_l),
+		.hblank(hblank),
+		.vblank(vblank),
         .display_enable(display_enable),
         .cursor(cursor),
         .mem_addr(crtc_addr),
         .row_addr(row_addr),
-        .line_reset(line_reset)
+        .line_reset(line_reset),
+		  .tandy_16_gfx(tandy_16_mode & grph_mode & hres_mode),
+		  .color(color)
     );
 
     // CGA 80 column timings
@@ -314,7 +321,8 @@ endgenerate
         .disp_pipeline(disp_pipeline),
         .isa_op_enable(isa_op_enable),
         .hclk(hclk),
-        .lclk(lclk)
+        .lclk(lclk),
+		  .tandy_16_gfx(tandy_16_mode & grph_mode & hres_mode)
     );
 
     // Pixel pusher
