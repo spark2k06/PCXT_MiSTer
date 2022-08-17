@@ -641,11 +641,11 @@ module PERIPHERALS #(
 	 wire [18:0] MDA_VRAM_ADDR;
 	 wire [7:0] MDA_VRAM_DOUT;
 	 wire MDA_CRTC_OE;
-	 wire MDA_CRTC_OE_1;
-	 wire MDA_CRTC_OE_2;
+	 reg  MDA_CRTC_OE_1;
+	 reg  MDA_CRTC_OE_2;
 	 wire [7:0] MDA_CRTC_DOUT;
-	 wire [7:0] MDA_CRTC_DOUT_1;
-	 wire [7:0] MDA_CRTC_DOUT_2;
+	 reg  [7:0] MDA_CRTC_DOUT_1;
+	 reg  [7:0] MDA_CRTC_DOUT_2;
 	 
 	 wire intensity;
 	 
