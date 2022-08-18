@@ -58,3 +58,9 @@ The FDD image is recognised by XTIDE as B:, so to boot from floppy disk when boo
 * 8-bit IDE module implementation
 * Floppy implementation
 * Addition of other modules
+
+# Developers
+
+Any contribution and pull request, please carry it out on the prerelease branch. Periodically they will be reviewed, moved and merged into the main branch, together with the corresponding release.
+
+Thank you!
