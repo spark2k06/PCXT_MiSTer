@@ -784,7 +784,7 @@ end
 	video_monochrome_converter video_mono 
 	(
 		.clk_vid(CLK_VIDEO),
-		.ce_pix(1'b1),
+		.ce_pix(ce_pixel),
 		
 		.R({r, 2'b0}),
 		.G({g, 2'b0}),

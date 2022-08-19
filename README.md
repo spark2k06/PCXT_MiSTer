@@ -41,7 +41,7 @@ https://misterfpga.org/viewtopic.php?t=4680&start=1020
 
 # Mounting the disk image
 
-Initially, and until an 8-bit IDE module compatible with XTIDE is available, floppy and hdd mounting will be done through the serial port available in the core. The available transfer speeds are as follows:
+Initially, and until an 8-bit IDE module compatible with XTIDE is available, floppy and hdd mounting will be done through the serial port available in the core via the OSD menu. The available transfer speeds are as follows:
 
 * 115200 Kbps
 * 230400 Kbps
