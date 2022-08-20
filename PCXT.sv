@@ -200,11 +200,11 @@ assign BUTTONS = 0;
 //////////////////////////////////////////////////////////////////
 
 // Status Bit Map:
-//             Upper                             Lower              
-// 0         1         2         3          4         5         6   
+//              Upper                          Lower
+// 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-//  XXXX  XXXXXXXXXX
+// XXXXX XXXXXXXXXXXXXXXXX
 
 
 wire [1:0] ar = status[9:8];
@@ -215,8 +215,8 @@ assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 localparam CONF_STR = {
 	"PCXT;;",
 	"-;",
-   "O3,Model,IBM PCXT,Tandy 1000;",
-	"OHI,CPU Speed,4.77Mhz,7.16Mhz,14.318MHz;",
+	"O3,Model,IBM PCXT,Tandy 1000;",
+	"OHI,CPU Speed,4.77MHz,7.16MHz,14.318MHz;",
 	"-;",
 	"O7,Splash Screen,Yes,No;",
 	"-;",
@@ -232,7 +232,7 @@ localparam CONF_STR = {
 	"P2,Audio & Video;",
 	"P2-;",
 	"P2OA,Adlib,On,Invisible;",
-	"P2O7,DSS/Covox,Unplugged,Plugged;",
+	"P2O6,DSS/Covox,Unplugged,Plugged;",
 	"P2-;",
 	"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
@@ -659,7 +659,7 @@ end
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
 		  .clk_en_44100                       (cen_44100),
-		  .dss_covox_en                       (status[7]),
+		  .dss_covox_en                       (status[6]),
 		  .lclamp                             (AUDIO_L),
 		  .rclamp                             (AUDIO_R),		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
