@@ -659,7 +659,7 @@ end
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
 		  .clk_en_44100                       (cen_44100),
-		  .dss_covox_en                       (status[7]),
+		  .dss_covox_en                       (status[6]),
 		  .lclamp                             (AUDIO_L),
 		  .rclamp                             (AUDIO_R),		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
