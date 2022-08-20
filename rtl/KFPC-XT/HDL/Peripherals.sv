@@ -313,6 +313,7 @@ module PERIPHERALS #(
     logic   [7:0]   keycode;
     logic   [7:0]   tandy_keycode;
     logic           prev_ps2_reset;
+    logic           prev_ps2_reset_n;
     logic           lock_recv_clock;
 
     wire    clear_keycode = port_b_out[7];
@@ -705,7 +706,7 @@ module PERIPHERALS #(
     // Sets up the card to generate a video signal
     // that will work with a standard VGA monitor
     // connected to the VGA port.
-    parameter MDA_70HZ = 0;
+    localparam MDA_70HZ = 0;
 	 
     // wire composite_on;
     wire thin_font;

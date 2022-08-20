@@ -141,14 +141,14 @@ module CHIPSET (
 
     logic           prev_timer_count_1;
     logic           DRQ0;
-	 
-	 logic   [6:0]   map_ems[0:3];
-	 logic           ena_ems[0:3];
-	 logic           ems_b1;
-	 logic           ems_b2;
-	 logic           ems_b3;
-	 logic           ems_b4;
-	 
+
+    logic   [6:0]   map_ems[0:3];
+    logic           ena_ems[0:3];
+    logic           ems_b1;
+    logic           ems_b2;
+    logic           ems_b3;
+    logic           ems_b4;
+    logic           tandy_snd_rdy;
 
    always_ff @(posedge clock) begin
        if (reset)
@@ -288,11 +288,11 @@ module CHIPSET (
 		  .ioctl_data                         (ioctl_data),
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
-	     .uart_cts_n                        (uart_cts),
-	     .uart_dcd_n                        (uart_dcd),
-	     .uart_dsr_n                        (uart_dsr),
-	     .uart_rts_n                        (uart_rts),
-	     .uart_dtr_n                        (uart_dtr),
+	     .uart_cts_n                        (uart_cts_n),
+	     .uart_dcd_n                        (uart_dcd_n),
+	     .uart_dsr_n                        (uart_dsr_n),
+	     .uart_rts_n                        (uart_rts_n),
+	     .uart_dtr_n                        (uart_dtr_n),
 		  .ems_enabled                       (ems_enabled),
 		  .ems_address                       (ems_address),
 		  .map_ems                           (map_ems),

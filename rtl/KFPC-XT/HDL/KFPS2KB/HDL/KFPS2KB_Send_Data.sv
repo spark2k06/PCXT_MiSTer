@@ -30,6 +30,7 @@ module KFPS2KB_Send_Data #(
     logic           prev_send_request;
     logic           send_request_trigger;
     logic   [9:0]   shift_register;
+    logic   [7:0]   parity_bit;
 
     shit_state_t    state;
     shit_state_t    next_state;
@@ -42,6 +43,7 @@ module KFPS2KB_Send_Data #(
     //
     logic           prev_p_clock_1;
     logic           prev_p_clock_2;
+    logic           device_clock_last_edge;
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset) begin

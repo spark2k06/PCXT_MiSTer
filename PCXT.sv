@@ -194,7 +194,7 @@ assign LED_DISK = 0;
 assign LED_POWER = 0;
 assign BUTTONS = 0;
 
-
+assign LED_USER = 0;
 //led fdd_led(clk_cpu, |mgmt_req[7:6], LED_USER);
 
 //////////////////////////////////////////////////////////////////
