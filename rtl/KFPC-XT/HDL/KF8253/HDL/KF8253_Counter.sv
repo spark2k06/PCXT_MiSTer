@@ -29,6 +29,7 @@ module KF8253_Counter (
     // Internal Signals
     //
     logic   [1:0]   select_read_write;
+    logic           update_counter_config;
     logic           update_select_read_write;
     logic           count_latched_flag;
     logic   [2:0]   select_mode;
