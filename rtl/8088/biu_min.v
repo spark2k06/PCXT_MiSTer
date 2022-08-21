@@ -125,6 +125,7 @@ reg   word_cycle;
 wire  eu_biu_req;
 wire  eu_prefix_seg;
 wire  pfq_empty;
+wire  pfq_full;
 reg  [7:0]  ad_in_int;
 reg  [19:0] addr_out_temp;
 reg  [7:0]  biu_state;
