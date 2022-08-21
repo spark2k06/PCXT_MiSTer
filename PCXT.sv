@@ -222,7 +222,7 @@ localparam CONF_STR = {
 	"-;",
 	"P1,FDD & HDD;",
 	"P1-;",
-	"P1S1,IMG,FDD Image:;",
+	"P1S1,IMGIMA,FDD Image:;",
 	"P1S0,IMG,HDD Image:;",
 	"P1-;",
 	"P1OJK,Write Protect,None,FDD,HDD,FDD & HDD;",
@@ -247,7 +247,7 @@ localparam CONF_STR = {
 //	"F1,ROM,Load BIOS  (F000);",	
 //	"F2,ROM,Load XTIDE (EC00);",	
 //	"-;",
-	"T0,Reset;",
+//	"T0,Reset;",
 	"R0,Reset and close OSD;",
 	"V,v",`BUILD_DATE 
 };
