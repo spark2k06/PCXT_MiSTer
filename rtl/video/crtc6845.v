@@ -71,8 +71,8 @@ module crtc6845(
                 5'd9: v_maxscan <= bus[4:0];
                 5'd10: c_start <= bus[6:0];
                 5'd11: c_end <= bus[4:0];
-                5'd12: start_a[13:8] <= bus[5:0];
-                5'd13: start_a[7:0] <= bus;
+                5'd12: start_a_1[13:8] <= bus[5:0];
+                5'd13: start_a_1[7:0] <= bus;
                 5'd14: cursor_a[13:8] <= bus[5:0];
                 5'd15: cursor_a[7:0] <= bus;
                 default: ;
@@ -121,6 +121,7 @@ module crtc6845(
     reg [4:0] c_end = C_END;       //R11 12
 
     reg [13:0] start_a = 14'd0;    //R13/R14
+	 reg [13:0] start_a_1 = 14'd0;    //R13/R14
 
     reg [13:0] cursor_a = 14'd92;  //R14/R15
 
@@ -228,6 +229,7 @@ module crtc6845(
                     v_rowcount <= 0;
                     vdisp <= 1'b1;
                     cursor_counter <= cursor_counter + 1'b1;
+						  start_a <= start_a_1;
                 end
             end
 
