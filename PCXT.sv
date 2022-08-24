@@ -240,15 +240,20 @@ localparam CONF_STR = {
 	"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",	
 	"P3,Hardware;",
 	"P3-;",
-	"P3OB,Lo-tech 2MB EMS, Enabled, Disabled;",
+	"P3OB,Lo-tech 2MB EMS,Enabled,Disabled;",
 	"P3OCD,EMS Frame,A000,C000,D000;",
 	"P3-;",
+	"P3OO,Joystick 1, Analog, Digital;",
+	"P3OP,Joystick 2, Analog, Digital;",
+	"P3OQ,Swap Joysticks,No,Yes;",
+	"P3-;",
 	"-;",
-//	"F1,ROM,Load BIOS  (F000);",	
-//	"F2,ROM,Load XTIDE (EC00);",	
-//	"-;",
-//	"T0,Reset;",
+	"ON,Ignore Model on Reset,No,Yes;",
+	"F1,ROM,Load BIOS  (F000);",
+	"F2,ROM,Load XTIDE (EC00);",
+	"-;",
 	"R0,Reset and close OSD;",
+	"J,Fire 1, Fire 2;",
 	"V,v",`BUILD_DATE 
 };
 
@@ -292,6 +297,9 @@ wire        clk_uart;
 wire [21:0] gamma_bus;
 wire        adlibhide = status[10];
 
+wire [31:0] joy0, joy1;
+wire [15:0] joya0, joya1;
+
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 (
 	.clk_sys(clk_chipset),
@@ -327,6 +335,10 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 //	.ps2_mouse_data_out	(ps2_mouse_data_in),
 
 	//.ps2_key(ps2_key),
+	.joystick_0(joy0),
+	.joystick_1(joy1),
+	.joystick_l_analog_0(joya0),
+	.joystick_l_analog_1(joya1),
 
 	//ioctl
 	.ioctl_download(ioctl_download),
@@ -600,6 +612,7 @@ end
         .cpu_clock                            (clk_cpu),
 		  .clk_sys                            (clk_chipset),
 		  .peripheral_clock                   (pclk),
+		  .turbo_mode                         (status[18:17]),
 		  .color										  (screen_mode == 3'd0),
         .reset                              (reset_cpu),
         .sdram_reset                        (reset),
@@ -658,6 +671,12 @@ end
 	     .ps2_data                           (device_data),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
+		  .joy0_type                          (status[24]),
+		  .joy1_type                          (status[25]),
+        .joy0                               (status[26] ? joy1 : joy0),
+        .joy1                               (status[26] ? joy0 : joy1),
+		  .joya0                              (status[26] ? joya1 : joya0),
+		  .joya1                              (status[26] ? joya0 : joya1),
 		  .clk_en_44100                       (cen_44100),
 		  .dss_covox_en                       (status[6]),
 		  .lclamp                             (AUDIO_L),

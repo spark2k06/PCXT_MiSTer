@@ -8,6 +8,7 @@ module PERIPHERALS #(
     input   logic           clock,
 	 input   logic           clk_sys,
     input   logic           peripheral_clock,	 
+	 input   logic   [1:0]   turbo_mode,
 	 input   logic           color,
     input   logic           reset,
     // CPU
@@ -59,6 +60,12 @@ module PERIPHERALS #(
     input   logic           ps2_data,
     output  logic           ps2_clock_out,
     output  logic           ps2_data_out,
+	 input   logic           joy0_type,
+	 input   logic           joy1_type,
+	 input   logic   [31:0]  joy0,
+	 input   logic   [31:0]  joy1,
+	 input   logic   [15:0]  joya0,
+	 input   logic   [15:0]  joya1,
 	 // SOUND
 	 input   logic           clk_en_44100, // COVOX/DSS clock enable
 	 input   logic           dss_covox_en,
@@ -132,6 +139,8 @@ module PERIPHERALS #(
     wire    timer_chip_select_n     = iorq && chip_select_n[2];
     wire    ppi_chip_select_n       = iorq && chip_select_n[3];
     assign  dma_page_chip_select_n  = iorq && chip_select_n[4];
+
+	 wire    joystick_select        = (iorq && ~address_enable_n && address[15:3] == (16'h0200 >> 3)); // 0x200 .. 0x207
 	 
 	 wire    tandy_chip_select_n    = ~(iorq && ~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
 	 wire    opl_chip_select_n      = ~(iorq && ~address_enable_n && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
@@ -868,8 +877,25 @@ module PERIPHERALS #(
         .video_g                    (video_g),
         .video_b                    (video_b)
     );
+	 
 	 */
 
+    logic [7:0] joy_data;
+	 
+    tandy_pcjr_joy joysticks
+	 (
+        .clk                       (clock),
+        .reset                     (reset),
+        .en                        (joystick_select && ~io_write_n),
+        .turbo_mode                (turbo_mode),
+        .joy0_type                 (joy0_type),
+        .joy1_type                 (joy1_type),
+        .joy0                      (joy0),
+        .joy1                      (joy1),
+        .joya0                     (joya0),
+        .joya1                     (joya1),
+        .d_out                     (joy_data)
+    );
     //
     // data_bus_out
     //
@@ -934,6 +960,10 @@ module PERIPHERALS #(
             data_bus_out_from_chipset <= 1'b1;				
 				data_bus_out <= {1'bx, dss_full, 6'bxxxxxx};
         end		  
+		  else if (joystick_select && ~io_read_n) begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= joy_data;
+        end
         else begin
             data_bus_out_from_chipset <= 1'b0;
             data_bus_out <= 8'b00000000;

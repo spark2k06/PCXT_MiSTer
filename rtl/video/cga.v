@@ -52,7 +52,7 @@ module cga(
     // `define CGA_SNOW = 1; No snow
 
     parameter USE_BUS_WAIT = 0; // Should we add wait states on the ISA bus?
-    parameter NO_DISPLAY_DISABLE = 1; // If 1, prevents flicker artifacts in DOS
+    parameter NO_DISPLAY_DISABLE = 0; // If 1, prevents flicker artifacts in DOS
 
     parameter IO_BASE_ADDR = 16'h3d0; // MDA is 3B0, CGA is 3D0
     // parameter FRAMEBUFFER_ADDR = 20'hB8000; // MDA is B0000, CGA is B8000
