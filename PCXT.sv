@@ -240,15 +240,23 @@ localparam CONF_STR = {
 	"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",	
 	"P3,Hardware;",
 	"P3-;",
-	"P3OB,Lo-tech 2MB EMS, Enabled, Disabled;",
+	"P3OB,Lo-tech 2MB EMS,Enabled,Disabled;",
 	"P3OCD,EMS Frame,A000,C000,D000;",
 	"P3-;",
+	"P3ON,Joystick 1, Analog, Digital;",
+	"P3OO,Joystick 2, Analog, Digital;",
+	"P3OP,Swap Joysticks,No,Yes;",
+	"P3-;",
 	"-;",
-//	"F1,ROM,Load BIOS  (F000);",	
-//	"F2,ROM,Load XTIDE (EC00);",	
-//	"-;",
-//	"T0,Reset;",
-	"R0,Reset and close OSD;",
+	"P4,BIOS;",
+	"P4-;",
+	"P4FC0,ROM,PCXT BIOS;",
+	"P4FC1,ROM,Tandy BIOS;",
+	"P4-;",
+	"P4FC2,ROM,Custom XTIDE (EC00);",
+	"-;",
+	"R0,Reset & apply model;",
+	"J,Fire 1, Fire 2;",
 	"V,v",`BUILD_DATE 
 };
 
@@ -292,6 +300,9 @@ wire        clk_uart;
 wire [21:0] gamma_bus;
 wire        adlibhide = status[10];
 
+wire [31:0] joy0, joy1;
+wire [15:0] joya0, joya1;
+
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 (
 	.clk_sys(clk_chipset),
@@ -327,6 +338,10 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 //	.ps2_mouse_data_out	(ps2_mouse_data_in),
 
 	//.ps2_key(ps2_key),
+	.joystick_0(joy0),
+	.joystick_1(joy1),
+	.joystick_l_analog_0(joya0),
+	.joystick_l_analog_1(joya1),
 
 	//ioctl
 	.ioctl_download(ioctl_download),
@@ -366,7 +381,7 @@ pll pll
 	.locked(pll_locked)
 );
 
-wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd) | (ioctl_download && ioctl_index == 0) | splashscreen;
+wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd) | splashscreen;
 
 //////////////////////////////////////////////////////////////////
 
@@ -484,8 +499,11 @@ always @(negedge clk_chipset, posedge reset) begin
 		reset_cpu_ff <= reset;
 end
 
+reg tandy_mode = 0;
+
 always @(negedge clk_chipset, posedge reset) begin
 	if (reset) begin
+		tandy_mode <= status[3];		
 		reset_cpu <= 1'b1;
 		reset_cpu_count <= 16'h0000;
 	end
@@ -586,8 +604,7 @@ end
     logic   [7:0]   port_c_in;	 
 	 reg     [7:0]   sw;
 	 
-	wire [1:0] scale = status[2:1];
-	wire tandy_mode = status[3];
+	wire [1:0] scale = status[2:1];	
 	wire mda_mode = status[4];	 
 	wire [2:0] screen_mode = status[16:14];
 	 
@@ -600,6 +617,7 @@ end
         .cpu_clock                            (clk_cpu),
 		  .clk_sys                            (clk_chipset),
 		  .peripheral_clock                   (pclk),
+		  .turbo_mode                         (status[18:17]),
 		  .color										  (screen_mode == 3'd0),
         .reset                              (reset_cpu),
         .sdram_reset                        (reset),
@@ -658,6 +676,12 @@ end
 	     .ps2_data                           (device_data),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
+		  .joy0_type                          (status[23]),
+		  .joy1_type                          (status[24]),
+        .joy0                               (status[25] ? joy1 : joy0),
+        .joy1                               (status[25] ? joy0 : joy1),
+		  .joya0                              (status[25] ? joya1 : joya0),
+		  .joya1                              (status[25] ? joya0 : joya1),
 		  .clk_en_44100                       (cen_44100),
 		  .dss_covox_en                       (status[6]),
 		  .lclamp                             (AUDIO_L),
