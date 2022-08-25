@@ -18,17 +18,19 @@ An SN76489AN Compatible Implementation written in VHDL was also integrated - Cop
 
 ## ROM Instructions
 
-Download `pcxt.rom` and `tandy.rom` from the SW folder and place them inside the `/games/PCXT/` folder at the root of your SD card. Original and copyrighted ROMs can be generated on the fly using the python scripts available in the SW folder of this repository:
+ROMs should be provided initially from the BIOS section of the OSD menu, then it is only necessary to indicate the computer model and reset, on subsequent boot of the core, it is no longer necessary to provide them, unless we want to use others. Original and copyrighted ROMs can be generated on the fly using the python scripts available in the SW folder of this repository:
 
-* `make_rom_with_ibm5160.py`: A valid ROM is created for the PCXT model (pcxt.rom) based on the original IBM 5160 ROM, and with the XTIDE BIOS embedded at address EC00h.
+* `make_rom_with_ibm5160.py`: A valid ROM is created for the PCXT model (pcxt.rom) based on the original IBM 5160 ROM, requires the XTIDE BIOS at address EC00h to work with HD images.
 * `make_rom_with_jukost.py`: A valid ROM is created for the PCXT model (pcxt.rom) based on the original Juko ST ROM, and with the XTIDE BIOS embedded at address F000h.
-* `make_rom_with_tandy.py`: A valid ROM is created for the Tandy model (tandy.rom) based on the original Tandy 1000 ROM, and with the XTIDE BIOS embedded at address EC00h.
+* `make_rom_with_tandy.py`: A valid ROM is created for the Tandy model (tandy.rom) based on the original Tandy 1000 ROM, requires the XTIDE BIOS at address EC00h to work with HD images.
+
+From the same BIOS section of the OSD it is possible to specify an XTIDE ROM of up to 16Kb to work at address EC00h. It is also provided in this repository.
 
 Other Open Source ROMs are available in the same folder:
 
-* `pcxt_pcxt31.rom`: This ROM should be renamed to `pcxt.rom`. ([Source Code](https://github.com/virtualxt/pcxtbios))
-* `pcxt_micro8088.rom`: This ROM should be renamed to `pcxt.rom`. ([Source Code](https://github.com/skiselev/8088_bios))
-* `ide_xtl.rom`: This ROM corresponds to the XTIDE BIOS, it must be maintained for the scripts to work, it can also be upgraded to a newer version. ([Source Code](https://www.xtideuniversalbios.org/))
+* `pcxt_pcxt31.rom`: This ROM already has the XTIDE BIOS embedded at address F000h. ([Source Code](https://github.com/virtualxt/pcxtbios))
+* `pcxt_micro8088.rom`: This ROM already has the XTIDE BIOS embedded at address F000h. ([Source Code](https://github.com/skiselev/8088_bios))
+* `ide_xtl.rom`: This ROM corresponds to the XTIDE BIOS, it must be maintained for some scripts to work, it can also be upgraded to a newer version. ([Source Code](https://www.xtideuniversalbios.org/))
 
 ## Mounting the disk image
 

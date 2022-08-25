@@ -316,7 +316,7 @@ module CHIPSET (
 	     .ems_b2                            (ems_b2),
 	     .ems_b3                            (ems_b3),
 	     .ems_b4                            (ems_b4),
-        .tandy_mode                         (tandy_mode)
+        .tandy_mode                        (tandy_mode)
     );
 
     RAM u_RAM (

@@ -819,33 +819,41 @@ module PERIPHERALS #(
     logic   [15:0]  rom_address;
     logic           bios_select_n_1;
     logic           xtide_select_n_1;
-
-    always_ff @(posedge clock) begin
+	 
+    wire pcxt_loading = ioctl_download && ioctl_index[5:0] == 0;
+	 wire tandy_loading = ioctl_download && ioctl_index[5:0] == 1;
+	 wire xtide_loading = ioctl_download && ioctl_index == 2;
+ 
+    wire pcxt_loader  = (pcxt_loading && ioctl_addr[24:16] == 9'b000000000);
+	 wire tandy_loader  = (tandy_loading && ioctl_addr[24:16] == 9'b000000000);
+	 wire bios_loader = (pcxt_loader || tandy_loader);
+	 reg bios_loaded = 1'b0;
+	 reg bios_loading = 1'b0;
+	
+	always_ff @(posedge clock) begin
+	  
         rom_address      <= address[15:0];
         bios_select_n_1  <= bios_select_n;
         xtide_select_n_1 <= xtide_select_n;
-    end
-
-   wire bios_loader  = (ioctl_download && ioctl_index < 2 && ioctl_addr[24:16] == 9'b000000000);
-   wire xtide_loader = ((ioctl_download && ioctl_index == 2) ||
-                        (ioctl_download && ioctl_index == 0 && ioctl_addr[24:16] == 9'b000000001));
+   end
 	
 	bios bios
 	(
-        .clka(bios_loader ? clk_sys : clock),
+        .clka(bios_loader ? clk_sys : clock),		  
         .ena((~bios_select_n_1) || ioctl_download),
         .wea(bios_loader && ioctl_wr),
-        .addra(bios_loader ? ioctl_addr[15:0] : rom_address[15:0]),
+        .addra(bios_loader ? { tandy_loader, ioctl_addr[15:0] } : { tandy_mode, rom_address[15:0] }),
         .dina(ioctl_data),
-        .douta(bios_cpu_dout)
+        .douta(bios_cpu_dout),
+		  
 	);
 	
 	xtide xtide
 	(
-        .clka(xtide_loader ? clk_sys : clock),
+        .clka(xtide_loading ? clk_sys : clock),
         .ena((~xtide_select_n_1) || ioctl_download),
-        .wea(xtide_loader && ioctl_wr),
-        .addra(xtide_loader ? ioctl_addr[13:0] : rom_address[13:0]),
+        .wea(xtide_loading && ioctl_wr),
+        .addra(xtide_loading ? ioctl_addr[13:0] : rom_address[13:0]),
         .dina(ioctl_data),
         .douta(xtide_cpu_dout)
 	);
