@@ -243,16 +243,19 @@ localparam CONF_STR = {
 	"P3OB,Lo-tech 2MB EMS,Enabled,Disabled;",
 	"P3OCD,EMS Frame,A000,C000,D000;",
 	"P3-;",
-	"P3OO,Joystick 1, Analog, Digital;",
-	"P3OP,Joystick 2, Analog, Digital;",
-	"P3OQ,Swap Joysticks,No,Yes;",
+	"P3ON,Joystick 1, Analog, Digital;",
+	"P3OO,Joystick 2, Analog, Digital;",
+	"P3OP,Swap Joysticks,No,Yes;",
 	"P3-;",
 	"-;",
-	"ON,Ignore Model on Reset,No,Yes;",
-	"F1,ROM,Load BIOS  (F000);",
-	"F2,ROM,Load XTIDE (EC00);",
+	"P4,BIOS;",
+	"P4-;",
+	"P4FC0,ROM,PCXT BIOS;",
+	"P4FC1,ROM,Tandy BIOS;",
+	"P4-;",
+	"P4FC2,ROM,Custom XTIDE (EC00);",
 	"-;",
-	"R0,Reset and close OSD;",
+	"R0,Reset & apply model;",
 	"J,Fire 1, Fire 2;",
 	"V,v",`BUILD_DATE 
 };
@@ -378,7 +381,7 @@ pll pll
 	.locked(pll_locked)
 );
 
-wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd) | (ioctl_download && ioctl_index == 0) | splashscreen;
+wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd) | splashscreen;
 
 //////////////////////////////////////////////////////////////////
 
@@ -496,8 +499,11 @@ always @(negedge clk_chipset, posedge reset) begin
 		reset_cpu_ff <= reset;
 end
 
+reg tandy_mode = 0;
+
 always @(negedge clk_chipset, posedge reset) begin
 	if (reset) begin
+		tandy_mode <= status[3];		
 		reset_cpu <= 1'b1;
 		reset_cpu_count <= 16'h0000;
 	end
@@ -598,8 +604,7 @@ end
     logic   [7:0]   port_c_in;	 
 	 reg     [7:0]   sw;
 	 
-	wire [1:0] scale = status[2:1];
-	wire tandy_mode = status[3];
+	wire [1:0] scale = status[2:1];	
 	wire mda_mode = status[4];	 
 	wire [2:0] screen_mode = status[16:14];
 	 
@@ -671,12 +676,12 @@ end
 	     .ps2_data                           (device_data),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
-		  .joy0_type                          (status[24]),
-		  .joy1_type                          (status[25]),
-        .joy0                               (status[26] ? joy1 : joy0),
-        .joy1                               (status[26] ? joy0 : joy1),
-		  .joya0                              (status[26] ? joya1 : joya0),
-		  .joya1                              (status[26] ? joya0 : joya1),
+		  .joy0_type                          (status[23]),
+		  .joy1_type                          (status[24]),
+        .joy0                               (status[25] ? joy1 : joy0),
+        .joy1                               (status[25] ? joy0 : joy1),
+		  .joya0                              (status[25] ? joya1 : joya0),
+		  .joya1                              (status[25] ? joya0 : joya1),
 		  .clk_en_44100                       (cen_44100),
 		  .dss_covox_en                       (status[6]),
 		  .lclamp                             (AUDIO_L),
