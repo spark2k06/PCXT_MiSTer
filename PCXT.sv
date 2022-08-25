@@ -204,7 +204,7 @@ assign LED_USER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXX XXXXXXXXXXXXXXXXX
+// XXXXX XXXXXXXXXXXXXXXXXXXXXXX
 
 
 wire [1:0] ar = status[9:8];
@@ -243,9 +243,10 @@ localparam CONF_STR = {
 	"P3OB,Lo-tech 2MB EMS,Enabled,Disabled;",
 	"P3OCD,EMS Frame,A000,C000,D000;",
 	"P3-;",
-	"P3ON,Joystick 1, Analog, Digital;",
-	"P3OO,Joystick 2, Analog, Digital;",
-	"P3OP,Swap Joysticks,No,Yes;",
+	"P3ONO,Joystick 1, Analog, Digital, Disabled;",
+	"P3OPQ,Joystick 2, Analog, Digital, Disabled;",
+	"P3OR,Sync Joy to CPU Speed,No,Yes;",
+	"P3OS,Swap Joysticks,No,Yes;",
 	"P3-;",
 	"-;",
 	"P4,BIOS;",
@@ -302,6 +303,7 @@ wire        adlibhide = status[10];
 
 wire [31:0] joy0, joy1;
 wire [15:0] joya0, joya1;
+wire [4:0]  joy_opts = status[27:23];
 
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 (
@@ -676,12 +678,11 @@ end
 	     .ps2_data                           (device_data),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
-		  .joy0_type                          (status[23]),
-		  .joy1_type                          (status[24]),
-        .joy0                               (status[25] ? joy1 : joy0),
-        .joy1                               (status[25] ? joy0 : joy1),
-		  .joya0                              (status[25] ? joya1 : joya0),
-		  .joya1                              (status[25] ? joya0 : joya1),
+		  .joy_opts                           (joy_opts),                          //Joy0-Disabled, Joy0-Type, Joy1-Disabled, Joy1-Type, turbo_sync
+        .joy0                               (status[28] ? joy1 : joy0),
+        .joy1                               (status[28] ? joy0 : joy1),
+		  .joya0                              (status[28] ? joya1 : joya0),
+		  .joya1                              (status[28] ? joya0 : joya1),
 		  .clk_en_44100                       (cen_44100),
 		  .dss_covox_en                       (status[6]),
 		  .lclamp                             (AUDIO_L),
