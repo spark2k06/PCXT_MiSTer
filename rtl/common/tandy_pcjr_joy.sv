@@ -7,8 +7,7 @@ module tandy_pcjr_joy
     input   logic           reset,
     input   logic           en,             //Active High.  Triggers reading of joystics and generates pulse
     input   logic   [1:0]   turbo_mode,     //0 - 4.77Mhz   1 - 7.16Mhz   2 - 14.38Mhz
-    input   logic           joy0_type,      //0 - Use Analog Input   1 - Use DPad Input
-    input   logic           joy1_type,      //0 - Use Analog Input   1 - Use DPad Input
+	 input   logic   [4:0]   joy_opts,       //bits: 4 - Adjust timing for Turbo, 3 - Disable P2, 2 - P2 Analog/Digital, 1 - Disable P1, 0 - P1 Analog/Digital
     input   logic   [31:0]  joy0,
     input   logic   [31:0]  joy1,
     input   logic   [15:0]  joya0,
@@ -26,23 +25,25 @@ module tandy_pcjr_joy
     logic [9:0] joy1_y;
     logic [7:0] counter;                    //Clock cycle counter
     logic [7:0] pulse_div;                  //# of clock cycles in each pulse segment according to cpu freq (turbo_mode).
-                                            // 4.77Mhz ~ 185,  7.16Mhz ~ 106   and 14.38Mhz ~ 70.
+                                            // 4.77Mhz ~ 220,  7.16Mhz ~ 106   and 14.38Mhz ~ 70.
                                             // These values may need some tweaking to keep joysticks centered.
                                             // The Frogger games has a decent joystick calibration test
                                             
-    assign joy0_x = joy0_type ? (joy0[0] ? 8'hFF : joy0[1] ? 8'h00 : 8'h80 ) : 8'd128 + joya0[7:0];
-    assign joy1_x = joy1_type ? (joy1[0] ? 8'hFF : joy1[1] ? 8'h00 : 8'h80 ) : 8'd128 + joya1[7:0];
-    assign joy0_y = joy0_type ? (joy0[2] ? 8'hFF : joy0[3] ? 8'h00 : 8'h80 ) : 8'd128 + joya0[15:8];
-    assign joy1_y = joy1_type ? (joy1[2] ? 8'hFF : joy1[3] ? 8'h00 : 8'h80 ) : 8'd128 + joya1[15:8];
+    assign joy0_x = joy_opts[0] ? (joy0[0] ? 8'hFF : joy0[1] ? 8'h00 : 8'h80 ) : 8'd128 + joya0[7:0];
+    assign joy1_x = joy_opts[2] ? (joy1[0] ? 8'hFF : joy1[1] ? 8'h00 : 8'h80 ) : 8'd128 + joya1[7:0];
+    assign joy0_y = joy_opts[0] ? (joy0[2] ? 8'hFF : joy0[3] ? 8'h00 : 8'h80 ) : 8'd128 + joya0[15:8];
+    assign joy1_y = joy_opts[2] ? (joy1[2] ? 8'hFF : joy1[3] ? 8'h00 : 8'h80 ) : 8'd128 + joya1[15:8];
 
 
-    assign pulse_div = turbo_mode == 1 ? 8'd106 : turbo_mode == 2 ? 8'd70 : 8'd185;
+    assign pulse_div = joy_opts[4] ? (turbo_mode == 1 ? 8'd106 : turbo_mode == 2 ? 8'd70 : 8'd220) : 8'd220;
 
     always @(posedge clk) begin
+        reg en_d;
+        en_d <= en;
         if(reset) begin
             counter <= 8'h0;
         end
-        else if (en) begin
+        else if (en && ~en_d) begin
             joy0_x_r <= joy0_x[7:0] < 8'h70 || joy0_x[7:0] > 8'h90 ? joy0_x[7:0] : 8'h80;
             joy1_x_r <= joy1_x[7:0] < 8'h70 || joy1_x[7:0] > 8'h90 ? joy1_x[7:0] : 8'h80;
             joy0_y_r <= joy0_y[7:0] < 8'h70 || joy0_y[7:0] > 8'h90 ? joy0_y[7:0] : 8'h80;
@@ -59,6 +60,6 @@ module tandy_pcjr_joy
         else counter <= counter + 1'b1;
     end
     
-    assign d_out = {~joy1[5],~joy1[4],~joy0[5],~joy0[4],|joy1_y_r,|joy1_x_r,|joy0_y_r,|joy0_x_r};
+    assign d_out = {~joy1[5],~joy1[4],~joy0[5],~joy0[4],joy_opts[3] || |joy1_y_r, joy_opts[3] || |joy1_x_r, joy_opts[1] || |joy0_y_r, joy_opts[1] || |joy0_x_r};
 
 endmodule
