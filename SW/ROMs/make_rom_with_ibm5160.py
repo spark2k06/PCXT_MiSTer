@@ -17,9 +17,9 @@ if __name__ == "__main__":
         print("Error while deleting file : ibm5160.zip")
         
     try:
-        os.remove("README.txt")
+        os.remove("README.TXT")
     except:
-        print("Error while deleting file : ibm5160.zip")
+        print("Error while deleting file : README.TXT")
 
     rom_filename = "pcxt.rom"
     ibm5160_basename = "BIOS_5160_08NOV82_"
