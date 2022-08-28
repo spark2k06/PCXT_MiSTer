@@ -718,8 +718,7 @@ end
         .sdram_ldqm                         (SDRAM_DQML),
         .sdram_udqm                         (SDRAM_DQMH),
 		  .ems_enabled                        (~status[11]),
-		  .ems_address                        (status[13:12]),
-        .tandy_mode                         (tandy_mode)
+		  .ems_address                        (status[13:12])
     );
 
 	wire [15:0] SDRAM_DQ_IN;

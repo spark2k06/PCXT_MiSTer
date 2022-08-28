@@ -126,9 +126,7 @@ module CHIPSET (
     output  logic           sdram_udqm,
 	 // EMS
 	 input   logic           ems_enabled,
-	 input   logic   [1:0]   ems_address,
-    // Mode Switch
-    input   logic           tandy_mode
+	 input   logic   [1:0]   ems_address
 );
 
     logic           dma_ready;
@@ -313,8 +311,7 @@ module CHIPSET (
 	     .ems_b1                            (ems_b1),
 	     .ems_b2                            (ems_b2),
 	     .ems_b3                            (ems_b3),
-	     .ems_b4                            (ems_b4),
-        .tandy_mode                        (tandy_mode)
+	     .ems_b4                            (ems_b4)
     );
 
     RAM u_RAM (

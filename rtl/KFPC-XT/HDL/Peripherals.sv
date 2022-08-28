@@ -99,9 +99,7 @@ module PERIPHERALS #(
 	 output  logic           ems_b1,
 	 output  logic           ems_b2,
 	 output  logic           ems_b3,
-	 output  logic           ems_b4,
-     // Mode Switch
-    input   logic           tandy_mode
+	 output  logic           ems_b4
 );
     
 	 wire grph_mode;
@@ -325,7 +323,7 @@ module PERIPHERALS #(
     logic           lock_recv_clock;
 
     wire    clear_keycode = port_b_out[7];
-    wire    ps2_reset_n   = ~tandy_mode ? port_b_out[6] : 1'b1;
+    wire    ps2_reset_n   = ~tandy_video ? port_b_out[6] : 1'b1;
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
@@ -471,7 +469,7 @@ module PERIPHERALS #(
             port_a_in   <= 8'h00;
         end
         else begin
-            keycode_ff  <= ~tandy_mode ? keycode : tandy_keycode;
+            keycode_ff  <= ~tandy_video ? keycode : tandy_keycode;
             port_a_in   <= keycode_ff;
         end
     end
@@ -787,13 +785,13 @@ module PERIPHERALS #(
         .clka                       (clock),
         .ena                        (~cga_chip_select_n_1),
         .wea                        (~video_memory_write_n),
-	.addra                      ((tandy_mode & grph_mode & hres_mode) ? video_ram_address : video_ram_address[13:0]),
+	.addra                      ((tandy_video & grph_mode & hres_mode) ? video_ram_address : video_ram_address[13:0]),
         .dina                       (video_ram_data),
         .douta                      (cga_vram_cpu_dout),
         .clkb                       (clk_vga_cga),
         .web                        (1'b0),
         .enb                        (CGA_VRAM_ENABLE),
-        .addrb                      ((tandy_mode & grph_mode & hres_mode) ? CGA_VRAM_ADDR[14:0] : CGA_VRAM_ADDR[13:0]),
+        .addrb                      ((tandy_video & grph_mode & hres_mode) ? CGA_VRAM_ADDR[14:0] : CGA_VRAM_ADDR[13:0]),
         .dinb                       (8'h0),
         .doutb                      (CGA_VRAM_DOUT)
 	);
@@ -815,7 +813,7 @@ module PERIPHERALS #(
         .doutb                      (MDA_VRAM_DOUT)
 	);
 	
-    logic   [15:0]  rom_address;
+    logic   [16:0]  rom_address;	 
     logic           bios_select_n_1;
     logic           xtide_select_n_1;
 	 
@@ -830,8 +828,8 @@ module PERIPHERALS #(
 	 reg bios_loading = 1'b0;
 	
 	always_ff @(posedge clock) begin
-	  
-        rom_address      <= address[15:0];
+        
+		  rom_address      <= {tandy_video, address[15:0]};
         bios_select_n_1  <= bios_select_n;
         xtide_select_n_1 <= xtide_select_n;
    end
@@ -841,7 +839,7 @@ module PERIPHERALS #(
         .clka(bios_loader ? clk_sys : clock),		  
         .ena((~bios_select_n_1) || ioctl_download),
         .wea(bios_loader && ioctl_wr),
-        .addra(bios_loader ? { tandy_loader, ioctl_addr[15:0] } : { tandy_mode, rom_address[15:0] }),
+        .addra(bios_loader ? { tandy_loader, ioctl_addr[15:0] } : { rom_address }),
         .dina(ioctl_data),
         .douta(bios_cpu_dout),
 		  
