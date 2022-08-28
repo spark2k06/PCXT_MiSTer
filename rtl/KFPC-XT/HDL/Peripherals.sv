@@ -630,7 +630,6 @@ module PERIPHERALS #(
 	 reg           de_o_mda;
 	 	 
 	 wire[3:0] video_cga;
-     wire[3:0] vga_video;
 	 wire video_mda;
 	 
 	 assign VGA_R = video_output ? R_MDA : R_CGA;
@@ -729,7 +728,6 @@ module PERIPHERALS #(
     cga_vgaport vga_cga (
         .clk(clk_vga_cga),		  
         .video(video_cga),
-    //  .video(vga_video),      // scandoubler
         .red(R_CGA),
         .green(G_CGA),
         .blue(B_CGA)
@@ -749,14 +747,14 @@ module PERIPHERALS #(
         .ram_we_l                   (CGA_VRAM_ENABLE),
         .ram_a                      (CGA_VRAM_ADDR),
         .ram_d                      (CGA_VRAM_DOUT),
-		  .hsync                      (HSYNC_CGA),       
+		  .hsync                      (HSYNC_CGA),              // non scandoubled
+    //    .dbl_hsync                  (HSYNC_CGA),              // scandoubled
 		  .hblank                     (HBLANK_CGA),
-    //    .dbl_hsync                  (HSYNC_CGA),              // scandoubler
         .vsync                      (VSYNC_CGA),
 		  .vblank                     (VBLANK_CGA),
 		  .de_o                       (de_o_cga),
-        .video                      (video_cga),
-        .dbl_video                  (vga_video),                // scandoubler
+        .video                      (video_cga),                // non scandoubled
+    //    .dbl_video                  (video_cga),              // scandoubled
 		  .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
 		  .tandy_video                (tandy_video),
