@@ -403,9 +403,6 @@ wire CLK_VIDEO_CGA;
 assign CLK_VIDEO_MDA = clk_113_750;
 assign CLK_VIDEO_CGA = clk_56_875;
 
-assign ce_pixel = mda_mode ? clk_28_636 : clk_14_318; 
-
-
 reg         cen_44100;
 reg  [31:0] cen_44100_cnt;
 wire [31:0] cen_44100_cnt_next = cen_44100_cnt + 32'd44100;
@@ -420,6 +417,7 @@ end
 
 always @(posedge clk_28_636) begin
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
+	ce_pixel <= mda_mode ? clk_28_636 : clk_14_318;      //if outside always block appears an overscan left column
 end
 
 always @(posedge clk_14_318) begin
