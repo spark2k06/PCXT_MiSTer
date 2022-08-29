@@ -124,7 +124,8 @@ wire  eu_prefix_seg;
 wire  pfq_empty;
 wire  pfq_full;
 reg  [7:0]  ad_in_int;
-reg  [19:0] addr_out_temp;
+reg  [19:0] addr_out_temp_base;
+reg  [15:0] addr_out_temp_offset;
 reg  [7:0]  biu_state;
 reg  [15:0] biu_register_cs;
 reg  [15:0] biu_register_es;
@@ -286,7 +287,8 @@ begin : BIU_STATE_MACHINE
       ready_d3 <= 'h0;
       eu_biu_req_d1 <= 'h0;
       latched_data_in <= 'h0;
-      addr_out_temp <= 'h0;
+      addr_out_temp_base <= 'h0;
+      addr_out_temp_offset <= 'h0;
       s_bits <= 3'b111;
       AD_OUT <= 'h0;
       word_cycle <= 1'b0;
@@ -490,7 +492,8 @@ else
                                         
                       // Interrupt ACK Cycle 
                       8'h16 : begin                   
-                                addr_out_temp <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_base <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_offset <= 'h0;
                                 //AD_OE <= 'h0;                   
                                 word_cycle <= 1'b1;
                                 s_bits <= 3'b000;
@@ -499,14 +502,16 @@ else
                                   
                       // IO Byte Read 
                       8'h08 : begin
-                                addr_out_temp <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_base <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_offset <= 'h0;
                                 s_bits <= 3'b001;
                                 biu_state <= 8'h01;
                               end
                                  
                       // IO Word Read 
                       8'h1A : begin
-                                addr_out_temp <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_base <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_offset <= 'h0;
                                 word_cycle <= 1'b1; 
                                 s_bits <= 3'b001;
                                 biu_state <= 8'h01;
@@ -514,14 +519,16 @@ else
                                                 
                       // IO Byte Write 
                       8'h0A : begin
-                                addr_out_temp <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_base <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_offset <= 'h0;
                                 s_bits <= 3'b010;
                                 biu_state <= 8'h01;
                               end
                                                 
                       // IO Word Write 
                       8'h1C : begin
-                                addr_out_temp <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_base <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_offset <= 'h0;
                                 word_cycle <= 1'b1; 
                                 s_bits <= 3'b010;
                                 biu_state <= 8'h01;
@@ -529,21 +536,24 @@ else
                                                 
                       // Halt Request 
                       8'h18 : begin
-                                addr_out_temp <= { biu_register_cs[15:0] , 4'h0 } + pfq_addr_out[15:0] ;
+                                addr_out_temp_base <= { biu_register_cs[15:0] , 4'h0 };
+                                addr_out_temp_offset <= pfq_addr_out[15:0];
                                 s_bits <= 3'b011;
                                 biu_state <= 8'h01;
                               end
                                             
                       // Memory Byte Read 
                       8'h0C : begin
-                                addr_out_temp <= { biu_muxed_segment[15:0] , 4'h0 } + eu_register_r3_d[15:0];
+                                addr_out_temp_base <= { biu_muxed_segment[15:0] , 4'h0 };
+                                addr_out_temp_offset <= eu_register_r3_d[15:0];
                                 s_bits <= 3'b101;
                                 biu_state <= 8'h01;
                               end
                                                 
                       // Memory Word Read 
                       8'h10 : begin
-                                addr_out_temp <= { biu_muxed_segment[15:0] , 4'h0 } + eu_register_r3_d[15:0];
+                                addr_out_temp_base <= { biu_muxed_segment[15:0] , 4'h0 };
+                                addr_out_temp_offset <= eu_register_r3_d[15:0];
                                 word_cycle <= 1'b1; 
                                 s_bits <= 3'b101;
                                 biu_state <= 8'h01;
@@ -551,7 +561,8 @@ else
                                                 
                       // Memory Word Read from Stack Segment
                       8'h11 : begin
-                                addr_out_temp <= { biu_register_ss[15:0] , 4'h0 } + eu_register_r3_d[15:0];
+                                addr_out_temp_base <= { biu_register_ss[15:0] , 4'h0 };
+                                addr_out_temp_offset <= eu_register_r3_d[15:0];
                                 word_cycle <= 1'b1; 
                                 s_bits <= 3'b101;
                                 biu_state <= 8'h01;
@@ -559,7 +570,8 @@ else
                                                 
                       // Memory Word Read from Segment 0x0000 - Used for interrupt vector fetches
                       8'h12 : begin
-                                addr_out_temp <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_base <= { 4'h0 , eu_register_r3_d[15:0] };
+                                addr_out_temp_offset <= 'h0;
                                 word_cycle <= 1'b1; 
                                 s_bits <= 3'b101;
                                 biu_state <= 8'h01;
@@ -567,14 +579,16 @@ else
                                                 
                       // Memory Byte Write 
                       8'h0E : begin
-                                addr_out_temp <= { biu_muxed_segment[15:0] , 4'h0 } + eu_register_r3_d[15:0];
+                                addr_out_temp_base <= { biu_muxed_segment[15:0] , 4'h0 };
+                                addr_out_temp_offset <= eu_register_r3_d[15:0];
                                 s_bits <= 3'b110;
                                 biu_state <= 8'h01;
                               end
                                                 
                       // Memory Word Write 
                       8'h13 : begin
-                                addr_out_temp <= { biu_muxed_segment[15:0] , 4'h0 } + eu_register_r3_d[15:0];
+                                addr_out_temp_base <= { biu_muxed_segment[15:0] , 4'h0 };
+                                addr_out_temp_offset <= eu_register_r3_d[15:0];
                                 word_cycle <= 1'b1; 
                                 s_bits <= 3'b110;
                                 biu_state <= 8'h01;
@@ -582,7 +596,8 @@ else
                                                 
                       // Memory Word Write to Stack Segment
                       8'h14 : begin
-                                addr_out_temp <= { biu_register_ss[15:0] , 4'h0 } + eu_register_r3_d[15:0];
+                                addr_out_temp_base <= { biu_register_ss[15:0] , 4'h0 };
+                                addr_out_temp_offset <= eu_register_r3_d[15:0];
                                 word_cycle <= 1'b1; 
                                 s_bits <= 3'b110;
                                 biu_state <= 8'h01;
@@ -601,7 +616,8 @@ else
                   
                 else if (pfq_full==1'b0)
                   begin
-                    addr_out_temp <= { biu_register_cs[15:0] , 4'h0 } + pfq_addr_in[15:0] ;
+                    addr_out_temp_base <= { biu_register_cs[15:0] , 4'h0 };
+                    addr_out_temp_offset <= pfq_addr_in[15:0];
                     s_bits <= 3'b100;
                     biu_state <= 8'h01;
                   end
@@ -622,7 +638,7 @@ else
                 if (s_bits!=3'b000)
                   begin
                     AD_OE <= 1'b1;
-                    AD_OUT[19:0] <= addr_out_temp[19:0];
+                    AD_OUT[19:0] <= addr_out_temp_base + addr_out_temp_offset;
                   end
                   
                 S6_3_MUX <= 1'b0;
@@ -736,7 +752,7 @@ else
       8'h0A : begin 
                 if (turbo_mode | clk_negedge)
                   begin
-                    addr_out_temp[15:0] <=  addr_out_temp[15:0] + 1;
+                    addr_out_temp_offset[15:0] <=  addr_out_temp_offset[15:0] + 1;
                     if (word_cycle==1'b1 && byte_num==1'b0)
                       begin        
                         byte_num <= 1'b1;                   
