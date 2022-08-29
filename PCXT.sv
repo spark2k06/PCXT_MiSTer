@@ -393,7 +393,8 @@ wire HBlank;
 wire HSync;
 wire VBlank;
 wire VSync;
-wire ce_pixel;
+wire ce_pixel_cga;
+wire ce_pixel_mda;
 //wire [7:0] video;
 
 assign CLK_VIDEO = clk_56_875;
@@ -402,6 +403,7 @@ wire CLK_VIDEO_MDA;
 wire CLK_VIDEO_CGA;
 assign CLK_VIDEO_MDA = clk_113_750;
 assign CLK_VIDEO_CGA = clk_56_875;
+assign ce_pixel_mda = clk_28_636;
 
 reg         cen_44100;
 reg  [31:0] cen_44100_cnt;
@@ -417,7 +419,7 @@ end
 
 always @(posedge clk_28_636) begin
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
-	ce_pixel <= mda_mode ? clk_28_636 : clk_14_318;      //if outside always block appears an overscan left column
+	ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
 end
 
 always @(posedge clk_14_318) begin
@@ -816,7 +818,7 @@ end
 	video_monochrome_converter video_mono_cga 
 	(
 		.clk_vid(CLK_VIDEO_CGA),
-		.ce_pix(ce_pixel),
+		.ce_pix(ce_pixel_cga),
 		
 		.R({r, 2'b00}),
 		.G({g, 2'b00}),
@@ -832,7 +834,7 @@ end
 	video_monochrome_converter video_mono_mda 
 	(
 		.clk_vid(CLK_VIDEO_MDA),
-		.ce_pix(ce_pixel),
+		.ce_pix(ce_pixel_mda),
 		
 		.R({r, 2'b00}),
 		.G({g, 2'b00}),
@@ -883,7 +885,7 @@ end
 		
 		.CLK_VIDEO(CLK_VIDEO_CGA),
 		.CE_PIXEL(CE_PIXEL_cga),
-		.ce_pix(ce_pixel),
+		.ce_pix(ce_pixel_cga),
 
 		.freeze_sync(),
 		
@@ -915,7 +917,7 @@ end
 		
 		.CLK_VIDEO(CLK_VIDEO_MDA),
 		.CE_PIXEL(CE_PIXEL_mda),
-		.ce_pix(ce_pixel),
+		.ce_pix(ce_pixel_mda),
 
 		.freeze_sync(),
 		
