@@ -204,7 +204,7 @@ assign LED_USER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXX XXXXXXXXXXXXXXXXX
+// XXXXX XXXXXXXXXXXXXXXXXXXXXXX
 
 
 wire [1:0] ar = status[9:8];
@@ -243,9 +243,10 @@ localparam CONF_STR = {
 	"P3OB,Lo-tech 2MB EMS,Enabled,Disabled;",
 	"P3OCD,EMS Frame,A000,C000,D000;",
 	"P3-;",
-	"P3ON,Joystick 1, Analog, Digital;",
-	"P3OO,Joystick 2, Analog, Digital;",
-	"P3OP,Swap Joysticks,No,Yes;",
+	"P3ONO,Joystick 1, Analog, Digital, Disabled;",
+	"P3OPQ,Joystick 2, Analog, Digital, Disabled;",
+	"P3OR,Sync Joy to CPU Speed,No,Yes;",
+	"P3OS,Swap Joysticks,No,Yes;",
 	"P3-;",
 	"-;",
 	"P4,BIOS;",
@@ -302,6 +303,7 @@ wire        adlibhide = status[10];
 
 wire [31:0] joy0, joy1;
 wire [15:0] joya0, joya1;
+wire [4:0]  joy_opts = status[27:23];
 
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 (
@@ -359,6 +361,7 @@ wire pll_locked;
 wire clk_100;
 wire clk_28_636;
 wire clk_56_875;
+wire clk_113_750;
 reg clk_14_318 = 1'b0;
 reg clk_7_16 = 1'b0;
 wire clk_4_77;
@@ -378,6 +381,7 @@ pll pll
 	.outclk_3(clk_uart),
 	.outclk_4(clk_opl2),
 	.outclk_5(clk_chipset),
+	.outclk_6(clk_113_750),
 	.locked(pll_locked)
 );
 
@@ -394,6 +398,11 @@ wire ce_pixel;
 
 assign CLK_VIDEO = clk_56_875;
 
+wire CLK_VIDEO_MDA;
+wire CLK_VIDEO_CGA;
+assign CLK_VIDEO_MDA = clk_113_750;
+assign CLK_VIDEO_CGA = clk_56_875;
+
 reg         cen_44100;
 reg  [31:0] cen_44100_cnt;
 wire [31:0] cen_44100_cnt_next = cen_44100_cnt + 32'd44100;
@@ -408,7 +417,7 @@ end
 
 always @(posedge clk_28_636) begin
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
-	ce_pixel <= mda_mode ? clk_14_318 : clk_14_318; // MDA needs rework, but displays at half res
+	ce_pixel <= mda_mode ? clk_28_636 : clk_14_318;      //if outside always block appears an overscan left column
 end
 
 always @(posedge clk_14_318) begin
@@ -526,8 +535,9 @@ end
 //////////////////////////////////////////////////////////////////
 
 	wire [5:0] r, g, b;	
-	reg [7:0] raux, gaux, baux;	
-	
+	reg [7:0] raux_cga, gaux_cga, baux_cga;	
+	reg [7:0] raux_mda, gaux_mda, baux_mda;	
+
 	wire de_o;
 	
 	reg [24:0] splash_cnt = 0;
@@ -676,12 +686,11 @@ end
 	     .ps2_data                           (device_data),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
-		  .joy0_type                          (status[23]),
-		  .joy1_type                          (status[24]),
-        .joy0                               (status[25] ? joy1 : joy0),
-        .joy1                               (status[25] ? joy0 : joy1),
-		  .joya0                              (status[25] ? joya1 : joya0),
-		  .joya1                              (status[25] ? joya0 : joya1),
+		  .joy_opts                           (joy_opts),                          //Joy0-Disabled, Joy0-Type, Joy1-Disabled, Joy1-Type, turbo_sync
+        .joy0                               (status[28] ? joy1 : joy0),
+        .joy1                               (status[28] ? joy0 : joy1),
+		  .joya0                              (status[28] ? joya1 : joya0),
+		  .joya1                              (status[28] ? joya0 : joya1),
 		  .clk_en_44100                       (cen_44100),
 		  .dss_covox_en                       (status[6]),
 		  .lclamp                             (AUDIO_L),
@@ -717,8 +726,7 @@ end
         .sdram_ldqm                         (SDRAM_DQML),
         .sdram_udqm                         (SDRAM_DQMH),
 		  .ems_enabled                        (~status[11]),
-		  .ems_address                        (status[13:12]),
-        .tandy_mode                         (tandy_mode)
+		  .ems_address                        (status[13:12])
     );
 
 	wire [15:0] SDRAM_DQ_IN;
@@ -805,20 +813,36 @@ end
 	);
 	*/
 
-	video_monochrome_converter video_mono 
+	video_monochrome_converter video_mono_cga 
 	(
-		.clk_vid(CLK_VIDEO),
+		.clk_vid(CLK_VIDEO_CGA),
 		.ce_pix(ce_pixel),
 		
-		.R({r, 2'b0}),
-		.G({g, 2'b0}),
-		.B({b, 2'b0}),
+		.R({r, 2'b00}),
+		.G({g, 2'b00}),
+		.B({b, 2'b00}),
 
 		.gfx_mode(screen_mode),
 		
-		.R_OUT(raux),
-		.G_OUT(gaux),
-		.B_OUT(baux)	
+		.R_OUT(raux_cga),
+		.G_OUT(gaux_cga),
+		.B_OUT(baux_cga)	
+	);
+
+	video_monochrome_converter video_mono_mda 
+	(
+		.clk_vid(CLK_VIDEO_MDA),
+		.ce_pix(ce_pixel),
+		
+		.R({r, 2'b00}),
+		.G({g, 2'b00}),
+		.B({b, 2'b00}),
+
+		.gfx_mode(screen_mode),
+		
+		.R_OUT(raux_mda),
+		.G_OUT(gaux_mda),
+		.B_OUT(baux_mda)	
 	);
 
 	/*
@@ -830,23 +854,42 @@ end
 	assign VGA_DE = ~(HBlank | VBlank);
 	assign CE_PIXEL = ce_pixel;
 	*/
-	
+
+	wire  [7:0] VGA_R_cga;
+	wire  [7:0] VGA_G_cga;
+	wire  [7:0] VGA_B_cga;
+	wire        VGA_HS_cga;
+	wire        VGA_VS_cga;
+	wire        VGA_DE_cga;
+	wire [21:0] gamma_bus_cga;
+	wire        CE_PIXEL_cga;
+
+	wire  [7:0] VGA_R_mda;
+	wire  [7:0] VGA_G_mda;
+	wire  [7:0] VGA_B_mda;
+	wire        VGA_HS_mda;
+	wire        VGA_VS_mda;
+	wire        VGA_DE_mda;
+	wire [21:0] gamma_bus_mda;
+	wire        CE_PIXEL_mda;
+
 	assign VGA_SL = {scale==3, scale==2};
 	
 	
     wire   scandoubler = (scale>0); //|| forced_scandoubler);
-	video_mixer #(.LINE_LENGTH(640), .GAMMA(1)) video_mixer
+	video_mixer #(.LINE_LENGTH(640), .GAMMA(1)) video_mixer_cga
 	(
 		.*,
 		
-		.CLK_VIDEO(CLK_VIDEO),
+		.CLK_VIDEO(CLK_VIDEO_CGA),
+		.CE_PIXEL(CE_PIXEL_cga),
 		.ce_pix(ce_pixel),
 
 		.freeze_sync(),
 		
-		.R(raux),
-		.G(gaux),
-		.B(baux),
+		.R(raux_cga),
+		.G(gaux_cga),
+		.B(baux_cga),
 		
 		.HBlank(HBlank),
 		.VBlank(VBlank),
@@ -854,8 +897,60 @@ end
 		.VSync(VSync),
 		
 		.scandoubler(scandoubler),
-		.hq2x(scale==1)
+		.hq2x(scale==1),
+		.gamma_bus(gamma_bus_cga),
+
+		.VGA_R(VGA_R_cga),
+		.VGA_G(VGA_G_cga),
+		.VGA_B(VGA_B_cga),
+		.VGA_VS(VGA_VS_cga),
+		.VGA_HS(VGA_HS_cga),
+		.VGA_DE(VGA_DE_cga)
+
 	);
+
+	video_mixer #(.LINE_LENGTH(640), .GAMMA(0)) video_mixer_mda
+	(
+		.*,
+		
+		.CLK_VIDEO(CLK_VIDEO_MDA),
+		.CE_PIXEL(CE_PIXEL_mda),
+		.ce_pix(ce_pixel),
+
+		.freeze_sync(),
+		
+		.R(raux_mda),
+		.G(gaux_mda),
+		.B(baux_mda),
+		
+		.HBlank(HBlank),
+		.VBlank(VBlank),
+		.HSync(HSync),
+		.VSync(VSync),
+		
+		.scandoubler(scandoubler),
+		.hq2x(scale==1),
+		.gamma_bus(gamma_bus_mda),
+
+		.VGA_R(VGA_R_mda),
+		.VGA_G(VGA_G_mda),
+		.VGA_B(VGA_B_mda),
+		.VGA_VS(VGA_VS_mda),
+		.VGA_HS(VGA_HS_mda),
+		.VGA_DE(VGA_DE_mda)
+
+	);
+
+
+assign VGA_R  =  mda_mode ? VGA_R_mda  : VGA_R_cga;
+assign VGA_G  =  mda_mode ? VGA_G_mda  : VGA_G_cga;
+assign VGA_B  =  mda_mode ? VGA_B_mda  : VGA_B_cga;
+assign VGA_HS =  mda_mode ? VGA_HS_mda : VGA_HS_cga;
+assign VGA_VS =  mda_mode ? VGA_VS_mda : VGA_VS_cga;
+assign VGA_DE =  mda_mode ? VGA_DE_mda : VGA_DE_cga;
+assign gamma_bus =  mda_mode ? gamma_bus_mda : gamma_bus_cga;
+assign CE_PIXEL  =  mda_mode ? CE_PIXEL_mda : CE_PIXEL_cga;
+
 
 /*
 // SRAM management

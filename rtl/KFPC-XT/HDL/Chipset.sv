@@ -78,8 +78,7 @@ module CHIPSET (
     input   logic           ps2_data,
     output  logic           ps2_clock_out,
     output  logic           ps2_data_out,
-	 input   logic           joy0_type,
-	 input   logic           joy1_type,
+	 input   logic   [4:0]   joy_opts,
 	 input   logic   [31:0]  joy0,
 	 input   logic   [31:0]  joy1,
 	 input   logic   [15:0]  joya0,
@@ -127,9 +126,7 @@ module CHIPSET (
     output  logic           sdram_udqm,
 	 // EMS
 	 input   logic           ems_enabled,
-	 input   logic   [1:0]   ems_address,
-    // Mode Switch
-    input   logic           tandy_mode
+	 input   logic   [1:0]   ems_address
 );
 
     logic           dma_ready;
@@ -280,8 +277,7 @@ module CHIPSET (
         .port_c_io                          (port_c_io),
         .ps2_clock                          (ps2_clock),
         .ps2_data                           (ps2_data),
-		  .joy0_type                          (joy0_type),
-		  .joy1_type                          (joy1_type),
+        .joy_opts                           (joy_opts),
         .joy0                               (joy0),
         .joy1                               (joy1),
         .joya0                              (joya0),
@@ -315,8 +311,7 @@ module CHIPSET (
 	     .ems_b1                            (ems_b1),
 	     .ems_b2                            (ems_b2),
 	     .ems_b3                            (ems_b3),
-	     .ems_b4                            (ems_b4),
-        .tandy_mode                        (tandy_mode)
+	     .ems_b4                            (ems_b4)
     );
 
     RAM u_RAM (
