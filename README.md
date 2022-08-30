@@ -14,7 +14,7 @@ The [Graphics Gremlin project](https://github.com/schlae/graphics-gremlin) from 
 
 [JTOPL](https://github.com/jotego/jtopl) by Jose Tejada (@topapate) was integrated for AdLib sound.
 
-An SN76489AN Compatible Implementation written in VHDL was also integrated - Copyright (c) 2005, 2006, [Arnim Laeuger](https://github.com/devsaurus) (arnim.laeuger@gmx.net)
+An SN76489AN Compatible Implementation (Tandy Sound) written in VHDL was also integrated - Copyright (c) 2005, 2006, [Arnim Laeuger](https://github.com/devsaurus) (arnim.laeuger@gmx.net)
 
 ## ROM Instructions
 
