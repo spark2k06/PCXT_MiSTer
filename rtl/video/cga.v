@@ -41,8 +41,7 @@ module cga(
 
 	 input splashscreen,
     input thin_font,
-	 input tandy_video,
-	 input color,
+	 input tandy_video,	 
 	 output grph_mode,
 	 output hres_mode
     );
@@ -272,9 +271,7 @@ module cga(
         .cursor(cursor),
         .mem_addr(crtc_addr),
         .row_addr(row_addr),
-        .line_reset(line_reset),
-		  .tandy_16_gfx(tandy_16_mode & grph_mode & hres_mode),
-		  .color(color)
+        .line_reset(line_reset)
     );
 
     // CGA 80 column timings

@@ -417,14 +417,21 @@ always @(posedge CLK_50M) begin
 	end
 end
 
+reg [14:0] HBlank_del;
+wire tandy_16_gfx;
+wire color = (screen_mode == 3'd0);
+wire HBlank_VGA = mda_mode ? HBlank_del[color ? 12 : 13] : tandy_16_gfx ? HBlank_del[color ? 9 : 11] : HBlank_del[color ? 5 : 7];
+
 always @(posedge clk_28_636) begin
+	HBlank_del <= {HBlank_del[13], HBlank_del[12], HBlank_del[11], HBlank_del[10], HBlank_del[9],
+						HBlank_del[8], HBlank_del[7], HBlank_del[6], HBlank_del[5], HBlank_del[4],
+						HBlank_del[3], HBlank_del[2], HBlank_del[1], HBlank_del[0], HBlank};
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
 	ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
 end
 
-always @(posedge clk_14_318) begin
+always @(posedge clk_14_318)
 	clk_7_16 <= ~clk_7_16; // 7.16Mhz
-end
 
 clk_div3 clk_normal // 4.77MHz
 (
@@ -630,7 +637,6 @@ end
 		  .clk_sys                            (clk_chipset),
 		  .peripheral_clock                   (pclk),
 		  .turbo_mode                         (status[18:17]),
-		  .color										  (screen_mode == 3'd0),
         .reset                              (reset_cpu),
         .sdram_reset                        (reset),
         .cpu_address                        (cpu_address),
@@ -700,6 +706,7 @@ end
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
 		  .adlibhide                          (adlibhide),
 		  .tandy_video                        (tandy_mode),
+		  .tandy_16_gfx                       (tandy_16_gfx),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
 		  .ioctl_wr                           (ioctl_wr),
@@ -893,7 +900,7 @@ end
 		.G(gaux_cga),
 		.B(baux_cga),
 		
-		.HBlank(HBlank),
+		.HBlank(HBlank_VGA),
 		.VBlank(VBlank),
 		.HSync(HSync),
 		.VSync(VSync),
@@ -925,7 +932,7 @@ end
 		.G(gaux_mda),
 		.B(baux_mda),
 		
-		.HBlank(HBlank),
+		.HBlank(HBlank_VGA),
 		.VBlank(VBlank),
 		.HSync(HSync),
 		.VSync(VSync),

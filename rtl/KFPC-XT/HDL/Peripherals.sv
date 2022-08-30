@@ -9,7 +9,6 @@ module PERIPHERALS #(
 	 input   logic           clk_sys,
     input   logic           peripheral_clock,	 
 	 input   logic   [1:0]   turbo_mode,
-	 input   logic           color,
     input   logic           reset,
     // CPU
     output  logic           interrupt_to_cpu,
@@ -75,7 +74,8 @@ module PERIPHERALS #(
 	 input   logic           adlibhide,
 	 // TANDY
 	 input   logic           tandy_video,	 
-	 output  logic           tandy_snd_rdy,
+	 output  logic           tandy_snd_rdy,	 
+	 output  logic           tandy_16_gfx,
 	 // IOCTL
     input   logic           ioctl_download,
     input   logic   [7:0]   ioctl_index,
@@ -104,6 +104,8 @@ module PERIPHERALS #(
     
 	 wire grph_mode;
 	 wire hres_mode;
+	 
+	 assign tandy_16_gfx = (tandy_video & grph_mode & hres_mode);
 	 
     //
     // chip select
@@ -758,7 +760,6 @@ module PERIPHERALS #(
 		  .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
 		  .tandy_video                (tandy_video),
-		  .color                      (color),
 		  .grph_mode                  (grph_mode),
 		  .hres_mode                  (hres_mode)
     );
