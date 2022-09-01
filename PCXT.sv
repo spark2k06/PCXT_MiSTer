@@ -174,7 +174,7 @@ module emu
 ///////// Default values for ports not used in this core /////////
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
+//assign USER_OUT = '1;
 //assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 //assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 //assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
@@ -956,6 +956,13 @@ end
 	     .uart_dsr_n                        (uart_dsr),
 	     .uart_rts_n                        (uart_rts),
 	     .uart_dtr_n                        (uart_dtr),
+	     .uart2_rx                           (uart2_rx),
+	     .uart2_tx                           (uart2_tx),
+	     .uart2_cts_n                        (uart2_cts),
+	     .uart2_dcd_n                        (uart2_dcd),
+	     .uart2_dsr_n                        (uart2_dsr),
+	     .uart2_rts_n                        (uart2_rts),
+	     .uart2_dtr_n                        (uart2_dtr),
 		  .enable_sdram                       (1'b1),
 		 .initilized_sdram                   (initilized_sdram),
 		  .sdram_clock                        (SDRAM_CLK),
@@ -1130,6 +1137,29 @@ assign AUDIO_MIX = status[39:38];
 		else
 			cpu_address <= cpu_address;
 	end	
+	/// UART2
+
+	assign USER_OUT = {1'b1, 1'b1, uart2_dtr, 1'b1, uart2_rts, uart2_tx, 1'b1};
+
+	//
+	// Pin | USB Name |   |Signal
+	// ----+----------+---+-------------
+	// 0   | D+       | I |RX
+	// 1   | D-       | O |TX
+	// 2   | TX-      | O |RTS
+	// 3   | GND_d    | I |CTS
+	// 4   | RX+      | O |DTR
+	// 5   | RX-      | I |DSR
+	// 6   | TX+      | I |DCD
+	//
+
+	wire uart2_tx, uart2_rts, uart2_dtr;
+
+	wire uart2_rx  = USER_IN[0];
+	wire uart2_cts = USER_IN[3];
+	wire uart2_dsr = USER_IN[5];
+	wire uart2_dcd = USER_IN[6];
+
 	
 	/// VIDEO
 

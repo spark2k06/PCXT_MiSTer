@@ -84,6 +84,14 @@ module PERIPHERALS #(
 	 input   logic           uart_dsr_n,
 	 output  logic           uart_rts_n,
 	 output  logic           uart_dtr_n,
+	 // UART 2
+	 input   logic           uart2_rx,
+	 output  logic           uart2_tx,
+	 input   logic           uart2_cts_n,
+	 input   logic           uart2_dcd_n,
+	 input   logic           uart2_dsr_n,
+	 output  logic           uart2_rts_n,
+	 output  logic           uart2_dtr_n,
 	 // EMS
 	 input   logic           ems_enabled,
 	 input   logic   [1:0]   ems_address,
@@ -171,6 +179,7 @@ module PERIPHERALS #(
     wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
 	 wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
 	 wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
+	 wire    uart2_cs               =  (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
 	 wire    lpt_cs                 =  (iorq && ~address_enable_n && address[15:0] == 16'h0378);
 	 wire    tandy_page_cs          =  (iorq && ~address_enable_n && address[15:0] == 16'h03DF);
 	 
@@ -248,7 +257,8 @@ module PERIPHERALS #(
                                       fdd_interrupt,
                                       interrupt_request[5],
                                       uart_interrupt,
-                                      interrupt_request[3:2],
+                                      uart2_interrupt,
+                                      interrupt_request[2],
                                       keybord_interrupt,
                                       timer_interrupt})
     );
@@ -463,9 +473,11 @@ module PERIPHERALS #(
 	logic	prev_io_read_n;
 	logic	prev_io_write_n;
 	logic	[7:0]	write_to_uart;
-	logic [7:0] uart_readdata_1;
-	logic [7:0] uart_readdata_2;
+	logic	[7:0]	write_to_uart2;
+	logic [7:0] uart_readdata_1;	
 	logic [7:0] uart_readdata;
+	logic [7:0] uart2_readdata_1;	
+	logic [7:0] uart2_readdata;
 
 	always_ff @(posedge clock) begin
 		prev_io_read_n <= io_read_n;
@@ -488,10 +500,13 @@ module PERIPHERALS #(
 	reg [7:0] tandy_page_data = 8'h00;
 	reg [7:0] nmi_mask_register_data = 8'hFF;
 	always_ff @(posedge clock) begin
-		if (~io_write_n)
+		if (~io_write_n) begin
 			write_to_uart <= internal_data_bus;
-		else
+			write_to_uart2 <= internal_data_bus;
+		end else begin
 			write_to_uart <= write_to_uart;
+			write_to_uart2 <= write_to_uart2;
+		end
 			
       if ((lpt_cs) && (~io_write_n))
             lpt_data <= internal_data_bus;				
@@ -528,14 +543,42 @@ module PERIPHERALS #(
 		.ri_n              (1),
 
 		.irq               (uart_interrupt)
+	);	
+	
+	uart uart2
+	(
+		.clk               (clock),
+		.br_clk            (clk_uart),
+		.reset             (reset),
+
+		.address           (address[2:0]),
+		.writedata         (write_to_uart2),
+		.read              (~io_read_n  & prev_io_read_n),
+		.write             (io_write_n & ~prev_io_write_n),
+		.readdata          (uart2_readdata_1),
+		.cs                (uart2_cs & iorq_uart),
+
+		.rx                (uart2_rx),
+		.tx                (uart2_tx),
+		.cts_n             (uart2_cts_n),
+		.dcd_n             (uart2_dcd_n),
+		.dsr_n             (uart2_dsr_n),
+		.rts_n             (uart2_rts_n),
+		.dtr_n             (uart2_dtr_n),
+		.ri_n              (1),
+
+		.irq               (uart2_interrupt)
 	);
 
 	// Timing of the readings may need to be reviewed.
 	always_ff @(posedge clock) begin
-		if (~io_read_n)
+		if (~io_read_n) begin
 			uart_readdata <= uart_readdata_1;
-		else
+			uart2_readdata <= uart2_readdata_1;
+		end else begin
 			uart_readdata <= uart_readdata;
+			uart2_readdata <= uart2_readdata;
+		end
 	end
 
 
@@ -1025,6 +1068,10 @@ module PERIPHERALS #(
 		  else if ((uart_cs) && (~io_read_n)) begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= uart_readdata;			
+        end
+		  else if ((uart2_cs) && (~io_read_n)) begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= uart2_readdata;			
         end
 		  else if ((ems_oe) && (~io_read_n)) begin
             data_bus_out_from_chipset <= 1'b1;				
