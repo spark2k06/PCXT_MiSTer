@@ -88,7 +88,7 @@ module cga_attrib(
                 2'b00: pix_out <= att_fg; // Text foreground
                 2'b01: pix_out <= att_bg; // Text background
                 2'b10: pix_out <= active_area; // Graphics
-                2'b11: pix_out <= cga_color_reg[3:0]; // Overscan color
+                2'b11: pix_out <= (tandy_16_mode & (cga_color_reg[3:0] == 4'b1111)) ? 4'b0 : cga_color_reg[3:0]; // Overscan color
             endcase
         end
     end
