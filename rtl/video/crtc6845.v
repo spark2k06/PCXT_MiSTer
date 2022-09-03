@@ -30,9 +30,7 @@ module crtc6845(
     output cursor,
     output [13:0] mem_addr,
     output [4:0] row_addr,
-    output line_reset,
-	 input tandy_16_gfx,
-	 input color);
+    output line_reset);
 
     parameter H_TOTAL = 0;
     parameter H_DISP = 0;
@@ -152,9 +150,9 @@ module crtc6845(
 
     assign vsync = vs;
     assign hsync = hs;
-    assign display_enable = hdisp & vdisp;
-    assign hblank = tandy_16_gfx ? ~hdisp_del[color ? 9 : 11] : ~hdisp_del[color ? 5 : 7];
-    assign vblank = ~vdisp;
+    assign display_enable = hdisp & vdisp;    
+    assign hblank = ~hdisp;
+	 assign vblank = ~vdisp;
 
     assign row_addr = v_scancount;
 
@@ -165,7 +163,6 @@ module crtc6845(
     // Horizontal counter
     always @ (posedge clk)
     begin
-        hdisp_del <= {hdisp_del[11], hdisp_del[10], hdisp_del[9], hdisp_del[8], hdisp_del[7], hdisp_del[6], hdisp_del[5], hdisp_del[4], hdisp_del[3], hdisp_del[2], hdisp_del[1], hdisp_del[0], hdisp};		  	  
         if (divclk) begin
             if (h_count == h_total) begin
                 h_count <= 8'd0;

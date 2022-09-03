@@ -235,7 +235,8 @@ localparam CONF_STR = {
 	"P2O6,DSS/Covox,Unplugged,Plugged;",
 	"P2-;",
 	"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-	"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",	
+	"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"P2OT,Border,No,Yes;",
 	"P2O4,Video Output,CGA/Tandy,MDA;",
 	"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",	
 	"P3,Hardware;",
@@ -393,7 +394,8 @@ wire HBlank;
 wire HSync;
 wire VBlank;
 wire VSync;
-wire ce_pixel;
+wire ce_pixel_cga;
+wire ce_pixel_mda;
 //wire [7:0] video;
 
 assign CLK_VIDEO = clk_56_875;
@@ -402,6 +404,7 @@ wire CLK_VIDEO_MDA;
 wire CLK_VIDEO_CGA;
 assign CLK_VIDEO_MDA = clk_113_750;
 assign CLK_VIDEO_CGA = clk_56_875;
+assign ce_pixel_mda = clk_28_636;
 
 reg         cen_44100;
 reg  [31:0] cen_44100_cnt;
@@ -415,14 +418,21 @@ always @(posedge CLK_50M) begin
 	end
 end
 
+reg [14:0] HBlank_del;
+wire tandy_16_gfx;
+wire color = (screen_mode == 3'd0);
+wire HBlank_VGA = mda_mode ? HBlank_del[color ? 12 : 13] : tandy_16_gfx ? HBlank_del[color ? 9 : 11] : HBlank_del[color ? 5 : 7];
+
 always @(posedge clk_28_636) begin
+	HBlank_del <= {HBlank_del[13], HBlank_del[12], HBlank_del[11], HBlank_del[10], HBlank_del[9],
+						HBlank_del[8], HBlank_del[7], HBlank_del[6], HBlank_del[5], HBlank_del[4],
+						HBlank_del[3], HBlank_del[2], HBlank_del[1], HBlank_del[0], HBlank};
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
-	ce_pixel <= mda_mode ? clk_28_636 : clk_14_318;      //if outside always block appears an overscan left column
+	ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
 end
 
-always @(posedge clk_14_318) begin
+always @(posedge clk_14_318)
 	clk_7_16 <= ~clk_7_16; // 7.16Mhz
-end
 
 clk_div3 clk_normal // 4.77MHz
 (
@@ -628,7 +638,6 @@ end
 		  .clk_sys                            (clk_chipset),
 		  .peripheral_clock                   (pclk),
 		  .turbo_mode                         (status[18:17]),
-		  .color										  (screen_mode == 3'd0),
         .reset                              (reset_cpu),
         .sdram_reset                        (reset),
         .cpu_address                        (cpu_address),
@@ -698,6 +707,7 @@ end
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
 		  .adlibhide                          (adlibhide),
 		  .tandy_video                        (tandy_mode),
+		  .tandy_16_gfx                       (tandy_16_gfx),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
 		  .ioctl_wr                           (ioctl_wr),
@@ -816,7 +826,7 @@ end
 	video_monochrome_converter video_mono_cga 
 	(
 		.clk_vid(CLK_VIDEO_CGA),
-		.ce_pix(ce_pixel),
+		.ce_pix(ce_pixel_cga),
 		
 		.R({r, 2'b00}),
 		.G({g, 2'b00}),
@@ -832,7 +842,7 @@ end
 	video_monochrome_converter video_mono_mda 
 	(
 		.clk_vid(CLK_VIDEO_MDA),
-		.ce_pix(ce_pixel),
+		.ce_pix(ce_pixel_mda),
 		
 		.R({r, 2'b00}),
 		.G({g, 2'b00}),
@@ -877,13 +887,36 @@ end
 	
 	
     wire   scandoubler = (scale>0); //|| forced_scandoubler);
-	video_mixer #(.LINE_LENGTH(640), .GAMMA(1)) video_mixer_cga
+	 
+	
+	wire border = status[29];
+	 
+	reg [10:0] HBlank_counter = 0;
+	reg HBlank_fixed = 1'b1;
+	reg [1:0] HSync_del = 1'b11;
+
+	always @ (posedge ce_pixel_cga) begin
+		
+		HSync_del <= {HSync_del[0], HSync};		
+		
+		if (HSync_del == 2'b01) begin
+			HBlank_counter <= 0;
+			HBlank_fixed <= 1'b1;
+		end else begin			
+			if (HBlank_counter == 143)
+				HBlank_fixed <= 1'b0;
+			else
+				HBlank_counter <= HBlank_counter + 1;
+		end
+	end
+
+	video_mixer #(.GAMMA(1)) video_mixer_cga
 	(
 		.*,
 		
 		.CLK_VIDEO(CLK_VIDEO_CGA),
 		.CE_PIXEL(CE_PIXEL_cga),
-		.ce_pix(ce_pixel),
+		.ce_pix(ce_pixel_cga),
 
 		.freeze_sync(),
 		
@@ -891,8 +924,8 @@ end
 		.G(gaux_cga),
 		.B(baux_cga),
 		
-		.HBlank(HBlank),
-		.VBlank(VBlank),
+		.HBlank(border ? HBlank_fixed : HBlank_VGA),
+		.VBlank(border ? ~VSync : VBlank),
 		.HSync(HSync),
 		.VSync(VSync),
 		
@@ -909,13 +942,13 @@ end
 
 	);
 
-	video_mixer #(.LINE_LENGTH(640), .GAMMA(0)) video_mixer_mda
+	video_mixer #(.GAMMA(0)) video_mixer_mda
 	(
 		.*,
 		
 		.CLK_VIDEO(CLK_VIDEO_MDA),
 		.CE_PIXEL(CE_PIXEL_mda),
-		.ce_pix(ce_pixel),
+		.ce_pix(ce_pixel_mda),
 
 		.freeze_sync(),
 		
@@ -923,7 +956,7 @@ end
 		.G(gaux_mda),
 		.B(baux_mda),
 		
-		.HBlank(HBlank),
+		.HBlank(HBlank_VGA),
 		.VBlank(VBlank),
 		.HSync(HSync),
 		.VSync(VSync),
