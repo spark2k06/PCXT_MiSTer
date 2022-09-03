@@ -8,7 +8,6 @@ module CHIPSET (
 	 input   logic           clk_sys,
     input   logic           peripheral_clock,
 	 input   logic   [1:0]   turbo_mode,
-	 input   logic           color,
     input   logic           reset,
     input   logic           sdram_reset,
     // CPU
@@ -94,6 +93,7 @@ module CHIPSET (
 	 input   logic           adlibhide,
 	 // TANDY
 	 input   logic           tandy_video,
+	 output  logic           tandy_16_gfx,
 	 // IOCTL
     input   logic           ioctl_download,
     input   logic   [7:0]   ioctl_index,
@@ -233,7 +233,6 @@ module CHIPSET (
 		  .clk_sys                            (clk_sys),
 		  .clk_uart                           (clk_uart),
         .peripheral_clock                   (peripheral_clock),
-		  .color                              (color),
 		  .turbo_mode                         (turbo_mode),
         .reset                              (reset),
         .interrupt_to_cpu                   (interrupt_to_cpu),
@@ -292,6 +291,7 @@ module CHIPSET (
 		  .adlibhide                          (adlibhide),
 		  .tandy_video                        (tandy_video),
 		  .tandy_snd_rdy                      (tandy_snd_rdy),
+		  .tandy_16_gfx                       (tandy_16_gfx),
 		  .ioctl_download                     (ioctl_download),
 		  .ioctl_index                        (ioctl_index),
 		  .ioctl_wr                           (ioctl_wr),
