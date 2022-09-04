@@ -82,17 +82,13 @@ module CHIPSET (
 	 input   logic   [31:0]  joy1,
 	 input   logic   [15:0]  joya0,
 	 input   logic   [15:0]  joya1,
-	 
-	 // SOUND
-	 input   logic           clk_en_44100, // COVOX/DSS clock enable
-	 input   logic           dss_covox_en,
-	 output  logic   [15:0]  lclamp,
-	 output  logic   [15:0]  rclamp,
 	 // JTOPL	 
 	 input   logic           clk_en_opl2,
+	 output  logic   [15:0]  jtopl2_snd_e,
 	 input   logic           adlibhide,
 	 // TANDY
 	 input   logic           tandy_video,
+	 output  logic   [7:0]   tandy_snd_e,
 	 output  logic           tandy_16_gfx,
 	 // IOCTL
     input   logic           ioctl_download,
@@ -283,13 +279,11 @@ module CHIPSET (
         .joya1                              (joya1),
         .ps2_clock_out                      (ps2_clock_out),
         .ps2_data_out                       (ps2_data_out),
-		  .clk_en_44100                       (clk_en_44100),
-		  .dss_covox_en                       (dss_covox_en),
-		  .lclamp                             (lclamp),
-		  .rclamp                             (rclamp),
 		  .clk_en_opl2                        (clk_en_opl2),
+		  .jtopl2_snd_e                       (jtopl2_snd_e),
 		  .adlibhide                          (adlibhide),
 		  .tandy_video                        (tandy_video),
+		  .tandy_snd_e                        (tandy_snd_e),
 		  .tandy_snd_rdy                      (tandy_snd_rdy),
 		  .tandy_16_gfx                       (tandy_16_gfx),
 		  .ioctl_download                     (ioctl_download),
