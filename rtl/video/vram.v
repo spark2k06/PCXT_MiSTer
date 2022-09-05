@@ -1,19 +1,20 @@
-module vram(
+module vram #(parameter AW=16)
+(
   input clka,
   input ena,  
   input wea,
-  input [14:0] addra,
+  input [AW-1:0] addra,
   input [7:0] dina,
   output reg [7:0] douta,
   input clkb,
   input enb,
   input web,
-  input [14:0] addrb,
+  input [AW-1:0] addrb,
   input [7:0] dinb,
   output reg [7:0] doutb
 );
 
-reg [7:0] vram[32767:0];
+reg [7:0] vram[(2**AW)-1:0];
 
 initial $readmemh("splash.hex", vram);
 
