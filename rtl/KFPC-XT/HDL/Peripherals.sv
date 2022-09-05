@@ -145,8 +145,7 @@ module PERIPHERALS #(
 	 wire    bios_select_n          = ~(~iorq && ~address_enable_n && address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
 	 wire    xtide_select_n         = ~(~iorq && ~address_enable_n && address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
 	 wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
-	 wire    lpt_cs                 =  (iorq && ~address_enable_n && {address[15:3], 3'd0} == 16'h0378);
-	 
+	 wire    lpt_cs                 =  (iorq && ~address_enable_n && address[15:0] == 16'h0378);
 	 
 	 wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1010 : (ems_address == 2'b01) ? 4'b1100 : 4'b1101;
 	 wire    ems_oe                 = (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h	 
