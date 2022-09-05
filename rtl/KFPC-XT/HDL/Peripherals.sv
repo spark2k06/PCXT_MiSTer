@@ -141,7 +141,7 @@ module PERIPHERALS #(
 	 wire    tandy_chip_select_n    = ~(iorq && ~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
 	 wire    opl_chip_select_n      = ~(iorq && ~address_enable_n && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
     wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
-	 wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:14] == 6'b101100)); // B0000 - B7FFF (16 KB)
+	 wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
 	 wire    bios_select_n          = ~(~iorq && ~address_enable_n && address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
 	 wire    xtide_select_n         = ~(~iorq && ~address_enable_n && address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
 	 wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
@@ -753,7 +753,7 @@ module PERIPHERALS #(
 	 wire [7:0] cga_vram_cpu_dout;
 	 wire [7:0] mda_vram_cpu_dout;
 
-    vram cga_vram
+    vram #(.AW(15)) cga_vram
 	 (
         .clka                       (clock),
         .ena                        (~cga_chip_select_n_1),
@@ -770,7 +770,7 @@ module PERIPHERALS #(
 	);
 	
 	 
-    vram mda_vram
+    vram #(.AW(12)) mda_vram
 	 (
         .clka                       (clock),
         .ena                        (~mda_chip_select_n_1),
@@ -781,7 +781,7 @@ module PERIPHERALS #(
         .clkb                       (clk_vga_mda),
         .web                        (1'b0),
         .enb                        (MDA_VRAM_ENABLE),
-        .addrb                      (MDA_VRAM_ADDR[13:0]),
+        .addrb                      (MDA_VRAM_ADDR[11:0]),
         .dinb                       (8'h0),
         .doutb                      (MDA_VRAM_DOUT)
 	);
