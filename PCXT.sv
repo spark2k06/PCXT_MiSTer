@@ -188,6 +188,7 @@ assign VGA_DISABLE = 0;
 assign HDMI_FREEZE = 0;
 
 assign AUDIO_S = 1;
+assign AUDIO_L = AUDIO_R;
 assign AUDIO_MIX = 0;
 
 assign LED_DISK = 0;
@@ -232,7 +233,6 @@ localparam CONF_STR = {
 	"P2,Audio & Video;",
 	"P2-;",
 	"P2OA,Adlib,On,Invisible;",
-	"P2O6,DSS/Covox,Unplugged,Plugged;",
 	"P2-;",
 	"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
@@ -405,18 +405,6 @@ wire CLK_VIDEO_CGA;
 assign CLK_VIDEO_MDA = clk_113_750;
 assign CLK_VIDEO_CGA = clk_56_875;
 assign ce_pixel_mda = clk_28_636;
-
-reg         cen_44100;
-reg  [31:0] cen_44100_cnt;
-wire [31:0] cen_44100_cnt_next = cen_44100_cnt + 32'd44100;
-always @(posedge CLK_50M) begin
-	cen_44100 <= 0;
-	cen_44100_cnt <= cen_44100_cnt_next;
-	if (cen_44100_cnt_next >= (50000000)) begin
-		cen_44100 <= 1;
-		cen_44100_cnt <= cen_44100_cnt_next - (50000000);
-	end
-end
 
 reg [14:0] HBlank_del;
 wire tandy_16_gfx;
@@ -700,11 +688,9 @@ end
         .joy1                               (status[28] ? joy0 : joy1),
 		  .joya0                              (status[28] ? joya1 : joya0),
 		  .joya1                              (status[28] ? joya0 : joya1),
-		  .clk_en_44100                       (cen_44100),
-		  .dss_covox_en                       (status[6]),
-		  .lclamp                             (AUDIO_L),
-		  .rclamp                             (AUDIO_R),		  
 		  .clk_en_opl2                        (cen_opl2), // clk_en_opl2
+		  .jtopl2_snd_e                       (jtopl2_snd_e),
+		  .tandy_snd_e                        (tandy_snd_e),
 		  .adlibhide                          (adlibhide),
 		  .tandy_video                        (tandy_mode),
 		  .tandy_16_gfx                       (tandy_16_gfx),
@@ -739,12 +725,21 @@ end
 		  .ems_address                        (status[13:12])
     );
 
+	wire speaker_out;
+	wire  [7:0]   tandy_snd_e;
+	wire tandy_snd_rdy;
+
+	wire [15:0] jtopl2_snd_e;	
+	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + {tandy_snd_e, 6'd0}; // signed mixer
+	 
 	wire [15:0] SDRAM_DQ_IN;
 	wire [15:0] SDRAM_DQ_OUT;
 	wire        SDRAM_DQ_IO;
 	
 	assign SDRAM_DQ_IN = SDRAM_DQ;
-	assign SDRAM_DQ = ~SDRAM_DQ_IO ? SDRAM_DQ_OUT : 16'hZZZZ;			
+	assign SDRAM_DQ = ~SDRAM_DQ_IO ? SDRAM_DQ_OUT : 16'hZZZZ;	
+
+	assign AUDIO_R = sndmix >> 1;	
 
 	wire s6_3_mux;
 	wire [2:0] SEGMENT;
