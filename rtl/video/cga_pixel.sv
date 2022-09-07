@@ -33,6 +33,7 @@ module cga_pixel(
     input[3:0] tandy_palette_color,
     input[3:0] tandy_newcolor,
     input tandy_palette_set,
+    input[4:0] tandy_bordercol,
     output[3:0] video
     );
 
@@ -200,6 +201,7 @@ module cga_pixel(
         .c1(pix_bits[1]),
         .pix_640(pix_640),
         .pix_tandy(tandy_bits),
+        .tandy_bordercol(tandy_bordercol),
         .pix_out(video_out)
     );
 
