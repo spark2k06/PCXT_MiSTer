@@ -137,9 +137,11 @@ module PERIPHERALS #(
     assign  dma_page_chip_select_n  = iorq && chip_select_n[4];
 
 	 wire    joystick_select        = (iorq && ~address_enable_n && address[15:3] == (16'h0200 >> 3)); // 0x200 .. 0x207
+	 wire    nmi_mask_register_n    = ~(tandy_video && iorq && ~address_enable_n && address[15:3] == (16'h00a0 >> 3)); // 0xa0 - 0xa7
 	 
 	 wire    tandy_chip_select_n    = ~(iorq && ~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
 	 wire    opl_chip_select_n      = ~(iorq && ~address_enable_n && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
+	 wire    video_chip_select_n    = ~((tandy_video & grph_mode & hres_mode) && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
     wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
 	 wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
 	 wire    bios_select_n          = ~(~iorq && ~address_enable_n && address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
@@ -453,6 +455,7 @@ module PERIPHERALS #(
 	
 	reg [7:0] lpt_data = 8'hFF;
 	reg [7:0] tandy_page_data = 8'h00;
+	reg [7:0] nmi_mask_register_data = 8'hFF;
 	always_ff @(posedge clock) begin
 		if (~io_write_n)
 			write_to_uart <= internal_data_bus;
@@ -463,7 +466,11 @@ module PERIPHERALS #(
             lpt_data <= internal_data_bus;				
 				
 		if ((tandy_page_cs) && (~io_write_n))
-            tandy_page_data <= internal_data_bus;  
+            tandy_page_data <= internal_data_bus;
+
+		if ((~nmi_mask_register_n) && (~io_write_n))
+            nmi_mask_register_data <= internal_data_bus;				
+
 	end
 	
 	wire iorq_uart = (io_write_n & ~prev_io_write_n) || (~io_read_n  & prev_io_read_n);
@@ -501,11 +508,12 @@ module PERIPHERALS #(
 	end
 
 
-     logic  [14:0]  video_ram_address;
+     logic  [16:0]  video_ram_address;
      logic  [7:0]   video_ram_data;
      logic          video_memory_write_n;
      logic          mda_chip_select_n_1;
      logic          cga_chip_select_n_1;
+     logic          video_chip_select_n_1;
      logic  [14:0]  video_io_address;
      logic  [7:0]   video_io_data;
      logic          video_io_write_n;
@@ -538,7 +546,7 @@ module PERIPHERALS #(
 
     always_ff @(posedge clock) begin
         if (~io_write_n | ~io_read_n) begin
-            video_io_address    <= address[14:0];
+            video_io_address    <= address[13:0];
             video_io_data       <= internal_data_bus;
         end
         else begin
@@ -548,11 +556,12 @@ module PERIPHERALS #(
     end
 
     always_ff @(posedge clock) begin
-        video_ram_address       <= address[14:0];
+        video_ram_address       <= address[16:0];
         video_ram_data          <= internal_data_bus;
         video_memory_write_n    <= memory_write_n;
         mda_chip_select_n_1     <= mda_chip_select_n;
         cga_chip_select_n_1     <= cga_chip_select_n;
+        video_chip_select_n_1   <= video_chip_select_n;
 
         video_io_write_n        <= io_write_n;
         video_io_read_n         <= io_read_n;
@@ -760,9 +769,9 @@ module PERIPHERALS #(
     vram #(.AW(17)) cga_vram
 	 (
         .clka                       (clock),
-        .ena                        (~cga_chip_select_n_1),
+        .ena                        (~cga_chip_select_n_1 || ~video_chip_select_n_1),
         .wea                        (~video_memory_write_n),
-	.addra                      ((tandy_video & grph_mode & hres_mode) ? {tandy_page_data[5:4], video_ram_address} : video_ram_address[13:0]),
+        .addra                      ((tandy_video & grph_mode & hres_mode) ? ~video_chip_select_n_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]),
         .dina                       (video_ram_data),
         .douta                      (cga_vram_cpu_dout),
         .clkb                       (clk_vga_cga),
@@ -779,7 +788,7 @@ module PERIPHERALS #(
         .clka                       (clock),
         .ena                        (~mda_chip_select_n_1),
         .wea                        (~video_memory_write_n),
-        .addra                      (video_ram_address),
+        .addra                      (video_ram_address[11:0]),
         .dina                       (video_ram_data),
         .douta                      (mda_vram_cpu_dout),
         .clkb                       (clk_vga_mda),
@@ -937,6 +946,10 @@ module PERIPHERALS #(
             data_bus_out_from_chipset <= 1'b1;				
 				data_bus_out <= lpt_data;
         end
+		  else if ((~nmi_mask_register_n) && (~io_read_n)) begin
+            data_bus_out_from_chipset <= 1'b1;				
+            data_bus_out <= nmi_mask_register_data;
+        end		  
 		  else if (joystick_select && ~io_read_n) begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= joy_data;

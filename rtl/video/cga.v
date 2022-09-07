@@ -72,6 +72,7 @@ module cga(
     reg[7:0] cga_color_reg = 8'b0000_0000;
 	 reg[7:0] tandy_color_reg = 8'b0000_0000;
 	 reg[3:0] tandy_newcolor = 4'b0000;
+	 reg[4:0] tandy_bordercol = 4'b0000;
 	 reg tandy_palette_set;
 	 
     wire bw_mode;
@@ -244,9 +245,11 @@ module cga(
                 cga_color_reg <= bus_d;
             end else if (status_cs) begin
                 tandy_color_reg <= bus_d;
-            end else if (tandy_newcolorsel_cs && tandy_color_reg[7:4] == 4'b0001) begin
+            end else if (tandy_newcolorsel_cs && tandy_color_reg[7:4] == 4'b0001) begin // Palette Mask Register
                 tandy_newcolor <= bus_d[3:0];
 					 tandy_palette_set <= 1'b1;
+				end else if (tandy_newcolorsel_cs && tandy_color_reg[3:0] == 4'b0010) begin // Border Color
+                tandy_bordercol <= bus_d[3:0];
             end
 
         end
@@ -342,6 +345,7 @@ module cga(
         .tandy_palette_color(tandy_color_reg[3:0]),
         .tandy_newcolor(tandy_newcolor),
         .tandy_palette_set(tandy_palette_set),
+        .tandy_bordercol(tandy_bordercol),
         .video(video)
     );
 
