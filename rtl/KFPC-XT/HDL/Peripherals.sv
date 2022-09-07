@@ -61,6 +61,10 @@ module PERIPHERALS #(
     input   logic           ps2_data,
     output  logic           ps2_clock_out,
     output  logic           ps2_data_out,
+	 input   logic           ps2_mouseclk_in,
+	 input   logic           ps2_mousedat_in,
+	 output  logic           ps2_mouseclk_out,
+	 output  logic           ps2_mousedat_out,
 	 input   logic   [4:0]   joy_opts,
 	 input   logic   [31:0]  joy0,
 	 input   logic   [31:0]  joy1,
@@ -222,7 +226,8 @@ module PERIPHERALS #(
 					map_ems[ems_access_address] <= write_map_ems_data;
 					ena_ems[ems_access_address] <= write_map_ena_data;
 		  end
-    end
+    end 
+ 
 
     //
     // 8259
@@ -545,6 +550,9 @@ module PERIPHERALS #(
 		.irq               (uart_interrupt)
 	);	
 	
+	wire uart22_rx;
+	wire uart22_tx;
+	
 	uart uart2
 	(
 		.clk               (clock),
@@ -558,17 +566,25 @@ module PERIPHERALS #(
 		.readdata          (uart2_readdata_1),
 		.cs                (uart2_cs & iorq_uart),
 
-		.rx                (uart2_rx),
-		.tx                (uart2_tx),
-		.cts_n             (uart2_cts_n),
-		.dcd_n             (uart2_dcd_n),
-		.dsr_n             (uart2_dsr_n),
-		.rts_n             (uart2_rts_n),
-		.dtr_n             (uart2_dtr_n),
+		.rx                (uart22_tx),
+		.tx                (uart22_rx),
+		.cts_n             (1),
+		.dcd_n             (1),
+		.dsr_n             (1),
 		.ri_n              (1),
 
 		.irq               (uart2_interrupt)
 	);
+	
+	MSMouseWrapper MSMouseWrapper_inst (
+		.clk(clock),
+		.ps2dta_in(ps2_mousedat_in),
+		.ps2clk_in(ps2_mouseclk_in),
+		.ps2dta_out(ps2_mousedat_out),
+		.ps2clk_out(ps2_mouseclk_out),
+		.rts(uart22_rx),
+		.rd(uart22_tx)
+    );
 
 	// Timing of the readings may need to be reviewed.
 	always_ff @(posedge clock) begin

@@ -340,10 +340,10 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io
 	.ps2_kbd_data_in	(ps2_kbd_data_out),
 	.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 	.ps2_kbd_data_out	(ps2_kbd_data_in),
-//  .ps2_mouse_clk_in	(ps2_mouse_clk_out),
-//	.ps2_mouse_data_in	(ps2_mouse_data_out),
-//	.ps2_mouse_clk_out	(ps2_mouse_clk_in),
-//	.ps2_mouse_data_out	(ps2_mouse_data_in),
+   .ps2_mouse_clk_in	(ps2_mouse_clk_out),
+	.ps2_mouse_data_in	(ps2_mouse_data_out),
+	.ps2_mouse_clk_out	(ps2_mouse_clk_in),
+	.ps2_mouse_data_out	(ps2_mouse_data_in),
 
 	//.ps2_key(ps2_key),
 	.joystick_0(joy0),
@@ -936,6 +936,12 @@ end
 	     .ps2_data                           (device_data),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
+
+	     .ps2_mouseclk_in                    (ps2_mouse_clk_out),
+	     .ps2_mousedat_in                    (ps2_mouse_data_out),
+	     .ps2_mouseclk_out                   (ps2_mouse_clk_in),
+	     .ps2_mousedat_out                   (ps2_mouse_data_in),
+		  
 		  .joy_opts                           (joy_opts),                          //Joy0-Disabled, Joy0-Type, Joy1-Disabled, Joy1-Type, turbo_sync
         .joy0                               (status[28] ? joy1 : joy0),
         .joy1                               (status[28] ? joy0 : joy1),
