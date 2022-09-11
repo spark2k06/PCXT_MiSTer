@@ -25,8 +25,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 PS2MOUSE -> MSMOUSE Conversion
-Preliminary
-https://github.com/TheSonders/MouseConversion/blob/main/MSMouseWrapper.v
+STREAM VERSION
 
 References:
 https://roborooter.com/post/serial-mice/
@@ -62,6 +61,7 @@ localparam MILLIS=(CLKFREQ/1000);
 `define PS2CLKRISE	(ps2clkbuf==4'b0011)
 `define PS2CLKFALL	(ps2clkbuf==4'b1100)
 `define RTSRISE		(rtsbuf==4'b0011)
+`define RTSFALL		(rtsbuf==4'b0000)
 `define TXIDLE			(PS2Tr_STM==1)
 `define PS2R_Start	 0
 `define PS2R_Parity	 9
@@ -130,39 +130,32 @@ end
 ///////////////////////////////////////////
 //////////////PS2 Processing///////////////
 ///////////////////////////////////////////
-
 `define PS2Pr_ResetDelay 		 0
 `define PS2Pr_SendReset	 		 1
 `define PS2Pr_WaitResetACK 	 2
 `define PS2Pr_WaitBAT			 3
 `define PS2Pr_WaitID				 4
 `define PS2Pr_WaitACK			 5
-`define PS2Pr_Query				 6
-`define PS2Pr_Wait0				 7
-`define PS2Pr_Wait1				 8
-`define PS2Pr_Wait2				 9
-`define PS2Pr_Wait3				10
+`define PS2Pr_SendM				 6
+`define PS2Pr_Loop				 7
 
 `define PS2Pr_BAT			8'hAA
 `define PS2Pr_ID			8'h00
 `define PS2Pr_RESET		8'hFF
 `define PS2Pr_REMOTE		8'hF0
+`define PS2Pr_STREAM		8'hF4
 `define PS2Pr_ACK			8'hFA
 `define PS2Pr_READ		8'hEB
 
-//Sustituye 30'h3FFFFE9A por 30'h3FFFFF9A
-`define PS2Pr_M			30'h3FFFFE9A	
+`define PS2Pr_M			30'h39AFFFFF
+
 `define PS2BitSYNC		3
 
-`define LeftBt				PS2Byte1[0]
-`define RightBt			PS2Byte1[1]
-`define MSMByte1			{2'b11,`LeftBt,`RightBt,PS2Byte1[5],PS2R_Byte[7],PS2Byte1[4],PS2Byte2[7]}
-`define MSMByte2			{2'b10,PS2Byte2[6:1]}
-`define MSMByte3			{2'b10,PS2R_Byte[6:1]}
+`define MSMByte1			{2'b11,LBut,RBut,AccY[7:6],AccX[7:6]}
+`define MSMByte2			{2'b10,AccX[5:0]}
+`define MSMByte3			{2'b10,AccY[5:0]}
 
 `define Serial_Reset		 0
-`define Serial_Idle		 1
-`define Serial_Stop		10
 
 `define TMR_END	(Timer==0)
 
@@ -176,6 +169,27 @@ end
 `define STARTBIT			 0
 `define STOPBIT			 1
 
+wire [7:0]YC= ~{MSBY,PS2R_Byte[7:1]}+1;
+wire [7:0]XC= {MSBX,PS2R_Byte[7:1]};
+wire LeftBt=PS2R_Byte[0];
+wire RightBt=PS2R_Byte[1];
+wire MSBX=PS2R_Byte[4];
+wire MSBY=PS2R_Byte[5];
+wire bitSYNC=PS2R_Byte[3];
+
+reg LBut=0;
+reg RBut=0;
+reg Prev_LBut=0;
+reg Prev_RBut=0;
+reg msbX=0;
+reg msbY=0;
+reg [1:0]ByteSync=0;
+reg [7:0]AccX=0;
+reg [7:0]AccY=0;
+
+reg FUpdate=0;
+reg PS2Detected=0;
+
 reg [$clog2(MILLIS)-1:0]Timer=0;
 reg SerialSendRequest=0;
 reg [4:0]Serial_STM=0;
@@ -183,8 +197,6 @@ reg [4:0]Serial_STM=0;
 reg [3:0]PS2Pr_STM=0;
 reg PS2SendRequest=0;
 reg [7:0]PS2SendData=0;
-reg [7:0]PS2Byte1=0;
-reg [7:0]PS2Byte2=0;
 reg [29:0]SerialSendData=0;
 
 reg [3:0]PS2Tr_STM=0;
@@ -193,8 +205,8 @@ reg PS2Tr_PAR=0;
 always @(posedge clk)begin
 	if (PS2SendRequest==1)PS2SendRequest<=0;
 	if (SerialSendRequest==1)SerialSendRequest<=0;
-	if (`RTSRISE)begin
-		PS2Pr_STM<=0;
+	if (`RTSFALL && PS2Detected==1)begin
+		PS2Pr_STM<=`PS2Pr_SendM;
 		Timer<=0;
 	end
 	else begin
@@ -234,7 +246,7 @@ always @(posedge clk)begin
 				if (PS2R_NewByte==1)begin
 					if (PS2R_Byte==`PS2Pr_ID)begin
 						PS2Pr_STM<=PS2Pr_STM+1;
-						SendPS2(`PS2Pr_REMOTE);
+						SendPS2(`PS2Pr_STREAM);
 					end
 					else begin
 						PS2Pr_STM<=0;
@@ -245,70 +257,73 @@ always @(posedge clk)begin
 				if (PS2R_NewByte==1)begin
 					if (PS2R_Byte==`PS2Pr_ACK)begin
 						PS2Pr_STM<=PS2Pr_STM+1;
-						SendSerial(`PS2Pr_M);
+						PS2Detected<=1;
+						ByteSync<=0;
 					end
 					else begin
 						PS2Pr_STM<=0;
 					end
 				end
 			end
-			`PS2Pr_Query:begin
-				if (SerialSendRequest==0 && Serial_STM==1)begin
-					SendPS2(`PS2Pr_READ);
+			`PS2Pr_SendM:begin
+				if(`RTSRISE)begin
 					PS2Pr_STM<=PS2Pr_STM+1;
+					SendSerial(`PS2Pr_M);
+					FUpdate<=1;
 				end
 			end
-			`PS2Pr_Wait0:begin
+			`PS2Pr_Loop:begin
 				if (PS2R_NewByte==1)begin
-					if (PS2R_Byte==`PS2Pr_ACK)begin
-						PS2Pr_STM<=PS2Pr_STM+1;
+					case (ByteSync)
+						0:begin
+							if (bitSYNC==1)begin
+								ByteSync<=ByteSync+1;
+								LBut<=LeftBt;
+								RBut<=RightBt;
+								msbX<=MSBX;
+								msbY<=MSBY;
+							end
+						end
+						1:begin
+							ByteSync<=ByteSync+1;
+							AccX<=AccX+XC;
+						end
+						2:begin
+							ByteSync<=0;
+							AccY<=AccY+YC;
+						end
+					endcase
+				end
+				else if (SerialSendRequest==0 && Serial_STM==0)begin
+					if (AccX!=0 || AccY!=0 || LBut!=Prev_LBut || RBut!=Prev_RBut || FUpdate==1) begin
+						SendSerial({1'b1,`MSMByte3,2'b01,`MSMByte2,2'b01,`MSMByte1,1'b0});
+						FUpdate<=0;
+						Prev_LBut<=LBut;
+						Prev_RBut<=RBut;
+						AccX<=0;
+						AccY<=0;
 					end
-					else begin
-						PS2Pr_STM<=0;
-					end
-				end
-			end
-			`PS2Pr_Wait1:begin
-				if (PS2R_NewByte==1)begin
-					if (PS2R_Byte[`PS2BitSYNC]==1)begin
-						PS2Byte1<=PS2R_Byte;
-						PS2Pr_STM<=PS2Pr_STM+1;
-					end
-				end
-			end
-			`PS2Pr_Wait2:begin
-				if (PS2R_NewByte==1)begin
-					PS2Byte2<=PS2R_Byte;
-					PS2Pr_STM<=PS2Pr_STM+1;
-				end
-			end
-			`PS2Pr_Wait3:begin
-				if (PS2R_NewByte==1)begin
-					PS2Pr_STM<=`PS2Pr_Query;
-					SendSerial({1'b1,`MSMByte3,2'b01,`MSMByte2,2'b01,`MSMByte1,1'b0});
 				end
 			end
 		endcase
 	end
-
-
 ///////////////////////////////////////////
 /////////////Serial Transmision////////////
 ///////////////////////////////////////////
-	if (`RTSRISE)begin
+	if (`RTSFALL)begin
 		Serial_STM<=0;
+		rd<=1;
 	end
 	else begin
 	case (Serial_STM)
 		`Serial_Reset:begin
-			rd<=1;
-			Serial_STM<=Serial_STM+1;
-		end
-		`Serial_Idle:begin
 			if (SerialSendRequest==1)begin
 				Serial_STM<=Serial_STM+1;
 				{SerialSendData,rd}<={1'b1,SerialSendData};
 				SetTimer(SERIALPERIOD);
+			end
+			else begin
+				rd<=1;
 			end
 		end
 		default:begin
@@ -320,18 +335,18 @@ always @(posedge clk)begin
 		end
 	endcase
 	end
-
-	
 ///////////////////////////////////////////
 //////////////PS2 Transmision//////////////
 ///////////////////////////////////////////
-	if (`RTSRISE)begin
+	if (`RTSFALL && PS2Detected==1)begin
 		PS2Tr_STM<=0;
+		ps2dta_out<=1; 			//Requerido para algunas CPLD
+		ps2clk_out<=1;
 	end
 	else begin
 	case (PS2Tr_STM)
 		`PS2Tr_Reset:begin
-			ps2dta_out<=1; 			//Requerido para algunas CPLD
+			ps2dta_out<=1; 		
 			ps2clk_out<=1;
 			PS2Tr_STM<=PS2Tr_STM+1;
 		end

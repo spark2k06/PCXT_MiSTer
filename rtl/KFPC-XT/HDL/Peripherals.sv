@@ -81,6 +81,7 @@ module PERIPHERALS #(
 	 output  logic           tandy_16_gfx,
 	 // UART
 	 input   logic           clk_uart,
+	 input   logic           clk_uart2,
 	 input   logic           uart_rx,
 	 output  logic           uart_tx,
 	 input   logic           uart_cts_n,
@@ -88,14 +89,6 @@ module PERIPHERALS #(
 	 input   logic           uart_dsr_n,
 	 output  logic           uart_rts_n,
 	 output  logic           uart_dtr_n,
-	 // UART 2
-	 input   logic           uart2_rx,
-	 output  logic           uart2_tx,
-	 input   logic           uart2_cts_n,
-	 input   logic           uart2_dcd_n,
-	 input   logic           uart2_dsr_n,
-	 output  logic           uart2_rts_n,
-	 output  logic           uart2_dtr_n,
 	 // EMS
 	 input   logic           ems_enabled,
 	 input   logic   [1:0]   ems_address,
@@ -236,6 +229,7 @@ module PERIPHERALS #(
     logic           keybord_interrupt;
 	 logic           uart_interrupt;
     logic           fdd_interrupt;
+	 logic           uart2_interrupt;
     logic   [7:0]   interrupt_data_bus_out;
 
     KF8259 u_KF8259 (
@@ -362,6 +356,8 @@ module PERIPHERALS #(
     //
     logic           ps2_send_clock;
     logic           keybord_irq;
+	 logic           uart_irq;
+	 logic           uart2_irq;
     logic   [7:0]   keycode;
     logic   [7:0]   tandy_keycode;
     logic           prev_ps2_reset;
@@ -464,14 +460,24 @@ module PERIPHERALS #(
 	);	
 	
 	    logic   keybord_interrupt_ff;
+		 logic   uart_interrupt_ff;
+		 logic   uart2_interrupt_ff;
     always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
             keybord_interrupt_ff    <= 1'b0;
             keybord_interrupt       <= 1'b0;
+				uart_interrupt_ff       <= 1'b0;
+				uart_interrupt          <= 1'b0;
+				uart2_interrupt_ff      <= 1'b0;
+				uart2_interrupt         <= 1'b0;
         end
         else begin
             keybord_interrupt_ff    <= keybord_irq;
             keybord_interrupt       <= keybord_interrupt_ff;
+				uart_interrupt_ff       <= uart_irq;
+				uart_interrupt          <= uart_interrupt_ff;
+				uart2_interrupt_ff      <= uart2_irq;
+				uart2_interrupt         <= uart2_interrupt_ff;
         end
 	end
 	
@@ -547,16 +553,16 @@ module PERIPHERALS #(
 		.dtr_n             (uart_dtr_n),
 		.ri_n              (1),
 
-		.irq               (uart_interrupt)
+		.irq               (uart_irq)
 	);	
 	
-	wire uart22_rx;
-	wire uart22_tx;
+	wire uart2_tx;
+	wire rts_n;
 	
 	uart uart2
 	(
 		.clk               (clock),
-		.br_clk            (clk_uart),
+		.br_clk            (clk_uart), // clk_uart2
 		.reset             (reset),
 
 		.address           (address[2:0]),
@@ -565,15 +571,13 @@ module PERIPHERALS #(
 		.write             (io_write_n & ~prev_io_write_n),
 		.readdata          (uart2_readdata_1),
 		.cs                (uart2_cs & iorq_uart),
-
-		.rx                (uart22_tx),
-		.tx                (uart22_rx),
-		.cts_n             (1),
-		.dcd_n             (1),
-		.dsr_n             (1),
+		.rx                (uart2_tx),
+		.cts_n             (0),
+		.dcd_n             (0),
+		.dsr_n             (0),
 		.ri_n              (1),
-
-		.irq               (uart2_interrupt)
+		.rts_n             (rts_n),
+		.irq               (uart2_irq)
 	);
 	
 	MSMouseWrapper MSMouseWrapper_inst (
@@ -582,8 +586,8 @@ module PERIPHERALS #(
 		.ps2clk_in(ps2_mouseclk_in),
 		.ps2dta_out(ps2_mousedat_out),
 		.ps2clk_out(ps2_mouseclk_out),
-		.rts(uart22_rx),
-		.rd(uart22_tx)
+		.rts(~rts_n),
+		.rd(uart2_tx)
     );
 
 	// Timing of the readings may need to be reviewed.

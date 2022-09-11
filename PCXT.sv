@@ -302,6 +302,7 @@ wire [15:0] ioctl_data;
 reg         ioctl_wait;
 
 wire        clk_uart;
+reg   [2:0] clk_uart2;
 
 wire [21:0] gamma_bus;
 wire        adlibhide = status[10];
@@ -340,10 +341,11 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io
 	.ps2_kbd_data_in	(ps2_kbd_data_out),
 	.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 	.ps2_kbd_data_out	(ps2_kbd_data_in),
-   .ps2_mouse_clk_in	(ps2_mouse_clk_out),
-	.ps2_mouse_data_in	(ps2_mouse_data_out),
-	.ps2_mouse_clk_out	(ps2_mouse_clk_in),
-	.ps2_mouse_data_out	(ps2_mouse_data_in),
+	
+	.ps2_mouse_clk_out    (ps2_mouse_clk_out),
+	.ps2_mouse_data_out   (ps2_mouse_data_out),
+	.ps2_mouse_clk_in     (ps2_mouse_clk_in),
+	.ps2_mouse_data_in    (ps2_mouse_data_in),
 
 	//.ps2_key(ps2_key),
 	.joystick_0(joy0),
@@ -451,9 +453,12 @@ always @(posedge clk_28_636) begin
 	ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
 end
 
+always @(posedge clk_uart) // 14.74 MHz (Fast UART)
+	clk_uart2 <= {clk_uart2[1], clk_uart2[0], clk_uart}; // 1.84 MHz (Slow UART)
+
 always @(posedge clk_14_318)
 	clk_7_16 <= ~clk_7_16; // 7.16Mhz
-
+	
 clk_div3 clk_normal // 4.77MHz
 (
 	.clk(clk_14_318),
@@ -893,15 +898,15 @@ end
         .enable_cga                         (1'b1),
         .clk_vga_mda                        (clk_56_875),
         .enable_mda                         (1'b1),
-		.mda_rgb                            (2'b10), // always B&W - monochrome monitor tint handled down below
+        .mda_rgb                            (2'b10), // always B&W - monochrome monitor tint handled down below
         //.de_o                               (VGA_DE),
         .VGA_R                              (r),
         .VGA_G                              (g),
         .VGA_B                              (b),
         .VGA_HSYNC                          (HSync),
         .VGA_VSYNC                          (VSync),
-		.VGA_HBlank	  				        (HBlank),
-		.VGA_VBlank							(VBlank),
+        .VGA_HBlank	  				        (HBlank),
+        .VGA_VBlank							(VBlank),
 //      .address                            (address),
         .address_ext                        (bios_access_address),
         .ext_access_request                 (bios_access_request),
@@ -955,6 +960,7 @@ end
 		  .tandy_bios_flag                    (tandy_bios_flag),
 		  .tandy_16_gfx                       (tandy_16_gfx),
 		  .clk_uart                          ((status[22:21] == 2'b00) ? clk_uart : clk_uart_en),
+		  .clk_uart2                          (clk_uart2[2]), 
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
 	     .uart_cts_n                        (uart_cts),
@@ -962,13 +968,6 @@ end
 	     .uart_dsr_n                        (uart_dsr),
 	     .uart_rts_n                        (uart_rts),
 	     .uart_dtr_n                        (uart_dtr),
-	     .uart2_rx                           (uart2_rx),
-	     .uart2_tx                           (uart2_tx),
-	     .uart2_cts_n                        (uart2_cts),
-	     .uart2_dcd_n                        (uart2_dcd),
-	     .uart2_dsr_n                        (uart2_dsr),
-	     .uart2_rts_n                        (uart2_rts),
-	     .uart2_dtr_n                        (uart2_dtr),
 		  .enable_sdram                       (1'b1),
 		 .initilized_sdram                   (initilized_sdram),
 		  .sdram_clock                        (SDRAM_CLK),
