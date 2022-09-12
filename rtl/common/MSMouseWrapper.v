@@ -61,7 +61,6 @@ localparam MILLIS=(CLKFREQ/1000);
 `define PS2CLKRISE	(ps2clkbuf==4'b0011)
 `define PS2CLKFALL	(ps2clkbuf==4'b1100)
 `define RTSRISE		(rtsbuf==4'b0011)
-`define RTSFALL		(rtsbuf==4'b0000)
 `define TXIDLE			(PS2Tr_STM==1)
 `define PS2R_Start	 0
 `define PS2R_Parity	 9
@@ -205,7 +204,7 @@ reg PS2Tr_PAR=0;
 always @(posedge clk)begin
 	if (PS2SendRequest==1)PS2SendRequest<=0;
 	if (SerialSendRequest==1)SerialSendRequest<=0;
-	if (`RTSFALL && PS2Detected==1)begin
+	if (`RTSRISE)begin
 		PS2Pr_STM<=`PS2Pr_SendM;
 		Timer<=0;
 	end
@@ -257,7 +256,6 @@ always @(posedge clk)begin
 				if (PS2R_NewByte==1)begin
 					if (PS2R_Byte==`PS2Pr_ACK)begin
 						PS2Pr_STM<=PS2Pr_STM+1;
-						PS2Detected<=1;
 						ByteSync<=0;
 					end
 					else begin
@@ -266,11 +264,9 @@ always @(posedge clk)begin
 				end
 			end
 			`PS2Pr_SendM:begin
-				if(`RTSRISE)begin
 					PS2Pr_STM<=PS2Pr_STM+1;
 					SendSerial(`PS2Pr_M);
-					FUpdate<=1;
-				end
+//					FUpdate<=1;
 			end
 			`PS2Pr_Loop:begin
 				if (PS2R_NewByte==1)begin
@@ -310,9 +306,9 @@ always @(posedge clk)begin
 ///////////////////////////////////////////
 /////////////Serial Transmision////////////
 ///////////////////////////////////////////
-	if (`RTSFALL)begin
+	if (`RTSRISE)begin
 		Serial_STM<=0;
-		rd<=1;
+//		rd<=1;
 	end
 	else begin
 	case (Serial_STM)
@@ -338,15 +334,13 @@ always @(posedge clk)begin
 ///////////////////////////////////////////
 //////////////PS2 Transmision//////////////
 ///////////////////////////////////////////
-	if (`RTSFALL && PS2Detected==1)begin
+	if (`RTSRISE)begin
 		PS2Tr_STM<=0;
-		ps2dta_out<=1; 			//Requerido para algunas CPLD
-		ps2clk_out<=1;
 	end
 	else begin
 	case (PS2Tr_STM)
 		`PS2Tr_Reset:begin
-			ps2dta_out<=1; 		
+			ps2dta_out<=1; 			//Requerido para algunas CPLD
 			ps2clk_out<=1;
 			PS2Tr_STM<=PS2Tr_STM+1;
 		end
