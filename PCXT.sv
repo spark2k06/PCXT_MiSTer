@@ -699,7 +699,7 @@ end
 		  .ioctl_wr                           (ioctl_wr),
 		  .ioctl_addr                         (ioctl_addr),
 		  .ioctl_data                         (ioctl_data),		  
-		  .clk_uart                          (clk_uart),
+		  .clk_uart                          (clk_uart_en),
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
 	     .uart_cts_n                        (uart_cts),
@@ -782,6 +782,18 @@ end
 	// 5   | RX-      | I |DSR
 	// 6   | TX+      | I |DCD
 	//
+
+	logic clk_uart_ff_1;
+	logic clk_uart_ff_2;
+	logic clk_uart_ff_3;
+	logic clk_uart_en;
+
+	always @(posedge clk_chipset) begin
+		clk_uart_ff_1 <= clk_uart;
+		clk_uart_ff_2 <= clk_uart_ff_1;
+		clk_uart_ff_3 <= clk_uart_ff_2;
+		clk_uart_en   <= ~clk_uart_ff_3 & clk_uart_ff_2;
+    end
 
 	wire uart_tx, uart_rts, uart_dtr;
 	

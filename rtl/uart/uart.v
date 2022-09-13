@@ -32,14 +32,14 @@ uart_16750 uart_16750
 (
 	.CLK(clk),
 	.RST(reset),
-	.BAUDCE(1'b1),
+	.BAUDCE(br_clk),
 	.CS(cs & (read | write)),
 	.WR(write),
 	.RD(read),
 	.A(address),
 	.DIN(writedata),
 	.DOUT(data),
-	.RCLK(br_clk),
+	.RCLK(br_out),
 	
 	.BAUDOUTN(br_out),
 
