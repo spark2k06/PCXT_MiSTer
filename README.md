@@ -39,11 +39,13 @@ Initially, and until an 8-bit IDE module compatible with XTIDE is available, flo
 * 115200 Kbps
 * 230400 Kbps
 * 460800 Kbps
-* 921600 Kbps
+* 921600 Kbps (Only works with CPU speed at 14.318MHz)
 
-By default it is set to 115200, but this speed does not work, as XTIDE does not identify it... The most suitable speed is 460800, although 921600 is possible to use only with the CPU speed at 14.318MHz.
+By default it is set to 115200, but the most suitable speed is 460800. It is also possible to use 921600, but only with the CPU speed at 14.318MHz.
 
-The FDD image is recognised by XTIDE as B:, so to boot from floppy disk when booting, the 'B' key must be pressed when the XTIDE boot screen appears.
+The floppy disk image is recognised by XTIDE as B: in all BIOSes except JukoST, so to boot from the floppy disk, press the 'B' key when the XTIDE boot screen appears. Mounting and unmounting of such a drive becomes effective after a BIOS reset. Floppy swapping is possible as long as the drive was previously mounted.
+
+The serial port speed change becomes effective after a BIOS reset, it is not possible to use the HDD or Floppy drive after a speed change, the BIOS must always be reset after that.
 
 ## To-do list and challenges
 

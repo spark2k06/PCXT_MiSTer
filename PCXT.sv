@@ -699,7 +699,7 @@ end
 		  .ioctl_wr                           (ioctl_wr),
 		  .ioctl_addr                         (ioctl_addr),
 		  .ioctl_data                         (ioctl_data),		  
-		  .clk_uart                          (clk_uart_en),
+		  .clk_uart                          ((status[22:21] == 2'b00) ? clk_uart : clk_uart_en),
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
 	     .uart_cts_n                        (uart_cts),
