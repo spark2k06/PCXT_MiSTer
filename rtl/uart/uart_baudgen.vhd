@@ -3,7 +3,7 @@
 --
 -- Author:   Sebastian Witt
 -- Date:     27.01.2008
--- Version:  1.0
+-- Version:  1.1
 --
 -- This code is free software; you can redistribute it and/or
 -- modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,6 @@
 
 LIBRARY IEEE;
 USE IEEE.std_logic_1164.all;
-USE IEEE.std_logic_unsigned.all;
 USE IEEE.numeric_std.all;
 
 -- Serial UART baudrate generator
@@ -40,7 +39,7 @@ end uart_baudgen;
 
 architecture rtl of uart_baudgen is
     -- Signals
-    signal iCounter : std_logic_vector(15 downto 0);
+    signal iCounter : unsigned(15 downto 0);
 begin
     -- Baudrate counter
     BG_COUNT: process (CLK, RST)
@@ -52,11 +51,11 @@ begin
             if (CLEAR = '1') then
                 iCounter <= (others => '0');
             elsif (CE = '1') then
-                iCounter <= iCounter + '1';
+                iCounter <= iCounter + 1;
             end if;
 
             BAUDTICK <= '0';
-            if (iCounter = DIVIDER) then
+            if (iCounter = unsigned(DIVIDER)) then
                 iCounter <= (others => '0');
                 BAUDTICK <= '1';
             end if;

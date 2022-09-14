@@ -3,7 +3,7 @@
 --
 -- Author:   Sebastian Witt
 -- Date:     27.01.2008
--- Version:  1.0
+-- Version:  1.1
 --
 -- This code is free software; you can redistribute it and/or
 -- modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,6 @@
 
 LIBRARY IEEE;
 USE IEEE.std_logic_1164.all;
-USE IEEE.std_logic_unsigned.all;
 USE IEEE.numeric_std.all;
 
 

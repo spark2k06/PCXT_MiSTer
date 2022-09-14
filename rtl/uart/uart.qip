@@ -1,7 +1,7 @@
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) slib_clock_div.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) slib_counter.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) slib_edge_detect.vhd ]
-set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) slib_fifo_cyclone2.vhd ]
+set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) slib_fifo.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) slib_input_filter.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) slib_input_sync.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) slib_mv_filter.vhd ]

@@ -23,7 +23,6 @@
 
 LIBRARY IEEE;
 USE IEEE.std_logic_1164.all;
-USE IEEE.std_logic_unsigned.all;
 USE IEEE.numeric_std.all;
 
 -- Serial UART receiver
@@ -48,23 +47,6 @@ entity uart_receiver is
 end uart_receiver;
 
 architecture rtl of uart_receiver is
-    -- Serial shift register
-    component slib_shift_reg is
-        generic (
-            WIDTH : natural := 16                                   -- Register width
-        );
-        port (
-            CLK         : in std_logic;                             -- Clock
-            RST         : in std_logic;                             -- Reset
-            ENABLE      : in std_logic;                             -- Enable shift operation
-            LOAD        : in std_logic;                             -- Load shift register
-            DIR         : in std_logic;                             -- Shift direction
-            MSB_IN      : in std_logic;                             -- MSB in
-            LSB_IN      : in std_logic;                             -- LSB in
-            DIN         : in std_logic_vector(WIDTH-1 downto 0);    -- Load shift register input
-            DOUT        : out std_logic_vector(WIDTH-1 downto 0)    -- Shift register output
-        );
-    end component;
     -- Majority voting logic
     component slib_mv_filter is
         generic (

@@ -3,7 +3,11 @@
 --
 -- Author:   Sebastian Witt
 -- Date:     27.01.2008
--- Version:  1.0
+-- Version:  1.1
+--
+-- History:  1.0 - Initial version
+--           1.1 - Automatic flow control
+--
 --
 -- This code is free software; you can redistribute it and/or
 -- modify it under the terms of the GNU Lesser General Public
@@ -23,7 +27,6 @@
 
 LIBRARY IEEE;
 USE IEEE.std_logic_1164.all;
-USE IEEE.std_logic_unsigned.all;
 USE IEEE.numeric_std.all;
 
 -- Serial UART interrupt control
@@ -36,6 +39,7 @@ entity uart_interrupt is
         THI         : in std_logic;                                 -- Transmitter holding register empty interrupt
         RDA         : in std_logic;                                 -- Receiver data available
         CTI         : in std_logic;                                 -- Character timeout indication
+        AFE         : in std_logic;                                 -- Automatic flow control enable
         MSR         : in std_logic_vector(3 downto 0);              -- MSR 3:0
         IIR         : out std_logic_vector(3 downto 0);             -- IIR 3:0
         INT         : out std_logic                                 -- Interrupt
@@ -64,8 +68,8 @@ begin
     -- Priority 3: Transmitter holding register empty
     iTHRInterrupt <= IER(1) and THI;
 
-    -- Priority 4: Modem status interrupt: dCTS, dDSR, TERI, dDCD
-    iMSRInterrupt <= IER(3) and (MSR(0) or MSR(1) or MSR(2) or MSR(3));
+    -- Priority 4: Modem status interrupt: dCTS (when AFC is disabled), dDSR, TERI, dDCD
+    iMSRInterrupt <= IER(3) and ((MSR(0) and not AFE) or MSR(1) or MSR(2) or MSR(3));
 
     -- IIR
     IC_IIR: process (CLK, RST)

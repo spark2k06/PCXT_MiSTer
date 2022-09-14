@@ -23,7 +23,6 @@
 
 LIBRARY IEEE;
 USE IEEE.std_logic_1164.all;
-USE IEEE.std_logic_unsigned.all;
 USE IEEE.numeric_std.all;
 
 -- Serial UART transmitter

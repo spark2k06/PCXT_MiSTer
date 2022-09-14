@@ -3,7 +3,7 @@
 --
 -- Author:   Sebastian Witt
 -- Date:     27.01.2008
--- Version:  1.1
+-- Version:  1.2
 --
 -- This code is free software; you can redistribute it and/or
 -- modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,6 @@
 
 LIBRARY IEEE;
 USE IEEE.std_logic_1164.all;
-USE IEEE.std_logic_unsigned.all;
 USE IEEE.numeric_std.all;
 
 -- Counter
@@ -45,7 +44,7 @@ entity slib_counter is
 end slib_counter;
 
 architecture rtl of slib_counter is
-    signal iCounter : std_logic_vector(WIDTH downto 0);         -- Counter register
+    signal iCounter : unsigned(WIDTH downto 0);         -- Counter register
 begin
     -- Counter process
     COUNT_SHIFT: process (RST, CLK)
@@ -56,12 +55,12 @@ begin
             if (CLEAR = '1') then
                 iCounter <= (others => '0');            -- Clear counter register
             elsif (LOAD = '1') then                     -- Load counter register
-                iCounter <= '0' & D;
+                iCounter <= unsigned('0' & D);
             elsif (ENABLE = '1') then                   -- Enable counter
                 if (DOWN = '0') then                    -- Count up
-                    iCounter <= iCounter + '1';
+                    iCounter <= iCounter + 1;
                 else                                    -- Count down
-                    iCounter <= iCounter - '1';
+                    iCounter <= iCounter - 1;
                 end if;
             end if;
             if (iCounter(WIDTH) = '1') then             -- Clear overflow
@@ -72,7 +71,7 @@ begin
     end process;
 
     -- Output ports
-    Q        <= iCounter(WIDTH-1 downto 0);
+    Q        <= std_logic_vector(iCounter(WIDTH-1 downto 0));
     OVERFLOW <= iCounter(WIDTH);
 end rtl;
 

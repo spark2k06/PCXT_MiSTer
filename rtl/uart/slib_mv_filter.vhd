@@ -3,7 +3,7 @@
 --
 -- Author:   Sebastian Witt
 -- Date:     27.01.2008
--- Version:  1.0
+-- Version:  1.1
 --
 -- This code is free software; you can redistribute it and/or
 -- modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,6 @@
 
 LIBRARY IEEE;
 USE IEEE.std_logic_1164.all;
-USE IEEE.std_logic_unsigned.all;
 USE IEEE.numeric_std.all;
 
 
@@ -45,7 +44,7 @@ end slib_mv_filter;
 architecture rtl of slib_mv_filter is
 
     -- Signals
-    signal iCounter     : std_logic_vector(WIDTH downto 0);     -- Sample counter
+    signal iCounter     : unsigned(WIDTH downto 0);             -- Sample counter
     signal iQ           : std_logic;                            -- Internal Q
 
 begin
@@ -60,7 +59,7 @@ begin
                 iQ <= '1';
             else
                 if (SAMPLE = '1' and D = '1') then              -- Take sample
-                    iCounter <= iCounter + '1';
+                    iCounter <= iCounter + 1;
                 end if;
             end if;
 
