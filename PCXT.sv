@@ -252,10 +252,12 @@ localparam CONF_STR = {
 	"-;",
 	"P4,BIOS;",
 	"P4-;",
-	"P4FC0,ROM,PCXT BIOS;",
-	"P4FC1,ROM,Tandy BIOS;",
+	"P4FC0,ROM,PCXT BIOS:;",
+	"P4FC1,ROM,Tandy BIOS:;",
 	"P4-;",
-	"P4FC2,ROM,Custom XTIDE (EC00);",
+	"P4FC2,ROM,EC00 BIOS:;",
+	"P4-;",
+	"P4OUV,BIOS Writable,None,EC00,PCXT/Tandy,All;",
 	"-;",
 	"R0,Reset & apply model;",
 	"J,Fire 1, Fire 2;",
@@ -722,7 +724,8 @@ end
         .sdram_ldqm                         (SDRAM_DQML),
         .sdram_udqm                         (SDRAM_DQMH),
 		  .ems_enabled                        (~status[11]),
-		  .ems_address                        (status[13:12])
+		  .ems_address                        (status[13:12]),
+		  .bios_writable                      (status[31:30])
     );
 
 	wire speaker_out;

@@ -122,7 +122,9 @@ module CHIPSET (
     output  logic           sdram_udqm,
 	 // EMS
 	 input   logic           ems_enabled,
-	 input   logic   [1:0]   ems_address
+	 input   logic   [1:0]   ems_address,
+	 // BIOS
+	 input   logic   [2:0]   bios_writable
 );
 
     logic           dma_ready;
@@ -305,7 +307,8 @@ module CHIPSET (
 	     .ems_b1                            (ems_b1),
 	     .ems_b2                            (ems_b2),
 	     .ems_b3                            (ems_b3),
-	     .ems_b4                            (ems_b4)
+	     .ems_b4                            (ems_b4),
+	     .bios_writable                       (bios_writable)
     );
 
     RAM u_RAM (
