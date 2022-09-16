@@ -252,10 +252,12 @@ localparam CONF_STR = {
 	"-;",
 	"P4,BIOS;",
 	"P4-;",
-	"P4FC0,ROM,PCXT BIOS;",
-	"P4FC1,ROM,Tandy BIOS;",
+	"P4FC0,ROM,PCXT BIOS:;",
+	"P4FC1,ROM,Tandy BIOS:;",
 	"P4-;",
-	"P4FC2,ROM,Custom XTIDE (EC00);",
+	"P4FC2,ROM,EC00 BIOS:;",
+	"P4-;",
+	"P4OUV,BIOS Writable,None,EC00,PCXT/Tandy,All;",
 	"-;",
 	"R0,Reset & apply model;",
 	"J,Fire 1, Fire 2;",
@@ -699,7 +701,7 @@ end
 		  .ioctl_wr                           (ioctl_wr),
 		  .ioctl_addr                         (ioctl_addr),
 		  .ioctl_data                         (ioctl_data),		  
-		  .clk_uart                          (clk_uart),
+		  .clk_uart                          ((status[22:21] == 2'b00) ? clk_uart : clk_uart_en),
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
 	     .uart_cts_n                        (uart_cts),
@@ -722,7 +724,8 @@ end
         .sdram_ldqm                         (SDRAM_DQML),
         .sdram_udqm                         (SDRAM_DQMH),
 		  .ems_enabled                        (~status[11]),
-		  .ems_address                        (status[13:12])
+		  .ems_address                        (status[13:12]),
+		  .bios_writable                      (status[31:30])
     );
 
 	wire speaker_out;
@@ -730,7 +733,7 @@ end
 	wire tandy_snd_rdy;
 
 	wire [15:0] jtopl2_snd_e;	
-	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + {tandy_snd_e, 6'd0}; // signed mixer
+	wire [16:0]sndmix = ({jtopl2_snd_e[15], jtopl2_snd_e}) + (speaker_out << 14) + ({tandy_snd_e, 9'd0}); // signed mixer
 	 
 	wire [15:0] SDRAM_DQ_IN;
 	wire [15:0] SDRAM_DQ_OUT;
@@ -782,6 +785,18 @@ end
 	// 5   | RX-      | I |DSR
 	// 6   | TX+      | I |DCD
 	//
+
+	logic clk_uart_ff_1;
+	logic clk_uart_ff_2;
+	logic clk_uart_ff_3;
+	logic clk_uart_en;
+
+	always @(posedge clk_chipset) begin
+		clk_uart_ff_1 <= clk_uart;
+		clk_uart_ff_2 <= clk_uart_ff_1;
+		clk_uart_ff_3 <= clk_uart_ff_2;
+		clk_uart_en   <= ~clk_uart_ff_3 & clk_uart_ff_2;
+    end
 
 	wire uart_tx, uart_rts, uart_dtr;
 	

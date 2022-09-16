@@ -96,7 +96,8 @@ module PERIPHERALS #(
 	 output  logic           ems_b1,
 	 output  logic           ems_b2,
 	 output  logic           ems_b3,
-	 output  logic           ems_b4
+	 output  logic           ems_b4,
+	 input   logic   [2:0]   bios_writable
 );
     
 	 wire grph_mode;
@@ -824,9 +825,9 @@ module PERIPHERALS #(
 	(
         .clka(bios_loader ? clk_sys : clock),		  
         .ena((~bios_select_n_1) || ioctl_download),
-        .wea(bios_loader && ioctl_wr),
+        .wea((bios_loader && ioctl_wr) || (~memory_write_n && bios_writable[1])),
         .addra(bios_loader ? { tandy_loader, ioctl_addr[15:0] } : { rom_address }),
-        .dina(ioctl_data),
+        .dina(bios_loader ? ioctl_data : internal_data_bus),
         .douta(bios_cpu_dout),
 		  
 	);
@@ -835,9 +836,9 @@ module PERIPHERALS #(
 	(
         .clka(xtide_loading ? clk_sys : clock),
         .ena((~xtide_select_n_1) || ioctl_download),
-        .wea(xtide_loading && ioctl_wr),
+        .wea((xtide_loading && ioctl_wr) || (~memory_write_n && bios_writable[0])),
         .addra(xtide_loading ? ioctl_addr[13:0] : rom_address[13:0]),
-        .dina(ioctl_data),
+        .dina(xtide_loading ? ioctl_data : internal_data_bus),
         .douta(xtide_cpu_dout)
 	);
 	
