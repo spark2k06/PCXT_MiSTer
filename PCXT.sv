@@ -733,7 +733,7 @@ end
 	wire tandy_snd_rdy;
 
 	wire [15:0] jtopl2_snd_e;	
-	wire [16:0]sndmix = (({jtopl2_snd_e[15], jtopl2_snd_e}) << 2) + (speaker_out << 15) + {tandy_snd_e, 6'd0}; // signed mixer
+	wire [16:0]sndmix = ({jtopl2_snd_e[15], jtopl2_snd_e}) + (speaker_out << 14) + ({tandy_snd_e, 9'd0}); // signed mixer
 	 
 	wire [15:0] SDRAM_DQ_IN;
 	wire [15:0] SDRAM_DQ_OUT;
