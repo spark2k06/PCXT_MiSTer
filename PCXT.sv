@@ -187,10 +187,6 @@ assign VGA_SCALER = 0;
 assign VGA_DISABLE = 0;
 assign HDMI_FREEZE = 0;
 
-assign AUDIO_S = 1;
-assign AUDIO_L = AUDIO_R;
-assign AUDIO_MIX = 0;
-
 assign LED_DISK = 0;
 assign LED_POWER = 0;
 assign BUTTONS = 0;
@@ -233,6 +229,10 @@ localparam CONF_STR = {
 	"P2,Audio & Video;",
 	"P2-;",
 	"P2OA,Adlib,On,Invisible;",
+	"P2o01,Speaker Volume,1,2,3,4;",
+	"P2o23,Tandy Volume,1,2,3,4;",
+	"P2o45,Audio Boost,No,2x,4x;",
+	"P2o67,Stereo Mix,none,25%,50%,100%;",
 	"P2-;",
 	"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 	"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
@@ -266,7 +266,7 @@ localparam CONF_STR = {
 
 wire forced_scandoubler;
 wire  [1:0] buttons;
-wire [31:0] status;
+wire [63:0] status;
 //wire [10:0] ps2_key;
 
 //VHD	
@@ -727,25 +727,82 @@ end
 		  .ems_address                        (status[13:12]),
 		  .bios_writable                      (status[31:30])
     );
-
-	wire speaker_out;
-	wire  [7:0]   tandy_snd_e;
-	wire tandy_snd_rdy;
-
-	wire [15:0] jtopl2_snd_e;	
-	wire [16:0]sndmix = ({jtopl2_snd_e[15], jtopl2_snd_e}) + (speaker_out << 14) + ({tandy_snd_e, 9'd0}); // signed mixer
-	 
+	
 	wire [15:0] SDRAM_DQ_IN;
 	wire [15:0] SDRAM_DQ_OUT;
 	wire        SDRAM_DQ_IO;
 	
-	assign SDRAM_DQ_IN = SDRAM_DQ;
-	assign SDRAM_DQ = ~SDRAM_DQ_IO ? SDRAM_DQ_OUT : 16'hZZZZ;	
 
-	assign AUDIO_R = sndmix >> 1;	
+////////////////////////////  AUDIO  /////////////////////////////////// 
+
+wire [15:0] jtopl2_snd_e;
+wire [16:0] jtopl2_snd;
+wire [7:0]  tandy_snd_e;
+wire [16:0] tandy_snd;
+reg  [16:0] spk_vol;
+wire        speaker_out;
+always @(posedge CLK_AUDIO) begin
+	reg [15:0] oldj_0, oldj_1;
+	reg [15:0] oldt_0, oldt_1;
+	
+	oldj_0 <= jtopl2_snd_e;
+	oldj_1 <= oldj_0;
+	if(oldj_0 == oldj_1) jtopl2_snd <= {oldj_1[15],oldj_1};
+	
+	oldt_0 <= {2'b00, {3'b000, tandy_snd_e} << status[35:34], 4'd0};
+	oldt_1 <= oldt_0;
+	if(oldt_0 == oldt_1) tandy_snd <= {oldt_1[15],oldt_1};
+	
+	spk_vol <= {2'b00, {3'b000,~speaker_out} << status[33:32], 11'd0};
+end
+
+localparam [3:0] comp_f1 = 4;
+localparam [3:0] comp_a1 = 2;
+localparam       comp_x1 = ((32767 * (comp_f1 - 1)) / ((comp_f1 * comp_a1) - 1)) + 1; // +1 to make sure it won't overflow
+localparam       comp_b1 = comp_x1 * comp_a1;
+
+localparam [3:0] comp_f2 = 8;
+localparam [3:0] comp_a2 = 4;
+localparam       comp_x2 = ((32767 * (comp_f2 - 1)) / ((comp_f2 * comp_a2) - 1)) + 1; // +1 to make sure it won't overflow
+localparam       comp_b2 = comp_x2 * comp_a2;
+
+function [15:0] compr; input [15:0] inp;
+	reg [15:0] v, v1, v2;
+	begin
+		v  = inp[15] ? (~inp) + 1'd1 : inp;
+		v1 = (v < comp_x1[15:0]) ? (v * comp_a1) : (((v - comp_x1[15:0])/comp_f1) + comp_b1[15:0]);
+		v2 = (v < comp_x2[15:0]) ? (v * comp_a2) : (((v - comp_x2[15:0])/comp_f2) + comp_b2[15:0]);
+		v  = status[37] ? v2 : v1;
+		compr = inp[15] ? ~(v-1'd1) : v;
+	end
+endfunction 
+
+reg [15:0] cmp;
+reg [15:0] out;
+always @(posedge CLK_AUDIO) begin
+	reg [16:0] tmp;
+
+	tmp <= jtopl2_snd + tandy_snd + spk_vol;
+
+	// clamp the output
+	out <= (^tmp[16:15]) ? {tmp[16], {15{tmp[15]}}} : tmp[15:0];
+
+	cmp <= compr(out);
+end
+
+assign AUDIO_L   = status[37:36] ? cmp : out;
+assign AUDIO_R   = status[37:36] ? cmp : out;
+assign AUDIO_S   = 1;
+assign AUDIO_MIX = status[39:38];
+
+//////////////////////////////////////////////////////////////////////// 
+	
+	
+	assign SDRAM_DQ_IN = SDRAM_DQ;
+	assign SDRAM_DQ = ~SDRAM_DQ_IO ? SDRAM_DQ_OUT : 16'hZZZZ;
 
 	wire s6_3_mux;
-	wire [2:0] SEGMENT;
+	wire [2:0] SEGMENT;	
 
 	i8088 B1(
 	  .CORE_CLK(clk_100),
