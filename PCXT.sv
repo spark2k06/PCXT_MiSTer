@@ -298,6 +298,7 @@ wire  [7:0] ioctl_index;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_data;
+wire        ioctl_wait;
 
 wire        clk_uart;
 
@@ -353,7 +354,8 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1)) hps_io
 	.ioctl_index(ioctl_index),
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
-	.ioctl_dout(ioctl_data)	
+	.ioctl_dout(ioctl_data),
+	.ioctl_wait(ioctl_wait)
 );
 
 ///////////////////////   CLOCKS   ///////////////////////////////
@@ -389,6 +391,7 @@ pll pll
 );
 
 wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd) | splashscreen;
+wire reset_sdram_wire = RESET;
 
 //////////////////////////////////////////////////////////////////
 
@@ -475,6 +478,8 @@ end
 
 logic reset = 1'b1;
 logic [15:0] reset_count = 16'h0000;
+logic reset_sdram = 1'b1;
+logic [15:0] reset_sdram_count = 16'h0000;
 
 always @(posedge CLK_50M, posedge reset_wire) begin
 	if (reset_wire) begin
@@ -531,6 +536,179 @@ always @(negedge clk_chipset, posedge reset) begin
 		end
 	end
 end
+
+always @(posedge CLK_50M, posedge reset_sdram_wire) begin
+	if (reset_sdram_wire) begin
+		reset_sdram <= 1'b1;
+		reset_sdram_count <= 16'h0000;
+	end
+	else if (reset_sdram) begin
+		if (reset_sdram_count != 16'hffff) begin
+			reset_sdram <= 1'b1;
+			reset_sdram_count <= reset_sdram_count + 16'h0001;
+		end
+		else begin
+			reset_sdram <= 1'b0;
+			reset_sdram_count <= reset_sdram_count;
+		end
+	end 
+	else begin
+		reset_sdram <= 1'b0;
+		reset_sdram_count <= reset_sdram_count;
+	end
+end
+
+/////////////////////   BIOS LOADER   ////////////////////////////
+	reg [4:0]  bios_load_state = 4'h0;
+	reg        bios_protect_flag;
+    reg        bios_access_request;
+	reg [19:0] bios_access_address;
+	reg [7:0]  bios_write_data;
+	reg        bios_write_n;
+	reg [2:0]  bios_write_wait_cnt;
+	reg        tandy_bios_write;
+
+	wire select_pcxt  = (ioctl_index[5:0] == 0) && (ioctl_addr[24:16] == 9'b000000000);
+	wire select_tandy = (ioctl_index[5:0] == 1) && (ioctl_addr[24:16] == 9'b000000000);
+	wire select_xtide = ioctl_index == 2;
+
+	wire [19:0] bios_access_address_wire = select_pcxt  ? { 4'b1111, ioctl_addr[15:0]} :
+	                                       select_tandy ? { 4'b1111, ioctl_addr[15:0]} :
+	                                       select_xtide ? { 6'b111011, ioctl_addr[13:0]} :
+	                                                      20'hFFFFF;
+
+	wire bios_load_n = ~(ioctl_download & (select_pcxt | select_tandy | select_xtide));
+
+	always @(posedge clk_chipset, posedge reset_sdram) begin
+		if (reset_sdram) begin
+			bios_protect_flag   <= 1'b1;
+			bios_access_request <= 1'b0;
+			bios_access_address <= 20'hFFFFF;
+			bios_write_data     <= 8'hFFFF;
+			bios_write_n        <= 1'b1;
+			bios_write_wait_cnt <= 'h0;
+			tandy_bios_write    <= 1'b0;
+			ioctl_wait          <= 1'b1;
+			bios_load_state     <= 4'h00;
+		end
+		else if (~initilized_sdram) begin
+			bios_protect_flag   <= 1'b1;
+			bios_access_request <= 1'b0;
+			bios_access_address <= 20'hFFFFF;
+			bios_write_data     <= 8'hFFFF;
+			bios_write_n        <= 1'b1;
+			bios_write_wait_cnt <= 'h0;
+			ioctl_wait          <= 1'b1;
+			bios_load_state     <= 4'h00;
+		end
+		else begin
+			casez (bios_load_state)
+				4'h00: begin
+					bios_protect_flag   <= 1'b1;
+					bios_access_address <= 20'hFFFFF;
+					bios_write_data     <= 8'hFFFF;
+					bios_write_n        <= 1'b1;
+					bios_write_wait_cnt <= 'h0;
+					tandy_bios_write    <= 1'b0;
+
+					if (~ioctl_download) begin
+						bios_access_request <= 1'b0;
+						ioctl_wait          <= 1'b0;
+					end
+					else begin
+						bios_access_request <= 1'b1;
+						ioctl_wait          <= 1'b1;
+					end
+
+					if ((ioctl_download) && (~processor_ready) && (address_direction))
+						bios_load_state <= 4'h01;
+					else
+						bios_load_state <= 4'h00;
+				end
+				4'h01: begin
+					bios_protect_flag   <= 1'b0;
+					bios_access_request <= 1'b1;
+					tandy_bios_write    <= select_tandy;
+					if (~ioctl_download) begin
+						bios_access_address <= 20'hFFFFF;
+						bios_write_data     <= 8'hFFFF;
+						bios_write_n        <= 1'b1;
+						bios_write_wait_cnt <= 'h0;
+						ioctl_wait          <= 1'b0;
+						bios_load_state     <= 4'h00;
+					end
+					else if ((~ioctl_wr) || (bios_load_n)) begin
+						bios_access_address <= 20'hFFFFF;
+						bios_write_data     <= 8'hFFFF;
+						bios_write_n        <= 1'b1;
+						bios_write_wait_cnt <= 'h0;
+						ioctl_wait          <= 1'b0;
+						bios_load_state     <= 4'h01;
+					end
+					else begin
+						bios_access_address <= bios_access_address_wire;
+						bios_write_data     <= ioctl_data;
+						bios_write_n        <= 1'b1;
+						bios_write_wait_cnt <= 'h0;
+						ioctl_wait          <= 1'b1;
+						bios_load_state     <= 4'h02;
+					end
+				end
+				4'h02: begin
+					bios_protect_flag   <= 1'b0;
+					bios_access_request <= 1'b1;
+					bios_access_address <= bios_access_address;
+					bios_write_data     <= bios_write_data;
+					tandy_bios_write    <= select_tandy;
+					ioctl_wait          <= 1'b1;
+
+					if (~clk_cpu & clk_cpu_ff_2)
+						bios_write_wait_cnt <= bios_write_wait_cnt + 'h1;
+					else
+						bios_write_wait_cnt <= bios_write_wait_cnt;
+
+					if (bios_write_wait_cnt != 'h3) begin
+						bios_write_n        <= 1'b0;
+						bios_load_state     <= 4'h02;
+					end
+					else begin
+						bios_write_n        <= 1'b1;
+						bios_load_state     <= 4'h03;
+					end
+				end
+				4'h03: begin
+					bios_protect_flag   <= 1'b0;
+					bios_access_request <= 1'b1;
+					bios_access_address <= 20'hFFFFF;
+					bios_write_data     <= 8'hFFFF;
+					bios_write_n        <= 1'b1;
+					tandy_bios_write    <= 1'b0;
+					ioctl_wait          <= 1'b1;
+
+					if (~clk_cpu & clk_cpu_ff_2)
+						bios_write_wait_cnt <= bios_write_wait_cnt + 'h1;
+					else
+						bios_write_wait_cnt <= bios_write_wait_cnt;
+
+					if (bios_write_wait_cnt != 'h6)
+						bios_load_state     <= 4'h03;
+                    else
+						bios_load_state     <= 4'h01;
+                end
+				default: begin
+					bios_protect_flag   <= 1'b1;
+					bios_access_request <= 1'b0;
+					bios_access_address <= 20'hFFFFF;
+					bios_write_data     <= 8'hFFFF;
+					bios_write_n        <= 1'b1;
+					bios_write_wait_cnt <= 'h0;
+					tandy_bios_write    <= 1'b0;
+					ioctl_wait          <= 1'b0;
+					bios_load_state     <= 4'h00;
+				end
+			endcase
+		end
+	end
 
 //////////////////////////////////////////////////////////////////
 
@@ -606,9 +784,12 @@ end
     wire processor_ready;	
     wire interrupt_to_cpu;
     wire address_latch_enable;
+    wire address_direction;
 
     wire lock_n;
     wire [2:0]processor_status;
+
+    wire [3:0]   dma_acknowledge_n;
 	 
 	 logic   [7:0]   port_b_out;
     logic   [7:0]   port_c_in;	 
@@ -622,6 +803,8 @@ end
 	 assign  sw = mda_mode ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (MDA or CGA 80)
 	 assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
+	wire tandy_bios_flag = bios_write_n ? tandy_mode : tandy_bios_write;
+
    CHIPSET u_CHIPSET (
         .clock                              (clk_chipset),
         .cpu_clock                            (clk_cpu),
@@ -629,7 +812,7 @@ end
 		  .peripheral_clock                   (pclk),
 		  .turbo_mode                         (status[18:17]),
         .reset                              (reset_cpu),
-        .sdram_reset                        (reset),
+        .sdram_reset                        (reset_sdram),
         .cpu_address                        (cpu_address),
         .cpu_data_bus                       (cpu_data_bus),
         .processor_status                   (processor_status),
@@ -653,10 +836,11 @@ end
 		.VGA_HBlank	  				        (HBlank),
 		.VGA_VBlank							(VBlank),
 //      .address                            (address),
-        .address_ext                        (20'hFFFFF),
-//      .address_direction                  (address_direction),
+        .address_ext                        (bios_access_address),
+        .ext_access_request                 (bios_access_request),
+        .address_direction                  (address_direction),
         .data_bus                           (data_bus),
-        .data_bus_ext                       (8'hFF),
+        .data_bus_ext                       (bios_write_data),
 //      .data_bus_direction                 (data_bus_direction),
         .address_latch_enable               (address_latch_enable),
 //      .io_channel_check                   (),
@@ -672,10 +856,10 @@ end
         .memory_read_n_ext                  (1'b1),
 //      .memory_read_n_direction            (memory_read_n_direction),
 //      .memory_write_n                     (memory_write_n),
-        .memory_write_n_ext                 (1'b1),
+        .memory_write_n_ext                 (bios_write_n),
 //      .memory_write_n_direction           (memory_write_n_direction),
         .dma_request                        (0),    // use?	-> I don't know if it will ever be necessary, at least not during testing.
-//      .dma_acknowledge_n                  (dma_acknowledge_n),
+        .dma_acknowledge_n                  (dma_acknowledge_n),
 //      .address_enable_n                   (address_enable_n),
 //      .terminal_count_n                   (terminal_count_n)
         .port_b_out                         (port_b_out),
@@ -695,12 +879,8 @@ end
 		  .tandy_snd_e                        (tandy_snd_e),
 		  .adlibhide                          (adlibhide),
 		  .tandy_video                        (tandy_mode),
+		  .tandy_bios_flag                    (tandy_bios_flag),
 		  .tandy_16_gfx                       (tandy_16_gfx),
-		  .ioctl_download                     (ioctl_download),
-		  .ioctl_index                        (ioctl_index),
-		  .ioctl_wr                           (ioctl_wr),
-		  .ioctl_addr                         (ioctl_addr),
-		  .ioctl_data                         (ioctl_data),		  
 		  .clk_uart                          ((status[22:21] == 2'b00) ? clk_uart : clk_uart_en),
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
@@ -710,6 +890,7 @@ end
 	     .uart_rts_n                        (uart_rts),
 	     .uart_dtr_n                        (uart_dtr),
 		  .enable_sdram                       (1'b1),
+		 .initilized_sdram                   (initilized_sdram),
 		  .sdram_clock                        (SDRAM_CLK),
 		  .sdram_address                      (SDRAM_A),
         .sdram_cke                          (SDRAM_CKE),
@@ -725,12 +906,14 @@ end
         .sdram_udqm                         (SDRAM_DQMH),
 		  .ems_enabled                        (~status[11]),
 		  .ems_address                        (status[13:12]),
+        .bios_protect_flag                  (bios_protect_flag),
 		  .bios_writable                      (status[31:30])
     );
 	
 	wire [15:0] SDRAM_DQ_IN;
 	wire [15:0] SDRAM_DQ_OUT;
 	wire        SDRAM_DQ_IO;
+	wire        initilized_sdram;
 	
 
 ////////////////////////////  AUDIO  /////////////////////////////////// 

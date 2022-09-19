@@ -73,12 +73,6 @@ module PERIPHERALS #(
 	 output  logic   [7:0]   tandy_snd_e,	 
 	 output  logic           tandy_snd_rdy,	 
 	 output  logic           tandy_16_gfx,
-	 // IOCTL
-    input   logic           ioctl_download,
-    input   logic   [7:0]   ioctl_index,
-    input   logic           ioctl_wr,
-    input   logic   [24:0]  ioctl_addr,
-    input   logic   [7:0]   ioctl_data,
 	 // UART
 	 input   logic           clk_uart,
 	 input   logic           uart_rx,
@@ -145,8 +139,6 @@ module PERIPHERALS #(
 	 wire    video_chip_select_n    = ~((tandy_video & grph_mode & hres_mode) && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
     wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
 	 wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
-	 wire    bios_select_n          = ~(~iorq && ~address_enable_n && address[19:16] == 4'b1111); // F0000 - FFFFF (64 KB)
-	 wire    xtide_select_n         = ~(~iorq && ~address_enable_n && address[19:14] == 6'b111011); // EC000 - EFFFF (16 KB)
 	 wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
 	 wire    lpt_cs                 =  (iorq && ~address_enable_n && address[15:0] == 16'h0378);
 	 wire    tandy_page_cs          =  (iorq && ~address_enable_n && address[15:0] == 16'h03DF);
@@ -762,8 +754,6 @@ module PERIPHERALS #(
 
     defparam cga1.BLINK_MAX = 24'd4772727;
 	 defparam mda1.BLINK_MAX = 24'd9100000;
-	 wire [7:0] bios_cpu_dout;
-	 wire [7:0] xtide_cpu_dout;
 	 wire [7:0] cga_vram_cpu_dout;
 	 wire [7:0] mda_vram_cpu_dout;
 
@@ -799,50 +789,9 @@ module PERIPHERALS #(
         .dinb                       (8'h0),
         .doutb                      (MDA_VRAM_DOUT)
 	);
-	
-    logic   [16:0]  rom_address;	 
-    logic           bios_select_n_1;
-    logic           xtide_select_n_1;
-	 
-    wire pcxt_loading = ioctl_download && ioctl_index[5:0] == 0;
-	 wire tandy_loading = ioctl_download && ioctl_index[5:0] == 1;
-	 wire xtide_loading = ioctl_download && ioctl_index == 2;
- 
-    wire pcxt_loader  = (pcxt_loading && ioctl_addr[24:16] == 9'b000000000);
-	 wire tandy_loader  = (tandy_loading && ioctl_addr[24:16] == 9'b000000000);
-	 wire bios_loader = (pcxt_loader || tandy_loader);
-	 reg bios_loaded = 1'b0;
-	 reg bios_loading = 1'b0;
-	
-	always_ff @(posedge clock) begin
-        
-		  rom_address      <= {tandy_video, address[15:0]};
-        bios_select_n_1  <= bios_select_n;
-        xtide_select_n_1 <= xtide_select_n;
-   end
-	
-	bios bios
-	(
-        .clka(bios_loader ? clk_sys : clock),		  
-        .ena((~bios_select_n_1) || ioctl_download),
-        .wea((bios_loader && ioctl_wr) || (~memory_write_n && bios_writable[1])),
-        .addra(bios_loader ? { tandy_loader, ioctl_addr[15:0] } : { rom_address }),
-        .dina(bios_loader ? ioctl_data : internal_data_bus),
-        .douta(bios_cpu_dout),
-		  
-	);
-	
-	xtide xtide
-	(
-        .clka(xtide_loading ? clk_sys : clock),
-        .ena((~xtide_select_n_1) || ioctl_download),
-        .wea((xtide_loading && ioctl_wr) || (~memory_write_n && bios_writable[0])),
-        .addra(xtide_loading ? ioctl_addr[13:0] : rom_address[13:0]),
-        .dina(xtide_loading ? ioctl_data : internal_data_bus),
-        .douta(xtide_cpu_dout)
-	);
-	
-	 
+
+
+
     //
     // KFTVGA
     //
@@ -914,14 +863,6 @@ module PERIPHERALS #(
         else if ((~mda_chip_select_n) && (~memory_read_n)) begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= mda_vram_cpu_dout;
-        end
-		  else if ((~bios_select_n) && (~memory_read_n)) begin
-            data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= bios_cpu_dout;
-        end
-		  else if ((~xtide_select_n) && (~memory_read_n)) begin
-            data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= xtide_cpu_dout;
         end
 		  else if (CGA_CRTC_OE_2) begin
             data_bus_out_from_chipset <= 1'b1;
