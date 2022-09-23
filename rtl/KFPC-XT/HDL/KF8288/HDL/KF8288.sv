@@ -286,7 +286,7 @@ module KF8288 (
 
     assign write_data_enable = write_command_tmp & ~machine_cycle_period;
     assign read_data_enable  = read_command_tmp  & ~read_and_advanced_write_command_n;
-    assign data_enable = (direction_transmit_or_receive_n) ? write_data_enable : read_data_enable;
+    assign data_enable = command_enable & (direction_transmit_or_receive_n ? write_data_enable : read_data_enable);
 
     // Generate master cascade enable signal
     assign master_cascade_enable = (machine_cycle == 3'b000) & ~is_passive_status;
