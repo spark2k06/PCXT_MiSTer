@@ -168,13 +168,13 @@ module PERIPHERALS #(
         if (reset) begin
             ems_access_address  <= 2'b11;
             ems_write_enable    <= 1'b0;
-            write_map_ems_data  <= 1'b0;
+            write_map_ems_data  <= 8'd0;
             write_map_ena_data  <= 1'b0;
         end
         else begin
             ems_access_address  <= address[1:0];
             ems_write_enable    <= ems_oe && ~io_write_n;
-            write_map_ems_data  <= (internal_data_bus == 8'hFF) ? 7'hFF : (internal_data_bus < 8'h80) ? internal_data_bus[6:0] : map_ems[address[1:0]];
+            write_map_ems_data  <= (internal_data_bus == 8'hFF) ? 8'hFF : (internal_data_bus < 8'h80) ? internal_data_bus[6:0] : map_ems[address[1:0]];
             write_map_ena_data  <= (internal_data_bus == 8'hFF) ? 1'b0  : (internal_data_bus < 8'h80) ? 1'b1 : ena_ems[address[1:0]];
         end
     end
