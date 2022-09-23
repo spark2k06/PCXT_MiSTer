@@ -298,7 +298,7 @@ wire  [7:0] ioctl_index;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_data;
-wire        ioctl_wait;
+reg         ioctl_wait;
 
 wire        clk_uart;
 
