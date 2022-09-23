@@ -391,7 +391,7 @@ pll pll
 );
 
 wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | (status[14] && usdImgMtd) | splashscreen;
-wire reset_sdram_wire = RESET;
+wire reset_sdram_wire = RESET | !pll_locked;
 
 //////////////////////////////////////////////////////////////////
 
@@ -438,12 +438,21 @@ always @(posedge clk_4_77)
 
 logic  biu_done;
 logic  turbo_mode;
+logic  [1:0] clk_select;
 
-always @(posedge clk_chipset) begin
-    if (biu_done)
+always @(posedge clk_chipset, posedge reset) begin
+    if (reset) begin
+        turbo_mode  <= 1'b0;
+        clk_select  <= 2'b00;
+    end
+    else if (biu_done) begin
         turbo_mode  <= (status[18:17] == 2'b01 || status[18:17] == 2'b10);
-    else
+        clk_select  <= status[18:17];
+    end
+    else begin
         turbo_mode  <= turbo_mode;
+        clk_select  <= clk_select;
+    end
 end
 
 logic  clk_cpu_ff_1;
@@ -452,13 +461,23 @@ logic  clk_cpu_ff_2;
 logic  pclk_ff_1;
 logic  pclk_ff_2;
 
-always @(posedge clk_chipset) begin
-    clk_cpu_ff_1 <= (status[18:17] == 2'b10) ? clk_14_318 : (status[18:17] == 2'b01) ? clk_7_16 : clk_4_77;
-    clk_cpu_ff_2 <= clk_cpu_ff_1;
-    clk_cpu      <= clk_cpu_ff_2;
-    pclk_ff_1    <= peripheral_clock;
-    pclk_ff_2    <= pclk_ff_1;
-    pclk         <= pclk_ff_2;
+always @(posedge clk_chipset, posedge reset) begin
+    if (reset) begin
+        clk_cpu_ff_1 <= 1'b0;
+        clk_cpu_ff_2 <= 1'b0;
+        clk_cpu      <= 1'b0;
+        pclk_ff_1    <= 1'b0;
+        pclk_ff_2    <= 1'b0;
+        pclk         <= 1'b0;
+    end
+    else begin
+        clk_cpu_ff_1 <= (clk_select == 2'b10) ? clk_14_318 : (clk_select == 2'b01) ? clk_7_16 : clk_4_77;
+        clk_cpu_ff_2 <= clk_cpu_ff_1;
+        clk_cpu      <= clk_cpu_ff_2;
+        pclk_ff_1    <= peripheral_clock;
+        pclk_ff_2    <= pclk_ff_1;
+        pclk         <= pclk_ff_2;
+    end
 end
 
 logic   clk_opl2_ff_1;
@@ -565,7 +584,7 @@ end
 	reg [19:0] bios_access_address;
 	reg [7:0]  bios_write_data;
 	reg        bios_write_n;
-	reg [2:0]  bios_write_wait_cnt;
+	reg [7:0]  bios_write_wait_cnt;
 	reg        tandy_bios_write;
 
 	wire select_pcxt  = (ioctl_index[5:0] == 0) && (ioctl_addr[24:16] == 9'b000000000);
@@ -661,13 +680,9 @@ end
 					bios_write_data     <= bios_write_data;
 					tandy_bios_write    <= select_tandy;
 					ioctl_wait          <= 1'b1;
+					bios_write_wait_cnt <= bios_write_wait_cnt + 'h1;
 
-					if (~clk_cpu & clk_cpu_ff_2)
-						bios_write_wait_cnt <= bios_write_wait_cnt + 'h1;
-					else
-						bios_write_wait_cnt <= bios_write_wait_cnt;
-
-					if (bios_write_wait_cnt != 'h3) begin
+					if (bios_write_wait_cnt != 'd20) begin
 						bios_write_n        <= 1'b0;
 						bios_load_state     <= 4'h02;
 					end
@@ -684,13 +699,9 @@ end
 					bios_write_n        <= 1'b1;
 					tandy_bios_write    <= 1'b0;
 					ioctl_wait          <= 1'b1;
+					bios_write_wait_cnt <= bios_write_wait_cnt + 'h1;
 
-					if (~clk_cpu & clk_cpu_ff_2)
-						bios_write_wait_cnt <= bios_write_wait_cnt + 'h1;
-					else
-						bios_write_wait_cnt <= bios_write_wait_cnt;
-
-					if (bios_write_wait_cnt != 'h6)
+					if (bios_write_wait_cnt != 'd40)
 						bios_load_state     <= 4'h03;
                     else
 						bios_load_state     <= 4'h01;
