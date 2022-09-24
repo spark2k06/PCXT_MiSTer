@@ -17,7 +17,8 @@ module KFSDRAM #(
     parameter sdram_tdpl            = 16'd2-16'd1,
     parameter cas_latency           = 3'b010,
     parameter sdram_init_wait       = 16'd10000,
-    parameter sdram_refresh_cycle   = 16'd00100
+    parameter sdram_refresh_cycle   = 16'd00100,
+    parameter sdram_force_refresh   = 16'd00400
 ) (
     input   logic                               sdram_clock,
     input   logic                               sdram_reset,
@@ -106,7 +107,8 @@ module KFSDRAM #(
                     next_state = WRITE;
                 else if (read_request)
                     next_state = READ;
-                else if ((~sdram_no_refresh) && (enable_refresh) && (refresh_counter == sdram_refresh_cycle))
+                else if ((~sdram_no_refresh) && 
+                    ((enable_refresh) && (refresh_counter >= sdram_refresh_cycle)) || (refresh_counter == sdram_force_refresh))
                     next_state = REFRESH_PALL;
             end
             WRITE: begin
@@ -160,7 +162,7 @@ module KFSDRAM #(
             refresh_counter <= 0;
         else if ((~sdram_cs) && (~sdram_ras) & (~sdram_cas) & (sdram_we))
             refresh_counter <= 0;
-        else if (refresh_counter != sdram_refresh_cycle)
+        else if (refresh_counter != sdram_force_refresh)
             refresh_counter <= refresh_counter + 16'h01;
         else
             refresh_counter <= refresh_counter;

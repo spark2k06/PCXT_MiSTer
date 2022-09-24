@@ -40,6 +40,7 @@ module BUS_ARBITER (
     input   logic           memory_write_n_ext,
     output  logic           memory_write_n_direction,
     output  logic           no_command_state,
+    input   logic           ext_access_request,
     input   logic   [3:0]   dma_request,
     output  logic   [3:0]   dma_acknowledge_n,
     output  logic           address_enable_n,
@@ -67,7 +68,9 @@ module BUS_ARBITER (
     logic   hold_request_ff_1;
     logic   hold_request_ff_2;
     logic   hold_acknowledge;
-    logic   hold_request;
+    logic   dma_hold_request;
+
+    wire    hold_request = dma_hold_request | ext_access_request;
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
@@ -103,7 +106,7 @@ module BUS_ARBITER (
     //
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
-            address_enable_n <= 1'b0;
+            address_enable_n <= 1'b1;
         else if (cpu_clock_posedge)
             address_enable_n <= hold_acknowledge;
         else
@@ -190,7 +193,7 @@ module BUS_ARBITER (
         .reset                              (reset),
         .chip_select_n                      (dma_chip_select_n),
         .ready                              (dma_ready),
-        .hold_acknowledge                   (hold_acknowledge),
+        .hold_acknowledge                   (hold_acknowledge & ~ext_access_request),
         .dma_request                        (dma_request),
         .data_bus_in                        (internal_data_bus),
         .data_bus_out                       (dma_data_out),
@@ -205,7 +208,7 @@ module BUS_ARBITER (
         .address_in                         (address[3:0]),
         .address_out                        (dma_address_out),
         //.output_highst_address              (),
-        .hold_request                       (hold_request),
+        .hold_request                       (dma_hold_request),
         .dma_acknowledge                    (dma_acknowledge_n),
         //.address_enable                     (),
         //.address_strobe                     (),
@@ -259,7 +262,7 @@ module BUS_ARBITER (
     // Address
     //
     always_comb begin
-        if (~dma_enable_n)
+        if (~dma_enable_n && ~(&dma_acknowledge_n))
             if (~dma_acknowledge_n[2]) begin
                 address           = {dma_page_register[1], dma_address_out};
                 address_direction = 1'b0;
