@@ -6,6 +6,7 @@ module RAM (
     input   logic           clock,
     input   logic           reset,
     input   logic           enable_sdram,
+    output  logic           initilized_sdram,
     // I/O Ports
     input   logic   [19:0]  address,
     input   logic   [7:0]   internal_data_bus,
@@ -33,8 +34,10 @@ module RAM (
      input   logic           ems_b1,
      input   logic           ems_b2,
      input   logic           ems_b3,
-     input   logic           ems_b4
-
+     input   logic           ems_b4,
+     // BIOS
+     input  logic           bios_protect_flag,
+     input  logic           tandy_bios_flag
 );
 
     typedef enum {IDLE, RAM_WRITE_1, RAM_WRITE_2, RAM_READ_1, RAM_READ_2, COMPLETE_RAM_RW, WAIT} state_t;
@@ -47,16 +50,22 @@ module RAM (
     logic           read_command;
     logic           prev_no_command_state;
     logic           enable_refresh;
+    logic           write_protect;
 
     logic           access_ready;
 
     //
-    // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xEBFFF)
+    // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xFFFFF)
     //
-    assign ram_address_select_n = ~(enable_sdram && 
-                                   ~(address[19:16] == 4'b1111) &&  // B0000h reserved for VRAM
-                                             ~(address[19:16] == 4'b1011) &&  // F0000h reserved for BIOS
-                                             ~(address[19:14] == 6'b111011)); // EC000h reserved for XTIDE
+    assign ram_address_select_n = ~(enable_sdram && ~(address[19:16] == 4'b1011));   // B0000h reserved for VRAM
+
+    assign tandy_bios_select    = tandy_bios_flag & (address[19:16] == 4'b1111);
+
+
+    //
+    // Write protect
+    //
+    assign write_protect = bios_protect_flag & (address[19:16] == 4'b1111);
 
 
     //
@@ -73,7 +82,7 @@ module RAM (
         else if (ems_b4)
             latch_address   = {1'b1, map_ems[3], address[13:0]};
         else
-            latch_address   = {2'b00, address};
+            latch_address   = {1'b0, tandy_bios_select, address};
     end
 
     // Data
@@ -85,7 +94,7 @@ module RAM (
     end
 
     // Write Command
-    assign write_command = ~ram_address_select_n & ~memory_write_n;
+    assign write_command = ~ram_address_select_n & ~memory_write_n & ~write_protect;
 
     // Read Command
     assign read_command  = ~ram_address_select_n & ~memory_read_n;
@@ -196,6 +205,15 @@ module RAM (
             state = IDLE;
         else
             state = next_state;
+    end
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            initilized_sdram <= 1'b0;
+        else if (idle)
+            initilized_sdram <= 1'b1;
+        else
+            initilized_sdram <= initilized_sdram;
     end
 
 
