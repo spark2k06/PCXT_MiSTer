@@ -244,10 +244,10 @@ localparam CONF_STR = {
 	"P3OB,Lo-tech 2MB EMS,Enabled,Disabled;",
 	"P3OCD,EMS Frame,A000,C000,D000;",
 	"P3-;",
-	"P3ONO,Joystick 1, Analog, Digital, Disabled;",
-	"P3OPQ,Joystick 2, Analog, Digital, Disabled;",
-	"P3OR,Sync Joy to CPU Speed,No,Yes;",
-	"P3OS,Swap Joysticks,No,Yes;",
+//	"P3ONO,Joystick 1, Analog, Digital, Disabled;",
+//	"P3OPQ,Joystick 2, Analog, Digital, Disabled;",
+//	"P3OR,Sync Joy to CPU Speed,No,Yes;",
+//	"P3OS,Swap Joysticks,No,Yes;",
 	"P3-;",
 	"-;",
 	"P4,BIOS;",
@@ -307,7 +307,8 @@ wire        adlibhide = status[10];
 
 wire [31:0] joy0, joy1;
 wire [15:0] joya0, joya1;
-wire [4:0]  joy_opts = status[27:23];
+//wire [4:0]  joy_opts = status[27:23];
+wire [4:0]  joy_opts = 'h0;
 
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io
 (
