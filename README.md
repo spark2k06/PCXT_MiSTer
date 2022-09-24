@@ -49,10 +49,8 @@ The serial port speed change becomes effective after a BIOS reset, it is not pos
 
 ## To-do list and challenges
 
-* Refactor Graphics Gremlin module, the new KFPC-XT system will make this refactor possible.
 * 8-bit IDE module implementation
 * Floppy implementation
-* Addition of other modules
 
 ## Developers
 
