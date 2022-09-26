@@ -841,13 +841,10 @@ module PERIPHERALS #(
     logic   [7:0]   fdd_dma_readdata;
     logic   [7:0]   fdd_readdata;
     logic           fdd_dma_req_wire;
-    logic           fdd_dma_write_ack;
-    logic           fdd_dma_read_ack;
-    logic           prev_fdd_dma_write_ack;
-    logic           prev_fdd_dma_read_ack;
+    logic           fdd_dma_read;
+    logic           prev_fdd_dma_ack;
     logic           fdd_dma_rw_ack;
     logic           fdd_dma_tc;
-    logic           prev_fdd_dma_tc;
 
     assign  mgmt_fdd_cs = (mgmt_address[15:8] == 8'hF2);
 
@@ -859,26 +856,28 @@ module PERIPHERALS #(
     end
 
     always_ff @(posedge clock) begin
-        fdd_io_address          <= address[2:0];
-        fdd_io_read             <= ~io_read_n & prev_io_read_n   & ~floppy0_select_n;
-        fdd_io_read_1           <= fdd_io_read;
-        fdd_io_write            <= io_write_n & ~prev_io_write_n & ~floppy0_select_n;
+        fdd_io_address     <= address[2:0];
+        fdd_io_read        <= ~io_read_n & prev_io_read_n   & ~floppy0_select_n;
+        fdd_io_read_1      <= fdd_io_read;
+        fdd_io_write       <= io_write_n & ~prev_io_write_n & ~floppy0_select_n;
     end
 
-    assign  fdd_dma_write_ack   = fdd_dma_ack & ~io_write_n;
-    assign  fdd_dma_read_ack    = fdd_dma_ack & ~io_read_n;
+    assign  fdd_dma_read    = fdd_dma_ack & ~io_read_n;
 
     always_ff @(posedge clock) begin
-        prev_fdd_dma_write_ack  <= fdd_dma_write_ack;
-        prev_fdd_dma_read_ack   <= fdd_dma_read_ack;
+        prev_fdd_dma_ack   <= fdd_dma_ack;
     end
 
-    assign  fdd_dma_rw_ack      = (~fdd_dma_read_ack & prev_fdd_dma_read_ack) || (~fdd_dma_write_ack & prev_fdd_dma_write_ack);
-
-    assign  fdd_dma_tc          = terminal_count & fdd_dma_ack;
+    assign  fdd_dma_rw_ack  = prev_fdd_dma_ack & ~fdd_dma_ack;
 
     always_ff @(posedge clock) begin
-        prev_fdd_dma_tc         <= fdd_dma_tc;
+        if (fdd_dma_ack)
+            if (fdd_dma_tc == 1'b0)
+                fdd_dma_tc <= terminal_count;
+            else
+                fdd_dma_tc <= fdd_dma_tc;
+        else
+            fdd_dma_tc <= 1'b0;
     end
 
     floppy floppy (
@@ -888,7 +887,7 @@ module PERIPHERALS #(
         //dma
         .dma_req                    (fdd_dma_req_wire),
         .dma_ack                    (fdd_dma_rw_ack),
-        .dma_tc                     (prev_fdd_dma_tc & fdd_dma_rw_ack),
+        .dma_tc                     (fdd_dma_tc & fdd_dma_rw_ack),
         .dma_readdata               (write_to_fdd),
         .dma_writedata              (fdd_dma_readdata),
 
@@ -930,7 +929,7 @@ module PERIPHERALS #(
     always_ff @(posedge clock) begin
         if ((fdd_io_read_1) && (~address_enable_n))
             fdd_readdata <= fdd_readdata_wire;
-        else if ((~io_read_n) && (fdd_dma_ack))
+        else if (fdd_dma_read)
             fdd_readdata <= fdd_dma_readdata;
         else
             fdd_readdata <= fdd_readdata;
@@ -1041,7 +1040,7 @@ module PERIPHERALS #(
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= joy_data;
         end
-        else if ((~floppy0_select_n || fdd_dma_read_ack) && (~io_read_n)) begin
+        else if ((~floppy0_select_n || fdd_dma_read) && (~io_read_n)) begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= fdd_readdata;
         end
