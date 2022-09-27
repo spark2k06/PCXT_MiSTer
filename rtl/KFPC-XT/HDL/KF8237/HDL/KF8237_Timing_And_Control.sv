@@ -75,6 +75,7 @@ module KF8237_Timing_And_Control (
 
     state_t         state;
     state_t         next_state;
+    logic           ready_ff;
     logic   [1:0]   bit_select[4] = '{ 2'b00, 2'b01, 2'b10, 2'b11 };
     logic           memory_to_memory_enable;
     logic           chanel_0_address_hold_enable;
@@ -190,19 +191,19 @@ module KF8237_Timing_And_Control (
             S2: begin
                 if (~compressed_timing)
                     next_state = S3;
-                else if ((ready) || (transfer_type[dma_select] == `TRANSFER_TYPE_VERIFY))
+                else if ((ready_ff) || (transfer_type[dma_select] == `TRANSFER_TYPE_VERIFY))
                     next_state = S4;
                 else
                     next_state = SW;
             end
             S3: begin
-                if ((ready) || (transfer_type[dma_select] == `TRANSFER_TYPE_VERIFY))
+                if ((ready_ff) || (transfer_type[dma_select] == `TRANSFER_TYPE_VERIFY))
                     next_state = S4;
                 else
                     next_state = SW;
             end
             SW: begin
-                if (ready)
+                if (ready_ff)
                     next_state = S4;
             end
             S4: begin
@@ -234,6 +235,20 @@ module KF8237_Timing_And_Control (
             state <= next_state;
         else
             state <= state;
+    end
+
+    //
+    // Ready Signal
+    //
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            ready_ff    <= 1'b0;
+        else if (master_clear)
+            ready_ff    <= 1'b0;
+        else if (cpu_clock_posedge)
+            ready_ff    <= ready;
+        else
+            ready_ff    <= ready_ff;
     end
 
     //
@@ -284,7 +299,7 @@ module KF8237_Timing_And_Control (
             S0: begin
                 transfer_register_select    = dma_acknowledge_internal;
                 initialize_current_register = 0;
-                lock_bus_control            = 1'b1;
+                lock_bus_control            = 1'b0;
             end
             S1: begin
                 transfer_register_select    = dma_acknowledge_internal;
@@ -577,7 +592,7 @@ module KF8237_Timing_And_Control (
                 terminal_count_internal <= underflow;
             end
             else begin
-                terminal_count <= 1'b0;
+                terminal_count <= terminal_count;
                 terminal_count_internal <= terminal_count_internal;
             end
         end
