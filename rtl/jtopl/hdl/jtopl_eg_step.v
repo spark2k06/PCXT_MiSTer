@@ -38,9 +38,8 @@ always @(*) begin : pre_rate_calc
     if( base_rate == 5'd0 )
         pre_rate = 7'd0;
     else
-        pre_rate = { 1'b0, base_rate, 1'b0 } + (ksr ?
-                { 3'b0, keycode      }:
-                { 5'b0, keycode[3:2] });
+        pre_rate = { 1'b0, base_rate, 1'b0 } +  // base_rate LSB is always zero except for RR
+            ({ 3'b0, keycode } >> (ksr ? 1 : 3));
 end
 
 always @(*)
@@ -55,18 +54,17 @@ end
 
 always @(*) 
     case( mux_sel )
-        5'h0:    cnt = eg_cnt[14:12];
-        5'h1:    cnt = eg_cnt[13:11];
-        5'h2:    cnt = eg_cnt[12:10];
-        5'h3:    cnt = eg_cnt[11: 9];
-        5'h4:    cnt = eg_cnt[10: 8];
-        5'h5:    cnt = eg_cnt[ 9: 7];
-        5'h6:    cnt = eg_cnt[ 8: 6];
-        5'h7:    cnt = eg_cnt[ 7: 5];
-        5'h8:    cnt = eg_cnt[ 6: 4];
-        5'h9:    cnt = eg_cnt[ 5: 3];
-        5'ha:    cnt = eg_cnt[ 4: 2];
-        5'hb:    cnt = eg_cnt[ 3: 1];
+        5'h0:    cnt = eg_cnt[13:11];
+        5'h1:    cnt = eg_cnt[12:10];
+        5'h2:    cnt = eg_cnt[11: 9];
+        5'h3:    cnt = eg_cnt[10: 8];
+        5'h4:    cnt = eg_cnt[ 9: 7];
+        5'h5:    cnt = eg_cnt[ 8: 6];
+        5'h6:    cnt = eg_cnt[ 7: 5];
+        5'h7:    cnt = eg_cnt[ 6: 4];
+        5'h8:    cnt = eg_cnt[ 5: 3];
+        5'h9:    cnt = eg_cnt[ 4: 2];
+        5'ha:    cnt = eg_cnt[ 3: 1];
         default: cnt = eg_cnt[ 2: 0];
     endcase
 
