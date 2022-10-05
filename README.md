@@ -16,6 +16,19 @@ The [Graphics Gremlin project](https://github.com/schlae/graphics-gremlin) from 
 
 An SN76489AN Compatible Implementation (Tandy Sound) written in VHDL was also integrated - Copyright (c) 2005, 2006, [Arnim Laeuger](https://github.com/devsaurus) (arnim.laeuger@gmx.net)
 
+## Key features
+
+* CPU Speed 4.77 MHz and turbo modes 7.16 MHz / 14.318 MHz
+* BIOS selectable (Tandy 1000 / PCXT)
+* Support for IBM Tandy 1000
+* Support for IBM PCXT 5160 and clones (CGA graphics)
+* Main memory 640Kb + 384Kb UMB memory
+* Simultaneous video MDA
+* EMS memory up to 2Mb
+* Tandy 320x200x16 graphics with 128Kb of shared RAM + CGA graphics
+* Audio: Adlib, Tandy, speaker
+* Joystick support
+
 ## ROM Instructions
 
 ROMs should be provided initially from the BIOS section of the OSD menu, then it is only necessary to indicate the computer model and reset, on subsequent boot of the core, it is no longer necessary to provide them, unless we want to use others. Original and copyrighted ROMs can be generated on the fly using the python scripts available in the SW folder of this repository:
@@ -49,10 +62,8 @@ The serial port speed change becomes effective after a BIOS reset, it is not pos
 
 ## To-do list and challenges
 
-* Refactor Graphics Gremlin module, the new KFPC-XT system will make this refactor possible.
 * 8-bit IDE module implementation
 * Floppy implementation
-* Addition of other modules
 
 ## Developers
 
