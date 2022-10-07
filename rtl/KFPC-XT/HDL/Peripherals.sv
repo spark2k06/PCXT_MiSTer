@@ -7,6 +7,7 @@ module PERIPHERALS #(
 ) (
     input   logic           clock,
 	 input   logic           clk_sys,
+     input  logic           cpu_clock,
     input   logic           peripheral_clock,	 
 	 input   logic   [1:0]   turbo_mode,
     input   logic           reset,
@@ -91,7 +92,19 @@ module PERIPHERALS #(
 	 output  logic           ems_b2,
 	 output  logic           ems_b3,
 	 output  logic           ems_b4,
-	 input   logic   [2:0]   bios_writable
+	 input   logic   [2:0]   bios_writable,
+    // FDD
+    input   logic   [15:0]  mgmt_address,
+    input   logic           mgmt_read,
+    output  logic   [15:0]  mgmt_readdata,
+    input   logic           mgmt_write,
+    input   logic   [15:0]  mgmt_writedata,
+    input   logic   [27:0]  clock_rate,
+    input   logic   [1:0]   floppy_wp,
+    output  logic   [1:0]   fdd_request,
+    output  logic           fdd_dma_req,
+    input   logic           fdd_dma_ack,
+    input   logic           terminal_count
 );
     
 	 wire grph_mode;
@@ -99,6 +112,23 @@ module PERIPHERALS #(
 	 
 	 assign tandy_16_gfx = (tandy_video & grph_mode & hres_mode);
 	 
+    
+    //
+    // CPU clock edge
+    //
+    logic   prev_cpu_clock;
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            prev_cpu_clock <= 1'b0;
+        else
+            prev_cpu_clock <= cpu_clock;
+    end
+
+    wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
+    wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
+
+
     //
     // chip select
     //
@@ -150,6 +180,7 @@ module PERIPHERALS #(
 	 assign  ems_b3                 = (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // A8000h - C8000h - D8000h
 	 assign  ems_b4                 = (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // AC000h - CC000h - DC000h
 	 
+    wire    floppy0_select_n        = ~(~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
 
     logic   [1:0]   ems_access_address;
     logic           ems_write_enable;
@@ -189,6 +220,7 @@ module PERIPHERALS #(
     logic           timer_interrupt;
     logic           keybord_interrupt;
 	 logic           uart_interrupt;
+    logic           fdd_interrupt;
     logic   [7:0]   interrupt_data_bus_out;
 
     KF8259 u_KF8259 (
@@ -211,8 +243,13 @@ module PERIPHERALS #(
         //.slave_program_or_enable_buffer     (),
         .interrupt_acknowledge_n    (interrupt_acknowledge_n),
         .interrupt_to_cpu           (interrupt_to_cpu),
-        .interrupt_request          ({interrupt_request[7:5], uart_interrupt, interrupt_request[3:2],
-                                        keybord_interrupt, timer_interrupt})
+        .interrupt_request          ({interrupt_request[7],
+                                      fdd_interrupt,
+                                      interrupt_request[5],
+                                      uart_interrupt,
+                                      interrupt_request[3:2],
+                                      keybord_interrupt,
+                                      timer_interrupt})
     );
 
     //
@@ -791,6 +828,113 @@ module PERIPHERALS #(
 	);
 
 
+    //
+    // FDC
+    //
+    logic           mgmt_fdd_cs;
+    logic   [7:0]   write_to_fdd;
+    logic   [2:0]   fdd_io_address;
+    logic           fdd_io_read;
+    logic           fdd_io_read_1;
+    logic           fdd_io_write;
+    logic   [7:0]   fdd_readdata_wire;
+    logic   [7:0]   fdd_dma_readdata;
+    logic   [7:0]   fdd_readdata;
+    logic           fdd_dma_req_wire;
+    logic           fdd_dma_read;
+    logic           prev_fdd_dma_ack;
+    logic           fdd_dma_rw_ack;
+    logic           fdd_dma_tc;
+
+    assign  mgmt_fdd_cs = (mgmt_address[15:8] == 8'hF2);
+
+    always_ff @(posedge clock) begin
+        if (~io_write_n)
+            write_to_fdd  <= internal_data_bus;
+        else
+            write_to_fdd  <= write_to_fdd;
+    end
+
+    always_ff @(posedge clock) begin
+        fdd_io_address     <= address[2:0];
+        fdd_io_read        <= ~io_read_n & prev_io_read_n   & ~floppy0_select_n;
+        fdd_io_read_1      <= fdd_io_read;
+        fdd_io_write       <= io_write_n & ~prev_io_write_n & ~floppy0_select_n;
+    end
+
+    assign  fdd_dma_read    = fdd_dma_ack & ~io_read_n;
+
+    always_ff @(posedge clock) begin
+        prev_fdd_dma_ack   <= fdd_dma_ack;
+    end
+
+    assign  fdd_dma_rw_ack  = prev_fdd_dma_ack & ~fdd_dma_ack;
+
+    always_ff @(posedge clock) begin
+        if (fdd_dma_ack)
+            if (fdd_dma_tc == 1'b0)
+                fdd_dma_tc <= terminal_count;
+            else
+                fdd_dma_tc <= fdd_dma_tc;
+        else
+            fdd_dma_tc <= 1'b0;
+    end
+
+    floppy floppy (
+        .clk                        (clock),
+        .rst_n                      (~reset),
+
+        //dma
+        .dma_req                    (fdd_dma_req_wire),
+        .dma_ack                    (fdd_dma_rw_ack),
+        .dma_tc                     (fdd_dma_tc & fdd_dma_rw_ack),
+        .dma_readdata               (write_to_fdd),
+        .dma_writedata              (fdd_dma_readdata),
+
+        //irq
+        .irq                        (fdd_interrupt),
+
+        //io buf
+        .io_address                 (fdd_io_address),
+        .io_read                    (fdd_io_read),
+        .io_readdata                (fdd_readdata_wire),
+        .io_write                   (fdd_io_write),
+        .io_writedata               (write_to_fdd),
+
+//        .fdd0_inserted              (),
+
+        .mgmt_address               (mgmt_address[3:0]),
+        .mgmt_fddn                  (mgmt_address[7]),
+        .mgmt_write                 (mgmt_write & mgmt_fdd_cs),
+        .mgmt_writedata             (mgmt_writedata),
+        .mgmt_read                  (mgmt_read  & mgmt_fdd_cs),
+        .mgmt_readdata              (mgmt_readdata),
+
+        .wp                         (floppy_wp),
+
+        .clock_rate                 (clock_rate),
+
+        .request                    (fdd_request)
+    );
+
+    always_ff @(posedge clock) begin
+        if (fdd_dma_ack)
+            fdd_dma_req <= 1'b0;
+        else if (cpu_clock_negedge)
+            fdd_dma_req <= fdd_dma_req_wire;
+        else
+            fdd_dma_req <= fdd_dma_req;
+    end
+
+    always_ff @(posedge clock) begin
+        if ((fdd_io_read_1) && (~address_enable_n))
+            fdd_readdata <= fdd_readdata_wire;
+        else if (fdd_dma_read)
+            fdd_readdata <= fdd_dma_readdata;
+        else
+            fdd_readdata <= fdd_readdata;
+    end
+
 
     //
     // KFTVGA
@@ -895,6 +1039,10 @@ module PERIPHERALS #(
 		  else if (joystick_select && ~io_read_n) begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= joy_data;
+        end
+        else if ((~floppy0_select_n || fdd_dma_read) && (~io_read_n)) begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= fdd_readdata;
         end
         else begin
             data_bus_out_from_chipset <= 1'b0;

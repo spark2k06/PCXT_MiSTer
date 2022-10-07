@@ -66,9 +66,9 @@ module KF8237_Bus_Control_Logic (
         else if (chip_select_n)
             prev_write_enable_n <= 1'b1;
         else
-            prev_write_enable_n <= io_write_n_in;
+            prev_write_enable_n <= io_write_n_in | lock_bus_control;
     end
-    assign write_flag = ~prev_write_enable_n & io_write_n_in & ~lock_bus_control;
+    assign write_flag = ~prev_write_enable_n & io_write_n_in;
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
