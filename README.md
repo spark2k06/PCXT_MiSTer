@@ -45,9 +45,18 @@ Other Open Source ROMs are available in the same folder:
 * `pcxt_micro8088.rom`: This ROM already has the XTIDE BIOS embedded at address F000h. ([Source Code](https://github.com/skiselev/8088_bios))
 * `ide_xtl.rom`: This ROM corresponds to the XTIDE BIOS, it must be maintained for some scripts to work, it can also be upgraded to a newer version. ([Source Code](https://www.xtideuniversalbios.org/))
 
-## Mounting the disk image
+## Mounting the FDD image
 
-Initially, and until an 8-bit IDE module compatible with XTIDE is available, floppy and hdd mounting will be done through the serial port available in the core via the OSD menu. The available transfer speeds are as follows:
+The floppy disk image size must be compatible with the BIOS, for example:
+
+* On IBM 5160 or Tandy 1000 only 360Kb images work well. And currently only 4.77MHz and 7.16MHz work well.
+* On Micro8088 only 720Kb and 1.44Mb images work properly, at any CPU speed.
+
+It is possible to use images smaller than the size supported by the BIOS, but only pre-formatted images, as it will not be possible to format them from MS-Dos.
+
+## Mounting the HDD image
+
+Initially, and until an 8-bit IDE module compatible with XTIDE is available, HDD mounting will be done through the serial port available in the core via the OSD menu. The available transfer speeds are as follows:
 
 * 115200 Kbps
 * 230400 Kbps
@@ -56,14 +65,11 @@ Initially, and until an 8-bit IDE module compatible with XTIDE is available, flo
 
 By default it is set to 115200, but the most suitable speed is 460800. It is also possible to use 921600, but only with the CPU speed at 14.318MHz.
 
-The floppy disk image is recognised by XTIDE as B: in all BIOSes except JukoST, so to boot from the floppy disk, press the 'B' key when the XTIDE boot screen appears. Mounting and unmounting of such a drive becomes effective after a BIOS reset. Floppy swapping is possible as long as the drive was previously mounted.
-
-The serial port speed change becomes effective after a BIOS reset, it is not possible to use the HDD or Floppy drive after a speed change, the BIOS must always be reset after that.
+The serial port speed change becomes effective after a BIOS reset, it is not possible to use the HDD drive after a speed change, the BIOS must always be reset after that.
 
 ## To-do list and challenges
 
 * 8-bit IDE module implementation
-* Floppy implementation
 
 ## Developers
 
