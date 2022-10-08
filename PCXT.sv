@@ -774,7 +774,7 @@ end
 //////////////////////////////////////////////////////////////////
 
     reg [27:0] cur_rate;
-    always @(posedge CLK_50M) cur_rate <= 50000000;
+    always @(posedge CLK_50M) cur_rate <= 30000000;
 
 	wire [5:0] r, g, b;	
 	reg [7:0] raux_cga, gaux_cga, baux_cga;	
