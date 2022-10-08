@@ -34,10 +34,10 @@ reg [10:0]  dr_result;
 
 always @(*) begin : dr_calculation
     case( rate[5:2] )
-        4'b1100: dr_sum = { 2'b0, step, ~step }; // 12
-        4'b1101: dr_sum = { 1'b0, step, ~step, 1'b0 }; // 13
-        4'b1110: dr_sum = { step, ~step, 2'b0 }; // 14
-        4'b1111: dr_sum = 4'd8;// 15
+        4'b1100: dr_sum = 4'h2; // 12
+        4'b1101: dr_sum = 4'h4; // 13
+        4'b1110: dr_sum = 4'h8; // 14
+        4'b1111: dr_sum = 4'hf;// 15
         default: dr_sum = { 2'b0, step, 1'b0 };
     endcase
     // Decay rate attenuation is multiplied by 4 for SSG operation
@@ -53,14 +53,20 @@ reg [ 9:0] ar_sum;
 always @(*) begin : ar_calculation
     casez( rate[5:2] )
         default: ar_sum0 = {2'd0, eg_in[9:4]};
-        4'b1101: ar_sum0 = {1'd0, eg_in[9:3]};
-        4'b111?: ar_sum0 = eg_in[9:2];
+        4'b1011, 4'b1100: ar_sum0 = {1'd0, eg_in[9:3]}; // 'hb
+        // 4'b1101: ar_sum0 = {1'd0, eg_in[9:3]}; // 'hd
+        // 4'b111?: ar_sum0 = eg_in[9:2];         // 'he/f
+        4'b1101, 4'b111?: ar_sum0 = eg_in[9:2];         // 'he/f
     endcase
     ar_sum1 = ar_sum0+9'd1;
-    if( rate[5:4] == 2'b11 )
-        ar_sum = step ? { ar_sum1, 1'b0 } : { 1'b0, ar_sum1 };
+    if( rate[5:2] == 4'he )
+        ar_sum = { ar_sum1, 1'b0 };
+    else if( rate[5:2] > 4'hb )
+        ar_sum = step ? { ar_sum1, 1'b0 } : { 1'b0, ar_sum1 }; // adds ar_sum1*3/2 max
+    // else if( rate[5:2] == 4'hb )
+    //     ar_sum = step ? { ar_sum1, 1'b0 } : 10'd0; // adds ar_sum1 max
     else
-        ar_sum = step ? { 1'b0, ar_sum1 } : 10'd0;
+        ar_sum = step ? { 1'b0, ar_sum1 } : 10'd0; // adds ar_sum1/2 max
     ar_result = eg_in-ar_sum;
 end
 

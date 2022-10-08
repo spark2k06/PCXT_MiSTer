@@ -19,6 +19,12 @@ The implementation tries to be as close to original hardware as possible. Low us
 * Accurate at sample level, and at internal cycle clock where reasonable
 * Original architecture kept as much as possible
 
+Some reference works used:
+
+* [NukeYT's Nuked-OPLL](https://github.com/nukeykt/Nuked-OPLL)
+* [Research by Andete](https://github.com/andete/ym2413)
+* [Mitsutaka Okazaki's emu2413](https://github.com/digital-sound-antiques/emu2413)
+
 *Modern Design for FPGA*
 
 * Fully synchronous
@@ -33,29 +39,29 @@ Directories:
 
 ## Usage
 
-Although many files are shared, each chip has its own top level file to instantiate. There are QIP files for each one that detail the list of files used for each file. Intel Quartus software can take qip files as part of the project.
+Although many files are shared, each chip has its own top level file to instantiate. There are YAML files for each one that detail the list of files used for each file. These files can be easily converted to whatever format you need, like .qip.
 
 Not all the chips of OPL series are implemented yet, so take the following table as a plan which I am working on.
 
-Chip    | Top Level Cell | QIP file   | Type        | Patches | Implemented  | Usage
---------|----------------|------------|-------------|---------|--------------|-------
-YM3526  |  jtopl.v       | jt26.qip   | OPL         |         | Yes          | Bubble Bobble
-YM3812  |  jtopl2.v      | jtopl2.qip | OPL2        |         | WIP          | Robocop
-Y8950   |  jt8950.v      | jt8950.qip | OPL+ADPCM   |         | No           | MSX-Audio
-YM2413  |  jt2413.v      | jt2413.qip | OPL-L       | Yes     | No           |
-YM2423  |     -          |      -     | OPL-LX      | Yes     | No plans     | Atari ST FM cart
-YMF281  |     -          |      -     | OPL-LLP     | Yes     | No plans     | Pachinko
-YMF262  |  jt262.v       | jt262.qip  | OPL3        |         | No           |
+Chip    | Top Level Cell | YAML file   | Type        | Patches | Implemented  | Usage
+--------|----------------|-------------|-------------|---------|--------------|------------------
+YM3526  |  jtopl.v       | jt26.yaml   | OPL         |         | Yes          | Bubble Bobble
+YM3812  |  jtopl2.v      | jtopl2.yaml | OPL2        |         | Yes          | Robocop
+Y8950   |  jt8950.v      | jt8950.yaml | OPL+ADPCM   |         | Not yet      | MSX-Audio
+YM2413  |  jt2413.v      | jt2413.yaml | OPL-L       | Yes     | WIP          | Pang!
+YM2423  |     -          |      -      | OPL-LX      | Yes     | No plans     | Atari ST FM cart
+YMF281  |     -          |      -      | OPL-LLP     | Yes     | No plans     | Pachinko
+YMF262  |  jt262.v       | jt262.yaml  | OPL3        |         | Not yet      |
 
 ### Chip differences
 
-Chip     |  Type        | Features
----------|--------------|----------------------------------------
-YM3526   | OPL          | Basic OPL
-YM2413   | OPLL         | Removes depth options for vibrato/tremolo
-Y8950    | OPL+ADPCM    | Adds ADPCM
-YM3812   | OPL2         | Adds waveform select. Four waveforms
-YMF262   | OPL3         | No CSM. More operator modes, more channels
+Chip     |  Type        | EG bits | Features
+---------|--------------|---------|-------------------------------
+YM3526   | OPL          |    9?   | Basic OPL
+YM2413   | OPLL         |    7    | Removes depth options for vibrato/tremolo
+Y8950    | OPL+ADPCM    |    9?   | Adds ADPCM
+YM3812   | OPL2         |    9?   | Adds waveform select. Four waveforms
+YMF262   | OPL3         |    9    | No CSM. More operator modes, more channels
 
 ## Simulation
 
@@ -104,7 +110,7 @@ Short name | Instrument | Slot    | Phase   | EG   | Modulation |
 
 ## Related Projects
 
-Other sound chips from the same author (verilog RTL)
+Other sound chips from the same author (Verilog RTL)
 
 Chip                   | Repository
 -----------------------|------------

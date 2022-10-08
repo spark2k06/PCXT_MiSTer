@@ -197,12 +197,16 @@ void VGMParser::open(const char* filename, int limit) {
     // positions depending on the chip type so it also determines
     // which chip is used in the file
     chip_cfg = unknown;
-    file.seekg(0x50); // offset to YM3812
+    // Try to read the YM2413 frequency first
+    file.seekg(0x10); // offset to YM2413
     file.read( (char*) &ym_freq, 4 );
-    if( ym_freq != 0 ) { // try YM2203
-        chip_cfg = ym2151;
+    if( ym_freq!=0 ) {
+        chip_cfg = ym2413;
+    } else {
+        file.seekg(0x50); // offset to YM3812
+        file.read( (char*) &ym_freq, 4 );
+        chip_cfg = ym3812;
     }
-    else chip_cfg = unknown;
     cerr << "YM Freq = " << dec << ym_freq << " Hz\n";
     // seek out data start
     if( version[0]<0x50 && version[1]==1 ) {
@@ -294,6 +298,7 @@ int VGMParser::parse() {
             //case 0xA5: // Write to dual YM2203
             //    file.read(extra,2); // ignore
             //    continue;
+            case 0x51: // YM2413 aa vv write
             case 0x53: // A1=1
             case 0x54: // YM2151 write
                 file.read( extra, 2);
@@ -303,6 +308,7 @@ int VGMParser::parse() {
                 return cmd_write;                
             case 0x57:
             case 0x5A:   // YM3812 write register
+            case 0x5B:   // YM3526 write register
             case 0x59: { // YM2610
                 addr = 1;
                 file.read( extra, 2);

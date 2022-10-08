@@ -69,8 +69,8 @@ module KF8237_Address_And_Count_Registers (
 
     wire    update_byte_pointer =  (0 != write_base_and_current_address)
                                 || (0 != write_base_and_current_word_count)
-                                || ((0 != prev_read_current_address) && (prev_read_current_address != read_current_address))
-                                || ((0 != prev_read_current_word_count) && (prev_read_current_word_count != read_current_word_count));
+                                || ((0 != prev_read_current_address) && (0 == read_current_address))
+                                || ((0 != prev_read_current_word_count) && (0 == read_current_word_count));
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
