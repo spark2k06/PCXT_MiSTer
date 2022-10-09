@@ -20,6 +20,7 @@ module PERIPHERALS #(
 	 // SplashScreen
     input   logic           splashscreen,
     // VGA
+	 input   logic           composite,
 	 input   logic           video_output,
     input   logic           clk_vga_cga,
     input   logic           enable_cga,
@@ -744,9 +745,10 @@ module PERIPHERALS #(
 
 	 
     // CGA digital to analog converter
-    cga_vgaport vga_cga (
-        .clk(clk_vga_cga),		  
+    cga_vgaport vga_cga (	 
+        .clk(clk_vga_cga),        
         .video(video_cga),
+		  .composite(composite && ~hres_mode),
         .red(R_CGA),
         .green(G_CGA),
         .blue(B_CGA)

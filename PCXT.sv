@@ -238,6 +238,7 @@ localparam CONF_STR = {
 	"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"P2OT,Border,No,Yes;",
 	"P2O4,Video Output,CGA/Tandy,MDA;",
+	"P2o8,Composite video,Off,On;",
 	"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",	
 	"P3,Hardware;",
 	"P3-;",
@@ -308,6 +309,7 @@ wire        adlibhide = status[10];
 wire [31:0] joy0, joy1;
 wire [15:0] joya0, joya1;
 wire [4:0]  joy_opts = status[27:23];
+wire        composite = status[40];
 
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io
 (
@@ -774,7 +776,7 @@ end
 //////////////////////////////////////////////////////////////////
 
     reg [27:0] cur_rate;
-    always @(posedge CLK_50M) cur_rate <= 50000000;
+    always @(posedge CLK_50M) cur_rate <= 30000000;
 
 	wire [5:0] r, g, b;	
 	reg [7:0] raux_cga, gaux_cga, baux_cga;	
@@ -885,6 +887,7 @@ end
 		  .processor_ready                    (processor_ready),
         .interrupt_to_cpu                   (interrupt_to_cpu),
         .splashscreen                       (splashscreen),
+		  .composite                          (composite),
 		  .video_output                       (mda_mode),
         .clk_vga_cga                        (clk_28_636),
         .enable_cga                         (1'b1),
