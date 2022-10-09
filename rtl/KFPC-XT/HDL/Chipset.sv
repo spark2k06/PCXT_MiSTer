@@ -21,6 +21,7 @@ module CHIPSET (
 	 // SplashScreen
     input   logic           splashscreen,
     // VGA
+	 input   logic           composite,
 	 input   logic           video_output,
     input   logic           clk_vga_cga,	 
     input   logic           enable_cga,
@@ -249,6 +250,7 @@ module CHIPSET (
         .dma_chip_select_n                  (dma_chip_select_n),
         .dma_page_chip_select_n             (dma_page_chip_select_n),
         .splashscreen                       (splashscreen),
+		  .composite                          (composite),
 		  .video_output                       (video_output),
         .clk_vga_cga                        (clk_vga_cga),
         .enable_cga                         (enable_cga),
