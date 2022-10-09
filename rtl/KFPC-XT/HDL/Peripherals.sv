@@ -562,7 +562,7 @@ module PERIPHERALS #(
 	uart uart2
 	(
 		.clk               (clock),
-		.br_clk            (clk_uart), // clk_uart2
+		.br_clk            (clk_uart2),
 		.reset             (reset),
 
 		.address           (address[2:0]),

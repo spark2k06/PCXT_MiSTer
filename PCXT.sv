@@ -302,7 +302,6 @@ wire [15:0] ioctl_data;
 reg         ioctl_wait;
 
 wire        clk_uart;
-reg   [2:0] clk_uart2;
 
 wire [21:0] gamma_bus;
 wire        adlibhide = status[10];
@@ -452,9 +451,6 @@ always @(posedge clk_28_636) begin
 	clk_14_318 <= ~clk_14_318; // 14.318Mhz
 	ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
 end
-
-always @(posedge clk_uart) // 14.74 MHz (Fast UART)
-	clk_uart2 <= {clk_uart2[1], clk_uart2[0], clk_uart}; // 1.84 MHz (Slow UART)
 
 always @(posedge clk_14_318)
 	clk_7_16 <= ~clk_7_16; // 7.16Mhz
@@ -960,7 +956,7 @@ end
 		  .tandy_bios_flag                    (tandy_bios_flag),
 		  .tandy_16_gfx                       (tandy_16_gfx),
 		  .clk_uart                          ((status[22:21] == 2'b00) ? clk_uart : clk_uart_en),
-		  .clk_uart2                          (clk_uart2[2]), 
+		  .clk_uart2                          (clk_uart2_en), 
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
 	     .uart_cts_n                        (uart_cts),
@@ -1117,6 +1113,8 @@ assign AUDIO_MIX = status[39:38];
 	logic clk_uart_ff_2;
 	logic clk_uart_ff_3;
 	logic clk_uart_en;
+	logic clk_uart2_en;
+	logic [2:0] clk_uart2_counter;
 
 	always @(posedge clk_chipset) begin
 		clk_uart_ff_1 <= clk_uart;
@@ -1124,6 +1122,23 @@ assign AUDIO_MIX = status[39:38];
 		clk_uart_ff_3 <= clk_uart_ff_2;
 		clk_uart_en   <= ~clk_uart_ff_3 & clk_uart_ff_2;
     end
+
+	always @(posedge clk_chipset) begin
+		if (clk_uart_en) begin
+			if (3'd7 != clk_uart2_counter) begin
+				clk_uart2_counter <= clk_uart2_counter +3'd1;
+				clk_uart2_en <= 1'b0;
+			end
+			else begin
+				clk_uart2_counter <= 3'd0;
+				clk_uart2_en <= 1'b1;
+			end
+		end
+		else begin
+			clk_uart2_counter <= clk_uart2_counter;
+			clk_uart2_en <= 1'b0;
+		end
+	end
 
 	wire uart_tx, uart_rts, uart_dtr;
 	
