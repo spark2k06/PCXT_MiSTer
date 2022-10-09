@@ -49,8 +49,9 @@ Other Open Source ROMs are available in the same folder:
 
 The floppy disk image size must be compatible with the BIOS, for example:
 
-* On IBM 5160 or Tandy 1000 only 360Kb images work well. And currently only 4.77MHz and 7.16MHz work well.
-* On Micro8088 only 720Kb and 1.44Mb images work properly, at any CPU speed.
+* On IBM 5160 or Tandy 1000 only 360Kb images work well.
+* On Micro8088 only 720Kb and 1.44Mb images work properly.
+* Other BIOS may not be compatible, such as OpenXT by Ja'akov Miles and Jon Petroski.
 
 It is possible to use images smaller than the size supported by the BIOS, but only pre-formatted images, as it will not be possible to format them from MS-Dos.
 
