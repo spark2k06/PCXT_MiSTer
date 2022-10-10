@@ -88,7 +88,7 @@ always @(posedge clk)begin
 		else PS2R_Counter<=PS2R_Counter-1;
 	end
 	else begin
-	if (`PS2CLKRISE && `TXIDLE)begin
+	if (`PS2CLKFALL && `TXIDLE)begin
 		case (PS2R_STM)
 			`PS2R_Start:
 				begin
