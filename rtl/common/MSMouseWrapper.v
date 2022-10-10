@@ -168,8 +168,8 @@ end
 `define STARTBIT			 0
 `define STOPBIT			 1
 
-wire [7:0]YC= ~{MSBY,PS2R_Byte[7:1]}+1;
-wire [7:0]XC= {MSBX,PS2R_Byte[7:1]};
+wire [7:0]YC= ~{msbY,PS2R_Byte[7:1]}+1;
+wire [7:0]XC= {msbX,PS2R_Byte[7:1]};
 wire LeftBt=PS2R_Byte[0];
 wire RightBt=PS2R_Byte[1];
 wire MSBX=PS2R_Byte[4];
