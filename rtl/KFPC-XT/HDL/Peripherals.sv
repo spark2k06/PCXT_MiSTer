@@ -61,6 +61,10 @@ module PERIPHERALS #(
     input   logic           ps2_data,
     output  logic           ps2_clock_out,
     output  logic           ps2_data_out,
+	 input   logic           ps2_mouseclk_in,
+	 input   logic           ps2_mousedat_in,
+	 output  logic           ps2_mouseclk_out,
+	 output  logic           ps2_mousedat_out,
 	 input   logic   [4:0]   joy_opts,
 	 input   logic   [31:0]  joy0,
 	 input   logic   [31:0]  joy1,
@@ -77,6 +81,7 @@ module PERIPHERALS #(
 	 output  logic           tandy_16_gfx,
 	 // UART
 	 input   logic           clk_uart,
+	 input   logic           clk_uart2,
 	 input   logic           uart_rx,
 	 output  logic           uart_tx,
 	 input   logic           uart_cts_n,
@@ -171,6 +176,7 @@ module PERIPHERALS #(
     wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
 	 wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
 	 wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
+	 wire    uart2_cs               =  (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
 	 wire    lpt_cs                 =  (iorq && ~address_enable_n && address[15:0] == 16'h0378);
 	 wire    tandy_page_cs          =  (iorq && ~address_enable_n && address[15:0] == 16'h03DF);
 	 
@@ -213,7 +219,8 @@ module PERIPHERALS #(
 					map_ems[ems_access_address] <= write_map_ems_data;
 					ena_ems[ems_access_address] <= write_map_ena_data;
 		  end
-    end
+    end 
+ 
 
     //
     // 8259
@@ -222,6 +229,7 @@ module PERIPHERALS #(
     logic           keybord_interrupt;
 	 logic           uart_interrupt;
     logic           fdd_interrupt;
+	 logic           uart2_interrupt;
     logic   [7:0]   interrupt_data_bus_out;
 
     KF8259 u_KF8259 (
@@ -248,7 +256,8 @@ module PERIPHERALS #(
                                       fdd_interrupt,
                                       interrupt_request[5],
                                       uart_interrupt,
-                                      interrupt_request[3:2],
+                                      uart2_interrupt,
+                                      interrupt_request[2],
                                       keybord_interrupt,
                                       timer_interrupt})
     );
@@ -347,6 +356,8 @@ module PERIPHERALS #(
     //
     logic           ps2_send_clock;
     logic           keybord_irq;
+	 logic           uart_irq;
+	 logic           uart2_irq;
     logic   [7:0]   keycode;
     logic   [7:0]   tandy_keycode;
     logic           prev_ps2_reset;
@@ -449,23 +460,35 @@ module PERIPHERALS #(
 	);	
 	
 	    logic   keybord_interrupt_ff;
+		 logic   uart_interrupt_ff;
+		 logic   uart2_interrupt_ff;
     always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
             keybord_interrupt_ff    <= 1'b0;
             keybord_interrupt       <= 1'b0;
+				uart_interrupt_ff       <= 1'b0;
+				uart_interrupt          <= 1'b0;
+				uart2_interrupt_ff      <= 1'b0;
+				uart2_interrupt         <= 1'b0;
         end
         else begin
             keybord_interrupt_ff    <= keybord_irq;
             keybord_interrupt       <= keybord_interrupt_ff;
+				uart_interrupt_ff       <= uart_irq;
+				uart_interrupt          <= uart_interrupt_ff;
+				uart2_interrupt_ff      <= uart2_irq;
+				uart2_interrupt         <= uart2_interrupt_ff;
         end
 	end
 	
 	logic	prev_io_read_n;
 	logic	prev_io_write_n;
 	logic	[7:0]	write_to_uart;
-	logic [7:0] uart_readdata_1;
-	logic [7:0] uart_readdata_2;
+	logic	[7:0]	write_to_uart2;
+	logic [7:0] uart_readdata_1;	
 	logic [7:0] uart_readdata;
+	logic [7:0] uart2_readdata_1;	
+	logic [7:0] uart2_readdata;
 
 	always_ff @(posedge clock) begin
 		prev_io_read_n <= io_read_n;
@@ -488,10 +511,13 @@ module PERIPHERALS #(
 	reg [7:0] tandy_page_data = 8'h00;
 	reg [7:0] nmi_mask_register_data = 8'hFF;
 	always_ff @(posedge clock) begin
-		if (~io_write_n)
+		if (~io_write_n) begin
 			write_to_uart <= internal_data_bus;
-		else
+			write_to_uart2 <= internal_data_bus;
+		end else begin
 			write_to_uart <= write_to_uart;
+			write_to_uart2 <= write_to_uart2;
+		end
 			
       if ((lpt_cs) && (~io_write_n))
             lpt_data <= internal_data_bus;				
@@ -527,15 +553,52 @@ module PERIPHERALS #(
 		.dtr_n             (uart_dtr_n),
 		.ri_n              (1),
 
-		.irq               (uart_interrupt)
+		.irq               (uart_irq)
+	);	
+	
+	wire uart2_tx;
+	wire rts_n;
+	
+	uart uart2
+	(
+		.clk               (clock),
+		.br_clk            (clk_uart2),
+		.reset             (reset),
+
+		.address           (address[2:0]),
+		.writedata         (write_to_uart2),
+		.read              (~io_read_n  & prev_io_read_n),
+		.write             (io_write_n & ~prev_io_write_n),
+		.readdata          (uart2_readdata_1),
+		.cs                (uart2_cs & iorq_uart),
+		.rx                (uart2_tx),
+		.cts_n             (0),
+		.dcd_n             (0),
+		.dsr_n             (0),
+		.ri_n              (1),
+		.rts_n             (rts_n),
+		.irq               (uart2_irq)
 	);
+	
+	MSMouseWrapper MSMouseWrapper_inst (
+		.clk(clock),
+		.ps2dta_in(ps2_mousedat_in),
+		.ps2clk_in(ps2_mouseclk_in),
+		.ps2dta_out(ps2_mousedat_out),
+		.ps2clk_out(ps2_mouseclk_out),
+		.rts(~rts_n),
+		.rd(uart2_tx)
+    );
 
 	// Timing of the readings may need to be reviewed.
 	always_ff @(posedge clock) begin
-		if (~io_read_n)
+		if (~io_read_n) begin
 			uart_readdata <= uart_readdata_1;
-		else
+			uart2_readdata <= uart2_readdata_1;
+		end else begin
 			uart_readdata <= uart_readdata;
+			uart2_readdata <= uart2_readdata;
+		end
 	end
 
 
@@ -1025,6 +1088,10 @@ module PERIPHERALS #(
 		  else if ((uart_cs) && (~io_read_n)) begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= uart_readdata;			
+        end
+		  else if ((uart2_cs) && (~io_read_n)) begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= uart2_readdata;			
         end
 		  else if ((ems_oe) && (~io_read_n)) begin
             data_bus_out_from_chipset <= 1'b1;				
