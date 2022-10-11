@@ -174,7 +174,7 @@ module emu
 ///////// Default values for ports not used in this core /////////
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
+//assign USER_OUT = '1;
 //assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 //assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 //assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
@@ -340,10 +340,11 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io
 	.ps2_kbd_data_in	(ps2_kbd_data_out),
 	.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 	.ps2_kbd_data_out	(ps2_kbd_data_in),
-//  .ps2_mouse_clk_in	(ps2_mouse_clk_out),
-//	.ps2_mouse_data_in	(ps2_mouse_data_out),
-//	.ps2_mouse_clk_out	(ps2_mouse_clk_in),
-//	.ps2_mouse_data_out	(ps2_mouse_data_in),
+	
+	.ps2_mouse_clk_out    (ps2_mouse_clk_out),
+	.ps2_mouse_data_out   (ps2_mouse_data_out),
+	.ps2_mouse_clk_in     (ps2_mouse_clk_in),
+	.ps2_mouse_data_in    (ps2_mouse_data_in),
 
 	//.ps2_key(ps2_key),
 	.joystick_0(joy0),
@@ -453,7 +454,7 @@ end
 
 always @(posedge clk_14_318)
 	clk_7_16 <= ~clk_7_16; // 7.16Mhz
-
+	
 clk_div3 clk_normal // 4.77MHz
 (
 	.clk(clk_14_318),
@@ -893,15 +894,15 @@ end
         .enable_cga                         (1'b1),
         .clk_vga_mda                        (clk_56_875),
         .enable_mda                         (1'b1),
-		.mda_rgb                            (2'b10), // always B&W - monochrome monitor tint handled down below
+        .mda_rgb                            (2'b10), // always B&W - monochrome monitor tint handled down below
         //.de_o                               (VGA_DE),
         .VGA_R                              (r),
         .VGA_G                              (g),
         .VGA_B                              (b),
         .VGA_HSYNC                          (HSync),
         .VGA_VSYNC                          (VSync),
-		.VGA_HBlank	  				        (HBlank),
-		.VGA_VBlank							(VBlank),
+        .VGA_HBlank	  				        (HBlank),
+        .VGA_VBlank							(VBlank),
 //      .address                            (address),
         .address_ext                        (bios_access_address),
         .ext_access_request                 (bios_access_request),
@@ -936,6 +937,12 @@ end
 	     .ps2_data                           (device_data),
 	     .ps2_clock_out                      (ps2_kbd_clk_out),
 	     .ps2_data_out                       (ps2_kbd_data_out),
+
+	     .ps2_mouseclk_in                    (ps2_mouse_clk_out),
+	     .ps2_mousedat_in                    (ps2_mouse_data_out),
+	     .ps2_mouseclk_out                   (ps2_mouse_clk_in),
+	     .ps2_mousedat_out                   (ps2_mouse_data_in),
+		  
 		  .joy_opts                           (joy_opts),                          //Joy0-Disabled, Joy0-Type, Joy1-Disabled, Joy1-Type, turbo_sync
         .joy0                               (status[28] ? joy1 : joy0),
         .joy1                               (status[28] ? joy0 : joy1),
@@ -949,6 +956,7 @@ end
 		  .tandy_bios_flag                    (tandy_bios_flag),
 		  .tandy_16_gfx                       (tandy_16_gfx),
 		  .clk_uart                          ((status[22:21] == 2'b00) ? clk_uart : clk_uart_en),
+		  .clk_uart2                          (clk_uart2_en), 
 	     .uart_rx                           (uart_rx),
 	     .uart_tx                           (uart_tx),
 	     .uart_cts_n                        (uart_cts),
@@ -1105,6 +1113,8 @@ assign AUDIO_MIX = status[39:38];
 	logic clk_uart_ff_2;
 	logic clk_uart_ff_3;
 	logic clk_uart_en;
+	logic clk_uart2_en;
+	logic [2:0] clk_uart2_counter;
 
 	always @(posedge clk_chipset) begin
 		clk_uart_ff_1 <= clk_uart;
@@ -1112,6 +1122,23 @@ assign AUDIO_MIX = status[39:38];
 		clk_uart_ff_3 <= clk_uart_ff_2;
 		clk_uart_en   <= ~clk_uart_ff_3 & clk_uart_ff_2;
     end
+
+	always @(posedge clk_chipset) begin
+		if (clk_uart_en) begin
+			if (3'd7 != clk_uart2_counter) begin
+				clk_uart2_counter <= clk_uart2_counter +3'd1;
+				clk_uart2_en <= 1'b0;
+			end
+			else begin
+				clk_uart2_counter <= 3'd0;
+				clk_uart2_en <= 1'b1;
+			end
+		end
+		else begin
+			clk_uart2_counter <= clk_uart2_counter;
+			clk_uart2_en <= 1'b0;
+		end
+	end
 
 	wire uart_tx, uart_rts, uart_dtr;
 	
@@ -1130,6 +1157,29 @@ assign AUDIO_MIX = status[39:38];
 		else
 			cpu_address <= cpu_address;
 	end	
+	/// UART2
+
+	assign USER_OUT = {1'b1, 1'b1, uart2_dtr, 1'b1, uart2_rts, uart2_tx, 1'b1};
+
+	//
+	// Pin | USB Name |   |Signal
+	// ----+----------+---+-------------
+	// 0   | D+       | I |RX
+	// 1   | D-       | O |TX
+	// 2   | TX-      | O |RTS
+	// 3   | GND_d    | I |CTS
+	// 4   | RX+      | O |DTR
+	// 5   | RX-      | I |DSR
+	// 6   | TX+      | I |DCD
+	//
+
+	wire uart2_tx, uart2_rts, uart2_dtr;
+
+	wire uart2_rx  = USER_IN[0];
+	wire uart2_cts = USER_IN[3];
+	wire uart2_dsr = USER_IN[5];
+	wire uart2_dcd = USER_IN[6];
+
 	
 	/// VIDEO
 
