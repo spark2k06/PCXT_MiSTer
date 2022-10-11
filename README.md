@@ -28,6 +28,7 @@ An SN76489AN Compatible Implementation (Tandy Sound) written in VHDL was also in
 * Tandy 320x200x16 graphics with 128Kb of shared RAM + CGA graphics
 * Audio: Adlib, Tandy, speaker
 * Joystick support
+* Mouse support into COM2 serial port, this works like any Microsoft mouse... you just need a driver to configure it, like CTMOUSE 1.9 (available into hdd folder), with the command CTMOUSE /s2 
 
 ## ROM Instructions
 
