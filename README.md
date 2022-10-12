@@ -38,7 +38,7 @@ An SN76489AN Compatible Implementation (Tandy Sound) written in VHDL was also in
 *  Model: IBM PCXT.
 *  CPU Speed: 14.318MHz.
 *  FDD & HDD -> HDD Image: FreeDOS_HD.img
-*  FDD & HDD -> Speed: 921600.
+*  FDD & HDD -> Speed: 921600. NOTE: This speed can only be selected if CPU speed is 14.318 MHz.
 *  BIOS -> PCXT BIOS: pcxt_micro8088.rom
 * Choose Reset & apply model.
 
