@@ -30,6 +30,15 @@ An SN76489AN Compatible Implementation (Tandy Sound) written in VHDL was also in
 * Joystick support
 * Mouse support into COM2 serial port, this works like any Microsoft mouse... you just need a driver to configure it, like CTMOUSE 1.9 (available into hdd folder), with the command CTMOUSE /s2 
 
+## Quick Start
+
+* Copy the contents of games/PCTXT to your Mister SD Card and uncompress hd_image.zip
+* Select the core from Computers/PCXT.
+* Choose the hard disk Freedos_HD.img in FDD & HDD option and 921K.
+* Select PCXT as the Machine type.
+* Choose the bios pcxt_micro8088.rom from BIOS option.
+* Choose Reset & apply.
+
 ## ROM Instructions
 
 ROMs should be provided initially from the BIOS section of the OSD menu, then it is only necessary to indicate the computer model and reset, on subsequent boot of the core, it is no longer necessary to provide them, unless we want to use others. Original and copyrighted ROMs can be generated on the fly using the python scripts available in the SW folder of this repository:
