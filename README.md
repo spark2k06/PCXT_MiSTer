@@ -32,12 +32,15 @@ An SN76489AN Compatible Implementation (Tandy Sound) written in VHDL was also in
 
 ## Quick Start
 
-* Copy the contents of games/PCTXT to your Mister SD Card and uncompress hd_image.zip
+* Copy the contents of games/PCTXT to your Mister SD Card and uncompress hd_image.zip. It contains a freedos image ( http://www.freedos.org/ )
 * Select the core from Computers/PCXT.
-* Choose the hard disk Freedos_HD.img in FDD & HDD option and 921K.
-* Select PCXT as the Machine type.
-* Choose the bios pcxt_micro8088.rom from BIOS option.
-* Choose Reset & apply.
+* Press WinKey + F12 on your keyboard.
+*  Model: IBM PCXT.
+*  CPU Speed: 14.318MHz.
+*  FDD & HDD -> HDD Image: FreeDOS_HD.img
+*  FDD & HDD -> Speed: 921600.
+*  BIOS -> PCXT BIOS: pcxt_micro8088.rom
+* Choose Reset & apply model.
 
 ## ROM Instructions
 
