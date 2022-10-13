@@ -3,142 +3,142 @@
 // Written by kitune-san
 //
 module CHIPSET (
-    input   logic           clock,
-    input   logic           cpu_clock,
-	 input   logic           clk_sys,
-    input   logic           peripheral_clock,
-	 input   logic   [1:0]   turbo_mode,
-    input   logic           reset,
-    input   logic           sdram_reset,
-    // CPU
-    input   logic   [19:0]  cpu_address,
-    input   logic   [7:0]   cpu_data_bus,
-    input   logic   [2:0]   processor_status,
-    input   logic           processor_lock_n,
-    output  logic           processor_transmit_or_receive_n,
-    output  logic           processor_ready,
-    output  logic           interrupt_to_cpu,
-	 // SplashScreen
-    input   logic           splashscreen,
-    // VGA
-	 input   logic           composite,
-	 input   logic           video_output,
-    input   logic           clk_vga_cga,	 
-    input   logic           enable_cga,
-    input   logic           clk_vga_mda,	 
-    input   logic           enable_mda,
-	 input   logic   [1:0]   mda_rgb,
-    output  logic           de_o,
-    output  logic   [5:0]   VGA_R,
-    output  logic   [5:0]   VGA_G,
-    output  logic   [5:0]   VGA_B,
-    output  logic           VGA_HSYNC,
-    output  logic           VGA_VSYNC,
-    output  logic           VGA_HBlank,
-	output  logic           VGA_VBlank,
-    // I/O Ports
-    output  logic   [19:0]  address,
-    input   logic   [19:0]  address_ext,
-    output  logic           address_direction,
-    output  logic   [7:0]   data_bus,
-    input   logic   [7:0]   data_bus_ext,
-    output  logic           data_bus_direction,
-    output  logic           address_latch_enable,
-    input   logic           io_channel_check,
-    input   logic           io_channel_ready,
-    input   logic   [7:0]   interrupt_request,
-    output  logic           io_read_n,
-    input   logic           io_read_n_ext,
-    output  logic           io_read_n_direction,
-    output  logic           io_write_n,
-    input   logic           io_write_n_ext,
-    output  logic           io_write_n_direction,
-    output  logic           memory_read_n,
-    input   logic           memory_read_n_ext,
-    output  logic           memory_read_n_direction,
-    output  logic           memory_write_n,
-    input   logic           memory_write_n_ext,
-    output  logic           memory_write_n_direction,
-    input   logic           ext_access_request,
-    input   logic   [3:0]   dma_request,
-    output  logic   [3:0]   dma_acknowledge_n,
-    output  logic           address_enable_n,
-    output  logic           terminal_count_n,
-    // Peripherals
-    output  logic   [2:0]   timer_counter_out,
-    output  logic           speaker_out,
-    output  logic   [7:0]   port_a_out,
-    output  logic           port_a_io,
-    input   logic   [7:0]   port_b_in,
-    output  logic   [7:0]   port_b_out,
-    output  logic           port_b_io,
-    input   logic   [7:0]   port_c_in,
-    output  logic   [7:0]   port_c_out,
-    output  logic   [7:0]   port_c_io,
-    input   logic           ps2_clock,
-    input   logic           ps2_data,
-    output  logic           ps2_clock_out,
-    output  logic           ps2_data_out,
-	 input   logic           ps2_mouseclk_in,
-	 input   logic           ps2_mousedat_in,
-	 output  logic           ps2_mouseclk_out,
-	 output  logic           ps2_mousedat_out,
-	 input   logic   [4:0]   joy_opts,
-	 input   logic   [31:0]  joy0,
-	 input   logic   [31:0]  joy1,
-	 input   logic   [15:0]  joya0,
-	 input   logic   [15:0]  joya1,
-	 // JTOPL	 
-	 input   logic           clk_en_opl2,
-	 output  logic   [15:0]  jtopl2_snd_e,
-	 input   logic           adlibhide,
-	 // TANDY
-	 input   logic           tandy_video,
-	 input   logic           tandy_bios_flag,
-	 output  logic   [7:0]   tandy_snd_e,
-	 output  logic           tandy_16_gfx,
-	 // UART
-	 input   logic           clk_uart,
-	 input   logic           clk_uart2,
-	 input   logic           uart_rx,
-	 output  logic           uart_tx,
-	 input   logic           uart_cts_n,
-	 input   logic           uart_dcd_n,
-	 input   logic           uart_dsr_n,
-	 output  logic           uart_rts_n,
-	 output  logic           uart_dtr_n,
-    // SDRAM
-    input   logic           enable_sdram,
-    output  logic           initilized_sdram,
-    input   logic           sdram_clock,    // 50MHz
-    output  logic   [12:0]  sdram_address,
-    output  logic           sdram_cke,
-    output  logic           sdram_cs,
-    output  logic           sdram_ras,
-    output  logic           sdram_cas,
-    output  logic           sdram_we,
-    output  logic   [1:0]   sdram_ba,
-    input   logic   [15:0]  sdram_dq_in,
-    output  logic   [15:0]  sdram_dq_out,
-    output  logic           sdram_dq_io,
-    output  logic           sdram_ldqm,
-    output  logic           sdram_udqm,
-	 // EMS
-	 input   logic           ems_enabled,
-	 input   logic   [1:0]   ems_address,
-	 // BIOS
-	 input  logic            bios_protect_flag,
-	 input   logic   [2:0]   bios_writable,
-    // FDD
-    input   logic   [15:0]  mgmt_address,
-    input   logic           mgmt_read,
-    output  logic   [15:0]  mgmt_readdata,
-    input   logic           mgmt_write,
-    input   logic   [15:0]  mgmt_writedata,
-    input   logic   [27:0]  clock_rate,
-    input   logic   [1:0]   floppy_wp,
-    output  logic   [1:0]   fdd_request
-);
+        input   logic           clock,
+        input   logic           cpu_clock,
+        input   logic           clk_sys,
+        input   logic           peripheral_clock,
+        input   logic   [1:0]   turbo_mode,
+        input   logic           reset,
+        input   logic           sdram_reset,
+        // CPU
+        input   logic   [19:0]  cpu_address,
+        input   logic   [7:0]   cpu_data_bus,
+        input   logic   [2:0]   processor_status,
+        input   logic           processor_lock_n,
+        output  logic           processor_transmit_or_receive_n,
+        output  logic           processor_ready,
+        output  logic           interrupt_to_cpu,
+        // SplashScreen
+        input   logic           splashscreen,
+        // VGA
+        input   logic           composite,
+        input   logic           video_output,
+        input   logic           clk_vga_cga,
+        input   logic           enable_cga,
+        input   logic           clk_vga_mda,
+        input   logic           enable_mda,
+        input   logic   [1:0]   mda_rgb,
+        output  logic           de_o,
+        output  logic   [5:0]   VGA_R,
+        output  logic   [5:0]   VGA_G,
+        output  logic   [5:0]   VGA_B,
+        output  logic           VGA_HSYNC,
+        output  logic           VGA_VSYNC,
+        output  logic           VGA_HBlank,
+        output  logic           VGA_VBlank,
+        // I/O Ports
+        output  logic   [19:0]  address,
+        input   logic   [19:0]  address_ext,
+        output  logic           address_direction,
+        output  logic   [7:0]   data_bus,
+        input   logic   [7:0]   data_bus_ext,
+        output  logic           data_bus_direction,
+        output  logic           address_latch_enable,
+        input   logic           io_channel_check,
+        input   logic           io_channel_ready,
+        input   logic   [7:0]   interrupt_request,
+        output  logic           io_read_n,
+        input   logic           io_read_n_ext,
+        output  logic           io_read_n_direction,
+        output  logic           io_write_n,
+        input   logic           io_write_n_ext,
+        output  logic           io_write_n_direction,
+        output  logic           memory_read_n,
+        input   logic           memory_read_n_ext,
+        output  logic           memory_read_n_direction,
+        output  logic           memory_write_n,
+        input   logic           memory_write_n_ext,
+        output  logic           memory_write_n_direction,
+        input   logic           ext_access_request,
+        input   logic   [3:0]   dma_request,
+        output  logic   [3:0]   dma_acknowledge_n,
+        output  logic           address_enable_n,
+        output  logic           terminal_count_n,
+        // Peripherals
+        output  logic   [2:0]   timer_counter_out,
+        output  logic           speaker_out,
+        output  logic   [7:0]   port_a_out,
+        output  logic           port_a_io,
+        input   logic   [7:0]   port_b_in,
+        output  logic   [7:0]   port_b_out,
+        output  logic           port_b_io,
+        input   logic   [7:0]   port_c_in,
+        output  logic   [7:0]   port_c_out,
+        output  logic   [7:0]   port_c_io,
+        input   logic           ps2_clock,
+        input   logic           ps2_data,
+        output  logic           ps2_clock_out,
+        output  logic           ps2_data_out,
+        input   logic           ps2_mouseclk_in,
+        input   logic           ps2_mousedat_in,
+        output  logic           ps2_mouseclk_out,
+        output  logic           ps2_mousedat_out,
+        input   logic   [4:0]   joy_opts,
+        input   logic   [31:0]  joy0,
+        input   logic   [31:0]  joy1,
+        input   logic   [15:0]  joya0,
+        input   logic   [15:0]  joya1,
+        // JTOPL
+        input   logic           clk_en_opl2,
+        output  logic   [15:0]  jtopl2_snd_e,
+        input   logic           adlibhide,
+        // TANDY
+        input   logic           tandy_video,
+        input   logic           tandy_bios_flag,
+        output  logic   [7:0]   tandy_snd_e,
+        output  logic           tandy_16_gfx,
+        // UART
+        input   logic           clk_uart,
+        input   logic           clk_uart2,
+        input   logic           uart_rx,
+        output  logic           uart_tx,
+        input   logic           uart_cts_n,
+        input   logic           uart_dcd_n,
+        input   logic           uart_dsr_n,
+        output  logic           uart_rts_n,
+        output  logic           uart_dtr_n,
+        // SDRAM
+        input   logic           enable_sdram,
+        output  logic           initilized_sdram,
+        input   logic           sdram_clock,    // 50MHz
+        output  logic   [12:0]  sdram_address,
+        output  logic           sdram_cke,
+        output  logic           sdram_cs,
+        output  logic           sdram_ras,
+        output  logic           sdram_cas,
+        output  logic           sdram_we,
+        output  logic   [1:0]   sdram_ba,
+        input   logic   [15:0]  sdram_dq_in,
+        output  logic   [15:0]  sdram_dq_out,
+        output  logic           sdram_dq_io,
+        output  logic           sdram_ldqm,
+        output  logic           sdram_udqm,
+        // EMS
+        input   logic           ems_enabled,
+        input   logic   [1:0]   ems_address,
+        // BIOS
+        input  logic            bios_protect_flag,
+        input   logic   [2:0]   bios_writable,
+        // FDD
+        input   logic   [15:0]  mgmt_address,
+        input   logic           mgmt_read,
+        output  logic   [15:0]  mgmt_readdata,
+        input   logic           mgmt_write,
+        input   logic   [15:0]  mgmt_writedata,
+        input   logic   [27:0]  clock_rate,
+        input   logic   [1:0]   floppy_wp,
+        output  logic   [1:0]   fdd_request
+    );
 
     logic           dma_ready;
     logic           dma_wait_n;
@@ -168,14 +168,16 @@ module CHIPSET (
     logic           fdd_dma_req;
 
 
-   always_ff @(posedge clock) begin
-       if (reset)
+    always_ff @(posedge clock)
+    begin
+        if (reset)
             prev_timer_count_1 <= 1'b1;
         else
             prev_timer_count_1 <= timer_counter_out[1];
     end
 
-    always_ff @(posedge clock, posedge reset) begin
+    always_ff @(posedge clock, posedge reset)
+    begin
         if (reset)
             DRQ0 <= 1'b0;
         else if (~dma_acknowledge_n[0])
@@ -186,7 +188,8 @@ module CHIPSET (
             DRQ0 <= DRQ0;
     end
 
-    READY u_READY (
+    READY u_READY 
+    (
         .clock                              (clock),
         .cpu_clock                          (cpu_clock),
         .reset                              (reset),
@@ -201,7 +204,8 @@ module CHIPSET (
         .address_enable_n                   (address_enable_n)
     );
 
-    BUS_ARBITER u_BUS_ARBITER (
+    BUS_ARBITER u_BUS_ARBITER 
+    (
         .clock                              (clock),
         .cpu_clock                          (cpu_clock),
         .reset                              (reset),
@@ -242,28 +246,29 @@ module CHIPSET (
         .terminal_count_n                   (terminal_count_n)
     );
 
-    PERIPHERALS u_PERIPHERALS (
+    PERIPHERALS u_PERIPHERALS 
+    (
         .clock                              (clock),
-		  .clk_sys                            (clk_sys),
+        .clk_sys                            (clk_sys),
         .cpu_clock                          (cpu_clock),
-		  .clk_uart                           (clk_uart),
-		  .clk_uart2                          (clk_uart2),
+        .clk_uart                           (clk_uart),
+        .clk_uart2                          (clk_uart2),
         .peripheral_clock                   (peripheral_clock),
-		  .turbo_mode                         (turbo_mode),
+        .turbo_mode                         (turbo_mode),
         .reset                              (reset),
         .interrupt_to_cpu                   (interrupt_to_cpu),
         .interrupt_acknowledge_n            (interrupt_acknowledge_n),
         .dma_chip_select_n                  (dma_chip_select_n),
         .dma_page_chip_select_n             (dma_page_chip_select_n),
         .splashscreen                       (splashscreen),
-		  .composite                          (composite),
-		  .video_output                       (video_output),
+        .composite                          (composite),
+        .video_output                       (video_output),
         .clk_vga_cga                        (clk_vga_cga),
         .enable_cga                         (enable_cga),
         .clk_vga_mda                        (clk_vga_mda),
         .enable_mda                         (enable_mda),
         .de_o                               (de_o),
-		  .mda_rgb                            (mda_rgb),
+        .mda_rgb                            (mda_rgb),
         .VGA_R                              (VGA_R),
         .VGA_G                              (VGA_G),
         .VGA_B                              (VGA_B),
@@ -293,10 +298,10 @@ module CHIPSET (
         .port_c_io                          (port_c_io),
         .ps2_clock                          (ps2_clock),
         .ps2_data                           (ps2_data),
-	     .ps2_mouseclk_in                    (ps2_mouseclk_in),
-	     .ps2_mousedat_in                    (ps2_mousedat_in),
-	     .ps2_mouseclk_out                   (ps2_mouseclk_out),
-	     .ps2_mousedat_out                   (ps2_mousedat_out),
+        .ps2_mouseclk_in                    (ps2_mouseclk_in),
+        .ps2_mousedat_in                    (ps2_mousedat_in),
+        .ps2_mouseclk_out                   (ps2_mouseclk_out),
+        .ps2_mousedat_out                   (ps2_mousedat_out),
         .joy_opts                           (joy_opts),
         .joy0                               (joy0),
         .joy1                               (joy1),
@@ -304,29 +309,29 @@ module CHIPSET (
         .joya1                              (joya1),
         .ps2_clock_out                      (ps2_clock_out),
         .ps2_data_out                       (ps2_data_out),
-		  .clk_en_opl2                        (clk_en_opl2),
-		  .jtopl2_snd_e                       (jtopl2_snd_e),
-		  .adlibhide                          (adlibhide),
-		  .tandy_video                        (tandy_video),
-		  .tandy_snd_e                        (tandy_snd_e),
-		  .tandy_snd_rdy                      (tandy_snd_rdy),
-		  .tandy_16_gfx                       (tandy_16_gfx),
-	     .uart_rx                           (uart_rx),
-	     .uart_tx                           (uart_tx),
-	     .uart_cts_n                        (uart_cts_n),
-	     .uart_dcd_n                        (uart_dcd_n),
-	     .uart_dsr_n                        (uart_dsr_n),
-	     .uart_rts_n                        (uart_rts_n),
-	     .uart_dtr_n                        (uart_dtr_n),
-		  .ems_enabled                       (ems_enabled),
-		  .ems_address                       (ems_address),
-		  .map_ems                           (map_ems),
-	     .ena_ems                           (ena_ems),
-	     .ems_b1                            (ems_b1),
-	     .ems_b2                            (ems_b2),
-	     .ems_b3                            (ems_b3),
-	     .ems_b4                            (ems_b4),
-	     .bios_writable                       (bios_writable),
+        .clk_en_opl2                        (clk_en_opl2),
+        .jtopl2_snd_e                       (jtopl2_snd_e),
+        .adlibhide                          (adlibhide),
+        .tandy_video                        (tandy_video),
+        .tandy_snd_e                        (tandy_snd_e),
+        .tandy_snd_rdy                      (tandy_snd_rdy),
+        .tandy_16_gfx                       (tandy_16_gfx),
+        .uart_rx                           (uart_rx),
+        .uart_tx                           (uart_tx),
+        .uart_cts_n                        (uart_cts_n),
+        .uart_dcd_n                        (uart_dcd_n),
+        .uart_dsr_n                        (uart_dsr_n),
+        .uart_rts_n                        (uart_rts_n),
+        .uart_dtr_n                        (uart_dtr_n),
+        .ems_enabled                       (ems_enabled),
+        .ems_address                       (ems_address),
+        .map_ems                           (map_ems),
+        .ena_ems                           (ena_ems),
+        .ems_b1                            (ems_b1),
+        .ems_b2                            (ems_b2),
+        .ems_b3                            (ems_b3),
+        .ems_b4                            (ems_b4),
+        .bios_writable                       (bios_writable),
         .mgmt_address                       (mgmt_address),
         .mgmt_read                          (mgmt_read),
         .mgmt_readdata                      (mgmt_readdata),
@@ -340,7 +345,8 @@ module CHIPSET (
         .terminal_count                     (terminal_count_n)
     );
 
-    RAM u_RAM (
+    RAM u_RAM 
+    (
         .clock                              (sdram_clock),
         .reset                              (sdram_reset),
         .enable_sdram                       (enable_sdram),
@@ -364,33 +370,39 @@ module CHIPSET (
         .sdram_dq_out                       (sdram_dq_out),
         .sdram_dq_io                        (sdram_dq_io),
         .sdram_ldqm                         (sdram_ldqm),
-        .sdram_udqm                         (sdram_udqm),		  
-		  .map_ems                            (map_ems),	     
-	     .ems_b1                             (ems_b1),
-	     .ems_b2                             (ems_b2),
-	     .ems_b3                             (ems_b3),
-	     .ems_b4                             (ems_b4),
+        .sdram_udqm                         (sdram_udqm),
+        .map_ems                            (map_ems),
+        .ems_b1                             (ems_b1),
+        .ems_b2                             (ems_b2),
+        .ems_b3                             (ems_b3),
+        .ems_b4                             (ems_b4),
         .tandy_bios_flag                    (tandy_bios_flag),
         .bios_protect_flag                  (bios_protect_flag)
     );
 
     assign  data_bus = internal_data_bus;
 
-    always_comb begin
-        if (data_bus_out_from_chipset) begin
+    always_comb
+    begin
+        if (data_bus_out_from_chipset)
+        begin
             internal_data_bus_ext = internal_data_bus_chipset;
             data_bus_direction    = 1'b0;
         end
-        else if ((~ram_address_select_n) && (~memory_read_n)) begin
+        else if ((~ram_address_select_n) && (~memory_read_n))
+        begin
             internal_data_bus_ext = internal_data_bus_ram;
             data_bus_direction    = 1'b0;
         end
-        else begin
-            if (internal_data_bus_direction == 1'b1) begin
+        else
+        begin
+            if (internal_data_bus_direction == 1'b1)
+            begin
                 internal_data_bus_ext = data_bus_ext;
                 data_bus_direction    = 1'b1;
             end
-            else begin
+            else
+            begin
                 internal_data_bus_ext = 0;
                 data_bus_direction    = 1'b0;
             end
