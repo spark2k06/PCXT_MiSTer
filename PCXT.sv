@@ -338,7 +338,7 @@ module emu
 		// .img_mounted   (usdImgMtd),
 		// .img_size	   (usdImgSz),
 
-		.ps2_kbd_clk_in	(ps2_kbd_clk_out),
+		.ps2_kbd_clk_in		(ps2_kbd_clk_out),
 		.ps2_kbd_data_in	(ps2_kbd_data_out),
 		.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 		.ps2_kbd_data_out	(ps2_kbd_data_in),
@@ -432,18 +432,18 @@ module emu
         HBlank_del <= {HBlank_del[13], HBlank_del[12], HBlank_del[11], HBlank_del[10], HBlank_del[9],
                        HBlank_del[8], HBlank_del[7], HBlank_del[6], HBlank_del[5], HBlank_del[4],
                        HBlank_del[3], HBlank_del[2], HBlank_del[1], HBlank_del[0], HBlank};
-        clk_14_318 <= ~clk_14_318; // 14.318Mhz
+        clk_14_318 <= ~clk_14_318;  // 14.318Mhz
         ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
     end
 
     always @(posedge clk_14_318)
-        clk_7_16 <= ~clk_7_16; // 7.16Mhz
+        clk_7_16 <= ~clk_7_16;      // 7.16Mhz
 
-    clk_div3 clk_normal // 4.77MHz
-             (
-                 .clk(clk_14_318),
-                 .clk_out(clk_4_77)
-             );
+    clk_div3 clk_normal             // 4.77MHz
+    (
+        .clk(clk_14_318),
+        .clk_out(clk_4_77)
+    );
 
     always @(posedge clk_4_77)
         peripheral_clock <= ~peripheral_clock; // 2.385Mhz
@@ -796,7 +796,7 @@ module emu
                     bios_protect_flag   <= 1'b1;
                     bios_access_request <= 1'b0;
                     bios_access_address <= 20'hFFFFF;
-                    bios_write_data     <= 8'hFFFF;
+                    bios_write_data     <= 16'hFFFF;
                     bios_write_n        <= 1'b1;
                     bios_write_wait_cnt <= 'h0;
                     bios_write_byte_cnt <= 1'h0;
@@ -915,7 +915,7 @@ module emu
     CHIPSET u_CHIPSET 
 	(
 		.clock                              (clk_chipset),
-		.cpu_clock                            (clk_cpu),
+		.cpu_clock                          (clk_cpu),
 		.clk_sys                            (clk_chipset),
 		.peripheral_clock                   (pclk),
 		.turbo_mode                         (status[18:17]),
