@@ -241,7 +241,6 @@ module emu
 		"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
 		"P2-;",
 		"P3,Hardware;",
-		"P2-;",
 		"P3-;",
 		"P3OB,Lo-tech 2MB EMS,Enabled,Disabled;",
 		"P3OCD,EMS Frame,A000,C000,D000;",
