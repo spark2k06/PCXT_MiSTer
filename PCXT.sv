@@ -218,7 +218,7 @@ module emu
 		"-;",
 		"OHI,CPU Speed,4.77MHz,7.16MHz,14.318MHz;",
 		"-;",
-		"P1,System and BIOS;",
+		"P1,System & BIOS;",
 		"P1-;",
 		"P1O3,Model,IBM PCXT,Tandy 1000;",
 		"P1-;",
