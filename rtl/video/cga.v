@@ -10,6 +10,7 @@
 module cga(
     // Clocks
     input clk,
+    output [4:0] clkdiv,
 
     // ISA bus
     input[14:0] bus_a,
@@ -27,23 +28,23 @@ module cga(
     output ram_we_l,
     output[18:0] ram_a,
     input[7:0] ram_d,
-	 
+
     // Video outputs
     output hsync,
-	output hblank,
+    output hblank,
     output dbl_hsync,
     output vsync,
-	output vblank,
-	 output de_o,
+    output vblank,
+    output de_o,
     output[3:0] video,
     output[3:0] dbl_video,
     output[6:0] comp_video,
 
-	 input splashscreen,
+    input splashscreen,
     input thin_font,
-	 input tandy_video,	 
-	 output grph_mode,
-	 output hres_mode
+    input tandy_video,     
+    output grph_mode,
+    output hres_mode
     );
 
     parameter MDA_70HZ = 0;
@@ -58,7 +59,7 @@ module cga(
 
     wire crtc_cs;
     wire status_cs;
-	 wire tandy_newcolorsel_cs;
+     wire tandy_newcolorsel_cs;
     wire colorsel_cs;
     wire control_cs;
     //wire bus_mem_cs;
@@ -68,13 +69,13 @@ module cga(
     wire[7:0] bus_out_mem;
     wire[7:0] cga_status_reg;
     reg[7:0] cga_control_reg = 8'b0010_1001; // (TEXT 80x25)
-	 //reg[7:0] cga_control_reg = 8'b0010_1010; // (GFX 320 x 200)
+    //reg[7:0] cga_control_reg = 8'b0010_1010; // (GFX 320 x 200)
     reg[7:0] cga_color_reg = 8'b0000_0000;
-	 reg[7:0] tandy_color_reg = 8'b0000_0000;
-	 reg[3:0] tandy_newcolor = 4'b0000;
-	 reg[4:0] tandy_bordercol = 4'b0000;
-	 reg tandy_palette_set;
-	 
+    reg[7:0] tandy_color_reg = 8'b0000_0000;
+    reg[3:0] tandy_newcolor = 4'b0000;
+    reg[4:0] tandy_bordercol = 4'b0000;
+    reg tandy_palette_set;
+
     wire bw_mode;
     wire mode_640;
     wire tandy_16_mode;
@@ -103,12 +104,12 @@ module cga(
     wire vram_read_att;
     wire vram_read;
     wire vram_read_a0;
-    wire[4:0] clkdiv;
+//    wire[4:0] clkdiv;
     wire crtc_clk;
     wire[7:0] ram_1_d;
 
     reg[23:0] blink_counter = 24'd0;
-    reg blink = 0;	 
+    reg blink = 0;     
 
     reg bus_memw_synced_l;
     reg bus_memr_synced_l;
@@ -118,16 +119,16 @@ module cga(
     //wire cpu_memsel;
     //reg[1:0] wait_state = 2'd0;
     //reg bus_rdy_latch; 
-	 
-	 assign de_o = display_enable;
-	 
-	 assign ram_a = {4'h0, pixel_addr14, pixel_addr13, crtc_addr[11:0],
+
+    assign de_o = display_enable;
+    
+    assign ram_a = {4'h0, pixel_addr14, pixel_addr13, crtc_addr[11:0],
                     vram_read_a0};
-						  
-	 assign ram_1_d = ram_d;
-	 //assign ram_1_d = 8'hFF;
-	 assign ram_we_l = vram_read;
-	 
+
+    assign ram_1_d = ram_d;
+    //assign ram_1_d = 8'hFF;
+    assign ram_we_l = vram_read;
+    
 
     // Synchronize ISA bus control lines to our clock
     always @ (posedge clk)
@@ -144,15 +145,15 @@ module cga(
     // Mapped IO
     assign crtc_cs = (bus_a[14:3] == IO_BASE_ADDR[14:3]) & ~bus_aen; // 3D4/3D5
     assign status_cs = (bus_a == IO_BASE_ADDR + 20'hA) & ~bus_aen;
-	 assign tandy_newcolorsel_cs = (bus_a == IO_BASE_ADDR + 20'hE) & ~bus_aen;	 
-	 assign control_cs = (bus_a == IO_BASE_ADDR + 16'h8) & ~bus_aen;
-    assign colorsel_cs = (bus_a == IO_BASE_ADDR + 20'h9) & ~bus_aen;	 
+    assign tandy_newcolorsel_cs = (bus_a == IO_BASE_ADDR + 20'hE) & ~bus_aen;     
+    assign control_cs = (bus_a == IO_BASE_ADDR + 16'h8) & ~bus_aen;
+    assign colorsel_cs = (bus_a == IO_BASE_ADDR + 20'h9) & ~bus_aen;     
     // Memory-mapped from B0000 to B7FFF
     //assign bus_mem_cs = (bus_a[19:15] == FRAMEBUFFER_ADDR[19:15]);
-	 //assign bus_mem_cs = 1'b1;
-	 
-    
-	 // Mux ISA bus data from every possible internal source.
+    //assign bus_mem_cs = 1'b1;
+
+
+    // Mux ISA bus data from every possible internal source.
     always @ (*)
     begin
 //        if (bus_mem_cs & ~bus_memr_l) begin
@@ -169,19 +170,19 @@ module cga(
     // Only for read operations does bus_dir go high.
     assign bus_dir = (crtc_cs | status_cs) & ~bus_ior_l;
     //                | (bus_mem_cs & ~bus_memr_l);
-	 //assign bus_dir = (crtc_cs | status_cs);
+    //assign bus_dir = (crtc_cs | status_cs);
     assign bus_out = bus_int_out;
 
     // Wait state generator
     // Optional for operation but required to run timing-sensitive demos
     // e.g. 8088MPH.
     /*
-	 if (USE_BUS_WAIT == 0) begin
+    if (USE_BUS_WAIT == 0) begin
         assign bus_rdy = 1;
     end else begin
         assign bus_rdy = bus_rdy_latch;
     end
-	 */
+    */
 
 /*
     assign cpu_memsel = bus_mem_cs & (~bus_memr_l | ~bus_memw_l);
@@ -225,7 +226,7 @@ module cga(
     assign bw_mode = cga_control_reg[2]; // 1=b&w, 0=color
 
     assign video_enabled = NO_DISPLAY_DISABLE ? 1'b1 : cga_control_reg[3];
-	 
+     
     assign mode_640 = cga_control_reg[4]; // 1=640x200 mode, 0=others
     assign blink_enabled = cga_control_reg[5];
 
@@ -247,8 +248,8 @@ module cga(
                 tandy_color_reg <= bus_d;
             end else if (tandy_newcolorsel_cs && tandy_color_reg[7:4] == 4'b0001) begin // Palette Mask Register
                 tandy_newcolor <= bus_d[3:0];
-					 tandy_palette_set <= 1'b1;
-				end else if (tandy_newcolorsel_cs && tandy_color_reg[3:0] == 4'b0010) begin // Border Color
+                     tandy_palette_set <= 1'b1;
+                end else if (tandy_newcolorsel_cs && tandy_color_reg[3:0] == 4'b0010) begin // Border Color
                 tandy_bordercol <= bus_d[3:0];
             end
 
@@ -268,8 +269,8 @@ module cga(
         .lock(1'b0),
         .hsync(hsync_int),
         .vsync(vsync_l),
-		.hblank(hblank),
-		.vblank(vblank),
+        .hblank(hblank),
+        .vblank(vblank),
         .display_enable(display_enable),
         .cursor(cursor),
         .mem_addr(crtc_addr),
@@ -289,7 +290,7 @@ module cga(
     defparam crtc.V_MAXSCAN = 5'd7;
     defparam crtc.C_START = 7'd6;
     defparam crtc.C_END = 5'd7;
-	 
+     
 
     // In graphics mode, memory address MSB comes from CRTC row
     // which produces the weird CGA "interlaced" memory map
@@ -297,8 +298,6 @@ module cga(
 
     // Address bit 14 is only used for Tandy modes (32K RAM)
     assign pixel_addr14 = grph_mode ? row_addr[1] : 1'b0;
-	 
-
 
     // Sequencer state machine
     cga_sequencer sequencer (
@@ -315,7 +314,7 @@ module cga(
         .isa_op_enable(isa_op_enable),
         .hclk(hclk),
         .lclk(lclk),
-		  .tandy_16_gfx(tandy_16_mode & grph_mode & hres_mode)
+        .tandy_16_gfx(tandy_16_mode & grph_mode & hres_mode)
     );
 
     // Pixel pusher
@@ -352,24 +351,24 @@ module cga(
     // Generate blink signal for cursor and character
     always @ (posedge clk)
     begin
-		if (~splashscreen) begin
+        if (~splashscreen) begin
         if (blink_counter == BLINK_MAX) begin
             blink_counter <= 0;
             blink <= ~blink;
         end else begin
             blink_counter <= blink_counter + 1'b1;
         end
-		end
+        end
     end
 
-	 /*
+    /*
     cga_scandoubler scandoubler (
         .clk(clk),
         .line_reset(line_reset),
-        .video(video),		  
+        .video(video),          
         .dbl_hsync(dbl_hsync),
         .dbl_video(dbl_video)
     );
-	 */
+    */
 
 endmodule

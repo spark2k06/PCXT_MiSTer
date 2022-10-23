@@ -113,6 +113,7 @@ module PERIPHERALS #(
         input   logic           terminal_count
     );
 
+    wire [4:0] clkdiv;
     wire grph_mode;
     wire hres_mode;
 
@@ -513,10 +514,10 @@ module PERIPHERALS #(
         end
     end
 
-    logic	prev_io_read_n;
-    logic	prev_io_write_n;
-    logic	[7:0]	write_to_uart;
-    logic	[7:0]	write_to_uart2;
+    logic prev_io_read_n;
+    logic prev_io_write_n;
+    logic [7:0] write_to_uart;
+    logic [7:0] write_to_uart2;
     logic [7:0] uart_readdata_1;
     logic [7:0] uart_readdata;
     logic [7:0] uart2_readdata_1;
@@ -863,8 +864,10 @@ module PERIPHERALS #(
     cga_vgaport vga_cga 
     (
         .clk(clk_vga_cga),
+        .clkdiv(clkdiv),
         .video(video_cga),
-        .composite(composite && ~hres_mode),
+        .hsync(VGA_HSYNC),
+        .composite(composite),
         .red(R_CGA),
         .green(G_CGA),
         .blue(B_CGA)
@@ -873,6 +876,7 @@ module PERIPHERALS #(
     cga cga1 
     (
         .clk                        (clk_vga_cga),
+        .clkdiv                     (clkdiv),
         .bus_a                      (cga_io_address_2),
         .bus_ior_l                  (cga_io_read_n_3),
         .bus_iow_l                  (cga_io_write_n_3),
