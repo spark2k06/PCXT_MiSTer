@@ -210,21 +210,29 @@ module emu
 
     localparam CONF_STR = {
 		"PCXT;;",
+		"S0,IMGIMAVFD,Floppy A:;",
+		"S1,IMGIMAVFD,Floppy B:;",
+		"OJK,Write Protect,None,A:,B:,A: & B:;",
 		"-;",
-		"O3,Model,IBM PCXT,Tandy 1000;",
+		"S2,IMG,HDD Image:;",
+		"-;",
 		"OHI,CPU Speed,4.77MHz,7.16MHz,14.318MHz;",
 		"-;",
-		"O7,Splash Screen,Yes,No;",
-		"-;",
-		"P1,FDD & HDD;",
-		"P1S0,IMGIMAVFD,Floppy A:;",
-		"P1S1,IMGIMAVFD,Floppy B:;",
-		"P1OJK,Write Protect,None,A:,B:,A: & B:;",
+		"P1,System & BIOS;",
 		"P1-;",
-		"P1S2,IMG,HDD Image:;",
+		"P1O3,Model,IBM PCXT,Tandy 1000;",
 		"P1-;",
-		"P1OLM,Speed,115200,230400,460800,921600;",
+		"P1OLM,HDD COM Speed,115200,230400,460800,921600;",
 		"P1-;",
+		"P1O7,Boot Splash Screen,Yes,No;",
+		"P1-;",
+		"P1FC0,ROM,PCXT BIOS:;",
+		"P1FC1,ROM,Tandy BIOS:;",
+		"P1-;",
+		"P1FC2,ROM,EC00 BIOS:;",
+		"P1-;",
+		"P1OUV,BIOS Writable,None,EC00,PCXT/Tandy,All;",
+		"P1-;",	
 		"P2,Audio & Video;",
 		"P2-;",
 		"P2OA,Adlib,On,Invisible;",
@@ -239,6 +247,7 @@ module emu
 		"P2O4,Video Output,CGA/Tandy,MDA;",
 		"P2o8,Composite video,Off,On;",
 		"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
+		"P2-;",
 		"P3,Hardware;",
 		"P3-;",
 		"P3OB,Lo-tech 2MB EMS,Enabled,Disabled;",
@@ -248,18 +257,9 @@ module emu
 		"P3OPQ,Joystick 2, Analog, Digital, Disabled;",
 		"P3OR,Sync Joy to CPU Speed,No,Yes;",
 		"P3OS,Swap Joysticks,No,Yes;",
-		"P3-;",
+		"P3-;",	
 		"-;",
-		"P4,BIOS;",
-		"P4-;",
-		"P4FC0,ROM,PCXT BIOS:;",
-		"P4FC1,ROM,Tandy BIOS:;",
-		"P4-;",
-		"P4FC2,ROM,EC00 BIOS:;",
-		"P4-;",
-		"P4OUV,BIOS Writable,None,EC00,PCXT/Tandy,All;",
-		"-;",
-		"R0,Reset & apply model;",
+		"R0,Reset & apply settings;",
 		"J,Fire 1, Fire 2;",
 		"V,v",`BUILD_DATE
 	};
@@ -267,6 +267,7 @@ module emu
     wire forced_scandoubler;
     wire  [1:0] buttons;
     wire [63:0] status;
+    wire [7:0]  xtctl;
 
     //VHD
     // wire[ 0:0] usdRd = { vsdRd };
@@ -300,17 +301,17 @@ module emu
     reg         ioctl_wait;
 
     wire [21:0] gamma_bus;
-    wire        adlibhide = status[10];
+    wire        adlibhide = status[10] | xtctl[4];
 
     wire [31:0] joy0, joy1;
     wire [15:0] joya0, joya1;
     wire [4:0]  joy_opts = status[27:23];
 
-    wire composite = status[40];
+    wire composite = status[40] | xtctl[0];
     wire [1:0] scale = status[2:1];
-    wire mda_mode = status[4];
+    wire mda_mode = status[4] | xtctl[5];
     wire [2:0] screen_mode = status[16:14];
-    wire border = status[29];
+    wire border = status[29] | xtctl[1];
 
 
     hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io 
@@ -338,7 +339,7 @@ module emu
 		// .img_mounted   (usdImgMtd),
 		// .img_size	   (usdImgSz),
 
-		.ps2_kbd_clk_in	(ps2_kbd_clk_out),
+		.ps2_kbd_clk_in		(ps2_kbd_clk_out),
 		.ps2_kbd_data_in	(ps2_kbd_data_out),
 		.ps2_kbd_clk_out	(ps2_kbd_clk_in),
 		.ps2_kbd_data_out	(ps2_kbd_data_in),
@@ -432,18 +433,18 @@ module emu
         HBlank_del <= {HBlank_del[13], HBlank_del[12], HBlank_del[11], HBlank_del[10], HBlank_del[9],
                        HBlank_del[8], HBlank_del[7], HBlank_del[6], HBlank_del[5], HBlank_del[4],
                        HBlank_del[3], HBlank_del[2], HBlank_del[1], HBlank_del[0], HBlank};
-        clk_14_318 <= ~clk_14_318; // 14.318Mhz
+        clk_14_318 <= ~clk_14_318;  // 14.318Mhz
         ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
     end
 
     always @(posedge clk_14_318)
-        clk_7_16 <= ~clk_7_16; // 7.16Mhz
+        clk_7_16 <= ~clk_7_16;      // 7.16Mhz
 
-    clk_div3 clk_normal // 4.77MHz
-             (
-                 .clk(clk_14_318),
-                 .clk_out(clk_4_77)
-             );
+    clk_div3 clk_normal             // 4.77MHz
+    (
+        .clk(clk_14_318),
+        .clk_out(clk_4_77)
+    );
 
     always @(posedge clk_4_77)
         peripheral_clock <= ~peripheral_clock; // 2.385Mhz
@@ -466,8 +467,8 @@ module emu
         end
         else if (biu_done)
         begin
-            turbo_mode  <= (status[18:17] == 2'b01 || status[18:17] == 2'b10);
-            clk_select  <= status[18:17];
+            turbo_mode  <= xtctl[3:2] == 2'b00 ? (status[18:17] == 2'b01 || status[18:17] == 2'b10) : (xtctl[3:2] == 2'b10 || xtctl[3:2] == 2'b11);
+            clk_select  <= xtctl[3:2] == 2'b00 ? status[18:17] : xtctl[3:2] - 2'b01;
         end
         else
         begin
@@ -796,7 +797,7 @@ module emu
                     bios_protect_flag   <= 1'b1;
                     bios_access_request <= 1'b0;
                     bios_access_address <= 20'hFFFFF;
-                    bios_write_data     <= 8'hFFFF;
+                    bios_write_data     <= 16'hFFFF;
                     bios_write_n        <= 1'b1;
                     bios_write_wait_cnt <= 'h0;
                     bios_write_byte_cnt <= 1'h0;
@@ -915,10 +916,10 @@ module emu
     CHIPSET u_CHIPSET 
 	(
 		.clock                              (clk_chipset),
-		.cpu_clock                            (clk_cpu),
+		.cpu_clock                          (clk_cpu),
 		.clk_sys                            (clk_chipset),
 		.peripheral_clock                   (pclk),
-		.turbo_mode                         (status[18:17]),
+		.turbo_mode                         (xtctl[3:2] == 2'b00 ? status[18:17] : xtctl[3:2] - 2'b01),
 		.reset                              (reset_cpu),
 		.sdram_reset                        (reset_sdram),
 		.cpu_address                        (cpu_address),
@@ -1029,7 +1030,8 @@ module emu
 		.mgmt_read                          (mgmt_rd),
 		.clock_rate                         (cur_rate),
 		.floppy_wp                          (status[20:19]),
-		.fdd_request                        (mgmt_req[7:6])
+		.fdd_request                        (mgmt_req[7:6]),
+		.xtctl                              (xtctl)
 	);
 
     wire [15:0] SDRAM_DQ_IN;
