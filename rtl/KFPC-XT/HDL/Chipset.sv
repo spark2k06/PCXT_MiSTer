@@ -137,7 +137,9 @@ module CHIPSET (
         input   logic   [15:0]  mgmt_writedata,
         input   logic   [27:0]  clock_rate,
         input   logic   [1:0]   floppy_wp,
-        output  logic   [1:0]   fdd_request
+        output  logic   [1:0]   fdd_request,
+        // XTCTL DATA
+        output  logic   [7:0]   xtctl
     );
 
     logic           dma_ready;
@@ -342,7 +344,8 @@ module CHIPSET (
         .fdd_request                        (fdd_request),
         .fdd_dma_req                        (fdd_dma_req),
         .fdd_dma_ack                        (~dma_acknowledge_n[2]),
-        .terminal_count                     (terminal_count_n)
+        .terminal_count                     (terminal_count_n),
+        .xtctl                              (xtctl)
     );
 
     RAM u_RAM 

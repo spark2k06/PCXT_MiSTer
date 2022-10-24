@@ -110,7 +110,9 @@ module PERIPHERALS #(
         output  logic   [1:0]   fdd_request,
         output  logic           fdd_dma_req,
         input   logic           fdd_dma_ack,
-        input   logic           terminal_count
+        input   logic           terminal_count,
+        // XTCTL DATA
+        output  logic   [7:0]   xtctl = 8'h00
     );
 
     wire [4:0] clkdiv;
@@ -129,7 +131,7 @@ module PERIPHERALS #(
     begin
         if (reset)
             prev_cpu_clock <= 1'b0;
-        else
+		  else
             prev_cpu_clock <= cpu_clock;
     end
 
@@ -193,6 +195,7 @@ module PERIPHERALS #(
     wire    uart2_cs               =  (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
     wire    lpt_cs                 =  (iorq && ~address_enable_n && address[15:0] == 16'h0378);
     wire    tandy_page_cs          =  (iorq && ~address_enable_n && address[15:0] == 16'h03DF);
+    wire    xtctl_cs               =  (iorq && ~address_enable_n && address[15:0] == 16'h8888);
 
     wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1010 : (ems_address == 2'b01) ? 4'b1100 : 4'b1101;
     wire    ems_oe                 = (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h
@@ -547,27 +550,34 @@ module PERIPHERALS #(
     reg [7:0] lpt_data = 8'hFF;
     reg [7:0] tandy_page_data = 8'h00;
     reg [7:0] nmi_mask_register_data = 8'hFF;
-    always_ff @(posedge clock)
+    always_ff @(posedge clock, posedge reset)
     begin
-        if (~io_write_n)
-        begin
-            write_to_uart <= internal_data_bus;
-            write_to_uart2 <= internal_data_bus;
+        if (reset)        
+				xtctl <= 8'b00;
+        else begin
+            if (~io_write_n)
+            begin
+                write_to_uart <= internal_data_bus;
+                write_to_uart2 <= internal_data_bus;
+            end
+            else
+            begin
+                write_to_uart <= write_to_uart;
+                write_to_uart2 <= write_to_uart2;
+            end
+
+            if ((lpt_cs) && (~io_write_n))
+                lpt_data <= internal_data_bus;
+
+            if ((xtctl_cs) && (~io_write_n))
+                xtctl <= internal_data_bus;
+
+            if ((tandy_page_cs) && (~io_write_n))
+                tandy_page_data <= internal_data_bus;
+
+            if ((~nmi_mask_register_n) && (~io_write_n))
+                nmi_mask_register_data <= internal_data_bus;
         end
-        else
-        begin
-            write_to_uart <= write_to_uart;
-            write_to_uart2 <= write_to_uart2;
-        end
-
-        if ((lpt_cs) && (~io_write_n))
-            lpt_data <= internal_data_bus;
-
-        if ((tandy_page_cs) && (~io_write_n))
-            tandy_page_data <= internal_data_bus;
-
-        if ((~nmi_mask_register_n) && (~io_write_n))
-            nmi_mask_register_data <= internal_data_bus;
 
     end
 
@@ -1187,6 +1197,11 @@ module PERIPHERALS #(
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= lpt_data;
+        end
+        else if ((xtctl_cs) && (~io_read_n))
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= xtctl;
         end
         else if ((~nmi_mask_register_n) && (~io_read_n))
         begin

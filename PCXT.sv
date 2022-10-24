@@ -267,6 +267,7 @@ module emu
     wire forced_scandoubler;
     wire  [1:0] buttons;
     wire [63:0] status;
+    wire [7:0]  xtctl;
 
     //VHD
     // wire[ 0:0] usdRd = { vsdRd };
@@ -300,17 +301,17 @@ module emu
     reg         ioctl_wait;
 
     wire [21:0] gamma_bus;
-    wire        adlibhide = status[10];
+    wire        adlibhide = status[10] | xtctl[4];
 
     wire [31:0] joy0, joy1;
     wire [15:0] joya0, joya1;
     wire [4:0]  joy_opts = status[27:23];
 
-    wire composite = status[40];
+    wire composite = status[40] | xtctl[0];
     wire [1:0] scale = status[2:1];
-    wire mda_mode = status[4];
+    wire mda_mode = status[4] | xtctl[5];
     wire [2:0] screen_mode = status[16:14];
-    wire border = status[29];
+    wire border = status[29] | xtctl[1];
 
 
     hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io 
@@ -466,8 +467,8 @@ module emu
         end
         else if (biu_done)
         begin
-            turbo_mode  <= (status[18:17] == 2'b01 || status[18:17] == 2'b10);
-            clk_select  <= status[18:17];
+            turbo_mode  <= xtctl[3:2] == 2'b00 ? (status[18:17] == 2'b01 || status[18:17] == 2'b10) : (xtctl[3:2] == 2'b10 || xtctl[3:2] == 2'b11);
+            clk_select  <= xtctl[3:2] == 2'b00 ? status[18:17] : xtctl[3:2] - 2'b01;
         end
         else
         begin
@@ -918,7 +919,7 @@ module emu
 		.cpu_clock                          (clk_cpu),
 		.clk_sys                            (clk_chipset),
 		.peripheral_clock                   (pclk),
-		.turbo_mode                         (status[18:17]),
+		.turbo_mode                         (xtctl[3:2] == 2'b00 ? status[18:17] : xtctl[3:2] - 2'b01),
 		.reset                              (reset_cpu),
 		.sdram_reset                        (reset_sdram),
 		.cpu_address                        (cpu_address),
@@ -1029,7 +1030,8 @@ module emu
 		.mgmt_read                          (mgmt_rd),
 		.clock_rate                         (cur_rate),
 		.floppy_wp                          (status[20:19]),
-		.fdd_request                        (mgmt_req[7:6])
+		.fdd_request                        (mgmt_req[7:6]),
+		.xtctl                              (xtctl)
 	);
 
     wire [15:0] SDRAM_DQ_IN;
