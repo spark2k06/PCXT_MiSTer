@@ -127,8 +127,7 @@ module CHIPSET (
         input   logic           ems_enabled,
         input   logic   [1:0]   ems_address,
         // BIOS
-        input  logic            bios_protect_flag,
-        input   logic   [2:0]   bios_writable,
+        input  logic    [1:0]   bios_protect_flag,
         // FDD
         input   logic   [15:0]  mgmt_address,
         input   logic           mgmt_read,
@@ -333,7 +332,6 @@ module CHIPSET (
         .ems_b2                            (ems_b2),
         .ems_b3                            (ems_b3),
         .ems_b4                            (ems_b4),
-        .bios_writable                       (bios_writable),
         .mgmt_address                       (mgmt_address),
         .mgmt_read                          (mgmt_read),
         .mgmt_readdata                      (mgmt_readdata),

@@ -98,7 +98,6 @@ module PERIPHERALS #(
         output  logic           ems_b2,
         output  logic           ems_b3,
         output  logic           ems_b4,
-        input   logic   [2:0]   bios_writable,
         // FDD
         input   logic   [15:0]  mgmt_address,
         input   logic           mgmt_read,
