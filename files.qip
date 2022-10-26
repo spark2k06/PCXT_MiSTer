@@ -4,7 +4,7 @@ set_global_assignment -name QIP_FILE rtl/pll.qip
 set_global_assignment -name QIP_FILE rtl/common/common.qip
 set_global_assignment -name QIP_FILE rtl/video/video.qip
 set_global_assignment -name QIP_FILE rtl/uart/uart.qip
-set_global_assignment -name QIP_FILE rtl/sn76489/sn76489.qip
+set_global_assignment -name QIP_FILE rtl/jt89/hdl/jt89.qip
 set_global_assignment -name QIP_FILE rtl/jtopl/hdl/jtopl2.qip
 set_global_assignment -name QIP_FILE rtl/8088/8088.qip
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFSDRAM/HDL/KFSDRAM.sv"
