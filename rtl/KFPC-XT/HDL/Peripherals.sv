@@ -76,7 +76,7 @@ module PERIPHERALS #(
         input   logic           adlibhide,
         // TANDY
         input   logic           tandy_video,
-        output  logic   [7:0]   tandy_snd_e,
+        output  logic   [10:0]  tandy_snd_e,
         output  logic           tandy_snd_rdy,
         output  logic           tandy_16_gfx,
         // UART
@@ -480,16 +480,16 @@ module PERIPHERALS #(
 
 
     // Tandy sound
-    sn76489_top sn76489
+	 jt89 sn76489
     (
-        .clock_i(clock),
-        .clock_en_i(clk_en_opl2), // 3.579MHz
-        .res_n_i(~reset),
-        .ce_n_i(tandy_chip_select_n),
-        .we_n_i(io_write_n),
-        .ready_o(tandy_snd_rdy),
-        .d_i(internal_data_bus),
-        .aout_o(tandy_snd_e)
+        .rst(reset),
+		  .clk(clock),
+		  .clk_en(clk_en_opl2), // 3.579MHz
+		  .wr_n(io_write_n),
+		  .cs_n(tandy_chip_select_n),
+		  .din(internal_data_bus),
+		  .sound(tandy_snd_e),
+		  .ready(tandy_snd_rdy)
     );
 
     logic   keybord_interrupt_ff;

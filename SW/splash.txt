@@ -5,7 +5,7 @@
           (_()((_|(_|_)) (_(_())/((_|()\  (_)) )\_____((_)(_(_())  
           |  \/  |(_) __||_   _(_))  ((_) | _ ((/ __\ \/ /|_   _|  
           | |\/| || \__ \  | | / -_)| '_| |  _/| (__ >  <   | |   
-          |_|  |_||_|___/  |_| \___||_|   |_|   \___/_/\_\  |_|  25/10/2022
+          |_|  |_||_|___/  |_| \___||_|   |_|   \___/_/\_\  |_|  27/10/2022
 
 
                              Port by @spark2k06
@@ -15,7 +15,9 @@
                        Contributors & Special Thanks
                        -----------------------------
 
-           @naeloob, @somhi, @Mills, @TheSonders, @JasonA, @gyurco,
-              @Newsdee, @birdybro, @Flandango, @Adr1048, @pgimeno
+         @naeloob - @somhi - @Mills - @TheSonders - @JasonA - @gyurco
+                 @Newsdee - @birdybro - @Flandango - @pgimeno
+
+                            @Adr1048 - TonyEscobar
 
 

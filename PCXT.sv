@@ -1074,7 +1074,7 @@ module emu
 
     wire [15:0] jtopl2_snd_e;
     wire [16:0] jtopl2_snd;
-    wire [7:0] tandy_snd_e;
+    wire [10:0] tandy_snd_e;
     wire [16:0] tandy_snd;
     reg  [16:0] spk_vol;
     wire        speaker_out;
@@ -1082,18 +1082,18 @@ module emu
     always @(posedge CLK_AUDIO)
     begin
         reg [15:0] oldj_0, oldj_1;
-        reg [15:0] oldt_0, oldt_1;
+        reg [10:0] oldt_0, oldt_1;
 
         oldj_0 <= jtopl2_snd_e;
         oldj_1 <= oldj_0;
         if(oldj_0 == oldj_1)
             jtopl2_snd <= {oldj_1[15],oldj_1};
-
-        oldt_0 <= {2'b00, {3'b000, tandy_snd_e} << status[35:34], 4'd0};
+				
+        oldt_0 <= -tandy_snd_e;
         oldt_1 <= oldt_0;
-        if(oldt_0 == oldt_1)
-            tandy_snd <= {oldt_1[15],oldt_1};
-
+        if(oldt_0 == oldt_1)				
+            tandy_snd <= {{{2{oldt_1[10]}}, {4{oldt_1[10]}}, oldt_1} << status[35:34], 2'b00};
+				
         spk_vol <= {2'b00, {3'b000,~speaker_out} << status[33:32], 11'd0};
     end
 
