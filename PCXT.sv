@@ -1089,7 +1089,7 @@ module emu
         if(oldj_0 == oldj_1)
             jtopl2_snd <= {oldj_1[15],oldj_1};
 				
-        oldt_0 <= tandy_snd_e;
+        oldt_0 <= -tandy_snd_e;
         oldt_1 <= oldt_0;
         if(oldt_0 == oldt_1)				
             tandy_snd <= {{{2{oldt_1[10]}}, {4{oldt_1[10]}}, oldt_1} << status[35:34], 2'b00};
