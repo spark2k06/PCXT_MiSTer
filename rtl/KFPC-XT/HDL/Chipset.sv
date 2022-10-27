@@ -95,7 +95,7 @@ module CHIPSET (
         // TANDY
         input   logic           tandy_video,
         input   logic           tandy_bios_flag,
-        output  logic   [7:0]   tandy_snd_e,
+        output  logic   [10:0]  tandy_snd_e,
         output  logic           tandy_16_gfx,
         // UART
         input   logic           clk_uart,
