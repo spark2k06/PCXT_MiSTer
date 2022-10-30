@@ -57,7 +57,7 @@ module cga_pixel(
     wire load_shifter;
     wire [2:0] charpix_sel;
     reg[3:0] video_out;
-    assign video = (tandy_16_mode && hres_mode) ? tandy_palette[video_out] : video_out;
+    assign video = tandy_16_mode ? tandy_palette[video_out] : video_out;
 
     // Character ROM
     reg[7:0] char_rom[0:4095];

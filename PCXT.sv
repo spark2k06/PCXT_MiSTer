@@ -626,7 +626,7 @@ module emu
     //
 
     reg [4:0]  bios_load_state = 4'h0;
-    reg        bios_protect_flag;
+    reg [1:0]  bios_protect_flag;
     reg        bios_access_request;
     reg [19:0] bios_access_address;
     reg [15:0] bios_write_data;
@@ -650,7 +650,7 @@ module emu
     begin
         if (reset_sdram)
         begin
-            bios_protect_flag   <= 1'b1;
+            bios_protect_flag   <= 2'b11;
             bios_access_request <= 1'b0;
             bios_access_address <= 20'hFFFFF;
             bios_write_data     <= 16'hFFFF;
@@ -663,7 +663,7 @@ module emu
         end
         else if (~initilized_sdram)
         begin
-            bios_protect_flag   <= 1'b1;
+            bios_protect_flag   <= 2'b11;
             bios_access_request <= 1'b0;
             bios_access_address <= 20'hFFFFF;
             bios_write_data     <= 16'hFFFF;
@@ -678,7 +678,7 @@ module emu
             casez (bios_load_state)
                 4'h00:
                 begin
-                    bios_protect_flag   <= 1'b1;
+                    bios_protect_flag   <= ~status[31:30];  // bios_writable
                     bios_access_address <= 20'hFFFFF;
                     bios_write_data     <= 16'hFFFF;
                     bios_write_n        <= 1'b1;
@@ -704,7 +704,7 @@ module emu
                 end
                 4'h01:
                 begin
-                    bios_protect_flag   <= 1'b0;
+                    bios_protect_flag   <= 2'b00;
                     bios_access_request <= 1'b1;
                     bios_write_byte_cnt <= 1'h0;
                     tandy_bios_write    <= select_tandy;
@@ -739,7 +739,7 @@ module emu
                 end
                 4'h02:
                 begin
-                    bios_protect_flag   <= 1'b0;
+                    bios_protect_flag   <= 2'b00;
                     bios_access_request <= 1'b1;
                     bios_access_address <= bios_access_address;
                     bios_write_data     <= bios_write_data;
@@ -761,7 +761,7 @@ module emu
                 end
                 4'h03:
                 begin
-                    bios_protect_flag   <= 1'b0;
+                    bios_protect_flag   <= 2'b00;
                     bios_access_request <= 1'b1;
                     bios_access_address <= bios_access_address;
                     bios_write_data     <= bios_write_data;
@@ -778,7 +778,7 @@ module emu
                 end
                 4'h04:
                 begin
-                    bios_protect_flag   <= 1'b0;
+                    bios_protect_flag   <= 2'b00;
                     bios_access_request <= 1'b1;
                     bios_access_address <= bios_access_address + 'h1;
                     bios_write_data     <= {8'hFF, bios_write_data[15:8]};
@@ -794,7 +794,7 @@ module emu
                 end
                 default:
                 begin
-                    bios_protect_flag   <= 1'b1;
+                    bios_protect_flag   <= 2'b11;
                     bios_access_request <= 1'b0;
                     bios_access_address <= 20'hFFFFF;
                     bios_write_data     <= 16'hFFFF;
@@ -1022,7 +1022,6 @@ module emu
 		.ems_enabled                        (~status[11]),
 		.ems_address                        (status[13:12]),
 		.bios_protect_flag                  (bios_protect_flag),
-		.bios_writable                      (status[31:30]),
 		.mgmt_readdata                      (mgmt_din),
 		.mgmt_writedata                     (mgmt_dout),
 		.mgmt_address                       (mgmt_addr),

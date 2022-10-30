@@ -183,13 +183,12 @@ module KF8237_Address_And_Count_Registers (
     //
     always_comb begin
         temporary_address = current_address[dma_select];
-        if (next_word)
-            if (address_hold_config)
-                temporary_address = temporary_address;
-            else if (decrement_address_config)
-                temporary_address = temporary_address - 16'h01;
-            else
-                temporary_address = temporary_address + 16'h01;
+        if (address_hold_config)
+            temporary_address = temporary_address;
+        else if (decrement_address_config)
+            temporary_address = temporary_address - 16'h01;
+        else
+            temporary_address = temporary_address + 16'h01;
     end
 
     //
@@ -197,8 +196,7 @@ module KF8237_Address_And_Count_Registers (
     //
     always_comb begin
         temporary_word_count = {1'b1, current_word_count[dma_select]};
-        if (next_word)
-            temporary_word_count  = temporary_word_count - 17'h01;
+        temporary_word_count = temporary_word_count - 17'h01;
     end
 
     //
@@ -209,7 +207,7 @@ module KF8237_Address_And_Count_Registers (
     //
     // Detects To Update Address[15-8]
     //
-    assign  update_high_address = (next_word) ? (transfer_address[8] != temporary_address[8]) : 1'b0;
+    assign  update_high_address = (transfer_address[8] != temporary_address[8]);
 
     //
     // Transfer Addres
