@@ -60,6 +60,10 @@ Other Open Source ROMs are available in the same folder:
 
 Note: Not all ROMs work with MDA video: (IBM5160, Yuko ST and pcxt31 works), (Tandy, micro8088, full XTIDE BIOS do not work).
 
+## Other BIOSes
+
+* https://github.com/640-KB/GLaBIOS
+
 ## Mounting the FDD image
 
 The floppy disk image size must be compatible with the BIOS, for example:
