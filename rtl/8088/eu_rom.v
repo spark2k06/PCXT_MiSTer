@@ -6,7 +6,7 @@ module eu_rom(
 
 reg [31:0] memory[3961:0];
 
-initial $readmemb("microcode.mem", memory);
+initial $readmemh("microcode.mem", memory);
 
 always @(posedge clka)
   douta <= memory[addra];
