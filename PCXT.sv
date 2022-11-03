@@ -213,8 +213,9 @@ module emu
 		"S0,IMGIMAVFD,Floppy A:;",
 		"S1,IMGIMAVFD,Floppy B:;",
 		"OJK,Write Protect,None,A:,B:,A: & B:;",
-		"-;",
-		"S2,IMG,HDD Image:;",
+//		"S2,IMG,HDD Image:;",
+		"S2,VHD,IDE 0-0;",
+		"S3,VHD,IDE 0-1;",
 		"-;",
 		"OHI,CPU Speed,4.77MHz,7.16MHz,14.318MHz;",
 		"-;",
@@ -373,7 +374,7 @@ module emu
     wire        mgmt_rd;
     wire        mgmt_wr;
     wire  [7:0] mgmt_req;
-    assign mgmt_req[5:0] = 6'b000000;
+    assign mgmt_req[5:3] = 3'b000;
 
     wire [35:0] EXT_BUS;
     hps_ext hps_ext  
@@ -1033,6 +1034,7 @@ module emu
 		.clock_rate                         (cur_rate),
 		.floppy_wp                          (status[20:19]),
 		.fdd_request                        (mgmt_req[7:6]),
+		.ide0_request                       (mgmt_req[2:0]),
 		.xtctl                              (xtctl),
 		.enable_a000h                       (a000h)
 	);
