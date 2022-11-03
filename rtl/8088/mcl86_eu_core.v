@@ -156,8 +156,11 @@ wire [15:0] eu_operand0;
 wire [15:0] eu_operand1;
 wire [31:0] eu_rom_data;
 
+wire [15:0] add_total;
+wire [15:0] sub_total;
 wire [15:0] adc_total;
 wire [15:0] sbb_total;
+
 reg eu_overflow_fix;
 reg eu_add_overflow8_fixed;
 reg eu_add_overflow16_fixed;
@@ -333,10 +336,10 @@ assign intr_asserted = BIU_INTR & intr_enable_delayed;
 
 assign new_instruction = (eu_rom_address[12:8]==5'h01) ? 1'b1 : 1'b0;   
 
-        
+assign add_total = eu_register_r0 + eu_register_r1;
 assign adc_total = eu_register_r0 + eu_register_r1 + eu_flag_c;
+assign sub_total = eu_register_r0 - eu_register_r1;
 assign sbb_total = eu_register_r0 - eu_register_r1 - eu_flag_c;
-
 
 //------------------------------------------------------------------------------------------  
 //
@@ -421,6 +424,23 @@ else
       biu_done_caught <= 1'b0;
            
 
+// ADD - Byte
+//
+if (eu_rom_address == 16'h09C9)
+  begin
+    eu_overflow_fix <= 1'b1;
+       
+   if ( ( (eu_register_r0[7]==1'b0) && (eu_register_r1[7]==1'b0) && (add_total[7]==1'b1) ) ||
+        ( (eu_register_r0[7]==1'b1) && (eu_register_r1[7]==1'b1) && (add_total[7]==1'b0) ) )
+     begin
+       eu_add_overflow8_fixed <= 1'b1;
+     end
+   else
+      begin
+       eu_add_overflow8_fixed <= 1'b0;
+     end
+  end			  
+			  
 // ADC - Byte
 //
 if (eu_rom_address == 16'h0A03)
@@ -437,7 +457,23 @@ if (eu_rom_address == 16'h0A03)
        eu_add_overflow8_fixed <= 1'b0;
      end
   end
-  
+
+// SUB - Byte
+//
+if (eu_rom_address == 16'h0A46)
+  begin
+    eu_overflow_fix <= 1'b1;
+   
+   if ( ( (eu_register_r0[7]==1'b0) && (eu_register_r1[7]==1'b1) && (sub_total[7]==1'b1) ) ||
+        ( (eu_register_r0[7]==1'b1) && (eu_register_r1[7]==1'b0) && (sub_total[7]==1'b0) ) )
+      begin
+       eu_add_overflow8_fixed <= 1'b1;
+     end
+   else
+      begin
+       eu_add_overflow8_fixed <= 1'b0;
+     end
+  end
   
 // SBB - Byte
 //
@@ -453,6 +489,23 @@ if (eu_rom_address == 16'h0AAE)
    else
       begin
        eu_add_overflow8_fixed <= 1'b0;
+     end
+  end 
+
+// ADD - Word
+//
+if (eu_rom_address == 16'h09CC)
+  begin
+    eu_overflow_fix <= 1'b1;
+       
+   if ( ( (eu_register_r0[15]==1'b0) && (eu_register_r1[15]==1'b0) && (add_total[15]==1'b1) ) ||
+        ( (eu_register_r0[15]==1'b1) && (eu_register_r1[15]==1'b1) && (add_total[15]==1'b0) ) )
+     begin
+       eu_add_overflow16_fixed <= 1'b1;
+     end
+   else
+      begin
+       eu_add_overflow16_fixed <= 1'b0;
      end
   end
   
@@ -472,7 +525,23 @@ if (eu_rom_address == 16'h0A12)
        eu_add_overflow16_fixed <= 1'b0;
      end
   end
-  
+
+// SUB - Word
+//
+if (eu_rom_address == 16'h0A52)
+  begin
+    eu_overflow_fix <= 1'b1;
+   
+   if ( ( (eu_register_r0[15]==1'b0) && (eu_register_r1[15]==1'b1) && (sub_total[15]==1'b1) ) ||
+        ( (eu_register_r0[15]==1'b1) && (eu_register_r1[15]==1'b0) && (sub_total[15]==1'b0) ) )
+      begin
+       eu_add_overflow16_fixed <= 1'b1;
+     end
+   else
+      begin
+       eu_add_overflow16_fixed <= 1'b0;
+     end
+  end
   
 // SBB - Word
 //
