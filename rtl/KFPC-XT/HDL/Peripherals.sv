@@ -92,8 +92,8 @@ module PERIPHERALS #(
         // EMS
         input   logic           ems_enabled,
         input   logic   [1:0]   ems_address,
-        output  reg     [6:0]   map_ems[0:3], // Segment hE000, hE400, hE800, hEC00
-        output  reg             ena_ems[0:3], // Enable Segment Map hE000, hE400, hE800, hEC00
+        output  reg     [6:0]   map_ems[0:3], // Segment hx000, hx400, hx800, hxC00
+        output  reg             ena_ems[0:3], // Enable Segment Map hx000, hx400, hx800, hxC00
         output  logic           ems_b1,
         output  logic           ems_b2,
         output  logic           ems_b3,
@@ -196,14 +196,14 @@ module PERIPHERALS #(
     wire    tandy_page_cs          =  (iorq && ~address_enable_n && address[15:0] == 16'h03DF);
     wire    xtctl_cs               =  (iorq && ~address_enable_n && address[15:0] == 16'h8888);
 
-    wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1010 : (ems_address == 2'b01) ? 4'b1100 : 4'b1101;
+    wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1100 : (ems_address == 2'b01) ? 4'b1101 : 4'b1110;
     wire    ems_oe                 = (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h
-    assign  ems_b1                 = (~iorq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // A0000h - C0000h - D0000h
-    assign  ems_b2                 = (~iorq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // A4000h - C4000h - D4000h
-    assign  ems_b3                 = (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // A8000h - C8000h - D8000h
-    assign  ems_b4                 = (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // AC000h - CC000h - DC000h
+    assign  ems_b1                 = (~iorq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // C0000h - D0000h - E0000h
+    assign  ems_b2                 = (~iorq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // C4000h - D4000h - E4000h
+    assign  ems_b3                 = (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // C8000h - D8000h - E8000h
+    assign  ems_b4                 = (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // CC000h - DC000h - EC000h
 
-    wire    floppy0_select_n        = ~(~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
+    wire    floppy0_select_n        = ~(iorq && ~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
 
     logic   [1:0]   ems_access_address;
     logic           ems_write_enable;
