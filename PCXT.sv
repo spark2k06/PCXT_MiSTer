@@ -251,7 +251,9 @@ module emu
 		"P3,Hardware;",
 		"P3-;",
 		"P3OB,Lo-tech 2MB EMS,Enabled,Disabled;",
-		"P3OCD,EMS Frame,A000,C000,D000;",
+		"P3OCD,EMS Frame,C000,D000,E000;",
+		"P3-;",
+		"P3o9,A000 UMB,Enabled,Disabled;",
 		"P3-;",
 		"P3ONO,Joystick 1, Analog, Digital, Disabled;",
 		"P3OPQ,Joystick 2, Analog, Digital, Disabled;",
@@ -312,6 +314,7 @@ module emu
     wire mda_mode = status[4] | xtctl[5];
     wire [2:0] screen_mode = status[16:14];
     wire border = status[29] | xtctl[1];
+	 wire a000h = ~status[41] & ~xtctl[6];
 
 
     hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io 
@@ -1030,7 +1033,8 @@ module emu
 		.clock_rate                         (cur_rate),
 		.floppy_wp                          (status[20:19]),
 		.fdd_request                        (mgmt_req[7:6]),
-		.xtctl                              (xtctl)
+		.xtctl                              (xtctl),
+		.enable_a000h                       (a000h)
 	);
 
     wire [15:0] SDRAM_DQ_IN;

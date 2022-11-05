@@ -6,6 +6,7 @@
 #define BORDER    0x02
 #define ADLIBOFF  0x10
 #define MDA       0x20
+#define A000HOFF  0x40
 
 static int _argc;
 static char **_argv;
@@ -27,14 +28,14 @@ int main(int argc, char **argv)
 
     if(argc < 2)
     {
-	printf("XTCTL 1.0\n");
+	printf("XTCTL 1.1\n");
 	printf("USAGE:\n");
 	bs = strrchr(argv[0], '\\');
 	if(bs == NULL)
 	    argv0 = argv[0];
 	else
 	    argv0 = ++bs;
-	printf("%s [menu] [composite border adliboff mda 4Mhz/7Mhz/14Mhz]\n", argv0);
+	printf("%s [menu] [composite border adliboff mda a000hoff 4Mhz/7Mhz/14Mhz]\n", argv0);
 	return -1;
     }
 
@@ -56,6 +57,9 @@ int main(int argc, char **argv)
 
 	if (chk_arg_opt("mda"))
 	    arg |= MDA;
+    
+	if (chk_arg_opt("a000hoff"))
+	    arg |= A000HOFF;
 
 	if (chk_arg_opt("4Mhz") || chk_arg_opt("4"))
 	{
