@@ -138,7 +138,9 @@ module CHIPSET (
         input   logic   [1:0]   floppy_wp,
         output  logic   [1:0]   fdd_request,
         // XTCTL DATA
-        output  logic   [7:0]   xtctl
+        output  logic   [7:0]   xtctl,
+		  // Optional flags
+		  input   logic           enable_a000h
     );
 
     logic           dma_ready;
@@ -378,7 +380,8 @@ module CHIPSET (
         .ems_b3                             (ems_b3),
         .ems_b4                             (ems_b4),
         .tandy_bios_flag                    (tandy_bios_flag),
-        .bios_protect_flag                  (bios_protect_flag)
+        .bios_protect_flag                  (bios_protect_flag),
+		  .enable_a000h                       (enable_a000h)
     );
 
     assign  data_bus = internal_data_bus;

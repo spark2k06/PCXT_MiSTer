@@ -37,7 +37,9 @@ module RAM (
      input   logic           ems_b4,
      // BIOS
      input  logic    [1:0]  bios_protect_flag,
-     input  logic           tandy_bios_flag
+     input  logic           tandy_bios_flag,
+	  // Optional flags
+	  input  logic           enable_a000h
 );
 
     typedef enum {IDLE, RAM_WRITE_1, RAM_WRITE_2, RAM_READ_1, RAM_READ_2, COMPLETE_RAM_RW, WAIT} state_t;
@@ -57,7 +59,9 @@ module RAM (
     //
     // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xFFFFF)
     //
-    assign ram_address_select_n = ~(enable_sdram && ~(address[19:16] == 4'b1011));   // B0000h reserved for VRAM
+    assign ram_address_select_n = ~(enable_sdram && ~(address[19:16] == 4'b1011) &&  // B0000h reserved for VRAM
+	                               ~(~enable_a000h && address[19:16] == 4'b1010));    // A0000h is optional
+	 
 
     assign tandy_bios_select    = tandy_bios_flag & (address[19:16] == 4'b1111);
 
