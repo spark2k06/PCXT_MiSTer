@@ -7,7 +7,7 @@ module PERIPHERALS #(
     ) (
         input   logic           clock,
         input   logic           clk_sys,
-        input  logic           cpu_clock,
+        input   logic           cpu_clock,
         input   logic           peripheral_clock,
         input   logic   [1:0]   turbo_mode,
         input   logic           reset,
@@ -37,6 +37,7 @@ module PERIPHERALS #(
         output  logic           VGA_VBlank,
         // I/O Ports
         input   logic   [19:0]  address,
+        output  logic   [19:0]  latch_address,
         input   logic   [7:0]   internal_data_bus,
         output  logic   [7:0]   data_bus_out,
         output  logic           data_bus_out_from_chipset,
@@ -187,7 +188,8 @@ module PERIPHERALS #(
 
     wire    tandy_chip_select_n    = ~(iorq && ~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
     wire    opl_chip_select_n      = ~(iorq && ~address_enable_n && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
-    wire    video_chip_select_n    = ~((tandy_video & grph_mode & hres_mode) && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
+//  wire    video_chip_select_n    = ~((tandy_video & grph_mode & hres_mode) && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
+    wire    video_chip_select_n    = ~(tandy_video && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
     wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
     wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
     wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
@@ -209,6 +211,17 @@ module PERIPHERALS #(
     logic           ems_write_enable;
     logic   [7:0]   write_map_ems_data;
     logic           write_map_ena_data;
+	 
+    //
+    // I/O Ports
+    //
+    // Address
+    always_comb begin
+        if (~cga_chip_select_n && ~memory_write_n && tandy_video)
+            latch_address   = {nmi_mask_register_data[3:1], tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]}};
+        else
+            latch_address   = address;
+    end
 
     always_ff @(posedge clock, posedge reset)
     begin
@@ -932,13 +945,15 @@ module PERIPHERALS #(
         .clka                       (clock),
         .ena                        (~cga_chip_select_n_1 || ~video_chip_select_n_1),
         .wea                        (~video_memory_write_n),
-        .addra                      ((tandy_video & grph_mode & hres_mode) ? ~video_chip_select_n_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]),
+//      .addra                      ((tandy_video & grph_mode & hres_mode) ? ~video_chip_select_n_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]),
+        .addra                      (tandy_video ? ~video_chip_select_n_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]),
         .dina                       (video_ram_data),
         .douta                      (cga_vram_cpu_dout),
         .clkb                       (clk_vga_cga),
         .web                        (1'b0),
         .enb                        (CGA_VRAM_ENABLE),
-        .addrb                      ((tandy_video & grph_mode & hres_mode) ? {tandy_page_data[2:1], CGA_VRAM_ADDR[14:0]} : CGA_VRAM_ADDR[13:0]),
+//      .addrb                      ((tandy_video & grph_mode & hres_mode) ? {tandy_page_data[2:1], CGA_VRAM_ADDR[14:0]} : CGA_VRAM_ADDR[13:0]),
+        .addrb                      (tandy_video ? (grph_mode & hres_mode) ? {tandy_page_data[2:1], CGA_VRAM_ADDR[14:0]} : {tandy_page_data[2:0], CGA_VRAM_ADDR[13:0]} : CGA_VRAM_ADDR[13:0]),
         .dinb                       (8'h0),
         .doutb                      (CGA_VRAM_DOUT)
     );

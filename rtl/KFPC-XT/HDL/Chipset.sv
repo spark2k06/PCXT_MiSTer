@@ -143,6 +143,8 @@ module CHIPSET (
 		  input   logic           enable_a000h
     );
 
+	 logic   [19:0]  latch_address;
+	 
     logic           dma_ready;
     logic           dma_wait_n;
     logic           interrupt_acknowledge_n;
@@ -280,6 +282,7 @@ module CHIPSET (
         .VGA_HBlank                         (VGA_HBlank),
         .VGA_VBlank                         (VGA_VBlank),
         .address                            (address),
+		  .latch_address                      (latch_address),
         .internal_data_bus                  (internal_data_bus),
         .data_bus_out                       (internal_data_bus_chipset),
         .data_bus_out_from_chipset          (data_bus_out_from_chipset),
@@ -354,7 +357,7 @@ module CHIPSET (
         .reset                              (sdram_reset),
         .enable_sdram                       (enable_sdram),
         .initilized_sdram                   (initilized_sdram),
-        .address                            (address),
+        .address                            (latch_address),
         .internal_data_bus                  (internal_data_bus),
         .data_bus_out                       (internal_data_bus_ram),
         .memory_read_n                      (memory_read_n),
