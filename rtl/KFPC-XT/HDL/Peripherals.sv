@@ -188,7 +188,6 @@ module PERIPHERALS #(
 
     wire    tandy_chip_select_n    = ~(iorq && ~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
     wire    opl_chip_select_n      = ~(iorq && ~address_enable_n && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
-//  wire    video_chip_select_n    = ~((tandy_video & grph_mode & hres_mode) && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
     wire    video_chip_select_n    = ~(tandy_video && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
     wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
     wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
@@ -1307,11 +1306,13 @@ module PERIPHERALS #(
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= uart_readdata;
         end
+		  /*
         else if ((uart2_cs) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= uart2_readdata;
         end
+		  */
         else if ((ems_oe) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
