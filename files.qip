@@ -34,6 +34,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF823
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Ready.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/RAM.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/XT2IDE.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Peripherals.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Chipset.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Bus_Arbiter.sv"
