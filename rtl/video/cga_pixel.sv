@@ -33,13 +33,14 @@ module cga_pixel(
     input[3:0] tandy_palette_color,
     input[3:0] tandy_newcolor,
     input tandy_palette_set,
-    input[4:0] tandy_bordercol,
+    input[3:0] tandy_bordercol,
+	 input tandy_color_4,
     output[3:0] video
     );
 
     reg[7:0] attr_byte;
     reg[7:0] char_byte;
-    reg[7:0] char_byte_old;
+	 reg[7:0] char_byte_del;
     reg[7:0] attr_byte_del;
     reg[7:0] charbits;
     reg[1:0] cursor_del;
@@ -49,6 +50,7 @@ module cga_pixel(
     reg[1:0] pix_bits;
     reg[1:0] pix_bits_old;
     reg[3:0] tandy_bits;
+	 reg overscan;
 	 
     reg[3:0] tandy_palette[0:15] = '{ 4'h0, 4'h1, 4'h2, 4'h3, 4'h4, 4'h5, 4'h6, 4'h7, 4'h8, 4'h9, 4'ha, 4'hb, 4'hc, 4'hd, 4'he, 4'hf };  
 	 
@@ -57,12 +59,26 @@ module cga_pixel(
     wire load_shifter;
     wire [2:0] charpix_sel;
     reg[3:0] video_out;
-    assign video = tandy_16_mode ? tandy_palette[video_out] : video_out;
 
     // Character ROM
     reg[7:0] char_rom[0:4095];
     initial $readmemh("cga.hex", char_rom, 0, 4095);
 
+    always_comb
+    begin
+        if (tandy_16_mode) begin
+				if (overscan)
+					video = tandy_color_4 ? video_out : tandy_palette[video_out];
+				else if (tandy_color_4)
+					video = tandy_palette[{ 2'b00, video_out[2:1] }];
+				else if (mode_640)
+					video = tandy_palette[{ 2'b000, pix_640 }];
+				else
+					video = tandy_palette[video_out];
+		  end else
+				video = video_out;		  
+    end
+	 
 
     // Latch character and attribute data from VRAM
     // at appropriate times
@@ -73,7 +89,6 @@ module cga_pixel(
 			  
         if (vram_read_char) begin
             char_byte <= vram_data;
-            char_byte_old <= char_byte;
         end
         if (vram_read_att) begin
             attr_byte <= vram_data;
@@ -83,6 +98,10 @@ module cga_pixel(
     // Fetch pixel data for graphics modes
     wire [2:0]muxin;
     assign muxin = hres_mode ? (clk_seq[3:1] + 3'd6) : (clk_seq[4:2] + 3'd7);
+	 
+    always @ (posedge clk)
+        char_byte_del <= char_byte;
+	 
     always @ (*)
     begin
         if (video_enabled) begin
@@ -91,14 +110,14 @@ module cga_pixel(
             // Tandy uses "high res" mode for both 320x200x16
             // and 640x200x4 color modes
             case (muxin)
-                3'd0: pix_bits <= char_byte[7:6];
-                3'd1: pix_bits <= char_byte[5:4];
-                3'd2: pix_bits <= char_byte[3:2];
-                3'd3: pix_bits <= char_byte[1:0];
-                3'd4: pix_bits <= attr_byte[7:6];
-                3'd5: pix_bits <= attr_byte[5:4];
-                3'd6: pix_bits <= attr_byte[3:2];
-                3'd7: pix_bits <= attr_byte[1:0];
+                3'd0: pix_bits <= tandy_color_4 ? { attr_byte[7], char_byte_del[7] } : char_byte_del[7:6];
+                3'd1: pix_bits <= tandy_color_4 ? { attr_byte[6], char_byte_del[6] } : char_byte_del[5:4];
+                3'd2: pix_bits <= tandy_color_4 ? { attr_byte[5], char_byte_del[5] } : char_byte_del[3:2];
+                3'd3: pix_bits <= tandy_color_4 ? { attr_byte[4], char_byte_del[4] } : char_byte_del[1:0];
+                3'd4: pix_bits <= tandy_color_4 ? { attr_byte[3], char_byte_del[3] } : attr_byte[7:6];
+                3'd5: pix_bits <= tandy_color_4 ? { attr_byte[2], char_byte_del[2] } : attr_byte[5:4];
+                3'd6: pix_bits <= tandy_color_4 ? { attr_byte[1], char_byte_del[1] } : attr_byte[3:2];
+                3'd7: pix_bits <= tandy_color_4 ? { attr_byte[0], char_byte_del[0] } : attr_byte[1:0];
                 default: pix_bits <= 2'b0;
             endcase
         end else begin
@@ -202,7 +221,9 @@ module cga_pixel(
         .pix_640(pix_640),
         .pix_tandy(tandy_bits),
         .tandy_bordercol(tandy_bordercol),
-        .pix_out(video_out)
+        .tandy_color_4(tandy_color_4),
+        .pix_out(video_out),
+        .overscan(overscan)
     );
 
 endmodule
