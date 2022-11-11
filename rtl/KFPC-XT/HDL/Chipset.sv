@@ -137,6 +137,7 @@ module CHIPSET (
         input   logic   [27:0]  clock_rate,
         input   logic   [1:0]   floppy_wp,
         output  logic   [1:0]   fdd_request,
+        output  logic   [2:0]   ide0_request,
         // XTCTL DATA
         output  logic   [7:0]   xtctl,
 		  // Optional flags
@@ -345,6 +346,7 @@ module CHIPSET (
         .clock_rate                         (clock_rate),
         .floppy_wp                          (floppy_wp),
         .fdd_request                        (fdd_request),
+        .ide0_request                       (ide0_request),
         .fdd_dma_req                        (fdd_dma_req),
         .fdd_dma_ack                        (~dma_acknowledge_n[2]),
         .terminal_count                     (terminal_count_n),

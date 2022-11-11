@@ -108,6 +108,7 @@ module PERIPHERALS #(
         input   logic   [27:0]  clock_rate,
         input   logic   [1:0]   floppy_wp,
         output  logic   [1:0]   fdd_request,
+        output  logic   [2:0]   ide0_request,
         output  logic           fdd_dma_req,
         input   logic           fdd_dma_ack,
         input   logic           terminal_count,
@@ -205,6 +206,7 @@ module PERIPHERALS #(
     assign  ems_b3                 = (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // C8000h - D8000h - E8000h
     assign  ems_b4                 = (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // CC000h - DC000h - EC000h
 
+    wire    ide0_cs_n               = ~(iorq && ~address_enable_n && ({address[15:4], 4'd0} == 16'h0300));
     wire    floppy0_select_n        = ~(~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
 
     logic   [1:0]   ems_access_address;
@@ -977,9 +979,112 @@ module PERIPHERALS #(
 
 
     //
+    // XT2IDE
+    //
+    logic   [7:0]   xt2ide0_data_bus_out;
+    logic           ide0_cs1fx;
+    logic           ide0_cs3fx;
+    logic           ide0_io_read_n;
+    logic           ide0_io_write_n;
+    logic   [2:0]   ide0_address;
+    logic           ide0_data_bus_io;
+    logic   [15:0]  ide0_data_bus_in;
+    logic   [15:0]  ide0_data_bus_out;
+
+    XT2IDE xt2ide0 (
+        .clock              (clock),
+        .reset              (reset),
+
+        .high_speed         (0),
+
+        .chip_select_n      (ide0_cs_n),
+        .io_read_n          (io_read_n),
+        .io_write_n         (io_write_n),
+
+        .address            (address[3:0]),
+        .data_bus_in        (internal_data_bus),
+        .data_bus_out       (xt2ide0_data_bus_out),
+
+        .ide_cs1fx          (ide0_cs1fx),
+        .ide_cs3fx          (ide0_cs3fx),
+        .ide_io_read_n      (ide0_io_read_n),
+        .ide_io_write_n     (ide0_io_write_n),
+
+        .ide_address        (ide0_address),
+        .ide_data_bus_io    (ide0_data_bus_io),
+        .ide_data_bus_in    (ide0_data_bus_in),
+        .ide_data_bus_out   (ide0_data_bus_out)
+    );
+
+
+    //
+    // IDE
+    //
+    logic           mgmt_ide0_cs;
+    logic [15:0]    mgmt_ide0_readdata;
+    logic           ide0_command_cs;
+    logic           ide0_control_cs;
+    logic           ide0_comd_ctrl_select;
+    logic           ide0_io_read;
+    logic           ide0_io_read_1;
+    logic           ide0_io_write;
+    logic           prev_ide0_io_read;
+    logic           prev_ide0_io_write;
+    logic [3:0]     ide0_address_1;
+    logic [15:0]    ide0_writedata;
+
+    assign mgmt_ide0_cs     = (mgmt_address[15:8] == 8'hF0);
+
+    assign ide0_command_cs  = ~ide0_cs1fx;
+    assign ide0_control_cs  = ~ide0_cs3fx & &ide0_address[2:1];
+    assign ide0_io_read     = ~ide0_io_read_n  & (ide0_command_cs | ide0_control_cs);
+    assign ide0_io_write    = ~ide0_io_write_n & (ide0_command_cs | ide0_control_cs);
+
+    always_ff @(posedge clock)
+    begin
+        ide0_io_read_1          <= ide0_io_read;
+        prev_ide0_io_read       <= ide0_io_read_1;
+        prev_ide0_io_write      <= ide0_io_write;
+        ide0_address_1          <= ~ide0_control_cs ? {1'b0, ide0_address} : {1'b1, ide0_address};
+        ide0_writedata          <= ide0_data_bus_out;
+    end
+
+    ide ide
+    (
+        .clk            (clock),
+        .rst_n          (~reset),
+
+//        .irq            (),
+//        .drq            (),
+
+        .use_fast       (0),
+//        .no_data        (),
+
+//        .drive_en       (),
+
+        .io_address     (ide0_address_1),
+        .io_read        (ide0_io_read   & ~prev_ide0_io_read),
+        .io_readdata    (ide0_data_bus_in),
+        .io_write       (~ide0_io_write & prev_ide0_io_write),
+        .io_writedata   (ide0_writedata),
+        .io_32          (0),
+
+//        .io_wait        (),
+
+        .request                    (ide0_request),
+        .mgmt_address               (mgmt_address[3:0]),
+        .mgmt_writedata             (mgmt_writedata),
+        .mgmt_readdata              (mgmt_ide0_readdata),
+        .mgmt_write                 (mgmt_write & mgmt_ide0_cs),
+        .mgmt_read                  (mgmt_read & mgmt_ide0_cs)
+    );
+
+
+    //
     // FDC
     //
     logic           mgmt_fdd_cs;
+    logic   [15:0]  mgmt_fdd_readdata;
     logic   [7:0]   write_to_fdd;
     logic   [2:0]   fdd_io_address;
     logic           fdd_io_read;
@@ -1061,7 +1166,7 @@ module PERIPHERALS #(
         .mgmt_write                 (mgmt_write & mgmt_fdd_cs),
         .mgmt_writedata             (mgmt_writedata),
         .mgmt_read                  (mgmt_read  & mgmt_fdd_cs),
-        .mgmt_readdata              (mgmt_readdata),
+        .mgmt_readdata              (mgmt_fdd_readdata),
 
         .wp                         (floppy_wp),
 
@@ -1089,6 +1194,12 @@ module PERIPHERALS #(
         else
             fdd_readdata <= fdd_readdata;
     end
+
+
+    //
+    // mgmt_readdata
+    //
+    assign mgmt_readdata = mgmt_ide0_cs ? mgmt_ide0_readdata : mgmt_fdd_readdata;
 
 
     //
@@ -1226,6 +1337,11 @@ module PERIPHERALS #(
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= joy_data;
+        end
+        else if ((~ide0_cs_n) && (~io_read_n))
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= xt2ide0_data_bus_out;
         end
         else if ((~floppy0_select_n || fdd_dma_read) && (~io_read_n))
         begin
