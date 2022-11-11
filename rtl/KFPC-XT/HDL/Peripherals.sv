@@ -988,7 +988,6 @@ module PERIPHERALS #(
     logic           ide0_io_read_n;
     logic           ide0_io_write_n;
     logic   [2:0]   ide0_address;
-    logic           ide0_data_bus_io;
     logic   [15:0]  ide0_data_bus_in;
     logic   [15:0]  ide0_data_bus_out;
 
@@ -1012,7 +1011,6 @@ module PERIPHERALS #(
         .ide_io_write_n     (ide0_io_write_n),
 
         .ide_address        (ide0_address),
-        .ide_data_bus_io    (ide0_data_bus_io),
         .ide_data_bus_in    (ide0_data_bus_in),
         .ide_data_bus_out   (ide0_data_bus_out)
     );

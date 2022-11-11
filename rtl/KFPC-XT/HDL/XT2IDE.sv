@@ -22,7 +22,6 @@ module XT2IDE
     output  logic           ide_io_write_n,
 
     output  logic   [2:0]   ide_address,
-    output  logic           ide_data_bus_io,
     input   logic   [15:0]  ide_data_bus_in,
     output  logic   [15:0]  ide_data_bus_out
 );
@@ -43,14 +42,12 @@ module XT2IDE
     always_comb
     begin
         latch_high_read_byte    = 1'b0;
-        ide_data_bus_io         = 1'b1;
         read_high_byte          = 1'b0;
         latch_high_write_byte   = 1'b0;
 
         if (~address[2] & ~address[1] & ~select_2 & ~chip_select_n) begin
             casez ({select_1, io_read_n, io_write_n})
                 3'b001: latch_high_read_byte    = 1'b1;
-                3'b010: ide_data_bus_io         = 1'b0;
                 3'b101: read_high_byte          = 1'b1;
                 3'b110: latch_high_write_byte   = 1'b1;
             endcase
