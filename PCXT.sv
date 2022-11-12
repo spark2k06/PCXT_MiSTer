@@ -201,11 +201,6 @@ module emu
     // 01234567890123456789012345678901 23456789012345678901234567890123
     // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
     // XXXXX XXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXX
-
-    wire [1:0] ar = status[9:8];
-    assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
-    assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
-
 	`include "build_id.v"
 
     localparam CONF_STR = {
@@ -311,9 +306,24 @@ module emu
     wire [1:0] scale = status[2:1];
     wire mda_mode = status[4] | xtctl[5];
     wire [2:0] screen_mode = status[16:14];
+    wire [1:0] ar = status[9:8];
     wire border = status[29] | xtctl[1];
 	 wire a000h = ~status[41] & ~xtctl[6];
 
+    reg [1:0]   scale_video_ff;
+    reg         mda_mode_video_ff;
+    reg [2:0]   screen_mode_video_ff;
+    reg         border_video_ff;
+
+    always @(posedge CLK_VIDEO)
+    begin
+        scale_video_ff          <= scale;
+        mda_mode_video_ff       <= mda_mode;
+        screen_mode_video_ff    <= screen_mode;
+        border_video_ff         <= border;
+        VIDEO_ARX               <= (!ar) ? 12'd4 : (ar - 1'd1);
+        VIDEO_ARY               <= (!ar) ? 12'd3 : 12'd0;
+    end
 
     hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io 
 	(
@@ -816,16 +826,18 @@ module emu
     //
     // Splash screen
     //
+    reg splash_off;
     reg [24:0] splash_cnt = 0;
     reg [3:0] splash_cnt2 = 0;
     reg splashscreen = 1;
 
     always @ (posedge clk_14_318)
     begin
+        splash_off <= status[7];
 
         if (splashscreen)
         begin
-            if (status[7])
+            if (splash_off)
                 splashscreen <= 0;
             else if(splash_cnt2 == 5) // 5 seconds delay
                 splashscreen <= 0;
@@ -906,7 +918,7 @@ module emu
 
     wire tandy_bios_flag = bios_write_n ? tandy_mode : tandy_bios_write;
 
-    always @(posedge clk_100)
+    always @(posedge clk_chipset)
     begin
         if (address_latch_enable)
             cpu_address <= cpu_ad_out;
@@ -932,7 +944,7 @@ module emu
 		.interrupt_to_cpu                   (interrupt_to_cpu),
 		.splashscreen                       (splashscreen),
 		.composite                          (composite),
-		.video_output                       (mda_mode),
+		.video_output                       (mda_mode_video_ff),
 		.clk_vga_cga                        (clk_28_636),
 		.enable_cga                         (1'b1),
 		.clk_vga_mda                        (clk_56_875),
@@ -1269,14 +1281,14 @@ module emu
     assign CLK_VIDEO_CGA = clk_56_875;
     assign ce_pixel_mda = clk_28_636;
 
-    assign VGA_SL = {scale==3, scale==2};
+    assign VGA_SL = {scale_video_ff==3, scale_video_ff==2};
 
-    wire   scandoubler = (scale>0); //|| forced_scandoubler);
+    wire   scandoubler = (scale_video_ff>0); //|| forced_scandoubler);
 
     reg [14:0] HBlank_del;
     wire tandy_16_gfx;
-    wire color = (screen_mode == 3'd0);
-    wire HBlank_VGA = mda_mode ? HBlank_del[color ? 12 : 13] : tandy_16_gfx ? HBlank_del[color ? 9 : 11] : HBlank_del[color ? 5 : 7];
+    wire color = (screen_mode_video_ff == 3'd0);
+    wire HBlank_VGA = mda_mode_video_ff ? HBlank_del[color ? 12 : 13] : tandy_16_gfx ? HBlank_del[color ? 9 : 11] : HBlank_del[color ? 5 : 7];
 
     reg [10:0] HBlank_counter = 0;
     reg HBlank_fixed = 1'b1;
@@ -1311,7 +1323,7 @@ module emu
 		.G({g, 2'b00}),
 		.B({b, 2'b00}),
 
-		.gfx_mode(screen_mode),
+		.gfx_mode(screen_mode_video_ff),
 
 		.R_OUT(raux_cga),
 		.G_OUT(gaux_cga),
@@ -1327,7 +1339,7 @@ module emu
 		.G({g, 2'b00}),
 		.B({b, 2'b00}),
 
-		.gfx_mode(screen_mode),
+		.gfx_mode(screen_mode_video_ff),
 
 		.R_OUT(raux_mda),
 		.G_OUT(gaux_mda),
@@ -1359,13 +1371,13 @@ module emu
 		.G(gaux_cga),
 		.B(baux_cga),
 
-		.HBlank(border ? HBlank_fixed : HBlank_VGA),
-		.VBlank(border ? ~VSync : VBlank),
+		.HBlank(border_video_ff ? HBlank_fixed : HBlank_VGA),
+		.VBlank(border_video_ff ? ~VSync : VBlank),
 		.HSync(HSync),
 		.VSync(VSync),
 
 		.scandoubler(scandoubler),
-		.hq2x(scale==1),
+		.hq2x(scale_video_ff==1),
 		.gamma_bus(gamma_bus_cga),
 
 		.VGA_R(VGA_R_cga),
@@ -1397,7 +1409,7 @@ module emu
 		.VSync(VSync),
 
 		.scandoubler(scandoubler),
-		.hq2x(scale==1),
+		.hq2x(scale_video_ff==1),
 		.gamma_bus(gamma_bus_mda),
 
 		.VGA_R(VGA_R_mda),
@@ -1410,14 +1422,14 @@ module emu
 	);
 
 
-    assign VGA_R  =  mda_mode ? VGA_R_mda  : VGA_R_cga;
-    assign VGA_G  =  mda_mode ? VGA_G_mda  : VGA_G_cga;
-    assign VGA_B  =  mda_mode ? VGA_B_mda  : VGA_B_cga;
-    assign VGA_HS =  mda_mode ? VGA_HS_mda : VGA_HS_cga;
-    assign VGA_VS =  mda_mode ? VGA_VS_mda : VGA_VS_cga;
-    assign VGA_DE =  mda_mode ? VGA_DE_mda : VGA_DE_cga;
-    assign gamma_bus =  mda_mode ? gamma_bus_mda : gamma_bus_cga;
-    assign CE_PIXEL  =  mda_mode ? CE_PIXEL_mda : CE_PIXEL_cga;
+    assign VGA_R  =  mda_mode_video_ff ? VGA_R_mda  : VGA_R_cga;
+    assign VGA_G  =  mda_mode_video_ff ? VGA_G_mda  : VGA_G_cga;
+    assign VGA_B  =  mda_mode_video_ff ? VGA_B_mda  : VGA_B_cga;
+    assign VGA_HS =  mda_mode_video_ff ? VGA_HS_mda : VGA_HS_cga;
+    assign VGA_VS =  mda_mode_video_ff ? VGA_VS_mda : VGA_VS_cga;
+    assign VGA_DE =  mda_mode_video_ff ? VGA_DE_mda : VGA_DE_cga;
+    assign gamma_bus =  mda_mode_video_ff ? gamma_bus_mda : gamma_bus_cga;
+    assign CE_PIXEL  =  mda_mode_video_ff ? CE_PIXEL_mda : CE_PIXEL_cga;
 
 
 
