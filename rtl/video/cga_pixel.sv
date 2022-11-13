@@ -35,6 +35,7 @@ module cga_pixel(
     input tandy_palette_set,
     input[3:0] tandy_bordercol,
 	 input tandy_color_4,
+	 input tandy_color_16,
     output[3:0] video
     );
 
@@ -177,14 +178,14 @@ module cga_pixel(
     wire[2:0] tmp_clk_seq;
     assign tmp_clk_seq = clk_seq + 3'd7;
     assign pix_640 = tmp_clk_seq[1] ? pix_bits[0] : pix_bits[1];
-
-    // In Tandy 320x200x16 mode, concatenate two adjacent pixels
+	 
+	 // In Tandy 320x200x16 and 160x200x16 modes, concatenate two adjacent pixels
     wire temp;
     assign temp = clk_seq[1:0] == 2'b00;
     always @ (posedge clk)
     begin
         if (clk_seq[0]) begin
-            if (clk_seq[1]) begin
+            if (muxin[0]) begin
                 tandy_bits <= {pix_bits_old, pix_bits};
             end else begin
                 pix_bits_old <= pix_bits;
@@ -222,6 +223,7 @@ module cga_pixel(
         .pix_tandy(tandy_bits),
         .tandy_bordercol(tandy_bordercol),
         .tandy_color_4(tandy_color_4),
+		  .tandy_color_16(tandy_color_16),
         .pix_out(video_out),
         .overscan(overscan)
     );

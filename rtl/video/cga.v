@@ -239,8 +239,7 @@ module cga(
 	 assign tandy_color_4 = tandy_modesel[3];
 	 assign tandy_color_16 = tandy_modesel[4];
 
-    // FIXME: temporary for testing
-    assign tandy_16_mode = tandy_video; //cga_control_reg[6];
+    assign tandy_16_mode = tandy_video;
 
     assign hsync = hsync_int;
 
@@ -357,6 +356,7 @@ module cga(
         .tandy_palette_set(tandy_palette_set),
         .tandy_bordercol(tandy_bordercol),
         .tandy_color_4(tandy_color_4),
+        .tandy_color_16(tandy_color_16),
         .video(video)
     );
 
