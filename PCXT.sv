@@ -453,7 +453,10 @@ module emu
     reg [4:0] clk_10_cnt = 1'b0;
     always @(posedge clk_chipset)
         if (4'd0 == clk_10_cnt) begin
-            clk_10_cnt  <= 4'd5 - 4'd1;
+            if (clk_10)
+                clk_10_cnt  <= 4'd3 - 4'd1;
+            else
+                clk_10_cnt  <= 4'd2 - 4'd1;
             clk_10      <= ~clk_10;
         end
         else begin
