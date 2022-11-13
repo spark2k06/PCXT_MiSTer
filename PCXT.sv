@@ -211,7 +211,8 @@ module emu
 		"S2,VHD,IDE 0-0;",
 		"S3,VHD,IDE 0-1;",
 		"-;",
-		"OHI,CPU Speed,4.77MHz,7.16MHz,14.318MHz;",
+		"OHI,CPU Speed,4.77MHz,7.16MHz,10MHz,14.318MHz;",
+		"OL,Cycle accurate,ON,OFF;",
 		"-;",
 		"P1,System & BIOS;",
 		"P1-;",
@@ -411,6 +412,7 @@ module emu
     wire clk_56_875;
     wire clk_113_750;
     reg clk_14_318 = 1'b0;
+    reg clk_10 = 1'b0;
     reg clk_7_16 = 1'b0;
     wire clk_4_77;
     wire clk_cpu;
@@ -448,6 +450,20 @@ module emu
         ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
     end
 
+    reg [4:0] clk_10_cnt = 1'b0;
+    always @(posedge clk_chipset)
+        if (4'd0 == clk_10_cnt) begin
+            if (clk_10)
+                clk_10_cnt  <= 4'd3 - 4'd1;
+            else
+                clk_10_cnt  <= 4'd2 - 4'd1;
+            clk_10      <= ~clk_10;
+        end
+        else begin
+            clk_10_cnt  <= clk_10_cnt - 4'd1;
+            clk_10      <= clk_10;
+        end
+
     always @(posedge clk_14_318)
         clk_7_16 <= ~clk_7_16;      // 7.16Mhz
 
@@ -467,6 +483,10 @@ module emu
 
     logic  biu_done;
     logic  turbo_mode;
+    logic  [7:0] clock_cycle_counter_division_ratio;
+    logic  [7:0] clock_cycle_counter_decrement_value;
+    logic        shift_read_timing;
+    logic        cycle_accrate;
     logic  [1:0] clk_select;
 
     always @(posedge clk_chipset, posedge reset)
@@ -498,21 +518,51 @@ module emu
     begin
         if (reset)
         begin
-            clk_cpu_ff_1 <= 1'b0;
-            clk_cpu_ff_2 <= 1'b0;
-            clk_cpu      <= 1'b0;
-            pclk_ff_1    <= 1'b0;
-            pclk_ff_2    <= 1'b0;
-            pclk         <= 1'b0;
+            clk_cpu_ff_1    <= 1'b0;
+            clk_cpu_ff_2    <= 1'b0;
+            clk_cpu         <= 1'b0;
+            pclk_ff_1       <= 1'b0;
+            pclk_ff_2       <= 1'b0;
+            pclk            <= 1'b0;
+            cycle_accrate   <= 1'b1;
+            clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
+            clock_cycle_counter_decrement_value <= 8'd1;
+            shift_read_timing                   <= 1'b0;
         end
         else
         begin
-            clk_cpu_ff_1 <= (clk_select == 2'b10) ? clk_14_318 : (clk_select == 2'b01) ? clk_7_16 : clk_4_77;
-            clk_cpu_ff_2 <= clk_cpu_ff_1;
-            clk_cpu      <= clk_cpu_ff_2;
-            pclk_ff_1    <= peripheral_clock;
-            pclk_ff_2    <= pclk_ff_1;
-            pclk         <= pclk_ff_2;
+            clk_cpu_ff_2    <= clk_cpu_ff_1;
+            clk_cpu         <= clk_cpu_ff_2;
+            pclk_ff_1       <= peripheral_clock;
+            pclk_ff_2       <= pclk_ff_1;
+            pclk            <= pclk_ff_2;
+            cycle_accrate   <= ~status[21];
+            casez (clk_select)
+                2'b00: begin
+                    clk_cpu_ff_1    <= clk_4_77;
+                    clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
+                    clock_cycle_counter_decrement_value <= 8'd1;
+                    shift_read_timing                   <= 1'b0;
+                end
+                2'b01: begin
+                    clk_cpu_ff_1    <= clk_7_16;
+                    clock_cycle_counter_division_ratio  <= 8'd2 - 8'd1;
+                    clock_cycle_counter_decrement_value <= 8'd3;
+                    shift_read_timing                   <= 1'b0;
+                end
+                2'b10: begin
+                    clk_cpu_ff_1    <= clk_10;
+                    clock_cycle_counter_division_ratio  <= 8'd10 - 8'd1;
+                    clock_cycle_counter_decrement_value <= 8'd21;
+                    shift_read_timing                   <= 1'b0;
+                end
+                2'b11: begin
+                    clk_cpu_ff_1    <= clk_14_318;
+                    clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
+                    clock_cycle_counter_decrement_value <= 8'd3;
+                    shift_read_timing                   <= 1'b1;
+                end
+            endcase
         end
     end
 
@@ -1078,7 +1128,10 @@ module emu
 		.SEGMENT(SEGMENT),
 
 		.biu_done(biu_done),
-		.turbo_mode(turbo_mode)
+		.cycle_accrate(cycle_accrate),
+		.clock_cycle_counter_division_ratio(clock_cycle_counter_division_ratio),
+		.clock_cycle_counter_decrement_value(clock_cycle_counter_decrement_value),
+		.shift_read_timing(shift_read_timing)
 	);
 
     //
