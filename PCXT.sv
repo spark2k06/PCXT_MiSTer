@@ -208,6 +208,7 @@ module emu
 		"S0,IMGIMAVFD,Floppy A:;",
 		"S1,IMGIMAVFD,Floppy B:;",
 		"OJK,Write Protect,None,A:,B:,A: & B:;",
+		"-;",
 		"S2,VHD,IDE 0-0;",
 		"S3,VHD,IDE 0-1;",
 		"-;",
