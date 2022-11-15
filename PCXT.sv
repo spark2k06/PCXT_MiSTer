@@ -212,7 +212,7 @@ module emu
 		"S2,VHD,IDE 0-0;",
 		"S3,VHD,IDE 0-1;",
 		"-;",
-		"OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,Max(25MHz).;",
+		"OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,PC/AT 3.5MHz;",
 		"-;",
 		"P1,System & BIOS;",
 		"P1-;",
@@ -256,7 +256,7 @@ module emu
 		"P3-;",	
 		"-;",
 		"R0,Reset & apply settings;",
-		"J,Fire 1, Fire 2;",
+		"J,Fire 1,Fire 2;",
 		"V,v",`BUILD_DATE
 	};
 
@@ -299,7 +299,7 @@ module emu
     wire [21:0] gamma_bus;
     wire        adlibhide = status[10] | xtctl[4];
 
-    wire [31:0] joy0, joy1;
+    wire [13:0] joy0, joy1;
     wire [15:0] joya0, joya1;
     wire [4:0]  joy_opts = status[27:23];
 

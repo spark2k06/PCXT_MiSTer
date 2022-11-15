@@ -18,7 +18,7 @@ The [Graphics Gremlin project](https://github.com/schlae/graphics-gremlin) from 
 
 ## Key features
 
-* CPU Speed 4.77 MHz and turbo modes 7.16 MHz / 14.318 MHz
+* 8088 CPU with these speed settings: 4.77 MHz, 7.16 MHz, 9.54 MHz cycle accurate, and PC/AT 286 at 3.5MHz equivalent (max. speed)
 * BIOS selectable (Tandy 1000 / PCXT)
 * Support for IBM Tandy 1000
 * Support for IBM PCXT 5160 and clones (CGA graphics)

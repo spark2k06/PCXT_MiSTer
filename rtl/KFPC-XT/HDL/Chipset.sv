@@ -84,8 +84,8 @@ module CHIPSET (
         output  logic           ps2_mouseclk_out,
         output  logic           ps2_mousedat_out,
         input   logic   [4:0]   joy_opts,
-        input   logic   [31:0]  joy0,
-        input   logic   [31:0]  joy1,
+        input   logic   [13:0]  joy0,
+        input   logic   [13:0]  joy1,
         input   logic   [15:0]  joya0,
         input   logic   [15:0]  joya1,
         // JTOPL
