@@ -701,10 +701,8 @@ module PERIPHERALS #(
     logic  [7:0]   cga_io_data_2;
     logic          cga_io_write_n_1;
     logic          cga_io_write_n_2;
-    logic          cga_io_write_n_3;
     logic          cga_io_read_n_1;
     logic          cga_io_read_n_2;
-    logic          cga_io_read_n_3;
     logic          cga_address_enable_n_1;
     logic          cga_address_enable_n_2;
 
@@ -760,10 +758,8 @@ module PERIPHERALS #(
         cga_io_data_2       <= cga_io_data_1;
         cga_io_write_n_1    <= video_io_write_n;
         cga_io_write_n_2    <= cga_io_write_n_1;
-        cga_io_write_n_3    <= cga_io_write_n_2;
         cga_io_read_n_1     <= video_io_read_n;
         cga_io_read_n_2     <= cga_io_read_n_1;
-        cga_io_read_n_3     <= cga_io_read_n_2;
         cga_address_enable_n_1  <= video_address_enable_n;
         cga_address_enable_n_2  <= cga_address_enable_n_1;
     end
@@ -902,8 +898,8 @@ module PERIPHERALS #(
         .clk                        (clk_vga_cga),
         .clkdiv                     (clkdiv),
         .bus_a                      (cga_io_address_2),
-        .bus_ior_l                  (cga_io_read_n_3),
-        .bus_iow_l                  (cga_io_write_n_3),
+        .bus_ior_l                  (cga_io_read_n_2),
+        .bus_iow_l                  (cga_io_write_n_2),
         .bus_memr_l                 (1'd0),
         .bus_memw_l                 (1'd0),
         .bus_d                      (cga_io_data_2),
@@ -946,7 +942,7 @@ module PERIPHERALS #(
     (
         .clka                       (clock),
         .ena                        (~cga_chip_select_n_1 || ~video_chip_select_n_1),
-        .wea                        (~video_memory_write_n),
+        .wea                        (~video_memory_write_n & memory_write_n),
 //      .addra                      ((tandy_video & grph_mode & hres_mode) ? ~video_chip_select_n_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]),
         .addra                      (tandy_video ? ~video_chip_select_n_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]),
         .dina                       (video_ram_data),

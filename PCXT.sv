@@ -212,7 +212,7 @@ module emu
 		"S2,VHD,IDE 0-0;",
 		"S3,VHD,IDE 0-1;",
 		"-;",
-		"OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,Max.;",
+		"OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,Max(25MHz).;",
 		"-;",
 		"P1,System & BIOS;",
 		"P1-;",
@@ -411,6 +411,7 @@ module emu
     wire clk_28_636;
     wire clk_56_875;
     wire clk_113_750;
+    reg clk_25 = 1'b0;
     reg clk_14_318 = 1'b0;
     reg clk_9_54 = 1'b0;
     reg clk_7_16 = 1'b0;
@@ -464,6 +465,9 @@ module emu
             clk_9_54      <= clk_9_54;
         end
 
+    always @(posedge clk_chipset)
+        clk_25 <= ~clk_25;
+
     always @(posedge clk_14_318)
         clk_7_16 <= ~clk_7_16;      // 7.16Mhz
 
@@ -486,8 +490,11 @@ module emu
     logic  [7:0] clock_cycle_counter_division_ratio;
     logic  [7:0] clock_cycle_counter_decrement_value;
     logic        shift_read_timing;
+    logic  [1:0] ram_read_wait_cycle;
+    logic  [1:0] ram_write_wait_cycle;
     logic        cycle_accrate;
     logic  [1:0] clk_select;
+
 
     always @(posedge clk_chipset, posedge reset)
     begin
@@ -528,6 +535,8 @@ module emu
             clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
             clock_cycle_counter_decrement_value <= 8'd1;
             shift_read_timing                   <= 1'b0;
+            ram_read_wait_cycle                 <= 2'd0;
+            ram_write_wait_cycle                <= 2'd0;
         end
         else
         begin
@@ -536,31 +545,43 @@ module emu
             pclk_ff_1       <= peripheral_clock;
             pclk_ff_2       <= pclk_ff_1;
             pclk            <= pclk_ff_2;
-            cycle_accrate   <= ~(clk_select[1:0] == 2'b11); //~status[21];
             casez (clk_select)
                 2'b00: begin
                     clk_cpu_ff_1    <= clk_4_77;
                     clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
                     clock_cycle_counter_decrement_value <= 8'd1;
                     shift_read_timing                   <= 1'b0;
+                    ram_read_wait_cycle                 <= 2'd0;
+                    ram_write_wait_cycle                <= 2'd0;
+                    cycle_accrate                       <= 1'b1;
                 end
                 2'b01: begin
                     clk_cpu_ff_1    <= clk_7_16;
                     clock_cycle_counter_division_ratio  <= 8'd2 - 8'd1;
                     clock_cycle_counter_decrement_value <= 8'd3;
                     shift_read_timing                   <= 1'b0;
+                    ram_read_wait_cycle                 <= 2'd0;
+                    ram_write_wait_cycle                <= 2'd0;
+                    cycle_accrate                       <= 1'b1;
                 end
                 2'b10: begin
                     clk_cpu_ff_1    <= clk_9_54;
                     clock_cycle_counter_division_ratio  <= 8'd10 - 8'd1;
                     clock_cycle_counter_decrement_value <= 8'd21;
                     shift_read_timing                   <= 1'b0;
+                    ram_read_wait_cycle                 <= 2'd0;
+                    ram_write_wait_cycle                <= 2'd0;
+                    cycle_accrate                       <= 1'b1;
+
                 end
                 2'b11: begin
-                    clk_cpu_ff_1    <= clk_14_318;
+                    clk_cpu_ff_1    <= clk_25;
                     clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
-                    clock_cycle_counter_decrement_value <= 8'd3;
+                    clock_cycle_counter_decrement_value <= 8'd5;
                     shift_read_timing                   <= 1'b1;
+                    ram_read_wait_cycle                 <= 2'd1;
+                    ram_write_wait_cycle                <= 2'd0;
+                    cycle_accrate                       <= 1'b0;
                 end
             endcase
         end
@@ -1094,7 +1115,10 @@ module emu
 		.fdd_request                        (mgmt_req[7:6]),
 		.ide0_request                       (mgmt_req[2:0]),
 		.xtctl                              (xtctl),
-		.enable_a000h                       (a000h)
+		.enable_a000h                       (a000h),
+		.wait_count_clk_en                  (~clk_cpu & clk_cpu_ff_2),
+		.ram_read_wait_cycle                (ram_read_wait_cycle),
+		.ram_write_wait_cycle               (ram_write_wait_cycle)
 	);
 
     wire [15:0] SDRAM_DQ_IN;
