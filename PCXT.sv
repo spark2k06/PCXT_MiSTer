@@ -1058,6 +1058,7 @@ module emu
 	//  .terminal_count_n                   (terminal_count_n)
 		.port_b_out                         (port_b_out),
 		.port_c_in                          (port_c_in),
+		.port_b_in                          (port_b_out),
 		.speaker_out                        (speaker_out),
 		.ps2_clock                          (device_clock),
 		.ps2_data                           (device_data),
