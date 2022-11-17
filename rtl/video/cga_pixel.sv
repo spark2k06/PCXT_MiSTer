@@ -138,12 +138,16 @@ module cga_pixel(
     end
 
     // Look up character byte in our character ROM table
-    assign rom_addr = {char_byte, row_addr[2:0]};
+    assign rom_addr = {char_byte, row_addr[2:0]};    
+	 
     always @ (posedge clk)
     begin
         // Only load character bits at this point
         if (charrom_read) begin
-            charbits <= ((row_addr > 5'd7) && tandy_16_mode) ? 8'b0 : char_rom[{~thin_font, 11'b0} | rom_addr];
+            if ((row_addr > 5'd7))
+                charbits <= char_rom[{~thin_font, 11'b0} | {char_byte, 3'd7}];
+            else
+                charbits <= char_rom[{~thin_font, 11'b0} | rom_addr];
         end
     end
 
