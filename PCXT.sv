@@ -204,7 +204,7 @@ module emu
 	`include "build_id.v"
 
     localparam CONF_STR = {
-		"PCXT;;",
+		"PCXT;UART115200:115200;",
 		"S0,IMGIMAVFD,Floppy A:;",
 		"S1,IMGIMAVFD,Floppy B:;",
 		"OJK,Write Protect,None,A:,B:,A: & B:;",
