@@ -486,7 +486,6 @@ module emu
     //////////////////////////////////////////////////////////////////
 
     logic  biu_done;
-    logic  turbo_mode;
     logic  [7:0] clock_cycle_counter_division_ratio;
     logic  [7:0] clock_cycle_counter_decrement_value;
     logic        shift_read_timing;
@@ -499,20 +498,14 @@ module emu
     always @(posedge clk_chipset, posedge reset)
     begin
         if (reset)
-        begin
-            turbo_mode  <= 1'b0;
             clk_select  <= 2'b00;
-        end
+
         else if (biu_done)
-        begin
-            turbo_mode  <= xtctl[3:2] == 2'b00 ? (status[18:17] == 2'b01 || status[18:17] == 2'b10) : (xtctl[3:2] == 2'b10 || xtctl[3:2] == 2'b11);
-            clk_select  <= xtctl[3:2] == 2'b00 ? status[18:17] : xtctl[3:2] - 2'b01;
-        end
+            clk_select  <= (xtctl[3:2] == 2'b00 & ~xtctl[7]) ? status[18:17] : xtctl[7] ? 2'b11 : xtctl[3:2] - 2'b01;
+
         else
-        begin
-            turbo_mode  <= turbo_mode;
             clk_select  <= clk_select;
-        end
+
     end
 
     logic  clk_cpu_ff_1;
@@ -1003,7 +996,7 @@ module emu
 		.cpu_clock                          (clk_cpu),
 		.clk_sys                            (clk_chipset),
 		.peripheral_clock                   (pclk),
-		.turbo_mode                         (xtctl[3:2] == 2'b00 ? status[18:17] : xtctl[3:2] - 2'b01),
+		.clk_select                         (clk_select),
 		.reset                              (reset_cpu),
 		.sdram_reset                        (reset_sdram),
 		.cpu_address                        (cpu_address),

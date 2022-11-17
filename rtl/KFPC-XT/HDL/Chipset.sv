@@ -7,7 +7,7 @@ module CHIPSET (
         input   logic           cpu_clock,
         input   logic           clk_sys,
         input   logic           peripheral_clock,
-        input   logic   [1:0]   turbo_mode,
+        input   logic   [1:0]   clk_select,
         input   logic           reset,
         input   logic           sdram_reset,
         // CPU
@@ -262,7 +262,7 @@ module CHIPSET (
         .cpu_clock                          (cpu_clock),
         .clk_uart                           (clk_uart),
         .peripheral_clock                   (peripheral_clock),
-        .turbo_mode                         (turbo_mode),
+        .clk_select                         (clk_select),
         .reset                              (reset),
         .interrupt_to_cpu                   (interrupt_to_cpu),
         .interrupt_acknowledge_n            (interrupt_acknowledge_n),

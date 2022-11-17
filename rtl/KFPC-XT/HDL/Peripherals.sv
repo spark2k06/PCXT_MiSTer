@@ -9,7 +9,7 @@ module PERIPHERALS #(
         input   logic           clk_sys,
         input   logic           cpu_clock,
         input   logic           peripheral_clock,
-        input   logic   [1:0]   turbo_mode,
+        input   logic   [1:0]   clk_select,
         input   logic           reset,
         // CPU
         output  logic           interrupt_to_cpu,
@@ -1236,7 +1236,7 @@ module PERIPHERALS #(
         .clk                       (clock),
         .reset                     (reset),
         .en                        (joystick_select && ~io_write_n),
-        .turbo_mode                (turbo_mode),
+        .clk_select                (clk_select),
         .joy_opts                  (joy_opts),
         .joy0                      (joy0),
         .joy1                      (joy1),

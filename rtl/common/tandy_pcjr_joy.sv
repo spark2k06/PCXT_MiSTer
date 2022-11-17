@@ -6,7 +6,7 @@ module tandy_pcjr_joy
     input   logic           clk,            //50Mhz  Anything else and the pulse_div values must be adjusted
     input   logic           reset,
     input   logic           en,             //Active High.  Triggers reading of joystics and generates pulse
-    input   logic   [1:0]   turbo_mode,     //0 - 4.77Mhz   1 - 7.16Mhz   2 - 9.54Mhz   3 - PC/AT 286 3.5MHz
+    input   logic   [1:0]   clk_select,     //0 - 4.77Mhz   1 - 7.16Mhz   2 - 9.54Mhz   3 - PC/AT 286 3.5MHz
 	 input   logic   [4:0]   joy_opts,       //bits: 4 - Adjust timing for Turbo, 3 - Disable P2, 2 - P2 Analog/Digital, 1 - Disable P1, 0 - P1 Analog/Digital
     input   logic   [13:0]  joy0,
     input   logic   [13:0]  joy1,
@@ -24,7 +24,7 @@ module tandy_pcjr_joy
     logic [9:0] joy0_y;
     logic [9:0] joy1_y;
     logic [8:0] counter;                    //Clock cycle counter
-    logic [8:0] pulse_div;                  //# of clock cycles in each pulse segment according to cpu freq and turbo_mode.
+    logic [8:0] pulse_div;                  //# of clock cycles in each pulse segment according to cpu freq and clk_select.
                                             // 4.77Mhz ~ 265,  7.16Mhz ~ 200,  9.54Mhz ~ 170 and PC/AT 286 3.5MHz ~ 90.
                                             // These values may need some tweaking to keep joysticks centered.
                                             // The Frogger games has a decent joystick calibration test
@@ -35,7 +35,7 @@ module tandy_pcjr_joy
     assign joy1_y = joy_opts[2] ? (joy1[2] ? 8'hFF : joy1[3] ? 8'h00 : 8'h80 ) : 8'd128 + joya1[15:8];
 
 
-    assign pulse_div = joy_opts[4] ? (turbo_mode == 1 ? 9'd200 : turbo_mode == 2 ? 9'd170 : turbo_mode == 3 ? 9'd90 : 9'd265) : 9'd265;
+    assign pulse_div = joy_opts[4] ? (clk_select == 1 ? 9'd200 : clk_select == 2 ? 9'd170 : clk_select == 3 ? 9'd90 : 9'd265) : 9'd265;
 
     always @(posedge clk) begin
         reg en_d;
