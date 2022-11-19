@@ -1073,6 +1073,7 @@ module emu
 		.tandy_video                        (tandy_mode),
 		.tandy_bios_flag                    (tandy_bios_flag),
 		.tandy_16_gfx                       (tandy_16_gfx),
+		.tandy_color_16                     (tandy_color_16),
 		.clk_uart                           (clk_uart2_en),
 		.uart2_rx                           (uart_rx),
 		.uart2_tx                           (uart_tx),
@@ -1359,11 +1360,27 @@ module emu
     reg [14:0] HBlank_del;
     wire tandy_16_gfx;
     wire color = (screen_mode_video_ff == 3'd0);
-    wire HBlank_VGA = mda_mode_video_ff ? HBlank_del[color ? 12 : 13] : tandy_16_gfx ? HBlank_del[color ? 9 : 11] : HBlank_del[color ? 5 : 7];
+    
+	 wire HBlank_VGA;
 
     reg [10:0] HBlank_counter = 0;
     reg HBlank_fixed = 1'b1;
     reg [1:0] HSync_del = 1'b11;
+
+    always_comb
+    begin
+        if (mda_mode_video_ff)
+            
+				HBlank_VGA = HBlank_del[color ? 12 : 13];
+
+        else if (tandy_color_16)
+            HBlank_VGA = HBlank_del[color ? 11 : 13];
+				
+        else if (tandy_16_gfx)
+            HBlank_VGA = HBlank_del[color ? 9 : 11];
+
+        else HBlank_VGA = HBlank_del[color ? 5 : 7];
+    end
 
     always @ (posedge ce_pixel_cga)
     begin

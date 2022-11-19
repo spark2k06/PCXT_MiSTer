@@ -44,7 +44,8 @@ module cga(
     input thin_font,
     input tandy_video,     
     output grph_mode,
-    output hres_mode
+    output hres_mode,
+    output tandy_color_16
     );
 
     parameter MDA_70HZ = 0;
@@ -85,7 +86,6 @@ module cga(
 	 
 	 wire tandy_border_en;
 	 wire tandy_color_4;
-	 wire tandy_color_16;
 
     wire hsync_int;
     wire vsync_l;
@@ -324,7 +324,8 @@ module cga(
         .isa_op_enable(isa_op_enable),
         .hclk(hclk),
         .lclk(lclk),
-        .tandy_16_gfx(tandy_16_mode & grph_mode & hres_mode)
+        .tandy_16_gfx(tandy_16_mode & grph_mode & hres_mode),
+		  .tandy_color_16(tandy_color_16)
     );
 
     // Pixel pusher

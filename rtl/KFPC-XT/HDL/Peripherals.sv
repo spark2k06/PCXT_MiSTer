@@ -80,6 +80,7 @@ module PERIPHERALS #(
         output  logic   [10:0]  tandy_snd_e,
         output  logic           tandy_snd_rdy,
         output  logic           tandy_16_gfx,
+        output  logic           tandy_color_16,
         // UART
         input   logic           clk_uart,
         input   logic           uart2_rx,
@@ -920,7 +921,8 @@ module PERIPHERALS #(
         .thin_font                  (thin_font),
         .tandy_video                (tandy_video),
         .grph_mode                  (grph_mode),
-        .hres_mode                  (hres_mode)
+        .hres_mode                  (hres_mode),
+		  .tandy_color_16             (tandy_color_16)
     );
 
     always_ff @(posedge clock)

@@ -97,6 +97,7 @@ module CHIPSET (
         input   logic           tandy_bios_flag,
         output  logic   [10:0]  tandy_snd_e,
         output  logic           tandy_16_gfx,
+        output  logic           tandy_color_16,
         // UART
         input   logic           clk_uart,
         input   logic           uart2_rx,
@@ -325,6 +326,7 @@ module CHIPSET (
         .tandy_snd_e                        (tandy_snd_e),
         .tandy_snd_rdy                      (tandy_snd_rdy),
         .tandy_16_gfx                       (tandy_16_gfx),
+		  .tandy_color_16                     (tandy_color_16),
         .uart2_rx                           (uart2_rx),
         .uart2_tx                           (uart2_tx),
         .uart2_cts_n                        (uart2_cts_n),
