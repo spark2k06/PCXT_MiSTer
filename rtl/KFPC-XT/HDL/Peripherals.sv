@@ -35,6 +35,7 @@ module PERIPHERALS #(
         output  logic           VGA_VSYNC,
         output  logic           VGA_HBlank,
         output  logic           VGA_VBlank,
+        output  logic           VGA_VBlank_border,
         // I/O Ports
         input   logic   [19:0]  address,
         output  logic   [19:0]  latch_address,
@@ -914,6 +915,7 @@ module PERIPHERALS #(
         .hblank                     (HBLANK_CGA),
         .vsync                      (VSYNC_CGA),
         .vblank                     (VBLANK_CGA),
+        .vblank_border              (VGA_VBlank_border),
         .de_o                       (de_o_cga),
         .video                      (video_cga),              // non scandoubled
     //  .dbl_video                  (video_cga),              // scandoubled

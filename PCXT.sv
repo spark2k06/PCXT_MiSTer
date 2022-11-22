@@ -315,6 +315,8 @@ module emu
     reg         mda_mode_video_ff;
     reg [2:0]   screen_mode_video_ff;
     reg         border_video_ff;
+	 
+    wire VGA_VBlank_border;
 
     always @(posedge CLK_VIDEO)
     begin
@@ -1020,8 +1022,9 @@ module emu
 		.VGA_B                              (b),
 		.VGA_HSYNC                          (HSync),
 		.VGA_VSYNC                          (VSync),
-		.VGA_HBlank	  				        (HBlank),
-		.VGA_VBlank							(VBlank),
+		.VGA_HBlank                         (HBlank),
+		.VGA_VBlank                         (VBlank),
+		.VGA_VBlank_border                  (VGA_VBlank_border),
 	//	.address                            (address),
 		.address_ext                        (bios_access_address),
 		.ext_access_request                 (bios_access_request),
@@ -1394,7 +1397,7 @@ module emu
         end
         else
         begin
-            if (HBlank_counter == 143)
+            if (HBlank_counter == 120)
                 HBlank_fixed <= 1'b0;
             else
                 HBlank_counter <= HBlank_counter + 1;
@@ -1460,7 +1463,7 @@ module emu
 		.B(baux_cga),
 
 		.HBlank(border_video_ff ? HBlank_fixed : HBlank_VGA),
-		.VBlank(border_video_ff ? ~VSync : VBlank),
+		.VBlank(border_video_ff ? VGA_VBlank_border : VBlank),
 		.HSync(HSync),
 		.VSync(VSync),
 
