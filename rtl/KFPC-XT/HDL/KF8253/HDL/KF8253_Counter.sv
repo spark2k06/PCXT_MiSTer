@@ -53,6 +53,8 @@ module KF8253_Counter (
 
     logic           start_counting;
 
+    logic           first_count_edge;
+
     logic   [16:0]  count_next;
     logic           count_period;
     logic           prev_count_period;
@@ -285,6 +287,18 @@ module KF8253_Counter (
             start_counting <= start_counting;
     end
 
+    // First counte edge signal
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            first_count_edge    <= 1'b0;
+        else if (start_counting==1'b0)
+            first_count_edge    <= 1'b1;
+        else if (count_edge == 1'b1)
+            first_count_edge    <= 1'b0;
+        else
+            first_count_edge    <= first_count_edge;
+    end
+
     // Decrement counter
     function logic [16:0] decrement (input [16:0] count, input is_bcd);
         if (count == 17'b0_0000_0000_0000_0000)
@@ -372,7 +386,7 @@ module KF8253_Counter (
                     count_next = count;
 
                 if (count_next == 17'b0_0000_0000_0000_0000) begin
-                    count_period = 1'b1;
+                    count_period = 1'b1 & ~first_count_edge;
                     count_next = count_preset_load;
                 end
 
