@@ -1,6 +1,8 @@
 //
-// KFPC-XT Peripherals
-// Written by kitune-san
+// MiSTer PCXT RAM
+// Ported by @spark2k06
+//
+// Based on KFPC-XT written by @kitune-san
 //
 module RAM (
     input   logic           clock,
