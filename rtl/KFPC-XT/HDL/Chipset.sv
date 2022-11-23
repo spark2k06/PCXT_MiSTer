@@ -1,6 +1,8 @@
 //
-// KFPC-XT Chipset
-// Written by kitune-san
+// MiSTer PCXT Chipset
+// Ported by @spark2k06
+//
+// Based on KFPC-XT written by @kitune-san
 //
 module CHIPSET (
         input   logic           clock,

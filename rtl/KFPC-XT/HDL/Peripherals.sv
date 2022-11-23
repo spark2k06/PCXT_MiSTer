@@ -1,6 +1,8 @@
 //
-// KFPC-XT Peripherals
-// Written by kitune-san
+// MiSTer PCXT Peripherals
+// Ported by @spark2k06
+//
+// Based on KFPC-XT written by @kitune-san
 //
 module PERIPHERALS #(
         parameter ps2_over_time = 16'd1000
