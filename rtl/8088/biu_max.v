@@ -88,7 +88,10 @@ module biu_max
     output [15:0]       BIU_REGISTER_REG,
     output [15:0]       BIU_RETURN_DATA,
     
-    input               turbo_mode
+    // Turbo mode
+    input  [7:0]        clock_cycle_counter_division_ratio,
+    input  [7:0]        clock_cycle_counter_decrement_value,
+    input               shift_read_timing
 
   );
 
@@ -149,6 +152,7 @@ reg  [15:0] biu_return_data_int;
 reg  [15:0] biu_return_data_int_d1;
 reg  [15:0] biu_return_data_int_d2;
 reg  [12:0] clock_cycle_counter;
+reg  [7:0]  clock_cycle_counter_div;
 reg  [15:0] eu_register_r3_d;
 reg  [7:0]  latched_data_in;
 reg  [15:0] pfq_addr_out;
@@ -418,11 +422,21 @@ else
     // Strobe from EU to set the 8088 clock cycle counter
     if (eu_biu_strobe==2'b10)
       begin
+        clock_cycle_counter_div <= clock_cycle_counter_division_ratio;
         clock_cycle_counter <= EU_BIU_DATAOUT[12:0];
       end
-    else if (clock_cycle_counter!=13'h0000)
+    else if (8'h00 != clock_cycle_counter_div)
       begin
-        clock_cycle_counter <= clock_cycle_counter - 1;
+        clock_cycle_counter_div <= clock_cycle_counter_div - 1;
+      end
+    else
+      begin
+        clock_cycle_counter_div <= clock_cycle_counter_division_ratio;
+        if (clock_cycle_counter != 13'h0000)
+          if (clock_cycle_counter > clock_cycle_counter_decrement_value)
+            clock_cycle_counter <= clock_cycle_counter - clock_cycle_counter_decrement_value;
+          else
+            clock_cycle_counter <= 0;
       end
         
 
@@ -711,7 +725,7 @@ else
               
       //  On the next CLK edge, sample the data.
       8'h06 : begin
-                if ((~turbo_mode & clk_posedge) || (turbo_mode & clk_negedge))
+                if ((~shift_read_timing & clk_posedge) || (shift_read_timing & clk_negedge))
                   begin
                     latched_data_in <= ad_in_int;
                     
@@ -750,7 +764,7 @@ else
 
       //  The cycle is complete.
       8'h0A : begin 
-                if (turbo_mode | clk_negedge)
+                if (shift_read_timing | clk_negedge)
                   begin
                     addr_out_temp_offset[15:0] <=  addr_out_temp_offset[15:0] + 1;
                     if (word_cycle==1'b1 && byte_num==1'b0)

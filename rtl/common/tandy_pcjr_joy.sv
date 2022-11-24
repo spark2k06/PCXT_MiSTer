@@ -6,10 +6,10 @@ module tandy_pcjr_joy
     input   logic           clk,            //50Mhz  Anything else and the pulse_div values must be adjusted
     input   logic           reset,
     input   logic           en,             //Active High.  Triggers reading of joystics and generates pulse
-    input   logic   [1:0]   turbo_mode,     //0 - 4.77Mhz   1 - 7.16Mhz   2 - 14.38Mhz
+    input   logic   [1:0]   clk_select,     //0 - 4.77Mhz   1 - 7.16Mhz   2 - 9.54Mhz   3 - PC/AT 286 3.5MHz
 	 input   logic   [4:0]   joy_opts,       //bits: 4 - Adjust timing for Turbo, 3 - Disable P2, 2 - P2 Analog/Digital, 1 - Disable P1, 0 - P1 Analog/Digital
-    input   logic   [31:0]  joy0,
-    input   logic   [31:0]  joy1,
+    input   logic   [13:0]  joy0,
+    input   logic   [13:0]  joy1,
     input   logic   [15:0]  joya0,
     input   logic   [15:0]  joya1,
     output  logic   [7:0]   d_out           //Format Bit 7 down to 0: P2Btn2, P2Btn1, P1Btn2, P1Btn1, P2-Y_Axis, P2-X_Axis, P1-Y_Axis, P1-X_Axis
@@ -23,9 +23,9 @@ module tandy_pcjr_joy
     logic [9:0] joy1_x;
     logic [9:0] joy0_y;
     logic [9:0] joy1_y;
-    logic [7:0] counter;                    //Clock cycle counter
-    logic [7:0] pulse_div;                  //# of clock cycles in each pulse segment according to cpu freq (turbo_mode).
-                                            // 4.77Mhz ~ 220,  7.16Mhz ~ 106   and 14.38Mhz ~ 70.
+    logic [8:0] counter;                    //Clock cycle counter
+    logic [8:0] pulse_div;                  //# of clock cycles in each pulse segment according to cpu freq and clk_select.
+                                            // 4.77Mhz ~ 265,  7.16Mhz ~ 200,  9.54Mhz ~ 170 and PC/AT 286 3.5MHz ~ 90.
                                             // These values may need some tweaking to keep joysticks centered.
                                             // The Frogger games has a decent joystick calibration test
                                             
@@ -35,27 +35,27 @@ module tandy_pcjr_joy
     assign joy1_y = joy_opts[2] ? (joy1[2] ? 8'hFF : joy1[3] ? 8'h00 : 8'h80 ) : 8'd128 + joya1[15:8];
 
 
-    assign pulse_div = joy_opts[4] ? (turbo_mode == 1 ? 8'd106 : turbo_mode == 2 ? 8'd70 : 8'd220) : 8'd220;
+    assign pulse_div = joy_opts[4] ? (clk_select == 1 ? 9'd200 : clk_select == 2 ? 9'd170 : clk_select == 3 ? 9'd90 : 9'd265) : 9'd265;
 
     always @(posedge clk) begin
         reg en_d;
         en_d <= en;
         if(reset) begin
-            counter <= 8'h0;
+            counter <= 9'h0;
         end
         else if (en && ~en_d) begin
             joy0_x_r <= joy0_x[7:0] < 8'h70 || joy0_x[7:0] > 8'h90 ? joy0_x[7:0] : 8'h80;
             joy1_x_r <= joy1_x[7:0] < 8'h70 || joy1_x[7:0] > 8'h90 ? joy1_x[7:0] : 8'h80;
             joy0_y_r <= joy0_y[7:0] < 8'h70 || joy0_y[7:0] > 8'h90 ? joy0_y[7:0] : 8'h80;
             joy1_y_r <= joy1_y[7:0] < 8'h70 || joy1_y[7:0] > 8'h90 ? joy1_y[7:0] : 8'h80;
-            counter <= 8'h0;
+            counter <= 9'h0;
         end
-        else if(counter == pulse_div) begin // 8 (185) - 4.77  4 (106) - 7.16 (70) - 14.318
+        else if(counter == pulse_div) begin
             if(joy0_x_r != 0) joy0_x_r <= joy0_x_r - 1'b1;
             if(joy1_x_r != 0) joy1_x_r <= joy1_x_r - 1'b1;
             if(joy0_y_r != 0) joy0_y_r <= joy0_y_r - 1'b1;
             if(joy1_y_r != 0) joy1_y_r <= joy1_y_r - 1'b1;
-            counter <= 8'h0;
+            counter <= 9'h0;
         end
         else counter <= counter + 1'b1;
     end

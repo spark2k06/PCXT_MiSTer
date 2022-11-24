@@ -1,6 +1,8 @@
 //
-// KFPC-XT Peripherals
-// Written by kitune-san
+// MiSTer PCXT RAM
+// Ported by @spark2k06
+//
+// Based on KFPC-XT written by @kitune-san
 //
 module RAM (
     input   logic           clock,
@@ -38,8 +40,12 @@ module RAM (
      // BIOS
      input  logic    [1:0]  bios_protect_flag,
      input  logic           tandy_bios_flag,
-	  // Optional flags
-	  input  logic           enable_a000h
+    // Optional flags
+    input  logic           enable_a000h,
+    // Wait mode
+    input   logic           wait_count_clk_en,
+    input   logic   [1:0]   ram_read_wait_cycle,
+    input   logic   [1:0]   ram_write_wait_cycle
 );
 
     typedef enum {IDLE, RAM_WRITE_1, RAM_WRITE_2, RAM_READ_1, RAM_READ_2, COMPLETE_RAM_RW, WAIT} state_t;
@@ -54,6 +60,8 @@ module RAM (
     logic           enable_refresh;
     logic           write_protect;
 
+    logic   [1:0]   read_wait_count;
+    logic   [1:0]   write_wait_count;
     logic           access_ready;
 
     //
@@ -327,7 +335,30 @@ module RAM (
             access_ready <= access_ready;
     end
 
-    assign  memory_access_ready = ((~ram_address_select_n) && ((~memory_read_n) || (~memory_write_n))) ? access_ready : 1'b1;
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            read_wait_count     <= 0;
+        else if (~read_command)
+            read_wait_count     <= ram_read_wait_cycle;
+        else if ((wait_count_clk_en) && (read_wait_count != 0))
+            read_wait_count     <= read_wait_count - 1;
+        else
+            read_wait_count     <= read_wait_count;
+    end
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            write_wait_count    <= 0;
+        else if (~write_command)
+            write_wait_count    <= ram_write_wait_cycle;
+        else if ((wait_count_clk_en) && (write_wait_count != 0))
+            write_wait_count    <= write_wait_count - 1;
+        else
+            write_wait_count    <= write_wait_count;
+    end
+
+    assign  memory_access_ready = ((~ram_address_select_n) && ((~memory_read_n) || (~memory_write_n)))
+                                        ? (access_ready & ((read_wait_count==0) || (~read_command)) & ((write_wait_count==0) || (~write_command))) : 1'b1;
 
 endmodule
 
