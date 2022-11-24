@@ -201,28 +201,22 @@ module emu
     // 01234567890123456789012345678901 23456789012345678901234567890123
     // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
     // XXXXX XXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXX
-
-    wire [1:0] ar = status[9:8];
-    assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
-    assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
-
 	`include "build_id.v"
 
     localparam CONF_STR = {
-		"PCXT;;",
+		"PCXT;UART115200:115200;",
 		"S0,IMGIMAVFD,Floppy A:;",
 		"S1,IMGIMAVFD,Floppy B:;",
 		"OJK,Write Protect,None,A:,B:,A: & B:;",
 		"-;",
-		"S2,IMG,HDD Image:;",
+		"S2,VHD,IDE 0-0;",
+		"S3,VHD,IDE 0-1;",
 		"-;",
-		"OHI,CPU Speed,4.77MHz,7.16MHz,14.318MHz;",
+		"OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,PC/AT 3.5MHz;",
 		"-;",
 		"P1,System & BIOS;",
 		"P1-;",
 		"P1O3,Model,IBM PCXT,Tandy 1000;",
-		"P1-;",
-		"P1OLM,HDD COM Speed,115200,230400,460800,921600;",
 		"P1-;",
 		"P1O7,Boot Splash Screen,Yes,No;",
 		"P1-;",
@@ -235,7 +229,9 @@ module emu
 		"P1-;",	
 		"P2,Audio & Video;",
 		"P2-;",
-		"P2OA,Adlib,On,Invisible;",
+		//"P2OA,Adlib,On,Invisible;", // status[10] is available, remove this line when used
+		"P2OA,C/MS Audio,Enabled,Disabled;",
+		"P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;",
 		"P2o01,Speaker Volume,1,2,3,4;",
 		"P2o23,Tandy Volume,1,2,3,4;",
 		"P2o45,Audio Boost,No,2x,4x;",
@@ -262,7 +258,7 @@ module emu
 		"P3-;",	
 		"-;",
 		"R0,Reset & apply settings;",
-		"J,Fire 1, Fire 2;",
+		"J,Fire 1,Fire 2;",
 		"V,v",`BUILD_DATE
 	};
 
@@ -303,9 +299,8 @@ module emu
     reg         ioctl_wait;
 
     wire [21:0] gamma_bus;
-    wire        adlibhide = status[10] | xtctl[4];
 
-    wire [31:0] joy0, joy1;
+    wire [13:0] joy0, joy1;
     wire [15:0] joya0, joya1;
     wire [4:0]  joy_opts = status[27:23];
 
@@ -313,9 +308,26 @@ module emu
     wire [1:0] scale = status[2:1];
     wire mda_mode = status[4] | xtctl[5];
     wire [2:0] screen_mode = status[16:14];
+    wire [1:0] ar = status[9:8];
     wire border = status[29] | xtctl[1];
 	 wire a000h = ~status[41] & ~xtctl[6];
 
+    reg [1:0]   scale_video_ff;
+    reg         mda_mode_video_ff;
+    reg [2:0]   screen_mode_video_ff;
+    reg         border_video_ff;
+	 
+    wire VGA_VBlank_border;
+
+    always @(posedge CLK_VIDEO)
+    begin
+        scale_video_ff          <= scale;
+        mda_mode_video_ff       <= mda_mode;
+        screen_mode_video_ff    <= screen_mode;
+        border_video_ff         <= border;
+        VIDEO_ARX               <= (!ar) ? 12'd4 : (ar - 1'd1);
+        VIDEO_ARY               <= (!ar) ? 12'd3 : 12'd0;
+    end
 
     hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io 
 	(
@@ -373,7 +385,7 @@ module emu
     wire        mgmt_rd;
     wire        mgmt_wr;
     wire  [7:0] mgmt_req;
-    assign mgmt_req[5:0] = 6'b000000;
+    assign mgmt_req[5:3] = 3'b000;
 
     wire [35:0] EXT_BUS;
     hps_ext hps_ext  
@@ -402,7 +414,9 @@ module emu
     wire clk_28_636;
     wire clk_56_875;
     wire clk_113_750;
+    reg clk_25 = 1'b0;
     reg clk_14_318 = 1'b0;
+    reg clk_9_54 = 1'b0;
     reg clk_7_16 = 1'b0;
     wire clk_4_77;
     wire clk_cpu;
@@ -440,6 +454,23 @@ module emu
         ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
     end
 
+    reg [4:0] clk_9_54_cnt = 1'b0;
+    always @(posedge clk_chipset)
+        if (4'd0 == clk_9_54_cnt) begin
+            if (clk_9_54)
+                clk_9_54_cnt  <= 4'd3 - 4'd1;
+            else
+                clk_9_54_cnt  <= 4'd2 - 4'd1;
+            clk_9_54      <= ~clk_9_54;
+        end
+        else begin
+            clk_9_54_cnt  <= clk_9_54_cnt - 4'd1;
+            clk_9_54      <= clk_9_54;
+        end
+
+    always @(posedge clk_chipset)
+        clk_25 <= ~clk_25;
+
     always @(posedge clk_14_318)
         clk_7_16 <= ~clk_7_16;      // 7.16Mhz
 
@@ -458,26 +489,26 @@ module emu
     //////////////////////////////////////////////////////////////////
 
     logic  biu_done;
-    logic  turbo_mode;
+    logic  [7:0] clock_cycle_counter_division_ratio;
+    logic  [7:0] clock_cycle_counter_decrement_value;
+    logic        shift_read_timing;
+    logic  [1:0] ram_read_wait_cycle;
+    logic  [1:0] ram_write_wait_cycle;
+    logic        cycle_accrate;
     logic  [1:0] clk_select;
+
 
     always @(posedge clk_chipset, posedge reset)
     begin
         if (reset)
-        begin
-            turbo_mode  <= 1'b0;
             clk_select  <= 2'b00;
-        end
+
         else if (biu_done)
-        begin
-            turbo_mode  <= xtctl[3:2] == 2'b00 ? (status[18:17] == 2'b01 || status[18:17] == 2'b10) : (xtctl[3:2] == 2'b10 || xtctl[3:2] == 2'b11);
-            clk_select  <= xtctl[3:2] == 2'b00 ? status[18:17] : xtctl[3:2] - 2'b01;
-        end
+            clk_select  <= (xtctl[3:2] == 2'b00 & ~xtctl[7]) ? status[18:17] : xtctl[7] ? 2'b11 : xtctl[3:2] - 2'b01;
+
         else
-        begin
-            turbo_mode  <= turbo_mode;
             clk_select  <= clk_select;
-        end
+
     end
 
     logic  clk_cpu_ff_1;
@@ -490,21 +521,65 @@ module emu
     begin
         if (reset)
         begin
-            clk_cpu_ff_1 <= 1'b0;
-            clk_cpu_ff_2 <= 1'b0;
-            clk_cpu      <= 1'b0;
-            pclk_ff_1    <= 1'b0;
-            pclk_ff_2    <= 1'b0;
-            pclk         <= 1'b0;
+            clk_cpu_ff_1    <= 1'b0;
+            clk_cpu_ff_2    <= 1'b0;
+            clk_cpu         <= 1'b0;
+            pclk_ff_1       <= 1'b0;
+            pclk_ff_2       <= 1'b0;
+            pclk            <= 1'b0;
+            cycle_accrate   <= 1'b1;
+            clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
+            clock_cycle_counter_decrement_value <= 8'd1;
+            shift_read_timing                   <= 1'b0;
+            ram_read_wait_cycle                 <= 2'd0;
+            ram_write_wait_cycle                <= 2'd0;
         end
         else
         begin
-            clk_cpu_ff_1 <= (clk_select == 2'b10) ? clk_14_318 : (clk_select == 2'b01) ? clk_7_16 : clk_4_77;
-            clk_cpu_ff_2 <= clk_cpu_ff_1;
-            clk_cpu      <= clk_cpu_ff_2;
-            pclk_ff_1    <= peripheral_clock;
-            pclk_ff_2    <= pclk_ff_1;
-            pclk         <= pclk_ff_2;
+            clk_cpu_ff_2    <= clk_cpu_ff_1;
+            clk_cpu         <= clk_cpu_ff_2;
+            pclk_ff_1       <= peripheral_clock;
+            pclk_ff_2       <= pclk_ff_1;
+            pclk            <= pclk_ff_2;
+            casez (clk_select)
+                2'b00: begin
+                    clk_cpu_ff_1    <= clk_4_77;
+                    clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
+                    clock_cycle_counter_decrement_value <= 8'd1;
+                    shift_read_timing                   <= 1'b0;
+                    ram_read_wait_cycle                 <= 2'd0;
+                    ram_write_wait_cycle                <= 2'd0;
+                    cycle_accrate                       <= 1'b1;
+                end
+                2'b01: begin
+                    clk_cpu_ff_1    <= clk_7_16;
+                    clock_cycle_counter_division_ratio  <= 8'd2 - 8'd1;
+                    clock_cycle_counter_decrement_value <= 8'd3;
+                    shift_read_timing                   <= 1'b0;
+                    ram_read_wait_cycle                 <= 2'd0;
+                    ram_write_wait_cycle                <= 2'd0;
+                    cycle_accrate                       <= 1'b1;
+                end
+                2'b10: begin
+                    clk_cpu_ff_1    <= clk_9_54;
+                    clock_cycle_counter_division_ratio  <= 8'd10 - 8'd1;
+                    clock_cycle_counter_decrement_value <= 8'd21;
+                    shift_read_timing                   <= 1'b0;
+                    ram_read_wait_cycle                 <= 2'd0;
+                    ram_write_wait_cycle                <= 2'd0;
+                    cycle_accrate                       <= 1'b1;
+
+                end
+                2'b11: begin
+                    clk_cpu_ff_1    <= clk_25;
+                    clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
+                    clock_cycle_counter_decrement_value <= 8'd5;
+                    shift_read_timing                   <= 1'b1;
+                    ram_read_wait_cycle                 <= 2'd1;
+                    ram_write_wait_cycle                <= 2'd0;
+                    cycle_accrate                       <= 1'b0;
+                end
+            endcase
         end
     end
 
@@ -818,16 +893,18 @@ module emu
     //
     // Splash screen
     //
+    reg splash_off;
     reg [24:0] splash_cnt = 0;
     reg [3:0] splash_cnt2 = 0;
     reg splashscreen = 1;
 
     always @ (posedge clk_14_318)
     begin
+        splash_off <= status[7];
 
         if (splashscreen)
         begin
-            if (status[7])
+            if (splash_off)
                 splashscreen <= 0;
             else if(splash_cnt2 == 5) // 5 seconds delay
                 splashscreen <= 0;
@@ -908,7 +985,7 @@ module emu
 
     wire tandy_bios_flag = bios_write_n ? tandy_mode : tandy_bios_write;
 
-    always @(posedge clk_100)
+    always @(posedge clk_chipset)
     begin
         if (address_latch_enable)
             cpu_address <= cpu_ad_out;
@@ -922,7 +999,7 @@ module emu
 		.cpu_clock                          (clk_cpu),
 		.clk_sys                            (clk_chipset),
 		.peripheral_clock                   (pclk),
-		.turbo_mode                         (xtctl[3:2] == 2'b00 ? status[18:17] : xtctl[3:2] - 2'b01),
+		.clk_select                         (clk_select),
 		.reset                              (reset_cpu),
 		.sdram_reset                        (reset_sdram),
 		.cpu_address                        (cpu_address),
@@ -934,7 +1011,7 @@ module emu
 		.interrupt_to_cpu                   (interrupt_to_cpu),
 		.splashscreen                       (splashscreen),
 		.composite                          (composite),
-		.video_output                       (mda_mode),
+		.video_output                       (mda_mode_video_ff),
 		.clk_vga_cga                        (clk_28_636),
 		.enable_cga                         (1'b1),
 		.clk_vga_mda                        (clk_56_875),
@@ -946,8 +1023,9 @@ module emu
 		.VGA_B                              (b),
 		.VGA_HSYNC                          (HSync),
 		.VGA_VSYNC                          (VSync),
-		.VGA_HBlank	  				        (HBlank),
-		.VGA_VBlank							(VBlank),
+		.VGA_HBlank                         (HBlank),
+		.VGA_VBlank                         (VBlank),
+		.VGA_VBlank_border                  (VGA_VBlank_border),
 	//	.address                            (address),
 		.address_ext                        (bios_access_address),
 		.ext_access_request                 (bios_access_request),
@@ -977,6 +1055,7 @@ module emu
 	//  .terminal_count_n                   (terminal_count_n)
 		.port_b_out                         (port_b_out),
 		.port_c_in                          (port_c_in),
+		.port_b_in                          (port_b_out),
 		.speaker_out                        (speaker_out),
 		.ps2_clock                          (device_clock),
 		.ps2_data                           (device_data),
@@ -994,19 +1073,22 @@ module emu
 		.clk_en_opl2                        (cen_opl2),           // clk_en_opl2
 		.jtopl2_snd_e                       (jtopl2_snd_e),
 		.tandy_snd_e                        (tandy_snd_e),
-		.adlibhide                          (adlibhide),
+		.opl2_io                            (xtctl[4] ? 2'b10 : status[43:42]),
+		.cms_en                             (~status[10]),
+		.o_cms_l                            (cms_l_snd_e),
+		.o_cms_r                            (cms_r_snd_e),
 		.tandy_video                        (tandy_mode),
 		.tandy_bios_flag                    (tandy_bios_flag),
 		.tandy_16_gfx                       (tandy_16_gfx),
-		.clk_uart                           ((status[22:21] == 2'b00) ? clk_uart : clk_uart_en),
-		.clk_uart2                          (clk_uart2_en),
-		.uart_rx                            (uart_rx),
-		.uart_tx                            (uart_tx),
-		.uart_cts_n                         (uart_cts),
-		.uart_dcd_n                         (uart_dcd),
-		.uart_dsr_n                         (uart_dsr),
-		.uart_rts_n                         (uart_rts),
-		.uart_dtr_n                         (uart_dtr),
+		.tandy_color_16                     (tandy_color_16),
+		.clk_uart                           (clk_uart2_en),
+		.uart2_rx                           (uart_rx),
+		.uart2_tx                           (uart_tx),
+		.uart2_cts_n                        (uart_cts),
+		.uart2_dcd_n                        (uart_dcd),
+		.uart2_dsr_n                        (uart_dsr),
+		.uart2_rts_n                        (uart_rts),
+		.uart2_dtr_n                        (uart_dtr),
 		.enable_sdram                       (1'b1),
 		.initilized_sdram                   (initilized_sdram),
 		.sdram_clock                        (SDRAM_CLK),
@@ -1033,8 +1115,12 @@ module emu
 		.clock_rate                         (cur_rate),
 		.floppy_wp                          (status[20:19]),
 		.fdd_request                        (mgmt_req[7:6]),
+		.ide0_request                       (mgmt_req[2:0]),
 		.xtctl                              (xtctl),
-		.enable_a000h                       (a000h)
+		.enable_a000h                       (a000h),
+		.wait_count_clk_en                  (~clk_cpu & clk_cpu_ff_2),
+		.ram_read_wait_cycle                (ram_read_wait_cycle),
+		.ram_write_wait_cycle               (ram_write_wait_cycle)
 	);
 
     wire [15:0] SDRAM_DQ_IN;
@@ -1068,13 +1154,21 @@ module emu
 		.SEGMENT(SEGMENT),
 
 		.biu_done(biu_done),
-		.turbo_mode(turbo_mode)
+		.cycle_accrate(cycle_accrate),
+		.clock_cycle_counter_division_ratio(clock_cycle_counter_division_ratio),
+		.clock_cycle_counter_decrement_value(clock_cycle_counter_decrement_value),
+		.shift_read_timing(shift_read_timing)
 	);
 
     //
     ////////////////////////////  AUDIO  ///////////////////////////////////
     //
 
+    wire [15:0] cms_l_snd_e;
+    wire [16:0] cms_l_snd;
+    wire [15:0] cms_r_snd_e;
+    wire [16:0] cms_r_snd;
+	 
     wire [15:0] jtopl2_snd_e;
     wire [16:0] jtopl2_snd;
     wire [10:0] tandy_snd_e;
@@ -1085,8 +1179,25 @@ module emu
     always @(posedge CLK_AUDIO)
     begin
         reg [15:0] oldj_0, oldj_1;
+        reg [15:0] oldcl_0, oldcl_1;
+        reg [15:0] oldcr_0, oldcr_1;
         reg [10:0] oldt_0, oldt_1;
 
+        oldj_0 <= jtopl2_snd_e;
+        oldj_1 <= oldj_0;
+        if(oldj_0 == oldj_1)
+            jtopl2_snd <= {oldj_1[15],oldj_1};
+				
+        oldcl_0 <= cms_l_snd_e;
+        oldcl_1 <= oldcl_0;
+        if(oldcl_0 == oldcl_1)
+            cms_l_snd <= {oldcl_1[15],oldcl_1};
+				
+        oldcr_0 <= cms_r_snd_e;
+        oldcr_1 <= oldcr_0;
+        if(oldcr_0 == oldcr_1)
+            cms_r_snd <= {oldcr_1[15],oldcr_1};
+				
         oldj_0 <= jtopl2_snd_e;
         oldj_1 <= oldj_0;
         if(oldj_0 == oldj_1)
@@ -1122,22 +1233,36 @@ module emu
         end
     endfunction
 
-    reg [15:0] cmp;
-    reg [15:0] out;
+    reg [15:0] cmp_l;
+    reg [15:0] out_l;
     always @(posedge CLK_AUDIO)
     begin
-        reg [16:0] tmp;
+        reg [16:0] tmp_l;
 
-        tmp <= jtopl2_snd + tandy_snd + spk_vol;
+        tmp_l <= jtopl2_snd + cms_l_snd + tandy_snd + spk_vol;
 
         // clamp the output
-        out <= (^tmp[16:15]) ? {tmp[16], {15{tmp[15]}}} : tmp[15:0];
+        out_l <= (^tmp_l[16:15]) ? {tmp_l[16], {15{tmp_l[15]}}} : tmp_l[15:0];
 
-        cmp <= compr(out);
+        cmp_l <= compr(out_l);
+    end
+	 
+    reg [15:0] cmp_r;
+    reg [15:0] out_r;
+    always @(posedge CLK_AUDIO)
+    begin
+        reg [16:0] tmp_r;
+
+        tmp_r <= jtopl2_snd + cms_r_snd + tandy_snd + spk_vol;
+
+        // clamp the output
+        out_r <= (^tmp_r[16:15]) ? {tmp_r[16], {15{tmp_r[15]}}} : tmp_r[15:0];
+
+        cmp_r <= compr(out_r);
     end
 
-    assign AUDIO_L   = status[37:36] ? cmp : out;
-    assign AUDIO_R   = status[37:36] ? cmp : out;
+    assign AUDIO_L   = status[37:36] ? cmp_l : out_l;
+    assign AUDIO_R   = status[37:36] ? cmp_r : out_r;
     assign AUDIO_S   = 1;
     assign AUDIO_MIX = status[39:38];
 
@@ -1271,18 +1396,34 @@ module emu
     assign CLK_VIDEO_CGA = clk_56_875;
     assign ce_pixel_mda = clk_28_636;
 
-    assign VGA_SL = {scale==3, scale==2};
+    assign VGA_SL = {scale_video_ff==3, scale_video_ff==2};
 
-    wire   scandoubler = (scale>0); //|| forced_scandoubler);
+    wire   scandoubler = (scale_video_ff>0); //|| forced_scandoubler);
 
     reg [14:0] HBlank_del;
     wire tandy_16_gfx;
-    wire color = (screen_mode == 3'd0);
-    wire HBlank_VGA = mda_mode ? HBlank_del[color ? 12 : 13] : tandy_16_gfx ? HBlank_del[color ? 9 : 11] : HBlank_del[color ? 5 : 7];
+    wire color = (screen_mode_video_ff == 3'd0);
+    
+	 wire HBlank_VGA;
 
     reg [10:0] HBlank_counter = 0;
     reg HBlank_fixed = 1'b1;
     reg [1:0] HSync_del = 1'b11;
+
+    always_comb
+    begin
+        if (mda_mode_video_ff)
+            
+				HBlank_VGA = HBlank_del[color ? 12 : 13];
+
+        else if (tandy_color_16)
+            HBlank_VGA = HBlank_del[color ? 11 : 13];
+				
+        else if (tandy_16_gfx)
+            HBlank_VGA = HBlank_del[color ? 9 : 11];
+
+        else HBlank_VGA = HBlank_del[color ? 5 : 7];
+    end
 
     always @ (posedge ce_pixel_cga)
     begin
@@ -1296,7 +1437,7 @@ module emu
         end
         else
         begin
-            if (HBlank_counter == 143)
+            if (HBlank_counter == 120)
                 HBlank_fixed <= 1'b0;
             else
                 HBlank_counter <= HBlank_counter + 1;
@@ -1313,7 +1454,7 @@ module emu
 		.G({g, 2'b00}),
 		.B({b, 2'b00}),
 
-		.gfx_mode(screen_mode),
+		.gfx_mode(screen_mode_video_ff),
 
 		.R_OUT(raux_cga),
 		.G_OUT(gaux_cga),
@@ -1329,7 +1470,7 @@ module emu
 		.G({g, 2'b00}),
 		.B({b, 2'b00}),
 
-		.gfx_mode(screen_mode),
+		.gfx_mode(screen_mode_video_ff),
 
 		.R_OUT(raux_mda),
 		.G_OUT(gaux_mda),
@@ -1361,13 +1502,13 @@ module emu
 		.G(gaux_cga),
 		.B(baux_cga),
 
-		.HBlank(border ? HBlank_fixed : HBlank_VGA),
-		.VBlank(border ? ~VSync : VBlank),
+		.HBlank(border_video_ff ? HBlank_fixed : HBlank_VGA),
+		.VBlank(border_video_ff ? VGA_VBlank_border : VBlank),
 		.HSync(HSync),
 		.VSync(VSync),
 
 		.scandoubler(scandoubler),
-		.hq2x(scale==1),
+		.hq2x(scale_video_ff==1),
 		.gamma_bus(gamma_bus_cga),
 
 		.VGA_R(VGA_R_cga),
@@ -1399,7 +1540,7 @@ module emu
 		.VSync(VSync),
 
 		.scandoubler(scandoubler),
-		.hq2x(scale==1),
+		.hq2x(scale_video_ff==1),
 		.gamma_bus(gamma_bus_mda),
 
 		.VGA_R(VGA_R_mda),
@@ -1412,14 +1553,14 @@ module emu
 	);
 
 
-    assign VGA_R  =  mda_mode ? VGA_R_mda  : VGA_R_cga;
-    assign VGA_G  =  mda_mode ? VGA_G_mda  : VGA_G_cga;
-    assign VGA_B  =  mda_mode ? VGA_B_mda  : VGA_B_cga;
-    assign VGA_HS =  mda_mode ? VGA_HS_mda : VGA_HS_cga;
-    assign VGA_VS =  mda_mode ? VGA_VS_mda : VGA_VS_cga;
-    assign VGA_DE =  mda_mode ? VGA_DE_mda : VGA_DE_cga;
-    assign gamma_bus =  mda_mode ? gamma_bus_mda : gamma_bus_cga;
-    assign CE_PIXEL  =  mda_mode ? CE_PIXEL_mda : CE_PIXEL_cga;
+    assign VGA_R  =  mda_mode_video_ff ? VGA_R_mda  : VGA_R_cga;
+    assign VGA_G  =  mda_mode_video_ff ? VGA_G_mda  : VGA_G_cga;
+    assign VGA_B  =  mda_mode_video_ff ? VGA_B_mda  : VGA_B_cga;
+    assign VGA_HS =  mda_mode_video_ff ? VGA_HS_mda : VGA_HS_cga;
+    assign VGA_VS =  mda_mode_video_ff ? VGA_VS_mda : VGA_VS_cga;
+    assign VGA_DE =  mda_mode_video_ff ? VGA_DE_mda : VGA_DE_cga;
+    assign gamma_bus =  mda_mode_video_ff ? gamma_bus_mda : gamma_bus_cga;
+    assign CE_PIXEL  =  mda_mode_video_ff ? CE_PIXEL_mda : CE_PIXEL_cga;
 
 
 

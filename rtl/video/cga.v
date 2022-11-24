@@ -35,6 +35,7 @@ module cga(
     output dbl_hsync,
     output vsync,
     output vblank,
+    output vblank_border,
     output de_o,
     output[3:0] video,
     output[3:0] dbl_video,
@@ -44,7 +45,8 @@ module cga(
     input thin_font,
     input tandy_video,     
     output grph_mode,
-    output hres_mode
+    output hres_mode,
+    output tandy_color_16
     );
 
     parameter MDA_70HZ = 0;
@@ -73,7 +75,8 @@ module cga(
     reg[7:0] cga_color_reg = 8'b0000_0000;
     reg[7:0] tandy_color_reg = 8'b0000_0000;
     reg[3:0] tandy_newcolor = 4'b0000;
-    reg[4:0] tandy_bordercol = 4'b0000;
+    reg[3:0] tandy_bordercol = 4'b0000;
+	 reg[4:0] tandy_modesel = 5'b00000;
     reg tandy_palette_set;
 
     wire bw_mode;
@@ -81,6 +84,9 @@ module cga(
     wire tandy_16_mode;
     wire video_enabled;
     wire blink_enabled;
+	 
+	 wire tandy_border_en;
+	 wire tandy_color_4;
 
     wire hsync_int;
     wire vsync_l;
@@ -229,9 +235,12 @@ module cga(
      
     assign mode_640 = cga_control_reg[4]; // 1=640x200 mode, 0=others
     assign blink_enabled = cga_control_reg[5];
+	 
+	 assign tandy_border_en = tandy_modesel[2];
+	 assign tandy_color_4 = tandy_modesel[3];
+	 assign tandy_color_16 = tandy_modesel[4];
 
-    // FIXME: temporary for testing
-    assign tandy_16_mode = tandy_video; //cga_control_reg[6];
+    assign tandy_16_mode = tandy_video;
 
     assign hsync = hsync_int;
 
@@ -251,6 +260,8 @@ module cga(
                      tandy_palette_set <= 1'b1;
                 end else if (tandy_newcolorsel_cs && tandy_color_reg[3:0] == 4'b0010) begin // Border Color
                 tandy_bordercol <= bus_d[3:0];
+            end else if (tandy_newcolorsel_cs && tandy_color_reg[3:0] == 4'b0011) begin // Mode Select
+                tandy_modesel <= bus_d[4:0];
             end
 
         end
@@ -271,6 +282,7 @@ module cga(
         .vsync(vsync_l),
         .hblank(hblank),
         .vblank(vblank),
+        .vblank_border(vblank_border),
         .display_enable(display_enable),
         .cursor(cursor),
         .mem_addr(crtc_addr),
@@ -314,7 +326,8 @@ module cga(
         .isa_op_enable(isa_op_enable),
         .hclk(hclk),
         .lclk(lclk),
-        .tandy_16_gfx(tandy_16_mode & grph_mode & hres_mode)
+        .tandy_16_gfx(tandy_16_mode & grph_mode & hres_mode),
+		  .tandy_color_16(tandy_color_16)
     );
 
     // Pixel pusher
@@ -345,6 +358,8 @@ module cga(
         .tandy_newcolor(tandy_newcolor),
         .tandy_palette_set(tandy_palette_set),
         .tandy_bordercol(tandy_bordercol),
+        .tandy_color_4(tandy_color_4),
+        .tandy_color_16(tandy_color_16),
         .video(video)
     );
 

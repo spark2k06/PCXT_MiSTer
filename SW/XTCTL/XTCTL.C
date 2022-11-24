@@ -7,6 +7,7 @@
 #define ADLIBOFF  0x10
 #define MDA       0x20
 #define A000HOFF  0x40
+#define AT4MHZ    0x80
 
 static int _argc;
 static char **_argv;
@@ -28,14 +29,14 @@ int main(int argc, char **argv)
 
     if(argc < 2)
     {
-	printf("XTCTL 1.1\n");
+	printf("XTCTL 1.2\n");
 	printf("USAGE:\n");
 	bs = strrchr(argv[0], '\\');
 	if(bs == NULL)
 	    argv0 = argv[0];
 	else
 	    argv0 = ++bs;
-	printf("%s [menu] [composite border adliboff mda a000hoff 4Mhz/7Mhz/14Mhz]\n", argv0);
+	printf("%s [menu] [composite border adliboff mda a000hoff 5Mhz/8Mhz/10Mhz/AT4MHz]\n", argv0);
 	return -1;
     }
 
@@ -61,20 +62,26 @@ int main(int argc, char **argv)
 	if (chk_arg_opt("a000hoff"))
 	    arg |= A000HOFF;
 
-	if (chk_arg_opt("4Mhz") || chk_arg_opt("4"))
+	if (chk_arg_opt("5Mhz") || chk_arg_opt("5"))
 	{
 	    arg |= 1 << 2;
 	    arg &= ~(1 << 3);
 	}
-	else if (chk_arg_opt("7Mhz") || chk_arg_opt("7"))
+	else if (chk_arg_opt("8Mhz") || chk_arg_opt("8"))
 	{
 	    arg &= ~(1 << 2);
 	    arg |= 1 << 3;
 	}
-	else if (chk_arg_opt("14Mhz") || chk_arg_opt("14"))
+	else if (chk_arg_opt("10Mhz") || chk_arg_opt("10"))
 	{
 	    arg |= 1 << 2;
 	    arg |= 1 << 3;
+	}
+	else if (chk_arg_opt("AT4Mhz") || chk_arg_opt("AT4"))
+	{
+	    arg &= ~(1 << 2);
+	    arg &= ~(1 << 3);        
+        arg |= AT4MHZ;
 	}
     }
 

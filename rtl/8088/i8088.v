@@ -20,7 +20,10 @@ module i8088
     output [2:0]        SEGMENT,
 
     output              biu_done,
-    input               turbo_mode
+    input               cycle_accrate,
+    input  [7:0]        clock_cycle_counter_division_ratio,
+    input  [7:0]        clock_cycle_counter_decrement_value,
+    input               shift_read_timing
 
   );
 
@@ -90,7 +93,10 @@ biu_max                     BIU_CORE
     .BIU_REGISTER_RM        (t_biu_register_rm),
     .BIU_REGISTER_REG       (t_biu_register_reg),
     .BIU_RETURN_DATA        (t_biu_return_data),
-    .turbo_mode             (turbo_mode)
+
+    .clock_cycle_counter_division_ratio     (clock_cycle_counter_division_ratio),
+    .clock_cycle_counter_decrement_value    (clock_cycle_counter_decrement_value),
+    .shift_read_timing                      (shift_read_timing)
   );
 
 //------------------------------------------------------------------------
@@ -101,14 +107,14 @@ mcl86_eu_core               EU_CORE
   (
     .CORE_CLK_INT           (CORE_CLK),
     .RESET_INT              (RESET),
-    .TEST_N_INT             (1'b1),
+    .TEST_N_INT             (1'b0),
     .EU_BIU_COMMAND         (t_eu_biu_command),
     .EU_BIU_DATAOUT         (t_eu_biu_dataout),
     .EU_REGISTER_R3         (t_eu_register_r3),
     .EU_PREFIX_LOCK         (t_eu_prefix_lock),
     .EU_FLAG_I              (t_eu_flag_i),
     .BIU_DONE               (t_biu_done),
-    .BIU_CLK_COUNTER_ZERO   (~turbo_mode ? t_biu_clk_counter_zero : 1'b1),
+    .BIU_CLK_COUNTER_ZERO   (cycle_accrate ? t_biu_clk_counter_zero : 1'b1),
     .BIU_NMI_CAUGHT         (t_biu_nmi_caught),
     .BIU_NMI_DEBOUNCE       (t_biu_nmi_debounce),
     .BIU_INTR               (t_biu_intr),

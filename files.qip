@@ -4,8 +4,9 @@ set_global_assignment -name QIP_FILE rtl/pll.qip
 set_global_assignment -name QIP_FILE rtl/common/common.qip
 set_global_assignment -name QIP_FILE rtl/video/video.qip
 set_global_assignment -name QIP_FILE rtl/uart/uart.qip
-set_global_assignment -name QIP_FILE rtl/jt89/hdl/jt89.qip
-set_global_assignment -name QIP_FILE rtl/jtopl/hdl/jtopl2.qip
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/sound/saa1099.sv"
+set_global_assignment -name QIP_FILE rtl/sound/jt89/hdl/jt89.qip
+set_global_assignment -name QIP_FILE rtl/sound/jtopl/hdl/jtopl2.qip
 set_global_assignment -name QIP_FILE rtl/8088/8088.qip
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFSDRAM/HDL/KFSDRAM.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB_Shift_Register.sv"
@@ -34,6 +35,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF823
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Ready.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/RAM.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/XT2IDE.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Peripherals.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Chipset.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Bus_Arbiter.sv"
