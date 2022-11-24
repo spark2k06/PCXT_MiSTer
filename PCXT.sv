@@ -229,7 +229,9 @@ module emu
 		"P1-;",	
 		"P2,Audio & Video;",
 		"P2-;",
-		"P2OA,Adlib,On,Invisible;",
+		//"P2OA,Adlib,On,Invisible;", // status[10] is available, remove this line when used
+		"P2OA,C/MS Audio,Enabled,Disabled;",
+		"P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;",
 		"P2o01,Speaker Volume,1,2,3,4;",
 		"P2o23,Tandy Volume,1,2,3,4;",
 		"P2o45,Audio Boost,No,2x,4x;",
@@ -297,7 +299,6 @@ module emu
     reg         ioctl_wait;
 
     wire [21:0] gamma_bus;
-    wire        adlibhide = status[10] | xtctl[4];
 
     wire [13:0] joy0, joy1;
     wire [15:0] joya0, joya1;
@@ -1072,7 +1073,10 @@ module emu
 		.clk_en_opl2                        (cen_opl2),           // clk_en_opl2
 		.jtopl2_snd_e                       (jtopl2_snd_e),
 		.tandy_snd_e                        (tandy_snd_e),
-		.adlibhide                          (adlibhide),
+		.opl2_io                            (xtctl[4] ? 2'b10 : status[43:42]),
+		.cms_en                             (~status[10]),
+		.o_cms_l                            (cms_l_snd_e),
+		.o_cms_r                            (cms_r_snd_e),
 		.tandy_video                        (tandy_mode),
 		.tandy_bios_flag                    (tandy_bios_flag),
 		.tandy_16_gfx                       (tandy_16_gfx),
@@ -1160,6 +1164,11 @@ module emu
     ////////////////////////////  AUDIO  ///////////////////////////////////
     //
 
+    wire [15:0] cms_l_snd_e;
+    wire [16:0] cms_l_snd;
+    wire [15:0] cms_r_snd_e;
+    wire [16:0] cms_r_snd;
+	 
     wire [15:0] jtopl2_snd_e;
     wire [16:0] jtopl2_snd;
     wire [10:0] tandy_snd_e;
@@ -1170,8 +1179,25 @@ module emu
     always @(posedge CLK_AUDIO)
     begin
         reg [15:0] oldj_0, oldj_1;
+        reg [15:0] oldcl_0, oldcl_1;
+        reg [15:0] oldcr_0, oldcr_1;
         reg [10:0] oldt_0, oldt_1;
 
+        oldj_0 <= jtopl2_snd_e;
+        oldj_1 <= oldj_0;
+        if(oldj_0 == oldj_1)
+            jtopl2_snd <= {oldj_1[15],oldj_1};
+				
+        oldcl_0 <= cms_l_snd_e;
+        oldcl_1 <= oldcl_0;
+        if(oldcl_0 == oldcl_1)
+            cms_l_snd <= {oldcl_1[15],oldcl_1};
+				
+        oldcr_0 <= cms_r_snd_e;
+        oldcr_1 <= oldcr_0;
+        if(oldcr_0 == oldcr_1)
+            cms_r_snd <= {oldcr_1[15],oldcr_1};
+				
         oldj_0 <= jtopl2_snd_e;
         oldj_1 <= oldj_0;
         if(oldj_0 == oldj_1)
@@ -1207,22 +1233,36 @@ module emu
         end
     endfunction
 
-    reg [15:0] cmp;
-    reg [15:0] out;
+    reg [15:0] cmp_l;
+    reg [15:0] out_l;
     always @(posedge CLK_AUDIO)
     begin
-        reg [16:0] tmp;
+        reg [16:0] tmp_l;
 
-        tmp <= jtopl2_snd + tandy_snd + spk_vol;
+        tmp_l <= jtopl2_snd + cms_l_snd + tandy_snd + spk_vol;
 
         // clamp the output
-        out <= (^tmp[16:15]) ? {tmp[16], {15{tmp[15]}}} : tmp[15:0];
+        out_l <= (^tmp_l[16:15]) ? {tmp_l[16], {15{tmp_l[15]}}} : tmp_l[15:0];
 
-        cmp <= compr(out);
+        cmp_l <= compr(out_l);
+    end
+	 
+    reg [15:0] cmp_r;
+    reg [15:0] out_r;
+    always @(posedge CLK_AUDIO)
+    begin
+        reg [16:0] tmp_r;
+
+        tmp_r <= jtopl2_snd + cms_r_snd + tandy_snd + spk_vol;
+
+        // clamp the output
+        out_r <= (^tmp_r[16:15]) ? {tmp_r[16], {15{tmp_r[15]}}} : tmp_r[15:0];
+
+        cmp_r <= compr(out_r);
     end
 
-    assign AUDIO_L   = status[37:36] ? cmp : out;
-    assign AUDIO_R   = status[37:36] ? cmp : out;
+    assign AUDIO_L   = status[37:36] ? cmp_l : out_l;
+    assign AUDIO_R   = status[37:36] ? cmp_r : out_r;
     assign AUDIO_S   = 1;
     assign AUDIO_MIX = status[39:38];
 

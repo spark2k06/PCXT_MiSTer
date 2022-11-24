@@ -94,7 +94,11 @@ module CHIPSET (
         // JTOPL
         input   logic           clk_en_opl2,
         output  logic   [15:0]  jtopl2_snd_e,
-        input   logic           adlibhide,
+        input   logic   [1:0]   opl2_io,
+        // C/MS Audio
+        input   logic           cms_en,
+        output  logic   [15:0]  o_cms_l,
+        output  logic   [15:0]  o_cms_r,
         // TANDY
         input   logic           tandy_video,
         input   logic           tandy_bios_flag,
@@ -325,7 +329,10 @@ module CHIPSET (
         .ps2_data_out                       (ps2_data_out),
         .clk_en_opl2                        (clk_en_opl2),
         .jtopl2_snd_e                       (jtopl2_snd_e),
-        .adlibhide                          (adlibhide),
+        .opl2_io                            (opl2_io),
+        .cms_en                             (cms_en),
+        .o_cms_l                            (o_cms_l),
+        .o_cms_r                            (o_cms_r),
         .tandy_video                        (tandy_video),
         .tandy_snd_e                        (tandy_snd_e),
         .tandy_snd_rdy                      (tandy_snd_rdy),

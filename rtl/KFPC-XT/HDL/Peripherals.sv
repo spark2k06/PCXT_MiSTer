@@ -77,7 +77,11 @@ module PERIPHERALS #(
         // JTOPL
         input   logic           clk_en_opl2,
         output  logic   [15:0]  jtopl2_snd_e,
-        input   logic           adlibhide,
+        input   logic   [1:0]   opl2_io,
+        // C/MS Audio
+        input   logic           cms_en,
+        output  reg     [15:0]  o_cms_l,
+        output  reg     [15:0]  o_cms_r,
         // TANDY
         input   logic           tandy_video,
         output  logic   [10:0]  tandy_snd_e,
@@ -191,7 +195,9 @@ module PERIPHERALS #(
     wire    nmi_mask_register_n    = ~(tandy_video && iorq && ~address_enable_n && address[15:3] == (16'h00a0 >> 3)); // 0xa0 - 0xa7
 
     wire    tandy_chip_select_n    = ~(iorq && ~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
-    wire    opl_chip_select_n      = ~(iorq && ~address_enable_n && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389
+    wire    opl_388_select         = (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389 (Adlib)
+    wire    opl_228_select         = (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)); // 0x228 .. 0x229 (Sound Blaster FM)
+    wire    cms_220_select         = (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)); // 0x220 .. 0x22F (C/MS Audio)
     wire    video_chip_select_n    = ~(tandy_video && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
     wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
     wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
@@ -476,8 +482,6 @@ module PERIPHERALS #(
 
 
     wire [7:0] jtopl2_dout;
-    wire [7:0] opl32_data;
-    assign opl32_data = adlibhide ? 8'hFF : jtopl2_dout;
 
     jtopl2 jtopl2_inst
     (
@@ -487,7 +491,7 @@ module PERIPHERALS #(
         .din(internal_data_bus),
         .dout(jtopl2_dout),
         .addr(address[0]),
-        .cs_n(opl_chip_select_n),
+        .cs_n(~(opl_228_select || opl_388_select)),
         .wr_n(io_write_n),
         .irq_n(),
         .snd(jtopl2_snd_e),
@@ -507,6 +511,89 @@ module PERIPHERALS #(
 		  .sound(tandy_snd_e),
 		  .ready(tandy_snd_rdy)
     );
+	 
+//------------------------------------------------------------------------------
+
+reg [27:0] clk_rate;
+always @(posedge clock) clk_rate <= clock_rate;
+
+reg ce_1us;
+always @(posedge clock) begin
+	reg [27:0] sum = 0;
+
+	ce_1us = 0;
+	sum = sum + 28'd1000000;
+	if(sum >= clk_rate) begin
+		sum = sum - clk_rate;
+		ce_1us = 1;
+	end
+end	 
+	 
+//------------------------------------------------------------------------------ c/ms
+
+    wire cms_rd = (address[3:0] == 4'h4 || address[3:0] == 4'hB) && cms_220_select && cms_en;
+    wire [7:0] data_from_cms = address[3] ? cms_det : 8'h7F;
+
+    wire cms_wr = ~address[3] & cms_220_select & cms_en;
+
+    reg [7:0] cms_det;
+    always @(posedge clock) if(~io_write_n && cms_wr && &address[2:1]) cms_det <= internal_data_bus;
+
+    reg ce_saa;
+    always @(posedge clock) begin
+	    reg [27:0] sum = 0;
+
+	    ce_saa = 0;
+	    sum = sum + 28'd7159090;
+	    if(sum >= clk_rate) begin
+		    sum = sum - clk_rate;
+		    ce_saa = 1;
+	    end
+    end
+
+    wire [7:0] saa1_l,saa1_r;
+    saa1099 ssa1
+    (
+	    .clk_sys(clock),
+	    .ce(ce_saa),
+	    .rst_n(~reset & cms_en),
+	    .cs_n(~(cms_wr && (address[2:1] == 0))),
+	    .a0(address[0]),
+	    .wr_n(io_write_n),
+	    .din(internal_data_bus),
+	    .out_l(saa1_l),
+	    .out_r(saa1_r)
+    );
+
+    wire [7:0] saa2_l,saa2_r;
+    saa1099 ssa2
+    (
+	    .clk_sys(clock),
+	    .ce(ce_saa),
+	    .rst_n(~reset & cms_en),
+	    .cs_n(~(cms_wr && (address[2:1] == 1))),
+	    .a0(address[0]),
+	    .wr_n(io_write_n),
+	    .din(internal_data_bus),
+	    .out_l(saa2_l),
+	    .out_r(saa2_r)
+    );
+
+    wire [8:0] cms_l = {1'b0, saa1_l} + {1'b0, saa2_l};
+    wire [8:0] cms_r = {1'b0, saa1_r} + {1'b0, saa2_r};
+	 
+    reg [15:0] sample_pre_l, sample_pre_r;
+    always @(posedge clock) begin
+	    sample_pre_l <= {2'b0, cms_l, cms_l[8:4]};
+	    sample_pre_r <= {2'b0, cms_r, cms_r[8:4]};
+    end
+
+    always @(posedge clock) begin
+	    o_cms_l <= $signed(sample_pre_l) >>> ~{3'd7};
+	    o_cms_r <= $signed(sample_pre_r) >>> ~{3'd7};
+    end
+	 
+//
 
     logic   keybord_interrupt_ff;
     logic   uart_interrupt_ff;
@@ -1297,10 +1384,15 @@ module PERIPHERALS #(
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= MDA_CRTC_DOUT_2;
         end
-        else if ((~opl_chip_select_n) && (~io_read_n))
+        else if ((opl_228_select || opl_388_select) && ~io_read_n)
         begin
             data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= opl32_data;
+            data_bus_out <= jtopl2_dout;
+        end
+        else if (cms_rd)
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= data_from_cms;
         end
         else if ((uart_cs) && (~io_read_n))
         begin
