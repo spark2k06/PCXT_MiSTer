@@ -23,7 +23,7 @@ module CHIPSET (
         // SplashScreen
         input   logic           splashscreen,
         // VGA
-        output  logic           std_hsync,
+        output  logic           std_hsyncwidth,
         input   logic           composite,
         input   logic           video_output,
         input   logic           clk_vga_cga,
@@ -278,7 +278,7 @@ module CHIPSET (
         .dma_chip_select_n                  (dma_chip_select_n),
         .dma_page_chip_select_n             (dma_page_chip_select_n),
         .splashscreen                       (splashscreen),
-        .std_hsync                          (std_hsync),
+        .std_hsyncwidth                     (std_hsyncwidth),
         .composite                          (composite),
         .video_output                       (video_output),
         .clk_vga_cga                        (clk_vga_cga),

@@ -152,7 +152,7 @@ module crtc6845(
     wire h_end;
     wire v_end;
 	 
-    assign std_hsync = (h_syncwidth == 4'hA);
+    assign std_hsyncwidth = (h_syncwidth == 4'hA);
 
     assign vsync = vs;
     assign hsync = hs;
