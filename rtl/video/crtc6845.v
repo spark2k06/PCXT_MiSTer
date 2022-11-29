@@ -20,6 +20,7 @@ module crtc6845(
     output reg [7:0] bus_out,
 
     input lock,
+    output std_hsync,
 
     // Video control signals
     output hsync,
@@ -150,6 +151,8 @@ module crtc6845(
 
     wire h_end;
     wire v_end;
+	 
+    assign std_hsync = (h_syncwidth == 4'hA);
 
     assign vsync = vs;
     assign hsync = hs;

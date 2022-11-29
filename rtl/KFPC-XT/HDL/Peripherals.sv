@@ -22,6 +22,7 @@ module PERIPHERALS #(
         // SplashScreen
         input   logic           splashscreen,
         // VGA
+        output  logic           std_hsync,
         input   logic           composite,
         input   logic           video_output,
         input   logic           clk_vga_cga,
@@ -1005,6 +1006,7 @@ end
         .vsync                      (VSYNC_CGA),
         .vblank                     (VBLANK_CGA),
         .vblank_border              (VGA_VBlank_border),
+        .std_hsync                  (std_hsync),
         .de_o                       (de_o_cga),
         .video                      (video_cga),              // non scandoubled
     //  .dbl_video                  (video_cga),              // scandoubled
