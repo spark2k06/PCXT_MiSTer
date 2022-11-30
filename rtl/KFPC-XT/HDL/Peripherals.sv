@@ -207,6 +207,7 @@ module PERIPHERALS #(
     wire    lpt_cs                 =  (iorq && ~address_enable_n && address[15:0] == 16'h0378);
     wire    tandy_page_cs          =  (iorq && ~address_enable_n && address[15:0] == 16'h03DF);
     wire    xtctl_cs               =  (iorq && ~address_enable_n && address[15:0] == 16'h8888);
+    wire    rtc_cs                 =  (iorq && ~address_enable_n && address[15:1] == (16'h0240 >> 1)); // 0x240 .. 0x241
 
     wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1100 : (ems_address == 2'b01) ? 4'b1101 : 4'b1110;
     wire    ems_oe                 = (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h
@@ -1317,6 +1318,34 @@ end
     //     .video_b                    (video_b)
     // );
 
+	 
+    // RTC
+	 
+    logic           mgmt_rtc_cs;
+    logic   [7:0]   rtc_readdata;
+	 
+    assign mgmt_rtc_cs   = (mgmt_address[15:8] == 8'hF4);
+
+    rtc rtc
+    (
+       .clk               (clock),
+       .rst_n             (~reset),
+
+       .clock_rate        (clock_rate),
+
+       .io_address        (address[0]),
+       .io_writedata      (internal_data_bus),
+       .io_read           (~io_read_n & rtc_cs),
+       .io_write          (~io_write_n & rtc_cs),
+       .io_readdata       (rtc_readdata),
+
+       .mgmt_address      (mgmt_address),
+       .mgmt_write        (mgmt_write & mgmt_rtc_cs),
+       .mgmt_writedata    (mgmt_writedata[7:0]),
+
+       .memcfg            (1'b0),
+       .bootcfg           (5'd0)
+    );
     
 
     //
@@ -1440,6 +1469,11 @@ end
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= fdd_readdata;
+        end
+        else if (rtc_cs && (~io_read_n))
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= rtc_readdata;
         end
         else
         begin
