@@ -155,7 +155,7 @@ module PERIPHERALS #(
 
     always_comb
     begin
-        if (~address_enable_n & ~address[9] & ~address[8])
+        if ((~address_enable_n & ~address[9] & ~address[8]) && (tandy_video ? ~address[4] & ~address[3] : 1'b1))
         begin
             casez (address[7:5])
                 3'b000:
