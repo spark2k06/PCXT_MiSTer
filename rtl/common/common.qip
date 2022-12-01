@@ -3,6 +3,7 @@ set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) clk_div
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) bios.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) floppy.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) simple_fifo.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) simple_ram.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) MSMouseWrapper.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) ide.v ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) bram.vhd ]

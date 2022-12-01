@@ -22,6 +22,7 @@ module PERIPHERALS #(
         // SplashScreen
         input   logic           splashscreen,
         // VGA
+        output  logic           std_hsyncwidth,
         input   logic           composite,
         input   logic           video_output,
         input   logic           clk_vga_cga,
@@ -154,7 +155,7 @@ module PERIPHERALS #(
 
     always_comb
     begin
-        if (~address_enable_n & ~address[9] & ~address[8])
+        if ((~address_enable_n & ~address[9] & ~address[8]) && (tandy_video ? ~address[4] & ~address[3] : 1'b1))
         begin
             casez (address[7:5])
                 3'b000:
@@ -183,39 +184,42 @@ module PERIPHERALS #(
         end
     end
 
-    wire    iorq = ~io_read_n | ~io_write_n;
+    assign  dma_chip_select_n       = chip_select_n[0]; // 0x00 .. 0x1F
+    wire    interrupt_chip_select_n = chip_select_n[1]; // 0x20 .. 0x3F
+    wire    timer_chip_select_n     = chip_select_n[2]; // 0x40 .. 0x5F
+    wire    ppi_chip_select_n       = chip_select_n[3]; // 0x60 .. 0x7F
+    assign  dma_page_chip_select_n  = chip_select_n[4]; // 0x80 .. 0x9F
+    wire    nmi_chip_select_n       = chip_select_n[5]; // 0xA0 .. 0xBF
+    wire    tandy_chip_select_n     = chip_select_n[6]; // 0xC0 .. 0xDF
+	 
+    wire    ide0_chip_select_n     = ~(~address_enable_n && ({address[15:4], 4'd0} == 16'h0300));
+    wire    floppy0_chip_select_n  = ~(~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
+	 
+    wire    memrq = ~memory_read_n | ~memory_write_n;
 
-    assign  dma_chip_select_n       = iorq && chip_select_n[0];
-    wire    interrupt_chip_select_n = iorq && chip_select_n[1];
-    wire    timer_chip_select_n     = iorq && chip_select_n[2];
-    wire    ppi_chip_select_n       = iorq && chip_select_n[3];
-    assign  dma_page_chip_select_n  = iorq && chip_select_n[4];
+    wire    joystick_select        = (~address_enable_n && address[15:3] == (16'h0200 >> 3)); // 0x200 .. 0x207
+    wire    nmi_mask_register      = (tandy_video && ~nmi_chip_select_n);
 
-    wire    joystick_select        = (iorq && ~address_enable_n && address[15:3] == (16'h0200 >> 3)); // 0x200 .. 0x207
-    wire    nmi_mask_register_n    = ~(tandy_video && iorq && ~address_enable_n && address[15:3] == (16'h00a0 >> 3)); // 0xa0 - 0xa7
-
-    wire    tandy_chip_select_n    = ~(iorq && ~address_enable_n && address[15:3] == (16'h00c0 >> 3)); // 0xc0 - 0xc7
-    wire    opl_388_select         = (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389 (Adlib)
-    wire    opl_228_select         = (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)); // 0x228 .. 0x229 (Sound Blaster FM)
-    wire    cms_220_select         = (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)); // 0x220 .. 0x22F (C/MS Audio)
-    wire    video_chip_select_n    = ~(tandy_video && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
-    wire    cga_chip_select_n      = ~(~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
-    wire    mda_chip_select_n      = ~(~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
-    wire    uart_cs                =  (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
-    wire    uart2_cs               =  (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
-    wire    lpt_cs                 =  (iorq && ~address_enable_n && address[15:0] == 16'h0378);
-    wire    tandy_page_cs          =  (iorq && ~address_enable_n && address[15:0] == 16'h03DF);
-    wire    xtctl_cs               =  (iorq && ~address_enable_n && address[15:0] == 16'h8888);
+    wire    video_mem_select       = (tandy_video && memrq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
+    wire    cga_mem_select         = (memrq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
+    wire    mda_mem_select         = (memrq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
+	 
+    wire    opl_388_chip_select    = (~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389 (Adlib)
+    wire    opl_228_chip_select    = (~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)); // 0x228 .. 0x229 (Sound Blaster FM)
+    wire    cms_220_chip_select    = (~address_enable_n && address[15:4] == (16'h0220 >> 4)); // 0x220 .. 0x22F (C/MS Audio)
+    wire    uart_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
+    wire    uart2_chip_select      = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
+    wire    lpt_chip_select        = (~address_enable_n && address[15:0] == 16'h0378);
+    wire    tandy_page_chip_select = (~address_enable_n && address[15:0] == 16'h03DF);
+    wire    xtctl_chip_select      = (~address_enable_n && address[15:0] == 16'h8888);
+    wire    rtc_chip_select        = (~address_enable_n && address[15:1] == (16'h0240 >> 1)); // 0x240 .. 0x241
 
     wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1100 : (ems_address == 2'b01) ? 4'b1101 : 4'b1110;
-    wire    ems_oe                 = (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h
-    assign  ems_b1                 = (~iorq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // C0000h - D0000h - E0000h
-    assign  ems_b2                 = (~iorq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // C4000h - D4000h - E4000h
-    assign  ems_b3                 = (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // C8000h - D8000h - E8000h
-    assign  ems_b4                 = (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // CC000h - DC000h - EC000h
-
-    wire    ide0_cs_n               = ~(iorq && ~address_enable_n && ({address[15:4], 4'd0} == 16'h0300));
-    wire    floppy0_select_n        = ~(~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
+    wire    ems_chip_select        = (~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h
+    assign  ems_b1                 = (memrq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // C0000h - D0000h - E0000h
+    assign  ems_b2                 = (memrq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // C4000h - D4000h - E4000h
+    assign  ems_b3                 = (memrq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // C8000h - D8000h - E8000h
+    assign  ems_b4                 = (memrq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // CC000h - DC000h - EC000h
 
     logic   [1:0]   ems_access_address;
     logic           ems_write_enable;
@@ -227,7 +231,7 @@ module PERIPHERALS #(
     //
     // Address
     always_comb begin
-        if (~cga_chip_select_n && ~memory_write_n && tandy_video)
+        if (cga_mem_select && ~memory_write_n && tandy_video)
             latch_address   = {nmi_mask_register_data[3:1], tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]}};
         else
             latch_address   = address;
@@ -245,7 +249,7 @@ module PERIPHERALS #(
         else
         begin
             ems_access_address  <= address[1:0];
-            ems_write_enable    <= ems_oe && ~io_write_n;
+            ems_write_enable    <= ems_chip_select && ~io_write_n;
             write_map_ems_data  <= (internal_data_bus == 8'hFF) ? 8'hFF : (internal_data_bus < 8'h80) ? internal_data_bus[6:0] : map_ems[address[1:0]];
             write_map_ena_data  <= (internal_data_bus == 8'hFF) ? 1'b0  : (internal_data_bus < 8'h80) ? 1'b1 : ena_ems[address[1:0]];
         end
@@ -491,7 +495,7 @@ module PERIPHERALS #(
         .din(internal_data_bus),
         .dout(jtopl2_dout),
         .addr(address[0]),
-        .cs_n(~(opl_228_select || opl_388_select)),
+        .cs_n(~(opl_228_chip_select || opl_388_chip_select)),
         .wr_n(io_write_n),
         .irq_n(),
         .snd(jtopl2_snd_e),
@@ -531,10 +535,10 @@ end
 	 
 //------------------------------------------------------------------------------ c/ms
 
-    wire cms_rd = (address[3:0] == 4'h4 || address[3:0] == 4'hB) && cms_220_select && cms_en;
+    wire cms_rd = (address[3:0] == 4'h4 || address[3:0] == 4'hB) && cms_220_chip_select && cms_en;
     wire [7:0] data_from_cms = address[3] ? cms_det : 8'h7F;
 
-    wire cms_wr = ~address[3] & cms_220_select & cms_en;
+    wire cms_wr = ~address[3] & cms_220_chip_select & cms_en;
 
     reg [7:0] cms_det;
     always @(posedge clock) if(~io_write_n && cms_wr && &address[2:1]) cms_det <= internal_data_bus;
@@ -669,16 +673,16 @@ end
                 write_to_uart2 <= write_to_uart2;
             end
 
-            if ((lpt_cs) && (~io_write_n))
+            if ((lpt_chip_select) && (~io_write_n))
                 lpt_data <= internal_data_bus;
 
-            if ((xtctl_cs) && (~io_write_n))
+            if ((xtctl_chip_select) && (~io_write_n))
                 xtctl <= internal_data_bus;
 
-            if ((tandy_page_cs) && (~io_write_n))
+            if ((tandy_page_chip_select) && (~io_write_n))
                 tandy_page_data <= internal_data_bus;
 
-            if ((~nmi_mask_register_n) && (~io_write_n))
+            if (nmi_mask_register && (~io_write_n))
                 nmi_mask_register_data <= internal_data_bus;
         end
 
@@ -699,7 +703,7 @@ end
         .read              (~io_read_n  & prev_io_read_n),
         .write             (io_write_n & ~prev_io_write_n),
         .readdata          (uart_readdata_1),
-        .cs                (uart_cs & iorq_uart),
+        .cs                (uart_chip_select & iorq_uart),
         .rx                (uart_tx),
         .cts_n             (0),
         .dcd_n             (0),
@@ -721,7 +725,7 @@ end
         .read              (~io_read_n  & prev_io_read_n),
         .write             (io_write_n & ~prev_io_write_n),
         .readdata          (uart2_readdata_1),
-        .cs                (uart2_cs & iorq_uart),
+        .cs                (uart2_chip_select & iorq_uart),
 
         .rx                (uart2_rx),
         .tx                (uart2_tx),
@@ -765,9 +769,9 @@ end
     logic  [16:0]  video_ram_address;
     logic  [7:0]   video_ram_data;
     logic          video_memory_write_n;
-    logic          mda_chip_select_n_1;
-    logic          cga_chip_select_n_1;
-    logic          video_chip_select_n_1;
+    logic          mda_mem_select_1;
+    logic          cga_mem_select_1;
+    logic          video_mem_select_1;
     logic  [14:0]  video_io_address;
     logic  [7:0]   video_io_data;
     logic          video_io_write_n;
@@ -815,9 +819,9 @@ end
         video_ram_address       <= address[16:0];
         video_ram_data          <= internal_data_bus;
         video_memory_write_n    <= memory_write_n;
-        mda_chip_select_n_1     <= mda_chip_select_n;
-        cga_chip_select_n_1     <= cga_chip_select_n;
-        video_chip_select_n_1   <= video_chip_select_n;
+        mda_mem_select_1        <= mda_mem_select;
+        cga_mem_select_1        <= cga_mem_select;
+        video_mem_select_1      <= video_mem_select;
 
         video_io_write_n        <= io_write_n;
         video_io_read_n         <= io_read_n;
@@ -1005,6 +1009,7 @@ end
         .vsync                      (VSYNC_CGA),
         .vblank                     (VBLANK_CGA),
         .vblank_border              (VGA_VBlank_border),
+        .std_hsyncwidth             (std_hsyncwidth),
         .de_o                       (de_o_cga),
         .video                      (video_cga),              // non scandoubled
     //  .dbl_video                  (video_cga),              // scandoubled
@@ -1033,16 +1038,14 @@ end
     vram #(.AW(17)) cga_vram
     (
         .clka                       (clock),
-        .ena                        (~cga_chip_select_n_1 || ~video_chip_select_n_1),
+        .ena                        (cga_mem_select_1 || video_mem_select_1),
         .wea                        (~video_memory_write_n & memory_write_n),
-//      .addra                      ((tandy_video & grph_mode & hres_mode) ? ~video_chip_select_n_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]),
-        .addra                      (tandy_video ? ~video_chip_select_n_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]),
+        .addra                      (tandy_video ? video_mem_select_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]),
         .dina                       (video_ram_data),
         .douta                      (cga_vram_cpu_dout),
         .clkb                       (clk_vga_cga),
         .web                        (1'b0),
         .enb                        (CGA_VRAM_ENABLE),
-//      .addrb                      ((tandy_video & grph_mode & hres_mode) ? {tandy_page_data[2:1], CGA_VRAM_ADDR[14:0]} : CGA_VRAM_ADDR[13:0]),
         .addrb                      (tandy_video ? (grph_mode & hres_mode) ? {tandy_page_data[2:1], CGA_VRAM_ADDR[14:0]} : {tandy_page_data[2:0], CGA_VRAM_ADDR[13:0]} : CGA_VRAM_ADDR[13:0]),
         .dinb                       (8'h0),
         .doutb                      (CGA_VRAM_DOUT)
@@ -1052,7 +1055,7 @@ end
     vram #(.AW(12)) mda_vram
     (
         .clka                       (clock),
-        .ena                        (~mda_chip_select_n_1),
+        .ena                        (mda_mem_select_1),
         .wea                        (~video_memory_write_n),
         .addra                      (video_ram_address[11:0]),
         .dina                       (video_ram_data),
@@ -1084,7 +1087,7 @@ end
 
         .high_speed         (0),
 
-        .chip_select_n      (ide0_cs_n),
+        .chip_select_n      (ide0_chip_select_n),
         .io_read_n          (io_read_n),
         .io_write_n         (io_write_n),
 
@@ -1198,9 +1201,9 @@ end
     always_ff @(posedge clock)
     begin
         fdd_io_address     <= address[2:0];
-        fdd_io_read        <= ~io_read_n & prev_io_read_n   & ~floppy0_select_n;
+        fdd_io_read        <= ~io_read_n & prev_io_read_n   & ~floppy0_chip_select_n;
         fdd_io_read_1      <= fdd_io_read;
-        fdd_io_write       <= io_write_n & ~prev_io_write_n & ~floppy0_select_n;
+        fdd_io_write       <= io_write_n & ~prev_io_write_n & ~floppy0_chip_select_n;
     end
 
     assign  fdd_dma_read    = fdd_dma_ack & ~io_read_n;
@@ -1315,6 +1318,34 @@ end
     //     .video_b                    (video_b)
     // );
 
+	 
+    // RTC
+	 
+    logic           mgmt_rtc_cs;
+    logic   [7:0]   rtc_readdata;
+	 
+    assign mgmt_rtc_cs   = (mgmt_address[15:8] == 8'hF4);
+
+    rtc rtc
+    (
+       .clk               (clock),
+       .rst_n             (~reset),
+
+       .clock_rate        (clock_rate),
+
+       .io_address        (address[0]),
+       .io_writedata      (internal_data_bus),
+       .io_read           (~io_read_n & rtc_chip_select),
+       .io_write          (~io_write_n & rtc_chip_select),
+       .io_readdata       (rtc_readdata),
+
+       .mgmt_address      (mgmt_address),
+       .mgmt_write        (mgmt_write & mgmt_rtc_cs),
+       .mgmt_writedata    (mgmt_writedata[7:0]),
+
+       .memcfg            (1'b0),
+       .bootcfg           (5'd0)
+    );
     
 
     //
@@ -1364,12 +1395,12 @@ end
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= ppi_data_bus_out;
         end
-        else if ((~cga_chip_select_n) && (~memory_read_n))
+        else if (cga_mem_select && (~memory_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= cga_vram_cpu_dout;
         end
-        else if ((~mda_chip_select_n) && (~memory_read_n))
+        else if (mda_mem_select && (~memory_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= mda_vram_cpu_dout;
@@ -1384,42 +1415,42 @@ end
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= MDA_CRTC_DOUT_2;
         end
-        else if ((opl_228_select || opl_388_select) && ~io_read_n)
+        else if ((opl_228_chip_select || opl_388_chip_select) && ~io_read_n)
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= jtopl2_dout;
         end
-        else if (cms_rd)
+        else if (cms_rd && ~io_read_n)
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= data_from_cms;
         end
-        else if ((uart_cs) && (~io_read_n))
+        else if ((uart_chip_select) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= uart_readdata;
         end
-        else if ((uart2_cs) && (~io_read_n))
+        else if ((uart2_chip_select) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= uart2_readdata;
         end
-        else if ((ems_oe) && (~io_read_n))
+        else if ((ems_chip_select) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= ena_ems[address[1:0]] ? map_ems[address[1:0]] : 8'hFF;
         end
-        else if ((lpt_cs) && (~io_read_n))
+        else if ((lpt_chip_select) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= lpt_data;
         end
-        else if ((xtctl_cs) && (~io_read_n))
+        else if ((xtctl_chip_select) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= xtctl;
         end
-        else if ((~nmi_mask_register_n) && (~io_read_n))
+        else if (nmi_mask_register && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= nmi_mask_register_data;
@@ -1429,15 +1460,20 @@ end
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= joy_data;
         end
-        else if ((~ide0_cs_n) && (~io_read_n))
+        else if ((~ide0_chip_select_n) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= xt2ide0_data_bus_out;
         end
-        else if ((~floppy0_select_n || fdd_dma_read) && (~io_read_n))
+        else if ((~floppy0_chip_select_n || fdd_dma_read) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= fdd_readdata;
+        end
+        else if (rtc_chip_select && (~io_read_n))
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= rtc_readdata;
         end
         else
         begin

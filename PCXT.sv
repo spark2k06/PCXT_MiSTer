@@ -318,6 +318,7 @@ module emu
     reg         border_video_ff;
 	 
     wire VGA_VBlank_border;
+    wire std_hsyncwidth;
 
     always @(posedge CLK_VIDEO)
     begin
@@ -1010,6 +1011,7 @@ module emu
 		.processor_ready                    (processor_ready),
 		.interrupt_to_cpu                   (interrupt_to_cpu),
 		.splashscreen                       (splashscreen),
+		.std_hsyncwidth                     (std_hsyncwidth),
 		.composite                          (composite),
 		.video_output                       (mda_mode_video_ff),
 		.clk_vga_cga                        (clk_28_636),
@@ -1437,7 +1439,7 @@ module emu
         end
         else
         begin
-            if (HBlank_counter == 120)
+            if (HBlank_counter == (std_hsyncwidth ? 120 : 143))
                 HBlank_fixed <= 1'b0;
             else
                 HBlank_counter <= HBlank_counter + 1;
@@ -1503,7 +1505,7 @@ module emu
 		.B(baux_cga),
 
 		.HBlank(border_video_ff ? HBlank_fixed : HBlank_VGA),
-		.VBlank(border_video_ff ? VGA_VBlank_border : VBlank),
+		.VBlank(border_video_ff ? std_hsyncwidth ? VGA_VBlank_border : ~VSync : VBlank),
 		.HSync(HSync),
 		.VSync(VSync),
 
