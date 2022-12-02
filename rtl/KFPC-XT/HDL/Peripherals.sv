@@ -184,42 +184,43 @@ module PERIPHERALS #(
         end
     end
 
-    assign  dma_chip_select_n       = chip_select_n[0]; // 0x00 .. 0x1F
-    wire    interrupt_chip_select_n = chip_select_n[1]; // 0x20 .. 0x3F
-    wire    timer_chip_select_n     = chip_select_n[2]; // 0x40 .. 0x5F
-    wire    ppi_chip_select_n       = chip_select_n[3]; // 0x60 .. 0x7F
-    assign  dma_page_chip_select_n  = chip_select_n[4]; // 0x80 .. 0x9F
-    wire    nmi_chip_select_n       = chip_select_n[5]; // 0xA0 .. 0xBF
-    wire    tandy_chip_select_n     = chip_select_n[6]; // 0xC0 .. 0xDF
-	 
-    wire    ide0_chip_select_n     = ~(~address_enable_n && ({address[15:4], 4'd0} == 16'h0300));
-    wire    floppy0_chip_select_n  = ~(~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
-	 
-    wire    memrq = ~memory_read_n | ~memory_write_n;
+    wire    iorq = ~io_read_n | ~io_write_n;
 
-    wire    joystick_select        = (~address_enable_n && address[15:3] == (16'h0200 >> 3)); // 0x200 .. 0x207
-    wire    nmi_mask_register      = (tandy_video && ~nmi_chip_select_n);
+    assign  dma_chip_select_n       = ~(iorq && ~chip_select_n[0]); // 0x00 .. 0x1F
+    wire    interrupt_chip_select_n = ~(iorq && ~chip_select_n[1]); // 0x20 .. 0x3F
+    wire    timer_chip_select_n     = ~(iorq && ~chip_select_n[2]); // 0x40 .. 0x5F
+    wire    ppi_chip_select_n       = ~(iorq && ~chip_select_n[3]); // 0x60 .. 0x7F
+    assign  dma_page_chip_select_n  = ~(iorq && ~chip_select_n[4]); // 0x80 .. 0x8F
+    wire    nmi_chip_select_n       = ~(iorq && ~chip_select_n[5]); // 0xA0 .. 0xBF
+    wire    tandy_chip_select_n     = ~(tandy_video &&
+	                                     iorq && ~chip_select_n[6]); // 0xC0 .. 0xDF
 
-    wire    video_mem_select       = (tandy_video && memrq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
-    wire    cga_mem_select         = (memrq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
-    wire    mda_mem_select         = (memrq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
+    wire    ide0_chip_select_n      = ~(iorq && ~address_enable_n && ({address[15:4], 4'd0} == 16'h0300));
+    wire    floppy0_chip_select_n   = ~(iorq && ~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
+
+    wire    joystick_select         = (iorq && ~address_enable_n && address[15:3] == (16'h0200 >> 3)); // 0x200 .. 0x207
+    wire    nmi_mask_register       = (tandy_video && ~nmi_chip_select_n);
+
+    wire    video_mem_select        = (tandy_video && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
+    wire    cga_mem_select          = (~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
+    wire    mda_mem_select          = (~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
 	 
-    wire    opl_388_chip_select    = (~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389 (Adlib)
-    wire    opl_228_chip_select    = (~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)); // 0x228 .. 0x229 (Sound Blaster FM)
-    wire    cms_220_chip_select    = (~address_enable_n && address[15:4] == (16'h0220 >> 4)); // 0x220 .. 0x22F (C/MS Audio)
-    wire    uart_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
-    wire    uart2_chip_select      = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
-    wire    lpt_chip_select        = (~address_enable_n && address[15:0] == 16'h0378);
-    wire    tandy_page_chip_select = (~address_enable_n && address[15:0] == 16'h03DF);
-    wire    xtctl_chip_select      = (~address_enable_n && address[15:0] == 16'h8888);
-    wire    rtc_chip_select        = (~address_enable_n && address[15:1] == (16'h02C0 >> 1)); // 0x2C0 .. 0x2C1
+    wire    opl_388_chip_select     = (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389 (Adlib)
+    wire    opl_228_chip_select     = (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)); // 0x228 .. 0x229 (Sound Blaster FM)
+    wire    cms_220_chip_select     = (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)); // 0x220 .. 0x22F (C/MS Audio)
+    wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
+    wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
+    wire    lpt_chip_select         = (iorq && ~address_enable_n && address[15:0] == 16'h0378);
+    wire    tandy_page_chip_select  = (tandy_video && iorq && ~address_enable_n && address[15:0] == 16'h03DF);
+    wire    xtctl_chip_select       = (iorq && ~address_enable_n && address[15:0] == 16'h8888);
+    wire    rtc_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h02C0 >> 1)); // 0x2C0 .. 0x2C1
 
-    wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1100 : (ems_address == 2'b01) ? 4'b1101 : 4'b1110;
-    wire    ems_chip_select        = (~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h
-    assign  ems_b1                 = (memrq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // C0000h - D0000h - E0000h
-    assign  ems_b2                 = (memrq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // C4000h - D4000h - E4000h
-    assign  ems_b3                 = (memrq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // C8000h - D8000h - E8000h
-    assign  ems_b4                 = (memrq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // CC000h - DC000h - EC000h
+    wire    [3:0] ems_page_address  = (ems_address == 2'b00) ? 4'b1100 : (ems_address == 2'b01) ? 4'b1101 : 4'b1110;
+    wire    ems_chip_select         = (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h
+    assign  ems_b1                  = (~iorq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // C0000h - D0000h - E0000h
+    assign  ems_b2                  = (~iorq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // C4000h - D4000h - E4000h
+    assign  ems_b3                  = (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // C8000h - D8000h - E8000h
+    assign  ems_b4                  = (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // CC000h - DC000h - EC000h
 
     logic   [1:0]   ems_access_address;
     logic           ems_write_enable;
