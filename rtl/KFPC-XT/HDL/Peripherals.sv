@@ -212,7 +212,7 @@ module PERIPHERALS #(
     wire    lpt_chip_select        = (~address_enable_n && address[15:0] == 16'h0378);
     wire    tandy_page_chip_select = (~address_enable_n && address[15:0] == 16'h03DF);
     wire    xtctl_chip_select      = (~address_enable_n && address[15:0] == 16'h8888);
-    wire    rtc_chip_select        = (~address_enable_n && address[15:1] == (16'h0240 >> 1)); // 0x240 .. 0x241
+    wire    rtc_chip_select        = (~address_enable_n && address[15:1] == (16'h02C0 >> 1)); // 0x2C0 .. 0x2C1
 
     wire    [3:0] ems_page_address = (ems_address == 2'b00) ? 4'b1100 : (ems_address == 2'b01) ? 4'b1101 : 4'b1110;
     wire    ems_chip_select        = (~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h
