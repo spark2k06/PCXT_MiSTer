@@ -153,7 +153,8 @@ module CHIPSET (
         // RAM wait mode
         input   logic           wait_count_clk_en,
         input   logic   [1:0]   ram_read_wait_cycle,
-        input   logic   [1:0]   ram_write_wait_cycle
+        input   logic   [1:0]   ram_write_wait_cycle,
+        output  logic           pause_core
     );
 
 	 logic   [19:0]  latch_address;
@@ -367,7 +368,8 @@ module CHIPSET (
         .fdd_dma_req                        (fdd_dma_req),
         .fdd_dma_ack                        (~dma_acknowledge_n[2]),
         .terminal_count                     (terminal_count_n),
-        .xtctl                              (xtctl)
+        .xtctl                              (xtctl),
+        .pause_core                         (pause_core)
     );
 
     RAM u_RAM 
