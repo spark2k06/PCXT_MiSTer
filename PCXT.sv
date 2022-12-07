@@ -319,6 +319,7 @@ module emu
 	 
     wire VGA_VBlank_border;
     wire std_hsyncwidth;
+    wire pause_core;
 
     always @(posedge CLK_VIDEO)
     begin
@@ -1122,7 +1123,8 @@ module emu
 		.enable_a000h                       (a000h),
 		.wait_count_clk_en                  (~clk_cpu & clk_cpu_ff_2),
 		.ram_read_wait_cycle                (ram_read_wait_cycle),
-		.ram_write_wait_cycle               (ram_write_wait_cycle)
+		.ram_write_wait_cycle               (ram_write_wait_cycle),
+		.pause_core                         (pause_core)
 	);
 
     wire [15:0] SDRAM_DQ_IN;
@@ -1142,7 +1144,7 @@ module emu
 		.CLK(clk_cpu),
 
 		.RESET(reset_cpu),
-		.READY(processor_ready),
+		.READY(processor_ready && ~pause_core),
 		.NMI(1'b0),
 		.INTR(interrupt_to_cpu),
 
@@ -1263,8 +1265,8 @@ module emu
         cmp_r <= compr(out_r);
     end
 
-    assign AUDIO_L   = status[37:36] ? cmp_l : out_l;
-    assign AUDIO_R   = status[37:36] ? cmp_r : out_r;
+    assign AUDIO_L   = pause_core ? 1'b0 : status[37:36] ? cmp_l : out_l;
+    assign AUDIO_R   = pause_core ? 1'b0 : status[37:36] ? cmp_r : out_r;
     assign AUDIO_S   = 1;
     assign AUDIO_MIX = status[39:38];
 
@@ -1489,6 +1491,12 @@ module emu
     assign CE_PIXEL = ce_pixel;
     */
 
+    wire LHBL = border_video_ff ? HBlank_fixed : HBlank_VGA;
+    wire LVBL = border_video_ff ? std_hsyncwidth ? VGA_VBlank_border : ~VSync : VBlank;
+
+    wire       pre2x_LHBL, pre2x_LVBL;
+    wire [7:0] pre2x_r, pre2x_g, pre2x_b;
+	 
 
     video_mixer #(.GAMMA(1)) video_mixer_cga
 	(
@@ -1500,12 +1508,12 @@ module emu
 
 		.freeze_sync(),
 
-		.R(raux_cga),
-		.G(gaux_cga),
-		.B(baux_cga),
+		.R(pre2x_r),
+		.G(pre2x_g),
+		.B(pre2x_b),
 
-		.HBlank(border_video_ff ? HBlank_fixed : HBlank_VGA),
-		.VBlank(border_video_ff ? std_hsyncwidth ? VGA_VBlank_border : ~VSync : VBlank),
+		.HBlank(pre2x_LHBL),
+		.VBlank(pre2x_LVBL),
 		.HSync(HSync),
 		.VSync(VSync),
 
@@ -1641,6 +1649,37 @@ module emu
     // 	.mosi        (vsdMosi  ),
     // 	.miso        (vsdMiso  )
     // );
+	 
+    jtframe_credits #(
+        .PAGES  (4),
+        .COLW   (8),
+        .BLKPOL (1)
+    ) u_credits(
+        .rst        ( reset         ),
+        .clk        ( clk_chipset ), // alt: CLK_VIDEO_CGA
+        .pxl_cen    ( CE_PIXEL_cga  ), // alt: ce_pixel_cga
+
+        // input image
+        .HB         ( LHBL  ),
+        .VB         ( LVBL  ),
+        .rgb_in     ( { raux_cga, gaux_cga, baux_cga } ),
+        .rotate     ( 2'd0  ),
+        .toggle     ( 1'b0  ),
+        .fast_scroll( 1'b0  ),
+        .border     ( border_video_ff ),
+
+        .vram_din   ( 8'h0  ),
+        .vram_dout  (       ),
+        .vram_addr  ( 8'h0  ),
+        .vram_we    ( 1'b0  ),
+        .vram_ctrl  ( 3'b0  ),
+        .enable     ( pause_core ),
+
+        // output image
+        .HB_out     ( pre2x_LHBL      ),
+        .VB_out     ( pre2x_LVBL      ),
+        .rgb_out    ( {pre2x_r, pre2x_g, pre2x_b } )
+    );
 
 
 endmodule

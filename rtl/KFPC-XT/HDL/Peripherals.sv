@@ -121,7 +121,8 @@ module PERIPHERALS #(
         input   logic           fdd_dma_ack,
         input   logic           terminal_count,
         // XTCTL DATA
-        output  logic   [7:0]   xtctl = 8'h00
+        output  logic   [7:0]   xtctl = 8'h00,
+        output  logic           pause_core
     );
 
     wire [4:0] clkdiv;
@@ -442,7 +443,8 @@ module PERIPHERALS #(
         // I/O
         .irq                        (keybord_irq),
         .keycode                    (keycode),
-        .clear_keycode              (clear_keycode)
+        .clear_keycode              (clear_keycode),
+        .pause_core                 (pause_core)
     );
 
     // Keybord reset
