@@ -26,6 +26,9 @@
 // For 0xF6 opcodes CF/OV flags were always being cleared which is incorrect for NOT
 // Moved these flag clears to IDIV and DIV which need them cleared
 //
+// Revision 4.0 12/2/2022
+// Assigned values to unused flags[1,3,5] for opcode LAHF
+//
 //
 //------------------------------------------------------------------------
 //
@@ -1612,8 +1615,18 @@ p 00 00000 00001 0214
 p 01 00000 00001 5FFF
 p 01 00000 00001 C02E
 #
-# Jump unconditional to NOP Microcode since it is identical 
+# Clear AH bits 5, 3
 p 00 00000 00001 0215
+p 01 00000 00001 400F
+p 01 00000 00001 D7FF
+#
+# Set AH bit 1
+p 00 00000 00001 0216
+p 01 00000 00001 500F
+p 01 00000 00001 0200
+#
+# Jump unconditional to NOP Microcode since it is identical 
+p 00 00000 00001 0217
 p 01 00000 00001 1000
 p 01 00000 00001 0041
 #
