@@ -8,3 +8,6 @@ set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) MSMouse
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) ide.v ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) bram.vhd ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) tandy_pcjr_joy.sv ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) jtframe_credits.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) jtframe_ram.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) jtframe_dual_ram.v ]
