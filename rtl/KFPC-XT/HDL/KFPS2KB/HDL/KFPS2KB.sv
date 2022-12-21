@@ -17,7 +17,7 @@ module KFPS2KB #(
     output  logic           irq,
     output  logic   [7:0]   keycode,
     input   logic           clear_keycode,
-    output  reg             pause_core = 1'b0
+    output  reg             pause_core
 );
     //
     // Internal Signals
@@ -217,6 +217,7 @@ module KFPS2KB #(
             irq         <= 1'b0;
             keycode     <= 8'h00;
             break_flag  <= 1'b0;
+            pause_core  <= 1'b0;
         end
         else if (clear_keycode) begin
             irq         <= 1'b0;
