@@ -206,7 +206,8 @@ module PERIPHERALS #(
     wire    mda_mem_select          = (~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
     wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
     wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
-    wire    lpt_chip_select         = (iorq && ~address_enable_n && address[15:0] == 16'h0378);
+    wire    lpt_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h0378 >> 1)); // 0x378 ... 0x379
+	 wire    lpt_ctrl_select         = (iorq && ~address_enable_n && address[15:0] == 16'h037A); // 0x37A
     wire    tandy_page_chip_select  = (tandy_video && iorq && ~address_enable_n && address[15:0] == 16'h03DF);
     wire    xtctl_chip_select       = (iorq && ~address_enable_n && address[15:0] == 16'h8888);
     wire    rtc_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h02C0 >> 1)); // 0x2C0 .. 0x2C1
@@ -654,7 +655,9 @@ end
         end
     end
 
-    reg [7:0] lpt_data = 8'hFF;
+    reg [7:0] lpt_reg = 8'hFF;
+	 reg [7:0] lpt_ctrl = 8'h00;
+	 reg [7:0] lpt_enable_irq = 8'h00;
     reg [7:0] tandy_page_data = 8'h00;
     reg [7:0] nmi_mask_register_data = 8'hFF;
     always_ff @(posedge clock, posedge reset)
@@ -673,8 +676,14 @@ end
                 write_to_uart2 <= write_to_uart2;
             end
 
-            if ((lpt_chip_select) && (~io_write_n))
-                lpt_data <= internal_data_bus;
+            if ((lpt_chip_select) && (~io_write_n) && ~address[0])
+                lpt_reg <= internal_data_bus;
+
+            if ((lpt_ctrl_select) && (~io_write_n))
+            begin
+                lpt_ctrl <= internal_data_bus;
+                lpt_enable_irq <= internal_data_bus & 8'h10;
+            end
 
             if ((xtctl_chip_select) && (~io_write_n))
                 xtctl <= internal_data_bus;
@@ -1443,7 +1452,12 @@ end
         else if ((lpt_chip_select) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= lpt_data;
+            data_bus_out <= address[0] ? 8'hDF : lpt_reg;
+        end
+        else if ((lpt_ctrl_select) && (~io_read_n))
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= 8'hE0 | lpt_ctrl | lpt_enable_irq;
         end
         else if ((xtctl_chip_select) && (~io_read_n))
         begin
