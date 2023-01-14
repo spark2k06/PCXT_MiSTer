@@ -1374,6 +1374,7 @@ module emu
     wire [5:0] r, g, b;
     reg [7:0] raux_cga, gaux_cga, baux_cga;
     reg [7:0] raux_mda, gaux_mda, baux_mda;
+	 wire [7:0] VGA_R_AUX, VGA_G_AUX, VGA_B_AUX;
     wire CLK_VIDEO_MDA;
     wire CLK_VIDEO_CGA;
 
@@ -1491,8 +1492,8 @@ module emu
     assign CE_PIXEL = ce_pixel;
     */
 
-    wire LHBL = border_video_ff ? HBlank_fixed : HBlank_VGA;
-    wire LVBL = border_video_ff ? std_hsyncwidth ? VGA_VBlank_border : ~VSync : VBlank;
+    wire LHBL = (~mda_mode_video_ff && border_video_ff) ? HBlank_fixed : HBlank_VGA;
+    wire LVBL = (~mda_mode_video_ff && border_video_ff) ? std_hsyncwidth ? VGA_VBlank_border : ~VSync : VBlank;
 
     wire       pre2x_LHBL, pre2x_LVBL;
     wire [7:0] pre2x_r, pre2x_g, pre2x_b;
@@ -1508,9 +1509,9 @@ module emu
 
 		.freeze_sync(),
 
-		.R(pre2x_r),
-		.G(pre2x_g),
-		.B(pre2x_b),
+		.R(raux_cga),
+		.G(gaux_cga),
+		.B(baux_cga),
 
 		.HBlank(pre2x_LHBL),
 		.VBlank(pre2x_LVBL),
@@ -1544,8 +1545,8 @@ module emu
 		.G(gaux_mda),
 		.B(baux_mda),
 
-		.HBlank(HBlank_VGA),
-		.VBlank(VBlank),
+		.HBlank(pre2x_LHBL),
+		.VBlank(pre2x_LVBL),
 		.HSync(HSync),
 		.VSync(VSync),
 
@@ -1563,9 +1564,9 @@ module emu
 	);
 
 
-    assign VGA_R  =  mda_mode_video_ff ? VGA_R_mda  : VGA_R_cga;
-    assign VGA_G  =  mda_mode_video_ff ? VGA_G_mda  : VGA_G_cga;
-    assign VGA_B  =  mda_mode_video_ff ? VGA_B_mda  : VGA_B_cga;
+    assign VGA_R_AUX  =  mda_mode_video_ff ? VGA_R_mda  : VGA_R_cga;
+    assign VGA_G_AUX  =  mda_mode_video_ff ? VGA_G_mda  : VGA_G_cga;
+    assign VGA_B_AUX  =  mda_mode_video_ff ? VGA_B_mda  : VGA_B_cga;
     assign VGA_HS =  mda_mode_video_ff ? VGA_HS_mda : VGA_HS_cga;
     assign VGA_VS =  mda_mode_video_ff ? VGA_VS_mda : VGA_VS_cga;
     assign VGA_DE =  mda_mode_video_ff ? VGA_DE_mda : VGA_DE_cga;
@@ -1655,18 +1656,18 @@ module emu
         .COLW   (8),
         .BLKPOL (1)
     ) u_credits(
-        .rst        ( reset         ),
-        .clk        ( clk_chipset ), // alt: CLK_VIDEO_CGA
-        .pxl_cen    ( CE_PIXEL_cga  ), // alt: ce_pixel_cga
+        .rst        ( reset      ),
+        .clk        ( clk_56_875 ),
+        .pxl_cen    ( CE_PIXEL   ),
 
         // input image
         .HB         ( LHBL  ),
         .VB         ( LVBL  ),
-        .rgb_in     ( { raux_cga, gaux_cga, baux_cga } ),
+        .rgb_in     ( { VGA_R_AUX, VGA_G_AUX, VGA_B_AUX } ),
         .rotate     ( 2'd0  ),
         .toggle     ( 1'b0  ),
         .fast_scroll( 1'b0  ),
-        .border     ( border_video_ff ),
+        .border     ( mda_mode_video_ff ? 1'b0 : border_video_ff ),
 
         .vram_din   ( 8'h0  ),
         .vram_dout  (       ),
@@ -1678,7 +1679,7 @@ module emu
         // output image
         .HB_out     ( pre2x_LHBL      ),
         .VB_out     ( pre2x_LVBL      ),
-        .rgb_out    ( {pre2x_r, pre2x_g, pre2x_b } )
+        .rgb_out    ( {VGA_R, VGA_G, VGA_B } )
     );
 
 
