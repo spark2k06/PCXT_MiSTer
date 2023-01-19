@@ -27,9 +27,9 @@ module PERIPHERALS #(
         input   logic           video_output,
         input   logic           clk_vga_cga,
         input   logic           enable_cga,
-        input   logic           clk_vga_mda,
-        input   logic           enable_mda,
-        input   logic   [1:0]   mda_rgb,
+        input   logic           clk_vga_hgc,
+        input   logic           enable_hgc,
+        input   logic   [1:0]   hgc_rgb,
         output  logic           de_o,
         output  logic   [5:0]   VGA_R,
         output  logic   [5:0]   VGA_G,
@@ -122,7 +122,12 @@ module PERIPHERALS #(
         input   logic           terminal_count,
         // XTCTL DATA
         output  logic   [7:0]   xtctl = 8'h00,
-        output  logic           pause_core
+        // Others
+        output  logic           pause_core,
+        input   logic           cga_hw,
+        input   logic           hercules_hw,
+        output  logic           swap_video
+        
     );
 
     wire [4:0] clkdiv;
@@ -141,7 +146,7 @@ module PERIPHERALS #(
     begin
         if (reset)
             prev_cpu_clock <= 1'b0;
-		  else
+        else
             prev_cpu_clock <= cpu_clock;
     end
 
@@ -203,7 +208,7 @@ module PERIPHERALS #(
     wire    cms_220_chip_select     = (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)); // 0x220 .. 0x22F (C/MS Audio)
     wire    video_mem_select        = (tandy_video && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
     wire    cga_mem_select          = (~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
-    wire    mda_mem_select          = (~iorq && ~address_enable_n && enable_mda & (address[19:15] == 6'b10110)); // B0000 - B7FFF (8 repeated blocks of 4Kb)
+    wire    hgc_mem_select          = (~iorq && ~address_enable_n && enable_hgc & (address[19:15] == {5'b1011, hgc_grph_page})); // B0000 - BFFFF (32KB / 64 KB)
     wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
     wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
     wire    lpt_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h0378 >> 1)); // 0x378 ... 0x379
@@ -445,7 +450,10 @@ module PERIPHERALS #(
         .irq                        (keybord_irq),
         .keycode                    (keycode),
         .clear_keycode              (clear_keycode),
-        .pause_core                 (pause_core)
+        .pause_core                 (pause_core),
+        .swap_video                 (swap_video),
+        .video_output               (video_output),
+        .tandy_video                (tandy_video)
     );
 
     // Keybord reset
@@ -778,7 +786,7 @@ end
     logic  [16:0]  video_ram_address;
     logic  [7:0]   video_ram_data;
     logic          video_memory_write_n;
-    logic          mda_mem_select_1;
+    logic          hgc_mem_select_1;
     logic          cga_mem_select_1;
     logic          video_mem_select_1;
     logic  [14:0]  video_io_address;
@@ -786,18 +794,18 @@ end
     logic          video_io_write_n;
     logic          video_io_read_n;
     logic          video_address_enable_n;
-    logic  [14:0]  mda_io_address_1;
-    logic  [14:0]  mda_io_address_2;
-    logic  [7:0]   mda_io_data_1;
-    logic  [7:0]   mda_io_data_2;
-    logic          mda_io_write_n_1;
-    logic          mda_io_write_n_2;
-    logic          mda_io_write_n_3;
-    logic          mda_io_read_n_1;
-    logic          mda_io_read_n_2;
-    logic          mda_io_read_n_3;
-    logic          mda_address_enable_n_1;
-    logic          mda_address_enable_n_2;
+    logic  [14:0]  hgc_io_address_1;
+    logic  [14:0]  hgc_io_address_2;
+    logic  [7:0]   hgc_io_data_1;
+    logic  [7:0]   hgc_io_data_2;
+    logic          hgc_io_write_n_1;
+    logic          hgc_io_write_n_2;
+    logic          hgc_io_write_n_3;
+    logic          hgc_io_read_n_1;
+    logic          hgc_io_read_n_2;
+    logic          hgc_io_read_n_3;
+    logic          hgc_address_enable_n_1;
+    logic          hgc_address_enable_n_2;
     logic  [14:0]  cga_io_address_1;
     logic  [14:0]  cga_io_address_2;
     logic  [7:0]   cga_io_data_1;
@@ -828,7 +836,7 @@ end
         video_ram_address       <= address[16:0];
         video_ram_data          <= internal_data_bus;
         video_memory_write_n    <= memory_write_n;
-        mda_mem_select_1        <= mda_mem_select;
+        hgc_mem_select_1        <= hgc_mem_select;
         cga_mem_select_1        <= cga_mem_select;
         video_mem_select_1      <= video_mem_select;
 
@@ -837,20 +845,20 @@ end
         video_address_enable_n  <= address_enable_n;
     end
 
-    always_ff @(posedge clk_vga_mda)
+    always_ff @(posedge clk_vga_hgc)
     begin
-        mda_io_address_1        <= video_io_address;
-        mda_io_address_2        <= mda_io_address_1;
-        mda_io_data_1           <= video_io_data;
-        mda_io_data_2           <= mda_io_data_1;
-        mda_io_write_n_1        <= video_io_write_n;
-        mda_io_write_n_2        <= mda_io_write_n_1;
-        mda_io_write_n_3        <= mda_io_write_n_2;
-        mda_io_read_n_1         <= video_io_read_n;
-        mda_io_read_n_2         <= mda_io_read_n_1;
-        mda_io_read_n_3         <= mda_io_read_n_2;
-        mda_address_enable_n_1  <= video_address_enable_n;
-        mda_address_enable_n_2  <= mda_address_enable_n_1;
+        hgc_io_address_1        <= video_io_address;
+        hgc_io_address_2        <= hgc_io_address_1;
+        hgc_io_data_1           <= video_io_data;
+        hgc_io_data_2           <= hgc_io_data_1;
+        hgc_io_write_n_1        <= video_io_write_n;
+        hgc_io_write_n_2        <= hgc_io_write_n_1;
+        hgc_io_write_n_3        <= hgc_io_write_n_2;
+        hgc_io_read_n_1         <= video_io_read_n;
+        hgc_io_read_n_2         <= hgc_io_read_n_1;
+        hgc_io_read_n_3         <= hgc_io_read_n_2;
+        hgc_address_enable_n_1  <= video_address_enable_n;
+        hgc_address_enable_n_2  <= hgc_address_enable_n_1;
     end
 
     always_ff @(posedge clk_vga_cga)
@@ -876,85 +884,89 @@ end
     reg           HBLANK_CGA;
     reg           VBLANK_CGA;
 
-    reg   [5:0]   R_MDA;
-    reg   [5:0]   G_MDA;
-    reg   [5:0]   B_MDA;
-    reg           HSYNC_MDA;
-    reg           VSYNC_MDA;
-    reg           HBLANK_MDA;
-    reg           VBLANK_MDA;
+    reg   [5:0]   R_HGC;
+    reg   [5:0]   G_HGC;
+    reg   [5:0]   B_HGC;
+    reg           HSYNC_HGC;
+    reg           VSYNC_HGC;
+    reg           HBLANK_HGC;
+    reg           VBLANK_HGC;
 
     reg           de_o_cga;
-    reg           de_o_mda;
+    reg           de_o_hgc;
 
     wire[3:0] video_cga;
-    wire video_mda;
+    wire video_hgc;
 
-    assign VGA_R = video_output ? R_MDA : R_CGA;
-    assign VGA_G = video_output ? G_MDA : G_CGA;
-    assign VGA_B = video_output ? B_MDA : B_CGA;
-    assign VGA_HSYNC = video_output ? HSYNC_MDA : HSYNC_CGA;
-    assign VGA_VSYNC = video_output ? VSYNC_MDA : VSYNC_CGA;
+    assign VGA_R = swap_video ? R_HGC : R_CGA;
+    assign VGA_G = swap_video ? G_HGC : G_CGA;
+    assign VGA_B = swap_video ? B_HGC : B_CGA;
+    assign VGA_HSYNC = swap_video ? HSYNC_HGC : HSYNC_CGA;
+    assign VGA_VSYNC = swap_video ? VSYNC_HGC : VSYNC_CGA;
 
-    assign VGA_HBlank = video_output ? HBLANK_MDA : HBLANK_CGA;
-    assign VGA_VBlank = video_output ? VBLANK_MDA : VBLANK_CGA;
+    assign VGA_HBlank = swap_video ? HBLANK_HGC : HBLANK_CGA;
+    assign VGA_VBlank = swap_video ? VBLANK_HGC : VBLANK_CGA;
 
-    assign de_o = video_output ? de_o_mda : de_o_cga;
+    assign de_o = swap_video ? de_o_hgc : de_o_cga;
 
-    wire MDA_VRAM_ENABLE;
-    wire [18:0] MDA_VRAM_ADDR;
-    wire [7:0] MDA_VRAM_DOUT;
-    wire MDA_CRTC_OE;
-    reg  MDA_CRTC_OE_1;
-    reg  MDA_CRTC_OE_2;
-    wire [7:0] MDA_CRTC_DOUT;
-    reg  [7:0] MDA_CRTC_DOUT_1;
-    reg  [7:0] MDA_CRTC_DOUT_2;
+    wire HGC_VRAM_ENABLE;
+    wire [18:0] HGC_VRAM_ADDR;
+    wire [7:0] HGC_VRAM_DOUT;
+    wire HGC_CRTC_OE;
+    reg  HGC_CRTC_OE_1;
+    reg  HGC_CRTC_OE_2;
+    wire [7:0] HGC_CRTC_DOUT;
+    reg  [7:0] HGC_CRTC_DOUT_1;
+    reg  [7:0] HGC_CRTC_DOUT_2;
 
     wire intensity;
 
 
-    mda_vgaport vga_mda 
+    hgc_vgaport vga_hgc 
     (
-        .clk(clk_vga_mda),
-        .video(video_mda),
+        .clk(clk_vga_hgc),
+        .video(video_hgc),
         .intensity(intensity),
-        .red(R_MDA),
-        .green(G_MDA),
-        .blue(B_MDA),
-        .mda_rgb(mda_rgb)
+        .red(R_HGC),
+        .green(G_HGC),
+        .blue(B_HGC),
+        .hgc_rgb(hgc_rgb)
     );
 
-    mda mda1 
+    hgc hgc1 
     (
-        .clk                        (clk_vga_mda),
-        .bus_a                      (mda_io_address_2),
-        .bus_ior_l                  (mda_io_read_n_3),
-        .bus_iow_l                  (mda_io_write_n_3),
+        .clk                        (clk_vga_hgc),
+        .bus_a                      (hgc_io_address_2),
+        .bus_ior_l                  (hgc_io_read_n_3),
+        .bus_iow_l                  (hgc_io_write_n_3),
         .bus_memr_l                 (1'd0),
         .bus_memw_l                 (1'd0),
-        .bus_d                      (mda_io_data_2),
-        .bus_out                    (MDA_CRTC_DOUT),
-        .bus_dir                    (MDA_CRTC_OE),
-        .bus_aen                    (mda_address_enable_n_2),
-        .ram_we_l                   (MDA_VRAM_ENABLE),
-        .ram_a                      (MDA_VRAM_ADDR),
-        .ram_d                      (MDA_VRAM_DOUT),
-        .hsync                      (HSYNC_MDA),
-        .hblank                     (HBLANK_MDA),
-        .vsync                      (VSYNC_MDA),
-        .vblank                     (VBLANK_MDA),
+        .bus_d                      (hgc_io_data_2),
+        .bus_out                    (HGC_CRTC_DOUT),
+        .bus_dir                    (HGC_CRTC_OE),
+        .bus_aen                    (hgc_address_enable_n_2),
+        .ram_we_l                   (HGC_VRAM_ENABLE),
+        .ram_a                      (HGC_VRAM_ADDR),
+        .ram_d                      (HGC_VRAM_DOUT),
+        .hsync                      (HSYNC_HGC),
+        .hblank                     (HBLANK_HGC),
+        .vsync                      (VSYNC_HGC),
+        .vblank                     (VBLANK_HGC),
         .intensity                  (intensity),
-        .video                      (video_mda),
-        .de_o                       (de_o_mda)
+        .video                      (video_hgc),
+        .de_o                       (de_o_hgc),
+        .grph_mode                  (hgc_grph_mode),
+        .grph_page                  (hgc_grph_page),
+        .hercules_hw                (hercules_hw)
+		  
     );
 
     always_ff @(posedge clock)
     begin
-        MDA_CRTC_DOUT_1 <= MDA_CRTC_DOUT;
-        MDA_CRTC_DOUT_2 <= MDA_CRTC_DOUT_1;
-        MDA_CRTC_OE_1   <= MDA_CRTC_OE;
-        MDA_CRTC_OE_2   <= MDA_CRTC_OE_1;
+        HGC_CRTC_DOUT_1 <= HGC_CRTC_DOUT;
+        HGC_CRTC_DOUT_2 <= HGC_CRTC_DOUT_1;
+        HGC_CRTC_OE_1   <= HGC_CRTC_OE;
+        HGC_CRTC_OE_2   <= HGC_CRTC_OE_1;
     end
 
 
@@ -971,7 +983,7 @@ end
     // Sets up the card to generate a video signal
     // that will work with a standard VGA monitor
     // connected to the VGA port.
-    localparam MDA_70HZ = 0;
+    localparam HGC_70HZ = 0;
 
     // wire composite_on;
     wire thin_font;
@@ -1027,7 +1039,8 @@ end
         .tandy_video                (tandy_video),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
-		  .tandy_color_16             (tandy_color_16)
+        .tandy_color_16             (tandy_color_16),
+        .cga_hw                     (cga_hw)
     );
 
     always_ff @(posedge clock)
@@ -1040,9 +1053,9 @@ end
 
 
     defparam cga1.BLINK_MAX = 24'd4772727;
-    defparam mda1.BLINK_MAX = 24'd9100000;
+    defparam hgc1.BLINK_MAX = 24'd9100000;
     wire [7:0] cga_vram_cpu_dout;
-    wire [7:0] mda_vram_cpu_dout;
+    wire [7:0] hgc_vram_cpu_dout;
 
     vram #(.AW(17)) cga_vram
     (
@@ -1061,20 +1074,20 @@ end
     );
 
 
-    vram #(.AW(12)) mda_vram
+    vram #(.AW(16)) hgc_vram
     (
         .clka                       (clock),
-        .ena                        (mda_mem_select_1),
+        .ena                        (hgc_mem_select_1),
         .wea                        (~video_memory_write_n),
-        .addra                      (video_ram_address[11:0]),
+        .addra                      ({hgc_grph_page, video_ram_address[14:0]}),
         .dina                       (video_ram_data),
-        .douta                      (mda_vram_cpu_dout),
-        .clkb                       (clk_vga_mda),
+        .douta                      (hgc_vram_cpu_dout),
+        .clkb                       (clk_vga_hgc),
         .web                        (1'b0),
-        .enb                        (MDA_VRAM_ENABLE),
-        .addrb                      (MDA_VRAM_ADDR[11:0]),
+        .enb                        (HGC_VRAM_ENABLE),
+        .addrb                      ({hgc_grph_page, HGC_VRAM_ADDR[14:0]}),
         .dinb                       (8'h0),
-        .doutb                      (MDA_VRAM_DOUT)
+        .doutb                      (HGC_VRAM_DOUT)
     );
 
 
@@ -1409,20 +1422,20 @@ end
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= cga_vram_cpu_dout;
         end
-        else if (mda_mem_select && (~memory_read_n))
+        else if (hgc_mem_select && (~memory_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= mda_vram_cpu_dout;
+            data_bus_out <= hgc_vram_cpu_dout;
         end
         else if (CGA_CRTC_OE_2)
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= CGA_CRTC_DOUT_2;
         end
-        else if (MDA_CRTC_OE_2)
+        else if (HGC_CRTC_OE_2)
         begin
             data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= MDA_CRTC_DOUT_2;
+            data_bus_out <= HGC_CRTC_DOUT_2;
         end
         else if ((opl_228_chip_select || opl_388_chip_select) && ~io_read_n)
         begin

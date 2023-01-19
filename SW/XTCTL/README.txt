@@ -1,6 +1,6 @@
 USAGE:
 
-xtctl.exe [menu] [composite border adliboff mda 4Mhz/7Mhz/14Mhz]
+xtctl.exe [menu] [composite border adliboff 4Mhz/7Mhz/14Mhz]
 
 Composite video simulated and visible bordes would be:
 

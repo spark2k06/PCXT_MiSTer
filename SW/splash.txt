@@ -20,6 +20,6 @@
           (MicroCoreLabs)                            (TubeTime)    
                                                                    
                                                                    
-                                                                   
+            F11: Swap Video Output HGC or CGA (Only PCXT model)    
             F12: Pause & Credits            Win + F12: Menu OSD    
                                                                    

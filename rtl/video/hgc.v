@@ -7,7 +7,7 @@
 // Commons, PO Box 1866, Mountain View, CA 94042, USA.
 //
 `default_nettype none
-module mda(
+module hgc(
     // Clocks
     input clk,
 
@@ -27,31 +27,36 @@ module mda(
     output ram_we_l,
     output[18:0] ram_a,
     input[7:0] ram_d,
-	 
+
     // Video outputs
     output hsync,
-	output hblank,
+    output hblank,
     output vsync,
-	output vblank,
-	 output de_o,
+    output vblank,
+    output de_o,
     output video,
-    output intensity
+    output intensity,
+    output grph_mode,
+    output grph_page,
+    input hercules_hw
     );
 
-    parameter MDA_70HZ = 1;
+    parameter HGC_70HZ = 1;
     parameter BLINK_MAX = 0;
 
-    parameter IO_BASE_ADDR = 16'h3b0; // MDA is 3B0, CGA is 3D0
+    parameter IO_BASE_ADDR = 16'h3b0; // HGC is 3B0, CGA is 3D0
     wire crtc_cs;
     wire status_cs;
     wire control_cs;
     wire bus_mem_cs;
+    wire config_sw_cs;
 
     reg[7:0] bus_int_out;
     wire[7:0] bus_out_crtc;
     wire[7:0] bus_out_mem;
-    wire[7:0] mda_status_reg;
-    reg[7:0] mda_control_reg = 8'b0010_1000;
+    wire[7:0] hgc_status_reg;
+    reg[7:0] hgc_control_reg = 8'b0010_1000;
+    reg[1:0] config_sw_reg = 2'b00;
     wire video_enabled;
     wire blink_enabled;
 
@@ -89,9 +94,9 @@ module mda(
     //reg bus_rdy_latch; 
 	 
 	 assign de_o = display_enable;
-	 
-	 assign ram_a = {7'b0000000, crtc_addr[10:0],
-                    vram_read_a0};
+
+	 assign ram_a = grph_mode ? {4'b0000, row_addr[1:0], crtc_addr[11:0], vram_read_a0} : 
+                               {7'b0000000, crtc_addr[10:0], vram_read_a0};
 						  
 	 assign ram_1_d = ram_d;
 	 //assign ram_1_d = 8'hFF;
@@ -111,9 +116,10 @@ module mda(
     assign vsync = ~vsync_l;
 
     // Mapped IO
-    assign crtc_cs = (bus_a[14:3] == IO_BASE_ADDR[14:3]) & ~bus_aen; // 3B4/3B5
-    assign status_cs = (bus_a == IO_BASE_ADDR + 20'hA) & ~bus_aen;
-	 assign control_cs = (bus_a == IO_BASE_ADDR + 16'h8) & ~bus_aen;
+    assign crtc_cs = (bus_a[14:3] == IO_BASE_ADDR[14:3]) & ~bus_aen & hercules_hw; // 3B4/3B5
+    assign status_cs = (bus_a == IO_BASE_ADDR + 20'hA) & ~bus_aen & hercules_hw;
+    assign control_cs = (bus_a == IO_BASE_ADDR + 16'h8) & ~bus_aen & hercules_hw;
+    assign config_sw_cs = (bus_a == IO_BASE_ADDR + 16'hF) & ~bus_aen & hercules_hw;
 
     // Memory-mapped from B0000 to B7FFF
     // assign bus_mem_cs = (bus_a[19:15] == 5'b10110);
@@ -124,7 +130,7 @@ module mda(
 //        if (bus_mem_cs & ~bus_memr_l) begin
 //            bus_int_out <= bus_out_mem;
         if (status_cs & ~bus_ior_l) begin
-            bus_int_out <= mda_status_reg;
+            bus_int_out <= hgc_status_reg;
         end else if (crtc_cs & ~bus_ior_l & (bus_a[0] == 1)) begin
             bus_int_out <= bus_out_crtc;
         end else begin
@@ -139,12 +145,14 @@ module mda(
     assign bus_out = bus_int_out;
 
 
-    // MDA status register (read only at 3BA)
-    assign mda_status_reg = {4'b1111, video, 2'b00, hsync_int};
+    // Hercules status register (read only at 3BA)
+    assign hgc_status_reg = {vsync_l, 3'b111, video, 2'b00, hsync_int};
 
-    // MDA mode control register (write only)
-    assign blink_enabled = mda_control_reg[5];
-    assign video_enabled = mda_control_reg[3];
+    // Hercules mode control register (write only)
+    assign grph_page = hgc_control_reg[7];
+    assign blink_enabled = hgc_control_reg[5];
+    assign video_enabled = hgc_control_reg[3];
+    assign grph_mode = hgc_control_reg[1];
 
     // Hsync only present when video is enabled
     assign hsync = video_enabled & hsync_int;
@@ -153,7 +161,10 @@ module mda(
     always @ (posedge clk)
     begin
         if (control_cs & ~bus_iow_synced_l) begin
-            mda_control_reg <= bus_d;
+            hgc_control_reg <= {(bus_d[7] & config_sw_reg[1]), bus_d[6:2], (bus_d[1] & config_sw_reg[0]), bus_d[0]};
+        end
+        if (config_sw_cs & ~bus_iow_synced_l) begin
+            config_sw_reg <= bus_d[1:0];
         end
     end
 
@@ -167,7 +178,8 @@ module mda(
         .read(~bus_ior_synced_l),
         .bus(bus_d),
         .bus_out(bus_out_crtc),
-        .lock(MDA_70HZ == 1),
+//        .lock(HGC_70HZ == 1),
+        .lock(1'b0),
         .hsync(hsync_int),
         .vsync(vsync_l),
 		.hblank(hblank),
@@ -179,7 +191,7 @@ module mda(
     );
 
 	 
-//    if (MDA_70HZ) begin
+//    if (HGC_70HZ) begin
         defparam crtc.H_TOTAL = 8'd99;
         defparam crtc.H_DISP = 8'd80;
         defparam crtc.H_SYNCPOS = 8'd82;
@@ -207,7 +219,7 @@ module mda(
     //end
 
     // Interface to video SRAM chip
-    mda_vram video_buffer (
+    hgc_vram video_buffer (
         .clk(clk),
         .isa_addr({3'b000, bus_a[15:0]}),
         .isa_din(bus_d),
@@ -223,10 +235,10 @@ module mda(
         .isa_op_enable(isa_op_enable)
     );
 
-    defparam video_buffer.MDA_70HZ = MDA_70HZ;
+    defparam video_buffer.HGC_70HZ = HGC_70HZ;
 */
     // Sequencer state machine
-    mda_sequencer sequencer (
+    hgc_sequencer sequencer (
         .clk(clk),
         .clk_seq(clkdiv),
         .vram_read(vram_read),
@@ -236,13 +248,14 @@ module mda(
         .crtc_clk(crtc_clk),
         .charrom_read(charrom_read),
         .disp_pipeline(disp_pipeline),
-        .isa_op_enable(isa_op_enable)
+        .isa_op_enable(isa_op_enable),
+        .grph_mode(grph_mode)
     );
 
-    defparam sequencer.MDA_70HZ = MDA_70HZ;
+    defparam sequencer.HGC_70HZ = HGC_70HZ;
 
     // Pixel pusher
-    mda_pixel pixel (
+    hgc_pixel pixel (
         .clk(clk),
         .clk_seq(clkdiv),
         .vram_data(ram_1_d),
@@ -257,7 +270,8 @@ module mda(
         .blink(blink),
         .video_enabled(video_enabled),
         .video(video),
-        .intensity(intensity)
+        .intensity(intensity),
+        .grph_mode(grph_mode)
     );
 
     // Generate blink signal for cursor and character

@@ -47,7 +47,8 @@ module cga(
     input tandy_video,     
     output grph_mode,
     output hres_mode,
-    output tandy_color_16
+    output tandy_color_16,
+    input cga_hw
     );
 
     parameter MDA_70HZ = 0;
@@ -150,11 +151,11 @@ module cga(
     assign vsync = ~vsync_l;
 
     // Mapped IO
-    assign crtc_cs = (bus_a[14:3] == IO_BASE_ADDR[14:3]) & ~bus_aen; // 3D4/3D5
-    assign status_cs = (bus_a == IO_BASE_ADDR + 20'hA) & ~bus_aen;
-    assign tandy_newcolorsel_cs = (bus_a == IO_BASE_ADDR + 20'hE) & ~bus_aen;     
-    assign control_cs = (bus_a == IO_BASE_ADDR + 16'h8) & ~bus_aen;
-    assign colorsel_cs = (bus_a == IO_BASE_ADDR + 20'h9) & ~bus_aen;     
+    assign crtc_cs = (bus_a[14:3] == IO_BASE_ADDR[14:3]) & ~bus_aen & cga_hw; // 3D4/3D5
+    assign status_cs = (bus_a == IO_BASE_ADDR + 20'hA) & ~bus_aen & cga_hw;
+    assign tandy_newcolorsel_cs = (bus_a == IO_BASE_ADDR + 20'hE) & ~bus_aen & cga_hw;
+    assign control_cs = (bus_a == IO_BASE_ADDR + 16'h8) & ~bus_aen & cga_hw;
+    assign colorsel_cs = (bus_a == IO_BASE_ADDR + 20'h9) & ~bus_aen & cga_hw;
     // Memory-mapped from B0000 to B7FFF
     //assign bus_mem_cs = (bus_a[19:15] == FRAMEBUFFER_ADDR[19:15]);
     //assign bus_mem_cs = 1'b1;
