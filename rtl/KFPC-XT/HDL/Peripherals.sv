@@ -898,16 +898,16 @@ end
     wire[3:0] video_cga;
     wire video_hgc;
 
-    assign VGA_R = swap_video ? R_HGC : R_CGA;
-    assign VGA_G = swap_video ? G_HGC : G_CGA;
-    assign VGA_B = swap_video ? B_HGC : B_CGA;
-    assign VGA_HSYNC = swap_video ? HSYNC_HGC : HSYNC_CGA;
-    assign VGA_VSYNC = swap_video ? VSYNC_HGC : VSYNC_CGA;
+    assign VGA_R = swap_video & ~tandy_video ? R_HGC : R_CGA;
+    assign VGA_G = swap_video & ~tandy_video ? G_HGC : G_CGA;
+    assign VGA_B = swap_video & ~tandy_video ? B_HGC : B_CGA;
+    assign VGA_HSYNC = swap_video & ~tandy_video ? HSYNC_HGC : HSYNC_CGA;
+    assign VGA_VSYNC = swap_video & ~tandy_video ? VSYNC_HGC : VSYNC_CGA;
 
-    assign VGA_HBlank = swap_video ? HBLANK_HGC : HBLANK_CGA;
-    assign VGA_VBlank = swap_video ? VBLANK_HGC : VBLANK_CGA;
+    assign VGA_HBlank = swap_video & ~tandy_video ? HBLANK_HGC : HBLANK_CGA;
+    assign VGA_VBlank = swap_video & ~tandy_video ? VBLANK_HGC : VBLANK_CGA;
 
-    assign de_o = swap_video ? de_o_hgc : de_o_cga;
+    assign de_o = swap_video & ~tandy_video ? de_o_hgc : de_o_cga;
 
     wire HGC_VRAM_ENABLE;
     wire [18:0] HGC_VRAM_ADDR;
@@ -1002,7 +1002,7 @@ end
         .clkdiv(clkdiv),
         .video(video_cga),
         .hsync(VGA_HSYNC),
-        .composite(composite),
+        .composite(tandy_video ? swap_video ? ~composite : composite : composite),
         .red(R_CGA),
         .green(G_CGA),
         .blue(B_CGA)

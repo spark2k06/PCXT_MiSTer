@@ -217,7 +217,7 @@ module KFPS2KB #(
     //
     always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
-            swap_video  <= video_output;
+            swap_video  <= tandy_video ? 1'b0 : video_output;
             irq         <= 1'b0;
             keycode     <= 8'h00;
             break_flag  <= 1'b0;
@@ -252,8 +252,8 @@ module KFPS2KB #(
                 keycode     <= 8'h00;
                 break_flag  <= 1'b1;
             end
-            else if (register == 8'h78 & ~tandy_video) begin
-                // F11 -> Swap video (CGA <-> Hercules)
+            else if (register == 8'h78) begin
+                // F11: CGA <-> Hercules (PCXT), RGB <-> Composite (Tandy)
                 irq         <= 1'b0;
                 keycode     <= 8'h00;
                 break_flag  <= 1'b0;

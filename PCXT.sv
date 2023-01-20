@@ -1424,7 +1424,7 @@ module emu
 
     always_comb
     begin
-        if (swap_video)
+        if (swap_video & ~tandy_mode)
 
         HBlank_VGA = HBlank_del[color ? 12 : 13];
 
@@ -1571,14 +1571,14 @@ module emu
 	);
 
 
-    assign VGA_R_AUX  =  swap_video ? VGA_R_hgc  : VGA_R_cga;
-    assign VGA_G_AUX  =  swap_video ? VGA_G_hgc  : VGA_G_cga;
-    assign VGA_B_AUX  =  swap_video ? VGA_B_hgc  : VGA_B_cga;
-    assign VGA_HS =  swap_video ? VGA_HS_hgc : VGA_HS_cga;
-    assign VGA_VS =  swap_video ? VGA_VS_hgc : VGA_VS_cga;
-    assign VGA_DE =  swap_video ? VGA_DE_hgc : VGA_DE_cga;
-    assign gamma_bus =  swap_video ? gamma_bus_hgc : gamma_bus_cga;
-    assign CE_PIXEL  =  swap_video ? CE_PIXEL_hgc : CE_PIXEL_cga;
+    assign VGA_R_AUX  =  swap_video & ~tandy_mode ? VGA_R_hgc  : VGA_R_cga;
+    assign VGA_G_AUX  =  swap_video & ~tandy_mode ? VGA_G_hgc  : VGA_G_cga;
+    assign VGA_B_AUX  =  swap_video & ~tandy_mode ? VGA_B_hgc  : VGA_B_cga;
+    assign VGA_HS =  swap_video & ~tandy_mode ? VGA_HS_hgc : VGA_HS_cga;
+    assign VGA_VS =  swap_video & ~tandy_mode ? VGA_VS_hgc : VGA_VS_cga;
+    assign VGA_DE =  swap_video & ~tandy_mode ? VGA_DE_hgc : VGA_DE_cga;
+    assign gamma_bus =  swap_video & ~tandy_mode ? gamma_bus_hgc : gamma_bus_cga;
+    assign CE_PIXEL  =  swap_video & ~tandy_mode ? CE_PIXEL_hgc : CE_PIXEL_cga;
 
 
 
@@ -1674,7 +1674,7 @@ module emu
         .rotate     ( 2'd0  ),
         .toggle     ( 1'b0  ),
         .fast_scroll( 1'b0  ),
-        .border     ( swap_video ? 1'b0 : border_video_ff ),
+        .border     ( swap_video & ~tandy_mode ? 1'b0 : border_video_ff ),
 
         .vram_din   ( 8'h0  ),
         .vram_dout  (       ),
