@@ -23,7 +23,10 @@ The [Graphics Gremlin project](https://github.com/schlae/graphics-gremlin) from 
 * Support for IBM Tandy 1000
 * Support for IBM PCXT 5160 and clones (CGA graphics)
 * Main memory 640Kb + 384Kb UMB memory
-* Simultaneous video MDA
+* Simulated Composite Video, F11 -> Swap Video Output with RGB for Tandy model 
+* Simultaneous video Hercules Graphics Card, F11 -> Swap Video Output with CGA for PCXT model
+* Enable/Disable of CGA and Hercules I/O ports (Only with PCXT model)
+* 1st Graphics Card selection from System & BIOS (Only with PCXT model)
 * EMS memory up to 2Mb
 * XTIDE support
 * Tandy graphics with 128Kb of shared RAM + CGA graphics

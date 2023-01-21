@@ -28,9 +28,9 @@ module CHIPSET (
         input   logic           video_output,
         input   logic           clk_vga_cga,
         input   logic           enable_cga,
-        input   logic           clk_vga_mda,
-        input   logic           enable_mda,
-        input   logic   [1:0]   mda_rgb,
+        input   logic           clk_vga_hgc,
+        input   logic           enable_hgc,
+        input   logic   [1:0]   hgc_rgb,
         output  logic           de_o,
         output  logic   [5:0]   VGA_R,
         output  logic   [5:0]   VGA_G,
@@ -154,7 +154,12 @@ module CHIPSET (
         input   logic           wait_count_clk_en,
         input   logic   [1:0]   ram_read_wait_cycle,
         input   logic   [1:0]   ram_write_wait_cycle,
-        output  logic           pause_core
+        // Others
+        output  logic           pause_core,
+        input   logic           cga_hw,
+        input   logic           hercules_hw,
+        output  logic           swap_video
+
     );
 
 	 logic   [19:0]  latch_address;
@@ -284,10 +289,10 @@ module CHIPSET (
         .video_output                       (video_output),
         .clk_vga_cga                        (clk_vga_cga),
         .enable_cga                         (enable_cga),
-        .clk_vga_mda                        (clk_vga_mda),
-        .enable_mda                         (enable_mda),
+        .clk_vga_hgc                        (clk_vga_hgc),
+        .enable_hgc                         (enable_hgc),
         .de_o                               (de_o),
-        .mda_rgb                            (mda_rgb),
+        .hgc_rgb                            (hgc_rgb),
         .VGA_R                              (VGA_R),
         .VGA_G                              (VGA_G),
         .VGA_B                              (VGA_B),
@@ -369,7 +374,10 @@ module CHIPSET (
         .fdd_dma_ack                        (~dma_acknowledge_n[2]),
         .terminal_count                     (terminal_count_n),
         .xtctl                              (xtctl),
-        .pause_core                         (pause_core)
+        .pause_core                         (pause_core),
+        .cga_hw                             (cga_hw),
+        .hercules_hw                        (hercules_hw),
+        .swap_video                         (swap_video)
     );
 
     RAM u_RAM 

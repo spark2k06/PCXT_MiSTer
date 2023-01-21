@@ -6,7 +6,7 @@
 // http://creativecommons.org/licenses/by-sa/4.0/ or send a letter to Creative
 // Commons, PO Box 1866, Mountain View, CA 94042, USA.
 //
-module mda_vgaport(
+module hgc_vgaport(
     input wire clk,
 
     input wire video,
@@ -16,7 +16,7 @@ module mda_vgaport(
     output reg [5:0] red,
     output reg [5:0] green,
     output reg [5:0] blue,
-	 input wire [1:0] mda_rgb
+	 input wire [1:0] hgc_rgb
     );
 
     always @(posedge clk)
@@ -28,19 +28,19 @@ module mda_vgaport(
 					 blue  <= 6'd0;
             end
             2'd1: begin				    
-                red   <= mda_rgb == 0 ? 6'd0 : 6'd16;
-                green <= mda_rgb == 1 ? 6'd12 : 6'd16;
-					 blue  <= mda_rgb == 2 ? 6'd16 : 6'd0;
+                red   <= hgc_rgb == 0 ? 6'd0 : 6'd16;
+                green <= hgc_rgb == 1 ? 6'd12 : 6'd16;
+					 blue  <= hgc_rgb == 2 ? 6'd16 : 6'd0;
             end
             2'd2: begin
-                red   <= mda_rgb == 0 ? 6'd0 : 6'd48;
-                green <= mda_rgb == 1 ? 6'd21 : 6'd48;
-					 blue  <= mda_rgb == 2 ? 6'd48 : 6'd0;
+                red   <= hgc_rgb == 0 ? 6'd0 : 6'd48;
+                green <= hgc_rgb == 1 ? 6'd21 : 6'd48;
+					 blue  <= hgc_rgb == 2 ? 6'd48 : 6'd0;
             end
             2'd3: begin
-                red   <= mda_rgb == 0 ? 6'd0 : 6'd63;
-                green <= mda_rgb == 1 ? 6'd27 : 6'd63;
-					 blue  <= mda_rgb == 2 ? 6'd63 : 6'd0;
+                red   <= hgc_rgb == 0 ? 6'd0 : 6'd63;
+                green <= hgc_rgb == 1 ? 6'd27 : 6'd63;
+					 blue  <= hgc_rgb == 2 ? 6'd63 : 6'd0;
             end
             default: ;
         endcase
