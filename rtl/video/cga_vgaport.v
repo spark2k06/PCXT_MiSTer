@@ -15,7 +15,7 @@ module cga_vgaport(
     input wire   [4:0] clkdiv,
     input wire   [3:0] video,
     input wire         composite,
-    input wire         hsync,
+    input wire         hblank,
 
     // Analog outputs
     output wire  [5:0] red,
@@ -133,7 +133,7 @@ module cga_vgaport(
     always @(posedge clk)
     begin
 
-        hcount <= ~hsync ? hcount + 1 : 0;
+        hcount <= ~hblank ? hcount + 1 : 0;
 
         if (composite) begin
         
