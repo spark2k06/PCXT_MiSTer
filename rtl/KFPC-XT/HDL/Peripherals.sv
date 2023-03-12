@@ -1001,7 +1001,7 @@ end
         .clk(clk_vga_cga),
         .clkdiv(clkdiv),
         .video(video_cga),
-        .hsync(VGA_HSYNC),
+        .hblank(HBLANK_CGA),
         .composite(tandy_video ? swap_video ? ~composite : composite : composite),
         .red(R_CGA),
         .green(G_CGA),
