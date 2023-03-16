@@ -22,9 +22,6 @@ create_generated_clock -name SDRAM_CLK -source [get_pins $CLOCK_CHIP] [get_ports
 # SPLASH
 set_false_path -to [get_registers {emu:emu|splash_off}]
 
-# AUDIO
-set_false_path -to [get_registers {emu:emu|clk_cpu_ff_1 emu:emu|pclk_ff_1 emu:emu|clk_opl2_ff_1}]
-
 # UART
 set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_UART]
 set_false_path -from [get_clocks $CLOCK_UART] -to [get_clocks $CLOCK_CHIP]
@@ -51,7 +48,7 @@ set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERI
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_write_n}] \
               -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|mda_io_write_n_1   \
                                     emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_write_n_1}] $VIDEO_TO_SYSYEM_DELAY
-
+9e2329b807c
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_read_n}] \
               -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|mda_io_read_n_1   \
                                     emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_read_n_1}] $VIDEO_TO_SYSYEM_DELAY

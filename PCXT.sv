@@ -402,13 +402,11 @@ module emu
     wire clk_4_77;
     wire clk_cpu;
     wire pclk;
-    wire clk_opl2;
     wire clk_chipset;
     wire peripheral_clock;
     wire clk_uart;
 
-    reg [27:0] cur_rate;
-    always @(posedge CLK_50M) cur_rate <= 30000000;
+    localparam [27:0] cur_rate = 28'd50000000; // clk_chipset freq
 
     pll pll 
 	(
@@ -418,7 +416,7 @@ module emu
 		.outclk_1(clk_56_875),
 		.outclk_2(clk_28_636),
 		.outclk_3(clk_uart),
-		.outclk_4(clk_opl2),
+		//.outclk_4(clk_opl2),
 		.outclk_5(clk_chipset),
 		.outclk_6(clk_113_750),
 		.locked(pll_locked)
@@ -565,19 +563,6 @@ module emu
         end
     end
 
-    logic   clk_opl2_ff_1;
-    logic   clk_opl2_ff_2;
-    logic   clk_opl2_ff_3;
-    logic   cen_opl2;
-
-    always @(posedge clk_chipset)
-    begin
-        clk_opl2_ff_1 <= clk_opl2;
-        clk_opl2_ff_2 <= clk_opl2_ff_1;
-        clk_opl2_ff_3 <= clk_opl2_ff_2;
-        cen_opl2 <= clk_opl2_ff_2 & ~clk_opl2_ff_3;
-    end
-
     //////////////////////////////////////////////////////////////////
 
     logic reset = 1'b1;
@@ -585,7 +570,7 @@ module emu
     logic reset_sdram = 1'b1;
     logic [15:0] reset_sdram_count = 16'h0000;
 
-    always @(posedge CLK_50M, posedge reset_wire)
+    always @(posedge clk_chipset, posedge reset_wire)
     begin
         if (reset_wire)
         begin
@@ -656,7 +641,7 @@ module emu
         end
     end
 
-    always @(posedge CLK_50M, posedge reset_sdram_wire)
+    always @(posedge clk_chipset, posedge reset_sdram_wire)
     begin
         if (reset_sdram_wire)
         begin
@@ -977,7 +962,7 @@ module emu
             cpu_address <= cpu_address;
     end
 
-    CHIPSET u_CHIPSET
+    CHIPSET #(.clk_rate(cur_rate)) u_CHIPSET
 	(
 		.clock                              (clk_chipset),
 		.cpu_clock                          (clk_cpu),
@@ -1055,7 +1040,6 @@ module emu
 		.joy1                               (status[28] ? joy0 : joy1),
 		.joya0                              (status[28] ? joya1 : joya0),
 		.joya1                              (status[28] ? joya0 : joya1),
-		.clk_en_opl2                        (cen_opl2),           // clk_en_opl2
 		.jtopl2_snd_e                       (jtopl2_snd_e),
 		.tandy_snd_e                        (tandy_snd_e),
 		.opl2_io                            (xtctl[4] ? 2'b10 : status[43:42]),
@@ -1097,7 +1081,6 @@ module emu
 		.mgmt_address                       (mgmt_addr),
 		.mgmt_write                         (mgmt_wr),
 		.mgmt_read                          (mgmt_rd),
-		.clock_rate                         (cur_rate),
 		.floppy_wp                          (status[20:19]),
 		.fdd_request                        (mgmt_req[7:6]),
 		.ide0_request                       (mgmt_req[2:0]),
@@ -1154,51 +1137,16 @@ module emu
     //
 
     wire [15:0] cms_l_snd_e;
-    wire [16:0] cms_l_snd;
+    wire [16:0] cms_l_snd = {cms_l_snd_e[15],cms_l_snd_e};
     wire [15:0] cms_r_snd_e;
-    wire [16:0] cms_r_snd;
+    wire [16:0] cms_r_snd = {cms_l_snd_e[15],cms_l_snd_e};
 	 
     wire [15:0] jtopl2_snd_e;
-    wire [16:0] jtopl2_snd;
+    wire [16:0] jtopl2_snd = {jtopl2_snd_e[15], jtopl2_snd_e};
     wire [10:0] tandy_snd_e;
-    wire [16:0] tandy_snd;
-    reg  [16:0] spk_vol;
+    wire [16:0] tandy_snd = {{{2{tandy_snd_e[10]}}, {4{tandy_snd_e[10]}}, tandy_snd_e} << status[35:34], 2'b00};
+    wire [16:0] spk_vol =  {2'b00, {3'b000,~speaker_out} << status[33:32], 11'd0};
     wire        speaker_out;
-
-    always @(posedge CLK_AUDIO)
-    begin
-        reg [15:0] oldj_0, oldj_1;
-        reg [15:0] oldcl_0, oldcl_1;
-        reg [15:0] oldcr_0, oldcr_1;
-        reg [10:0] oldt_0, oldt_1;
-
-        oldj_0 <= jtopl2_snd_e;
-        oldj_1 <= oldj_0;
-        if(oldj_0 == oldj_1)
-            jtopl2_snd <= {oldj_1[15],oldj_1};
-				
-        oldcl_0 <= cms_l_snd_e;
-        oldcl_1 <= oldcl_0;
-        if(oldcl_0 == oldcl_1)
-            cms_l_snd <= {oldcl_1[15],oldcl_1};
-				
-        oldcr_0 <= cms_r_snd_e;
-        oldcr_1 <= oldcr_0;
-        if(oldcr_0 == oldcr_1)
-            cms_r_snd <= {oldcr_1[15],oldcr_1};
-				
-        oldj_0 <= jtopl2_snd_e;
-        oldj_1 <= oldj_0;
-        if(oldj_0 == oldj_1)
-            jtopl2_snd <= {oldj_1[15],oldj_1};
-				
-        oldt_0 <= -tandy_snd_e;
-        oldt_1 <= oldt_0;
-        if(oldt_0 == oldt_1)				
-            tandy_snd <= {{{2{oldt_1[10]}}, {4{oldt_1[10]}}, oldt_1} << status[35:34], 2'b00};
-				
-        spk_vol <= {2'b00, {3'b000,~speaker_out} << status[33:32], 11'd0};
-    end
 
     localparam [3:0] comp_f1 = 4;
     localparam [3:0] comp_a1 = 2;
@@ -1224,7 +1172,7 @@ module emu
 
     reg [15:0] cmp_l;
     reg [15:0] out_l;
-    always @(posedge CLK_AUDIO)
+    always @(posedge clk_chipset)
     begin
         reg [16:0] tmp_l;
 
@@ -1238,7 +1186,7 @@ module emu
 	 
     reg [15:0] cmp_r;
     reg [15:0] out_r;
-    always @(posedge CLK_AUDIO)
+    always @(posedge clk_chipset)
     begin
         reg [16:0] tmp_r;
 
@@ -1557,7 +1505,6 @@ module emu
     assign VGA_DE =  swap_video & ~tandy_mode ? VGA_DE_hgc : VGA_DE_cga;
     assign gamma_bus =  swap_video & ~tandy_mode ? gamma_bus_hgc : gamma_bus_cga;
     assign CE_PIXEL  =  swap_video & ~tandy_mode ? CE_PIXEL_hgc : CE_PIXEL_cga;
-
 
 
 
