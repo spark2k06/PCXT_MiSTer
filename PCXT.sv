@@ -406,7 +406,7 @@ module emu
     wire peripheral_clock;
     wire clk_uart;
 
-    localparam [27:0] cur_rate = 28'd50000000; // clk_chipset freq
+    localparam [27:0] cur_rate = 28'd50000000; // clk_chipset freq   (was 30000000 before)
 
     pll pll 
 	(
