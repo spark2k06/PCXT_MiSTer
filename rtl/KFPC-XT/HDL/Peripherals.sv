@@ -456,7 +456,7 @@ module PERIPHERALS #(
         .tandy_video                (tandy_video)
     );
 
-    // Keybord reset
+    // Keyboard reset
     KFPS2KB_Send_Data u_KFPS2KB_Send_Data 
     (
         // Bus

@@ -201,6 +201,7 @@ module emu
     // 01234567890123456789012345678901 23456789012345678901234567890123
     // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
     // XXXXX XXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXX
+
 	`include "build_id.v"
 
     localparam CONF_STR = {
@@ -265,21 +266,9 @@ module emu
 	};
 
     wire forced_scandoubler;
-    wire  [1:0] buttons;
+    wire [1:0] buttons;
     wire [63:0] status;
     wire [7:0]  xtctl;
-
-    //VHD
-    // wire[ 0:0] usdRd = { vsdRd };
-    // wire[ 0:0] usdWr = { vsdWr };
-    // wire       usdAck;
-    // wire[31:0] usdLba[1] = '{ vsdLba };
-    // wire       usdBuffWr;
-    // wire[ 8:0] usdBuffA;
-    // wire[ 7:0] usdBuffD[1] = '{ vsdBuffD };
-    // wire[ 7:0] usdBuffQ;
-    // wire[63:0] usdImgSz;
-    // wire[ 0:0] usdImgMtd;
 
     //Keyboard Ps2
     wire        ps2_kbd_clk_out;
@@ -311,7 +300,7 @@ module emu
     wire [2:0] screen_mode = status[16:14];
     wire [1:0] ar = status[9:8];
     wire border = status[29] | xtctl[1];
-	 wire a000h = ~status[41] & ~xtctl[6];
+	wire a000h = ~status[41] & ~xtctl[6];
 
     reg [1:0]   scale_video_ff;
     reg         hgc_mode_video_ff;
@@ -345,18 +334,6 @@ module emu
 		.buttons(buttons),
 		.status(status),
 		.status_menumask({status[5]}),
-
-		//VHD
-		// .sd_rd         (usdRd),
-		// .sd_wr         (usdWr),
-		// .sd_ack        (usdAck),
-		// .sd_lba        (usdLba),
-		// .sd_buff_wr    (usdBuffWr),
-		// .sd_buff_addr  (usdBuffA),
-		// .sd_buff_din   (usdBuffD),
-		// .sd_buff_dout  (usdBuffQ),
-		// .img_mounted   (usdImgMtd),
-		// .img_size	   (usdImgSz),
 
 		.ps2_kbd_clk_in		(ps2_kbd_clk_out),
 		.ps2_kbd_data_in	(ps2_kbd_data_out),
@@ -430,6 +407,9 @@ module emu
     wire peripheral_clock;
     wire clk_uart;
 
+    reg [27:0] cur_rate;
+    always @(posedge CLK_50M) cur_rate <= 30000000;
+
     pll pll 
 	(
 		.refclk(CLK_50M),
@@ -449,6 +429,7 @@ module emu
 
     //////////////////////////////////////////////////////////////////
 
+    // TODO: messy, use a single clock domain at least
     always @(posedge clk_28_636)
     begin
         HBlank_del <= {HBlank_del[13], HBlank_del[12], HBlank_del[11], HBlank_del[10], HBlank_del[9],
@@ -486,9 +467,6 @@ module emu
 
     always @(posedge clk_4_77)
         peripheral_clock <= ~peripheral_clock; // 2.385Mhz
-
-    reg [27:0] cur_rate;
-    always @(posedge CLK_50M) cur_rate <= 30000000;
 
     //////////////////////////////////////////////////////////////////
 
@@ -999,7 +977,7 @@ module emu
             cpu_address <= cpu_address;
     end
 
-    CHIPSET u_CHIPSET 
+    CHIPSET u_CHIPSET
 	(
 		.clock                              (clk_chipset),
 		.cpu_clock                          (clk_cpu),
@@ -1582,82 +1560,7 @@ module emu
 
 
 
-    // // SRAM management
-    // wire sramOe = ~sramWe;
-    // wire sramWe;
-    // wire [20:0] sramA;
-    // wire [ 7:0] sramDQ;
 
-    // Mister_sRam sRam
-    // ( // .*,
-    //   //SDram interface
-    //   .SDRAM_A		(SDRAM_A),
-    //   .SDRAM_DQ		(SDRAM_DQ),
-    //   .SDRAM_BA		(SDRAM_BA),
-    //   .SDRAM_nWE	(SDRAM_nWE),
-    //   .SDRAM_nCAS	(SDRAM_nCAS),
-    //   .SDRAM_nCS	(SDRAM_nCS),
-    //   .SDRAM_CKE	(SDRAM_CKE),
-    //   //Sram interface
-    //   .SRAM_A      (sramA),
-    //   .SRAM_DQ     (sramDQ),
-    //   .SRAM_nCE    (1'b0),
-    //   .SRAM_nOE    (sramOe),
-    //   .SRAM_nWE    (sramWe)
-    // );
-
-
-    // reg vsd = 0;
-    // always @(posedge CLK_50M) if(usdImgMtd[0]) vsd <= |usdImgSz;
-
-    // wire       vsdRd;
-    // wire       vsdWr;
-    // wire       vsdAck = usdAck;
-    // wire[31:0] vsdLba;
-    // wire       vsdBuffWr = usdBuffWr;
-    // wire[ 8:0] vsdBuffA = usdBuffA;
-    // wire[ 7:0] vsdBuffD;
-    // wire[ 7:0] vsdBuffQ = usdBuffQ;
-    // wire[63:0] vsdImgSz = usdImgSz;
-    // wire       vsdImgMtd = usdImgMtd[0];
-
-    // wire vsdCs = usdCs | ~vsd;
-    // wire vsdCk = usdCk;
-    // wire vsdMosi = usdDo;
-    // wire vsdMiso;
-
-    // wire usdCs;
-    // wire usdCk;
-    // wire usdDo;
-    // wire usdDi = vsd ? vsdMiso : SD_MISO;
-
-    // assign SD_CS   = usdCs | vsd;
-    // assign SD_SCK  = usdCk & ~vsd;
-    // assign SD_MOSI = usdDo & ~vsd;
-
-
-    // sd_card sd_card
-    // (
-    // 	.clk_sys     (CLK_50M  ),
-    // 	.reset       (reset    ),
-    // 	.sdhc        (status[4]),
-    // 	.sd_rd       (vsdRd    ),
-    // 	.sd_wr       (vsdWr    ),
-    // 	.sd_ack      (vsdAck   ),
-    // 	.sd_lba      (vsdLba   ),
-    // 	.sd_buff_wr  (vsdBuffWr),
-    // 	.sd_buff_addr(vsdBuffA ),
-    // 	.sd_buff_dout(vsdBuffQ ),
-    // 	.sd_buff_din (vsdBuffD ),
-    // 	.img_size    (vsdImgSz ),
-    // 	.img_mounted (vsdImgMtd),
-    // 	.clk_spi     (clk_25   ),
-    // 	.ss          (vsdCs    ),
-    // 	.sck         (vsdCk    ),
-    // 	.mosi        (vsdMosi  ),
-    // 	.miso        (vsdMiso  )
-    // );
-	 
     jtframe_credits #(
         .PAGES  (4),
         .COLW   (8),
