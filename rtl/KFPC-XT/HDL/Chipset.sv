@@ -4,7 +4,9 @@
 //
 // Based on KFPC-XT written by @kitune-san
 //
-module CHIPSET (
+module CHIPSET #(
+        parameter clk_rate = 28'd50000000)
+        (
         input   logic           clock,
         input   logic           cpu_clock,
         input   logic           clk_sys,
@@ -93,7 +95,6 @@ module CHIPSET (
         input   logic   [15:0]  joya0,
         input   logic   [15:0]  joya1,
         // JTOPL
-        input   logic           clk_en_opl2,
         output  logic   [15:0]  jtopl2_snd_e,
         input   logic   [1:0]   opl2_io,
         // C/MS Audio
@@ -142,7 +143,6 @@ module CHIPSET (
         output  logic   [15:0]  mgmt_readdata,
         input   logic           mgmt_write,
         input   logic   [15:0]  mgmt_writedata,
-        input   logic   [27:0]  clock_rate,
         input   logic   [1:0]   floppy_wp,
         output  logic   [1:0]   fdd_request,
         output  logic   [2:0]   ide0_request,
@@ -270,7 +270,7 @@ module CHIPSET (
         .terminal_count_n                   (terminal_count_n)
     );
 
-    PERIPHERALS u_PERIPHERALS 
+    PERIPHERALS #(.clk_rate(clk_rate)) u_PERIPHERALS 
     (
         .clock                              (clock),
         .clk_sys                            (clk_sys),
@@ -302,7 +302,7 @@ module CHIPSET (
         .VGA_VBlank                         (VGA_VBlank),
         .VGA_VBlank_border                  (VGA_VBlank_border),		  
         .address                            (address),
-		  .latch_address                      (latch_address),
+	    .latch_address                      (latch_address),
         .internal_data_bus                  (internal_data_bus),
         .data_bus_out                       (internal_data_bus_chipset),
         .data_bus_out_from_chipset          (data_bus_out_from_chipset),
@@ -335,7 +335,6 @@ module CHIPSET (
         .joya1                              (joya1),
         .ps2_clock_out                      (ps2_clock_out),
         .ps2_data_out                       (ps2_data_out),
-        .clk_en_opl2                        (clk_en_opl2),
         .jtopl2_snd_e                       (jtopl2_snd_e),
         .opl2_io                            (opl2_io),
         .cms_en                             (cms_en),
@@ -345,7 +344,7 @@ module CHIPSET (
         .tandy_snd_e                        (tandy_snd_e),
         .tandy_snd_rdy                      (tandy_snd_rdy),
         .tandy_16_gfx                       (tandy_16_gfx),
-		  .tandy_color_16                     (tandy_color_16),
+		.tandy_color_16                     (tandy_color_16),
         .uart2_rx                           (uart2_rx),
         .uart2_tx                           (uart2_tx),
         .uart2_cts_n                        (uart2_cts_n),
@@ -366,7 +365,6 @@ module CHIPSET (
         .mgmt_readdata                      (mgmt_readdata),
         .mgmt_write                         (mgmt_write),
         .mgmt_writedata                     (mgmt_writedata),
-        .clock_rate                         (clock_rate),
         .floppy_wp                          (floppy_wp),
         .fdd_request                        (fdd_request),
         .ide0_request                       (ide0_request),
