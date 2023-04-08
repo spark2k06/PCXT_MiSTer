@@ -143,7 +143,6 @@ module CHIPSET #(
         output  logic   [15:0]  mgmt_readdata,
         input   logic           mgmt_write,
         input   logic   [15:0]  mgmt_writedata,
-        input   logic   [27:0]  clock_rate,
         input   logic   [1:0]   floppy_wp,
         output  logic   [1:0]   fdd_request,
         output  logic   [2:0]   ide0_request,

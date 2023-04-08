@@ -1289,7 +1289,7 @@ end
 
         .wp                         (floppy_wp),
 
-        .clock_rate                 (clock_rate),
+        .clock_rate                 (clk_rate),
 
         .request                    (fdd_request)
     );
@@ -1361,7 +1361,7 @@ end
        .clk               (clock),
        .rst_n             (~reset),
 
-       .clock_rate        (clock_rate),
+       .clock_rate        (clk_rate),
 
        .io_address        (address[0]),
        .io_writedata      (internal_data_bus),

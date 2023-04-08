@@ -406,7 +406,7 @@ module emu
     wire peripheral_clock;
     wire clk_uart;
 
-    localparam [27:0] cur_rate = 28'd50000000; // clk_chipset freq   (was 30000000 before)
+    localparam [27:0] cur_rate = 28'd50000000;
 
     pll pll 
 	(
@@ -1139,7 +1139,7 @@ module emu
     wire [15:0] cms_l_snd_e;
     wire [16:0] cms_l_snd = {cms_l_snd_e[15],cms_l_snd_e};
     wire [15:0] cms_r_snd_e;
-    wire [16:0] cms_r_snd = {cms_l_snd_e[15],cms_l_snd_e};
+    wire [16:0] cms_r_snd = {cms_r_snd_e[15],cms_r_snd_e};
 	 
     wire [15:0] jtopl2_snd_e;
     wire [16:0] jtopl2_snd = {jtopl2_snd_e[15], jtopl2_snd_e};
