@@ -201,6 +201,7 @@ module emu
     // 01234567890123456789012345678901 23456789012345678901234567890123
     // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
     // XXXXX XXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXX
+
 	`include "build_id.v"
 
     localparam CONF_STR = {
@@ -265,21 +266,9 @@ module emu
 	};
 
     wire forced_scandoubler;
-    wire  [1:0] buttons;
+    wire [1:0] buttons;
     wire [63:0] status;
     wire [7:0]  xtctl;
-
-    //VHD
-    // wire[ 0:0] usdRd = { vsdRd };
-    // wire[ 0:0] usdWr = { vsdWr };
-    // wire       usdAck;
-    // wire[31:0] usdLba[1] = '{ vsdLba };
-    // wire       usdBuffWr;
-    // wire[ 8:0] usdBuffA;
-    // wire[ 7:0] usdBuffD[1] = '{ vsdBuffD };
-    // wire[ 7:0] usdBuffQ;
-    // wire[63:0] usdImgSz;
-    // wire[ 0:0] usdImgMtd;
 
     //Keyboard Ps2
     wire        ps2_kbd_clk_out;
@@ -311,7 +300,7 @@ module emu
     wire [2:0] screen_mode = status[16:14];
     wire [1:0] ar = status[9:8];
     wire border = status[29] | xtctl[1];
-	 wire a000h = ~status[41] & ~xtctl[6];
+	wire a000h = ~status[41] & ~xtctl[6];
 
     reg [1:0]   scale_video_ff;
     reg         hgc_mode_video_ff;
@@ -345,18 +334,6 @@ module emu
 		.buttons(buttons),
 		.status(status),
 		.status_menumask({status[5]}),
-
-		//VHD
-		// .sd_rd         (usdRd),
-		// .sd_wr         (usdWr),
-		// .sd_ack        (usdAck),
-		// .sd_lba        (usdLba),
-		// .sd_buff_wr    (usdBuffWr),
-		// .sd_buff_addr  (usdBuffA),
-		// .sd_buff_din   (usdBuffD),
-		// .sd_buff_dout  (usdBuffQ),
-		// .img_mounted   (usdImgMtd),
-		// .img_size	   (usdImgSz),
 
 		.ps2_kbd_clk_in		(ps2_kbd_clk_out),
 		.ps2_kbd_data_in	(ps2_kbd_data_out),
@@ -425,10 +402,11 @@ module emu
     wire clk_4_77;
     wire clk_cpu;
     wire pclk;
-    wire clk_opl2;
     wire clk_chipset;
     wire peripheral_clock;
     wire clk_uart;
+
+    localparam [27:0] cur_rate = 28'd50000000;
 
     pll pll 
 	(
@@ -438,7 +416,7 @@ module emu
 		.outclk_1(clk_56_875),
 		.outclk_2(clk_28_636),
 		.outclk_3(clk_uart),
-		.outclk_4(clk_opl2),
+		//.outclk_4(clk_opl2),
 		.outclk_5(clk_chipset),
 		.outclk_6(clk_113_750),
 		.locked(pll_locked)
@@ -449,6 +427,7 @@ module emu
 
     //////////////////////////////////////////////////////////////////
 
+    // TODO: messy, use a single clock domain at least
     always @(posedge clk_28_636)
     begin
         HBlank_del <= {HBlank_del[13], HBlank_del[12], HBlank_del[11], HBlank_del[10], HBlank_del[9],
@@ -486,9 +465,6 @@ module emu
 
     always @(posedge clk_4_77)
         peripheral_clock <= ~peripheral_clock; // 2.385Mhz
-
-    reg [27:0] cur_rate;
-    always @(posedge CLK_50M) cur_rate <= 30000000;
 
     //////////////////////////////////////////////////////////////////
 
@@ -587,19 +563,6 @@ module emu
         end
     end
 
-    logic   clk_opl2_ff_1;
-    logic   clk_opl2_ff_2;
-    logic   clk_opl2_ff_3;
-    logic   cen_opl2;
-
-    always @(posedge clk_chipset)
-    begin
-        clk_opl2_ff_1 <= clk_opl2;
-        clk_opl2_ff_2 <= clk_opl2_ff_1;
-        clk_opl2_ff_3 <= clk_opl2_ff_2;
-        cen_opl2 <= clk_opl2_ff_2 & ~clk_opl2_ff_3;
-    end
-
     //////////////////////////////////////////////////////////////////
 
     logic reset = 1'b1;
@@ -607,7 +570,7 @@ module emu
     logic reset_sdram = 1'b1;
     logic [15:0] reset_sdram_count = 16'h0000;
 
-    always @(posedge CLK_50M, posedge reset_wire)
+    always @(posedge clk_chipset, posedge reset_wire)
     begin
         if (reset_wire)
         begin
@@ -678,7 +641,7 @@ module emu
         end
     end
 
-    always @(posedge CLK_50M, posedge reset_sdram_wire)
+    always @(posedge clk_chipset, posedge reset_sdram_wire)
     begin
         if (reset_sdram_wire)
         begin
@@ -999,7 +962,7 @@ module emu
             cpu_address <= cpu_address;
     end
 
-    CHIPSET u_CHIPSET 
+    CHIPSET #(.clk_rate(cur_rate)) u_CHIPSET
 	(
 		.clock                              (clk_chipset),
 		.cpu_clock                          (clk_cpu),
@@ -1077,7 +1040,6 @@ module emu
 		.joy1                               (status[28] ? joy0 : joy1),
 		.joya0                              (status[28] ? joya1 : joya0),
 		.joya1                              (status[28] ? joya0 : joya1),
-		.clk_en_opl2                        (cen_opl2),           // clk_en_opl2
 		.jtopl2_snd_e                       (jtopl2_snd_e),
 		.tandy_snd_e                        (tandy_snd_e),
 		.opl2_io                            (xtctl[4] ? 2'b10 : status[43:42]),
@@ -1119,7 +1081,6 @@ module emu
 		.mgmt_address                       (mgmt_addr),
 		.mgmt_write                         (mgmt_wr),
 		.mgmt_read                          (mgmt_rd),
-		.clock_rate                         (cur_rate),
 		.floppy_wp                          (status[20:19]),
 		.fdd_request                        (mgmt_req[7:6]),
 		.ide0_request                       (mgmt_req[2:0]),
@@ -1176,51 +1137,16 @@ module emu
     //
 
     wire [15:0] cms_l_snd_e;
-    wire [16:0] cms_l_snd;
+    wire [16:0] cms_l_snd = {cms_l_snd_e[15],cms_l_snd_e};
     wire [15:0] cms_r_snd_e;
-    wire [16:0] cms_r_snd;
+    wire [16:0] cms_r_snd = {cms_r_snd_e[15],cms_r_snd_e};
 	 
     wire [15:0] jtopl2_snd_e;
-    wire [16:0] jtopl2_snd;
+    wire [16:0] jtopl2_snd = {jtopl2_snd_e[15], jtopl2_snd_e};
     wire [10:0] tandy_snd_e;
-    wire [16:0] tandy_snd;
-    reg  [16:0] spk_vol;
+    wire [16:0] tandy_snd = {{{2{tandy_snd_e[10]}}, {4{tandy_snd_e[10]}}, tandy_snd_e} << status[35:34], 2'b00};
+    wire [16:0] spk_vol =  {2'b00, {3'b000,~speaker_out} << status[33:32], 11'd0};
     wire        speaker_out;
-
-    always @(posedge CLK_AUDIO)
-    begin
-        reg [15:0] oldj_0, oldj_1;
-        reg [15:0] oldcl_0, oldcl_1;
-        reg [15:0] oldcr_0, oldcr_1;
-        reg [10:0] oldt_0, oldt_1;
-
-        oldj_0 <= jtopl2_snd_e;
-        oldj_1 <= oldj_0;
-        if(oldj_0 == oldj_1)
-            jtopl2_snd <= {oldj_1[15],oldj_1};
-				
-        oldcl_0 <= cms_l_snd_e;
-        oldcl_1 <= oldcl_0;
-        if(oldcl_0 == oldcl_1)
-            cms_l_snd <= {oldcl_1[15],oldcl_1};
-				
-        oldcr_0 <= cms_r_snd_e;
-        oldcr_1 <= oldcr_0;
-        if(oldcr_0 == oldcr_1)
-            cms_r_snd <= {oldcr_1[15],oldcr_1};
-				
-        oldj_0 <= jtopl2_snd_e;
-        oldj_1 <= oldj_0;
-        if(oldj_0 == oldj_1)
-            jtopl2_snd <= {oldj_1[15],oldj_1};
-				
-        oldt_0 <= -tandy_snd_e;
-        oldt_1 <= oldt_0;
-        if(oldt_0 == oldt_1)				
-            tandy_snd <= {{{2{oldt_1[10]}}, {4{oldt_1[10]}}, oldt_1} << status[35:34], 2'b00};
-				
-        spk_vol <= {2'b00, {3'b000,~speaker_out} << status[33:32], 11'd0};
-    end
 
     localparam [3:0] comp_f1 = 4;
     localparam [3:0] comp_a1 = 2;
@@ -1246,7 +1172,7 @@ module emu
 
     reg [15:0] cmp_l;
     reg [15:0] out_l;
-    always @(posedge CLK_AUDIO)
+    always @(posedge clk_chipset)
     begin
         reg [16:0] tmp_l;
 
@@ -1260,7 +1186,7 @@ module emu
 	 
     reg [15:0] cmp_r;
     reg [15:0] out_r;
-    always @(posedge CLK_AUDIO)
+    always @(posedge clk_chipset)
     begin
         reg [16:0] tmp_r;
 
@@ -1582,82 +1508,6 @@ module emu
 
 
 
-    // // SRAM management
-    // wire sramOe = ~sramWe;
-    // wire sramWe;
-    // wire [20:0] sramA;
-    // wire [ 7:0] sramDQ;
-
-    // Mister_sRam sRam
-    // ( // .*,
-    //   //SDram interface
-    //   .SDRAM_A		(SDRAM_A),
-    //   .SDRAM_DQ		(SDRAM_DQ),
-    //   .SDRAM_BA		(SDRAM_BA),
-    //   .SDRAM_nWE	(SDRAM_nWE),
-    //   .SDRAM_nCAS	(SDRAM_nCAS),
-    //   .SDRAM_nCS	(SDRAM_nCS),
-    //   .SDRAM_CKE	(SDRAM_CKE),
-    //   //Sram interface
-    //   .SRAM_A      (sramA),
-    //   .SRAM_DQ     (sramDQ),
-    //   .SRAM_nCE    (1'b0),
-    //   .SRAM_nOE    (sramOe),
-    //   .SRAM_nWE    (sramWe)
-    // );
-
-
-    // reg vsd = 0;
-    // always @(posedge CLK_50M) if(usdImgMtd[0]) vsd <= |usdImgSz;
-
-    // wire       vsdRd;
-    // wire       vsdWr;
-    // wire       vsdAck = usdAck;
-    // wire[31:0] vsdLba;
-    // wire       vsdBuffWr = usdBuffWr;
-    // wire[ 8:0] vsdBuffA = usdBuffA;
-    // wire[ 7:0] vsdBuffD;
-    // wire[ 7:0] vsdBuffQ = usdBuffQ;
-    // wire[63:0] vsdImgSz = usdImgSz;
-    // wire       vsdImgMtd = usdImgMtd[0];
-
-    // wire vsdCs = usdCs | ~vsd;
-    // wire vsdCk = usdCk;
-    // wire vsdMosi = usdDo;
-    // wire vsdMiso;
-
-    // wire usdCs;
-    // wire usdCk;
-    // wire usdDo;
-    // wire usdDi = vsd ? vsdMiso : SD_MISO;
-
-    // assign SD_CS   = usdCs | vsd;
-    // assign SD_SCK  = usdCk & ~vsd;
-    // assign SD_MOSI = usdDo & ~vsd;
-
-
-    // sd_card sd_card
-    // (
-    // 	.clk_sys     (CLK_50M  ),
-    // 	.reset       (reset    ),
-    // 	.sdhc        (status[4]),
-    // 	.sd_rd       (vsdRd    ),
-    // 	.sd_wr       (vsdWr    ),
-    // 	.sd_ack      (vsdAck   ),
-    // 	.sd_lba      (vsdLba   ),
-    // 	.sd_buff_wr  (vsdBuffWr),
-    // 	.sd_buff_addr(vsdBuffA ),
-    // 	.sd_buff_dout(vsdBuffQ ),
-    // 	.sd_buff_din (vsdBuffD ),
-    // 	.img_size    (vsdImgSz ),
-    // 	.img_mounted (vsdImgMtd),
-    // 	.clk_spi     (clk_25   ),
-    // 	.ss          (vsdCs    ),
-    // 	.sck         (vsdCk    ),
-    // 	.mosi        (vsdMosi  ),
-    // 	.miso        (vsdMiso  )
-    // );
-	 
     jtframe_credits #(
         .PAGES  (4),
         .COLW   (8),

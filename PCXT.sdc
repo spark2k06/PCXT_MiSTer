@@ -22,9 +22,6 @@ create_generated_clock -name SDRAM_CLK -source [get_pins $CLOCK_CHIP] [get_ports
 # SPLASH
 set_false_path -to [get_registers {emu:emu|splash_off}]
 
-# AUDIO
-set_false_path -to [get_registers {emu:emu|clk_cpu_ff_1 emu:emu|pclk_ff_1 emu:emu|clk_opl2_ff_1}]
-
 # UART
 set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_UART]
 set_false_path -from [get_clocks $CLOCK_UART] -to [get_clocks $CLOCK_CHIP]

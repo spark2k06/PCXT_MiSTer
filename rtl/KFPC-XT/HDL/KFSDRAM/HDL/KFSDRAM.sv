@@ -29,12 +29,12 @@ module KFSDRAM #(
                     + sdram_bank_width-1:0]     address,
     input   logic   [sdram_col_width-1:0]       access_num,
     input   logic   [sdram_data_width-1:0]      data_in,
-    output  logic   [sdram_data_width-1:0]      data_out,
+    output  reg     [sdram_data_width-1:0]      data_out,
     input   logic                               write_request,
     input   logic                               read_request,
     input   logic                               enable_refresh,
     output  logic                               write_flag,
-    output  logic                               read_flag,
+    output  reg                                 read_flag,
     output  logic                               refresh_mode,
     output  logic                               idle,
 
@@ -405,17 +405,21 @@ module KFSDRAM #(
 
 
     //
-    // Input Data
-    //
-    assign data_out = sdram_dq_in;
-
-
-    //
     // Status
     //
     assign  idle            = (state == IDLE);
     assign  refresh_mode    = (state == REFRESH_PALL) || (state == REFRESH);
     assign  write_flag      = (state == WRITE);
-    assign  read_flag       = (state == READ) && (next_state == READ)  && (state_counter > cas_latency);
+    wire    read_flag_comb  = (state == READ) && (next_state == READ)  && (state_counter > cas_latency);
+
+    //
+    // Input Data
+    //
+    always_ff @(posedge sdram_clock) begin
+		data_out <= sdram_dq_in;
+		read_flag <= read_flag_comb;
+    end
+
+
 
 endmodule
