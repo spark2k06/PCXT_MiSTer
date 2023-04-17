@@ -422,6 +422,8 @@ module PERIPHERALS #(
     logic           prev_ps2_reset;
     logic           prev_ps2_reset_n;
     logic           lock_recv_clock;
+    logic           swap_video_buffer_1;
+    logic           swap_video_buffer_2;
 
     wire    clear_keycode = port_b_out[7];
     wire    ps2_reset_n   = ~tandy_video ? port_b_out[6] : 1'b1;
@@ -450,7 +452,7 @@ module PERIPHERALS #(
         .keycode                    (keycode),
         .clear_keycode              (clear_keycode),
         .pause_core                 (pause_core),
-        .swap_video                 (swap_video),
+        .swap_video                 (swap_video_buffer_1),
         .video_output               (video_output),
         .tandy_video                (tandy_video)
     );
@@ -490,6 +492,12 @@ module PERIPHERALS #(
             ps2_clock_out = 1'b1;
         else
             ps2_clock_out = ~(keybord_irq | ~ps2_send_clock | ~ps2_reset_n);
+    end
+
+    always_ff @(posedge clk_vga_hgc)
+    begin
+        swap_video_buffer_2 <= swap_video_buffer_1;
+        swap_video          <= swap_video_buffer_2;
     end
 
 
