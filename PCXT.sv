@@ -212,6 +212,7 @@ module emu
 		"-;",
 		"S2,VHD,IDE 0-0;",
 		"S3,VHD,IDE 0-1;",
+		"OL,MMC(Beta),Disable,Enable(IDE 0-1);",
 		"-;",
 		"OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,PC/AT 3.5MHz;",
 		"-;",
@@ -1082,6 +1083,11 @@ module emu
 		.ems_enabled                        (~status[11]),
 		.ems_address                        (status[13:12]),
 		.bios_protect_flag                  (bios_protect_flag),
+		.use_mmc                            (use_mmc),
+		.spi_clk                            (spi_clk),
+		.spi_cs                             (spi_cs),
+		.spi_mosi                           (spi_mosi),
+		.spi_miso                           (spi_miso),
 		.mgmt_readdata                      (mgmt_din),
 		.mgmt_writedata                     (mgmt_dout),
 		.mgmt_address                       (mgmt_addr),
@@ -1298,6 +1304,26 @@ module emu
     wire uart2_cts = USER_IN[3];
     wire uart2_dsr = USER_IN[5];
     wire uart2_dcd = USER_IN[6];
+
+    //
+    ///////////////////////   MMC     ///////////////////////
+    //
+    logic use_mmc;
+    logic spi_clk;
+    logic spi_cs;
+    logic spi_mosi;
+    logic spi_miso;
+
+    always @(posedge clk_chipset)
+        if (reset)
+            use_mmc <= status[21];
+        else
+            use_mmc <= use_mmc;
+
+    assign  SD_SCK      = spi_clk;
+    assign  SD_MOSI     = spi_mosi;
+    assign  spi_miso    = SD_MISO;
+    assign  SD_CS       = spi_cs;
 
     //
     ///////////////////////   VIDEO   ///////////////////////
