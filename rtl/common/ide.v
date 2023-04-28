@@ -52,11 +52,15 @@ module ide
 	input             mgmt_write,
 	input      [15:0] mgmt_writedata,
 	input             mgmt_read,
-	output reg [15:0] mgmt_readdata
+	output reg [15:0] mgmt_readdata,
+
+	input             primary_only,
+	output            ignore_access
 );
 
 assign drq      = status[3];
 assign drive_en = present;
+assign ignore_access = primary_only & drv_addr[4];
 
 //------------------------------------------------------------------------------
 
@@ -66,6 +70,8 @@ wire io_wr = io_write & |present;
 
 always @(posedge clk) if(io_read) begin
 	if(!present) io_readdata <= 32'hFFFFFFFF;
+	else if (ignore_access)
+		io_readdata <= 32'hFFFFFFFF;
 	else begin
 		case(io_address)
 				   0: io_readdata <= status[3] ? {buf_q[31:16], (~io_32 & io_cnt[0]) ? buf_q[31:16] : buf_q[15:0]} : 32'd0;
@@ -138,17 +144,17 @@ end
 
 reg [7:0] cmd;
 always @(posedge clk) begin
-	if(~rst_n)                               cmd <= 8'd0;
-	else if(io_wr && io_address == 7)        cmd <= io_writedata[7:0];
+	if(~rst_n)                                          cmd <= 8'd0;
+	else if(io_wr && io_address == 7 && ~ignore_access) cmd <= io_writedata[7:0];
 end
 
 reg [7:0] status = 0;
 always @(posedge clk) begin
-	if(reset)                                status <= 8'h80;
-	else if(mgmt_write && mgmt_address == 5) status <= {mgmt_writedata[15:14],1'b0,mgmt_writedata[12:11],2'b00,mgmt_writedata[8]};
-	else if(io_wr && io_address == 7)        status <= 8'h80;
-	else if(io_done & drq & last_read)       status <= 8'h40;
-	else if(io_done & drq)                   status <= 8'h80;
+	if(reset)                                           status <= 8'h80;
+	else if(mgmt_write && mgmt_address == 5)            status <= {mgmt_writedata[15:14],1'b0,mgmt_writedata[12:11],2'b00,mgmt_writedata[8]};
+	else if(io_wr && io_address == 7 && ~ignore_access) status <= 8'h80;
+	else if(io_done & drq & last_read)                  status <= 8'h40;
+	else if(io_done & drq)                              status <= 8'h80;
 end
 
 reg last_read = 0;
@@ -166,24 +172,24 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin
-	if(~rst_n)                               io_wait <= 1'd0;
-	else if(sw_reset)                        io_wait <= use_wait;
-	else if(mgmt_write && mgmt_address == 5) io_wait <= 1'd0;
-	else if(io_wr && io_address == 7)        io_wait <= use_wait;
-	else if(io_done & drq)                   io_wait <= use_wait;
+	if(~rst_n)                                          io_wait <= 1'd0;
+	else if(sw_reset)                                   io_wait <= use_wait;
+	else if(mgmt_write && mgmt_address == 5)            io_wait <= 1'd0;
+	else if(io_wr && io_address == 7 && ~ignore_access) io_wait <= use_wait;
+	else if(io_done & drq)                              io_wait <= use_wait;
 end
 
 always @(posedge clk) begin
-	if(reset)                                request <= 3'b110; // reset
-	else if(mgmt_write && mgmt_address == 5) request <= 3'b000;
-	else if(io_wr && io_address == 7)        request <= 3'b100; // new command 
-	else if(io_done & drq & ~last_read)      request <= 3'b101; // data send/recv
+	if(reset)                                           request <= 3'b110; // reset
+	else if(mgmt_write && mgmt_address == 5)            request <= 3'b000;
+	else if(io_wr && io_address == 7 && ~ignore_access) request <= 3'b100; // new command 
+	else if(io_done & drq & ~last_read)                 request <= 3'b101; // data send/recv
 end
 
 always @(posedge clk) begin
 	if(reset)                                                                      irq <= 1'b0;
 	else if(mgmt_write && mgmt_address == 5 && mgmt_writedata[10] && ~disable_irq) irq <= 1'b1;
-	else if((io_read | io_wr) && io_address == 7)                                  irq <= 1'b0;
+	else if((io_read | io_wr) && io_address == 7 && ~ignore_access)                irq <= 1'b0;
 end
 
 always @(posedge clk) begin

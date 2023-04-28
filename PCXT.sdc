@@ -18,6 +18,7 @@ create_generated_clock -name clk_14_318 -source [get_pins $CLOCK_VGA_CGA] -divid
 create_generated_clock -name clk_4_77 -source [get_pins $CLOCK_14_318] -divide_by 3 -duty_cycle 33 [get_pins $CLOCK_4_77]
 create_generated_clock -name peripheral_clock -source [get_pins $CLOCK_4_77] -divide_by 2 [get_pins $PCLK]
 create_generated_clock -name SDRAM_CLK -source [get_pins $CLOCK_CHIP] [get_ports { SDRAM_CLK }]
+create_clock -name VCLK_SDIO -period 20.000
 
 # SPLASH
 set_false_path -to [get_registers {emu:emu|splash_off}]
@@ -151,6 +152,12 @@ set_max_delay -from [get_registers {cfg_done}]                              \
                                     pll_hdmi_adj:pll_hdmi_adj|i_vss_delay   \
                                     pll_hdmi_adj:pll_hdmi_adj|i_vss2}] $VIDEO_TO_SYSYEM_DELAY
 
+
+# SDIO
+set_input_delay -clock { VCLK_SDIO } -max 10 [get_ports { SDIO_DAT[*] SDIO_CMD }]
+set_input_delay -clock { VCLK_SDIO } -min 5 [get_ports { SDIO_DAT[*] SDIO_CMD }]
+set_output_delay -clock { VCLK_SDIO } -max 5 [get_ports { SDIO_DAT[*] SDIO_CMD SDIO_CLK }]
+set_output_delay -clock { VCLK_SDIO } -min 0 [get_ports { SDIO_DAT[*] SDIO_CMD SDIO_CLK }]
 
 # SDRAM
 set_input_delay -clock { SDRAM_CLK } -max 6 [get_ports { SDRAM_DQ[*] }]
