@@ -1118,7 +1118,7 @@ send_cmd17_error:
     ldi     0b00000001
     st      a
     ldi     set_ide_status_bit.h
-    call    set_ide_status_bit.h
+    call    set_ide_status_bit.l
 
 end_read_sectors_command:
     ld      0b11110111
@@ -1283,7 +1283,7 @@ send_cmd24_error:
     ldi     0b00000001
     st      a
     ldi     set_ide_status_bit.h
-    call    set_ide_status_bit.h
+    call    set_ide_status_bit.l
 
 end_write_sectors_command:
     ldi     ready.h
