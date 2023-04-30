@@ -929,9 +929,21 @@ calc_total_cylinder_loop_inc_c:
     st      alu
     ld      alu
     st      logical_cylinder_2
+    st      b
+
+    ldi     0x40
+    st      a
+    ldi     sub
+    st      alu
+    ld      alu
 
     ldi     calc_total_cylinder_loop.h
-    jmp     calc_total_cylinder_loop.l
+    jc      calc_total_cylinder_loop.l
+
+    ldi     0xFF
+    st      logical_cylinder_1
+    ldi     0x3F
+    st      logical_cylinder_2
 
 end_calc_total_cylinder_loop:
     ldi     ready.h
@@ -1121,7 +1133,7 @@ send_cmd17_error:
     call    set_ide_status_bit.l
 
 end_read_sectors_command:
-    ld      0b11110111
+    ldi     0b11110111
     st      a
     ldi     clear_status_bit.h
     call    clear_status_bit.l
@@ -1811,7 +1823,7 @@ c_x_h_loop:
 
     ld      reg3
     st      a
-    ld      0
+    ldi     0
     st      b
     ld      alu
     st      reg3
