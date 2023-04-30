@@ -138,7 +138,7 @@ module CHIPSET #(
         // BIOS
         input  logic    [1:0]   bios_protect_flag,
         // MMC interface
-        input   logic           use_mmc,
+        input   logic   [1:0]   use_mmc,
         output  logic           spi_clk,
         output  logic           spi_cs,
         output  logic           spi_mosi,

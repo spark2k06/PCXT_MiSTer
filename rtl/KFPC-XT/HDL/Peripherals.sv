@@ -108,7 +108,7 @@ module PERIPHERALS #(
         output  logic           ems_b3,
         output  logic           ems_b4,
         // MMC interface
-        input   logic           use_mmc,
+        input   logic   [1:0]   use_mmc,
         output  logic           spi_clk,
         output  logic           spi_cs,
         output  logic           spi_mosi,
@@ -1213,7 +1213,8 @@ end
         .mgmt_write                 (mgmt_write & mgmt_ide0_cs),
         .mgmt_read                  (mgmt_read & mgmt_ide0_cs),
 
-        .primary_only               (use_mmc),
+        .primary_only               (use_mmc == 2'b10),
+        .secondary_only             (use_mmc == 2'b01),
         .ignore_access              (ide_ignore)
     );
 
@@ -1222,6 +1223,7 @@ end
     // XTIDE-MMC
     //
     logic [15:0]    mmcide_readdata;
+    wire    enable_mmc_n    = ~((use_mmc == 2'b01) | (use_mmc == 2'b10));
 
     KFMMC_DRIVE_IDE #(
         .init_spi_clock_cycle               (8'd150),
@@ -1232,14 +1234,14 @@ end
 
         .ide_cs1fx_n        (ide0_cs1fx),
         .ide_cs3fx_n        (ide0_cs3fx),
-        .ide_io_read_n      (ide0_io_read_n),
-        .ide_io_write_n     (ide0_io_write_n),
+        .ide_io_read_n      (ide0_io_read_n  | enable_mmc_n),
+        .ide_io_write_n     (ide0_io_write_n | enable_mmc_n),
 
         .ide_address        (ide0_address),
         .ide_data_bus_in    (ide0_data_bus_out),
         .ide_data_bus_out   (mmcide_readdata),
 
-        .device_master      (1'b0),     // set secondary drive
+        .device_master      (use_mmc == 2'b01),
 
         .spi_clk            (spi_clk),
         .spi_cs             (spi_cs),
