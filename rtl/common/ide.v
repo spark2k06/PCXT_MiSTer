@@ -55,12 +55,13 @@ module ide
 	output reg [15:0] mgmt_readdata,
 
 	input             primary_only,
+	input             secondary_only,
 	output            ignore_access
 );
 
 assign drq      = status[3];
 assign drive_en = present;
-assign ignore_access = primary_only & drv_addr[4];
+assign ignore_access = primary_only & drv_addr[4] | secondary_only & ~drv_addr[4];
 
 //------------------------------------------------------------------------------
 

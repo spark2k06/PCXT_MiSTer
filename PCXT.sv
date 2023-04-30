@@ -212,7 +212,7 @@ module emu
 		"-;",
 		"S2,VHD,IDE 0-0;",
 		"S3,VHD,IDE 0-1;",
-		"OL,MMC(Beta),Disable,Enable(IDE 0-1);",
+		"OLM,MMC(Beta),Disable,Enable(IDE 0-0),Enable(IDE 0-1);",
 		"-;",
 		"OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,PC/AT 3.5MHz;",
 		"-;",
@@ -1308,7 +1308,7 @@ module emu
     //
     ///////////////////////   MMC     ///////////////////////
     //
-    logic use_mmc;
+    logic [1:0]  use_mmc;
     logic spi_clk;
     logic spi_cs;
     logic spi_mosi;
@@ -1316,7 +1316,7 @@ module emu
 
     always @(posedge clk_chipset)
         if (reset)
-            use_mmc <= status[21];
+            use_mmc <= status[22:21];
         else
             use_mmc <= use_mmc;
 
