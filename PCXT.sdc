@@ -18,6 +18,7 @@ create_generated_clock -name clk_14_318 -source [get_pins $CLOCK_VGA_CGA] -divid
 create_generated_clock -name clk_4_77 -source [get_pins $CLOCK_14_318] -divide_by 3 -duty_cycle 33 [get_pins $CLOCK_4_77]
 create_generated_clock -name peripheral_clock -source [get_pins $CLOCK_4_77] -divide_by 2 [get_pins $PCLK]
 create_generated_clock -name SDRAM_CLK -source [get_pins $CLOCK_CHIP] [get_ports { SDRAM_CLK }]
+create_clock -name VCLK_SDIO -period 20.000
 
 # SPLASH
 set_false_path -to [get_registers {emu:emu|splash_off}]
@@ -62,6 +63,32 @@ set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERI
                                     emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|CGA_CRTC_DOUT_1[*] \
                                     emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|CGA_CRTC_OE_1}] $VIDEO_TO_SYSYEM_DELAY
 
+set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_address[*]}] \
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc_io_address_1[*]}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_data[*]}] \
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc_io_data_1[*]}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_read_n}] \
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc_io_read_n_1}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_write_n}] \
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc_io_write_n_1}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_address_enable_n}] \
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc_address_enable_n_1}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc:hgc1|hgc_control_reg[*]}] \
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|data_bus_out[*] \
+                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|data_bus_out_from_chipset}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|HGC_CRTC_DOUT_1[*] \
+                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|HGC_CRTC_OE_1}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc:hgc1|hgc_control_reg[7]}] \
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|vram:hgc_vram|* \
+                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc_mem_select_1}] $VIDEO_TO_SYSYEM_DELAY
+
 set_max_delay -from [get_registers {emu:emu|hps_io:hps_io|video_calc:video_calc|vid_hcnt[*]   \
                                     emu:emu|hps_io:hps_io|video_calc:video_calc|vid_nres[*]   \
                                     emu:emu|hps_io:hps_io|video_calc:video_calc|vid_vcnt[*]}] \
@@ -74,6 +101,13 @@ set_max_delay -from [get_registers {emu:emu|scale_video_ff[*]}] \
               -to   [get_registers {sl_r[*]                     \
                                     emu:emu|video_mixer:video_mixer_mda|CE_PIXEL}] $VIDEO_TO_SYSYEM_DELAY
 
+set_max_delay -to   [get_registers {emu:emu|cga_hw}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -to   [get_registers {emu:emu|hercules_hw}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|swap_video_buffer_2}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -to   [get_registers {emu:emu|video_pause_core_buf}] $VIDEO_TO_SYSYEM_DELAY
 
 #
 set_max_delay -from [get_registers {osd:vga_osd|info       \
@@ -99,7 +133,7 @@ set_max_delay -from [get_registers {LFB_EN}]    \
                                     state[1]    \
                                     state[2]    \
                                     vmaxi[*]    \
-                                    vmini[*]
+                                    vmini[*]    \
                                     ascal:ascal|i_mode[2]}] $VIDEO_TO_SYSYEM_DELAY
 
 set_max_delay -from [get_registers {FREESCALE}] \
@@ -118,6 +152,12 @@ set_max_delay -from [get_registers {cfg_done}]                              \
                                     pll_hdmi_adj:pll_hdmi_adj|i_vss_delay   \
                                     pll_hdmi_adj:pll_hdmi_adj|i_vss2}] $VIDEO_TO_SYSYEM_DELAY
 
+
+# SDIO
+set_input_delay -clock { VCLK_SDIO } -max 10 [get_ports { SDIO_DAT[*] SDIO_CMD }]
+set_input_delay -clock { VCLK_SDIO } -min 5 [get_ports { SDIO_DAT[*] SDIO_CMD }]
+set_output_delay -clock { VCLK_SDIO } -max 5 [get_ports { SDIO_DAT[*] SDIO_CMD SDIO_CLK }]
+set_output_delay -clock { VCLK_SDIO } -min 0 [get_ports { SDIO_DAT[*] SDIO_CMD SDIO_CLK }]
 
 # SDRAM
 set_input_delay -clock { SDRAM_CLK } -max 6 [get_ports { SDRAM_DQ[*] }]

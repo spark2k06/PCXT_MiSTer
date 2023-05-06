@@ -137,6 +137,12 @@ module CHIPSET #(
         input   logic   [1:0]   ems_address,
         // BIOS
         input  logic    [1:0]   bios_protect_flag,
+        // MMC interface
+        input   logic   [1:0]   use_mmc,
+        output  logic           spi_clk,
+        output  logic           spi_cs,
+        output  logic           spi_mosi,
+        input   logic           spi_miso,
         // FDD
         input   logic   [15:0]  mgmt_address,
         input   logic           mgmt_read,
@@ -360,6 +366,11 @@ module CHIPSET #(
         .ems_b2                            (ems_b2),
         .ems_b3                            (ems_b3),
         .ems_b4                            (ems_b4),
+        .use_mmc                            (use_mmc),
+        .spi_clk                            (spi_clk),
+        .spi_cs                             (spi_cs),
+        .spi_mosi                           (spi_mosi),
+        .spi_miso                           (spi_miso),
         .mgmt_address                       (mgmt_address),
         .mgmt_read                          (mgmt_read),
         .mgmt_readdata                      (mgmt_readdata),
