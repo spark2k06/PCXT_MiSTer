@@ -33,6 +33,7 @@ The [Graphics Gremlin project](https://github.com/schlae/graphics-gremlin) from 
 * Audio: Adlib, Tandy, speaker
 * Joystick support
 * Mouse support into COM1 serial port, this works like any Microsoft mouse... you just need a driver to configure it, like CTMOUSE 1.9 (available into hdd folder)
+* 2nd SD card support
 
 ## Quick Start
 

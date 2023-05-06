@@ -212,7 +212,7 @@ module emu
 		"-;",
 		"S2,VHD,IDE 0-0;",
 		"S3,VHD,IDE 0-1;",
-		"OLM,MMC(Beta),Disable,Enable(IDE 0-0),Enable(IDE 0-1);",
+		"OLM,2nd SD card,Disable,IDE 0-0,IDE 0-1;",
 		"-;",
 		"OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,PC/AT 3.5MHz;",
 		"-;",
