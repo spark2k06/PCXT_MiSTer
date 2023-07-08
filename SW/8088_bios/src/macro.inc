@@ -1,7 +1,6 @@
 ;=========================================================================
-; filename.ext - Does this and this
-;       INT XXh, function AH=YYh
-;       INT XXh, function AH=ZZh
+; macro.inc - Defines macros
+;       setloc
 ;-------------------------------------------------------------------------
 ;
 ; Compiles with NASM 2.13.02, might work with other versions
@@ -23,3 +22,18 @@
 ; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;
 ;=========================================================================
+
+;=========================================================================
+; setloc - Set location. Insert 0FFh bytes until specifed location is reached.
+;-------------------------------------------------------------------------
+%imacro setloc  1.nolist
+%assign pad_bytes (%1-($-$$)-START)
+%if pad_bytes < 0
+%assign over_bytes -pad_bytes
+%error Preceding code extends beyond setloc location by over_bytes bytes
+%endif
+%if pad_bytes > 0
+%warning Inserting pad_bytes bytes
+ times  pad_bytes db 0FFh
+%endif
+%endm
