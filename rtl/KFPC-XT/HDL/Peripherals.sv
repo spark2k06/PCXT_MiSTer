@@ -423,6 +423,7 @@ module PERIPHERALS #(
     logic           keybord_irq;
     logic           uart_irq;
     logic           uart2_irq;
+    logic   [7:0]   keycode_buf;
     logic   [7:0]   keycode;
     logic   [7:0]   tandy_keycode;
     logic           prev_ps2_reset;
@@ -455,13 +456,15 @@ module PERIPHERALS #(
 
         // I/O
         .irq                        (keybord_irq),
-        .keycode                    (keycode),
+        .keycode                    (keycode_buf),
         .clear_keycode              (clear_keycode),
         .pause_core                 (pause_core),
         .swap_video                 (swap_video_buffer_1),
         .video_output               (video_output),
         .tandy_video                (tandy_video)
     );
+
+    assign  keycode = ps2_reset_n ? keycode_buf : 8'h80;
 
     // Keyboard reset
     KFPS2KB_Send_Data u_KFPS2KB_Send_Data 
