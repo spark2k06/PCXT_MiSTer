@@ -102,6 +102,7 @@ reg  eu_tr_latched;
 reg  biu_done_caught;
 reg  eu_biu_req_d1;
 reg  intr_enable_delayed;
+reg  intr_delay;
 reg  eu_overflow_override;
 reg  eu_add_overflow8_fixed;
 reg  eu_add_overflow16_fixed;
@@ -334,10 +335,11 @@ assign eu_parity = ~(eu_alu_last_result[0]^eu_alu_last_result[1]^eu_alu_last_res
 
 assign eu_biu_req                      = eu_biu_command[9];
 
-assign intr_asserted = BIU_INTR & intr_enable_delayed;
+assign intr_asserted = BIU_INTR & intr_delay & intr_enable_delayed;
 
 
-assign new_instruction = (eu_rom_address[12:8]==5'h01) ? 1'b1 : 1'b0;   
+assign new_instruction = (((eu_rom_address[12:8]==5'h01) ? 1'b1 : 1'b0)     // New instruction
+                        | ((EU_BIU_COMMAND[8:4] ==8'h18) ? 1'b1 : 1'b0));   // Halt wait
 
         
 assign add_total = eu_register_r0 + eu_register_r1;
@@ -388,6 +390,7 @@ begin : EU_MICROSEQUENCER
       eu_rom_address <= 13'h0020;
       eu_calling_address <= 'h0;
       intr_enable_delayed <= 1'b0;
+      intr_delay <= 1'b0;
     end
     
 else    
@@ -399,10 +402,14 @@ else
       begin
         intr_enable_delayed <= 1'b0;
       end
-    else
-    if (new_instruction==1'b1)
+    else if (new_instruction==1'b1)
       begin
         intr_enable_delayed <= eu_flag_i;
+      end
+
+    if (new_instruction==1'b1)
+      begin
+        intr_delay <= BIU_INTR;
       end
       
     // Latch the TF flag on its rising edge.
