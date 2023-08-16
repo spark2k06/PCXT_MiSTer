@@ -305,16 +305,18 @@ module RAM (
     //
     // Databus Out
     //
+    logic   [7:0]   data_bus_out_reg;
+
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
-            data_bus_out <= 0;
+            data_bus_out_reg    <= 0;
         else if (read_flag)
-            data_bus_out <= access_data_out[7:0];
-        else if (read_command)
-            data_bus_out <= data_bus_out;
+            data_bus_out_reg    <= access_data_out[7:0];
         else
-            data_bus_out <= 0;
+            data_bus_out_reg    <= data_bus_out_reg;
     end
+
+    assign  data_bus_out = ~read_command ? 0 : ~read_flag ? data_bus_out_reg : access_data_out[7:0];
 
 
     //
