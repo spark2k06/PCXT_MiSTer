@@ -1356,7 +1356,8 @@ end
 
         .wp                         (floppy_wp),
 
-        .clock_rate                 (clk_rate),
+        .clock_rate                 (clk_select[1] == 1'b0 ? clk_rate :
+                                     clk_select[0] == 1'b0 ? {1'b0, clk_rate[27:1]} : {2'b00, clk_rate[27:2]}),
 
         .request                    (fdd_request)
     );
