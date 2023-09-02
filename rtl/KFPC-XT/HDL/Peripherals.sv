@@ -289,6 +289,7 @@ module PERIPHERALS #(
     logic           fdd_interrupt;
     logic           uart2_interrupt;
     logic   [7:0]   interrupt_data_bus_out;
+    logic           interrupt_to_cpu_buf;
 
     KF8259 u_KF8259 
     (
@@ -310,7 +311,7 @@ module PERIPHERALS #(
         //.buffer_enable              (),
         //.slave_program_or_enable_buffer     (),
         .interrupt_acknowledge_n    (interrupt_acknowledge_n),
-        .interrupt_to_cpu           (interrupt_to_cpu),
+        .interrupt_to_cpu           (interrupt_to_cpu_buf),
         .interrupt_request          ({interrupt_request[7],
                                         fdd_interrupt,
                                         interrupt_request[5],
@@ -320,6 +321,15 @@ module PERIPHERALS #(
                                         keybord_interrupt,
                                         timer_interrupt})
     );
+
+    always_ff @(posedge clock, posedge reset)
+        if (reset)
+            interrupt_to_cpu    <= 1'b0;
+        else if (cpu_clock_negedge)
+            interrupt_to_cpu    <= interrupt_to_cpu_buf;
+        else
+            interrupt_to_cpu    <= interrupt_to_cpu;
+
 
     //
     // 8253
@@ -1346,7 +1356,8 @@ end
 
         .wp                         (floppy_wp),
 
-        .clock_rate                 (clk_rate),
+        .clock_rate                 (clk_select[1] == 1'b0 ? clk_rate :
+                                     clk_select[0] == 1'b0 ? {1'b0, clk_rate[27:1]} : {2'b00, clk_rate[27:2]}),
 
         .request                    (fdd_request)
     );
