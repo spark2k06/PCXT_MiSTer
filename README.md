@@ -40,10 +40,10 @@ The [Graphics Gremlin project](https://github.com/schlae/graphics-gremlin) from 
 * Copy the contents of `games/PCXT` to your MiSTer SD Card and uncompress `hd_image.zip`. It contains a FreeDOS image ( http://www.freedos.org/ )
 * Select the core from Computers/PCXT.
 * Press WinKey + F12 on your keyboard.
-*  Model: IBM PCXT.
-*  CPU Speed: PC/AT 3.5MHz (Max speed)
-*  FDD & HDD -> HDD Image: FreeDOS_HD.img
-*  BIOS -> PCXT BIOS: pcxt_micro8088.rom
+  * Model: IBM PCXT.
+  * CPU Speed: PC/AT 3.5MHz (Max speed)
+  * FDD & HDD -> HDD Image: FreeDOS_HD.img
+  * BIOS -> PCXT BIOS: pcxt_micro8088.rom
 * Choose Reset & apply model.
 
 ## ROM Instructions
