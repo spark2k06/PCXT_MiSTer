@@ -48,7 +48,9 @@ module cga(
     output grph_mode,
     output hres_mode,
     output tandy_color_16,
-    input cga_hw
+    input cga_hw,
+    input[3:0] crt_h_offset,
+    input[2:0] crt_v_offset
     );
 
     parameter MDA_70HZ = 0;
@@ -295,7 +297,10 @@ module cga(
 		  .CURSOR(cursor),
 		  
 		  .MA(crtc_addr),
-		  .RA(row_addr)
+		  .RA(row_addr),
+		  
+                  .crt_h_offset(crt_h_offset),
+                  .crt_v_offset(crt_v_offset)
 
 	 );
 

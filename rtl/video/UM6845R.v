@@ -43,7 +43,10 @@ module UM6845R
 	output           CURSOR,
 
 	output    [13:0] MA,
-	output     [4:0] RA
+	output     [4:0] RA,
+
+	input[3:0] crt_h_offset,
+	input[2:0] crt_v_offset
 );
 
 parameter H_TOTAL = 0;
@@ -229,7 +232,7 @@ end
 reg        hde;
 reg  [3:0] hsc;
 
-wire hsync_on = hcc == R2_h_sync_pos && R3_h_sync_width != 0;
+wire hsync_on = hcc == (R2_h_sync_pos - crt_h_offset) && R3_h_sync_width != 0;
 wire hsync_off = (hsc == R3_h_sync_width) || (CRTC_TYPE && R3_h_sync_width == 0);
 
 always @(posedge CLOCK) begin
@@ -284,7 +287,7 @@ always @(posedge CLOCK) begin
 		end
 		if(field ? (hcc_next == {1'b0, R0_h_total[7:1]}) : line_new) begin
 			if(vsc) vsc <= vsc - 1'd1;
-			else if (vsync_allow & (field ? (row == R7_v_sync_pos && !line) : (row_next == R7_v_sync_pos && line_last))) begin
+			else if (vsync_allow & (field ? (row == (R7_v_sync_pos - crt_v_offset)  && !line) : (row_next == (R7_v_sync_pos - crt_v_offset) && line_last))) begin
 				VSYNC_r <= 1;
 				// Don't allow a new vsync until a new row (Onescreen Colonies) or the R7 is written (PHX)
 				vsync_allow <= 0;

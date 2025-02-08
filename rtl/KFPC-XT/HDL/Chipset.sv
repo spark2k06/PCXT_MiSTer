@@ -164,7 +164,9 @@ module CHIPSET #(
         output  logic           pause_core,
         input   logic           cga_hw,
         input   logic           hercules_hw,
-        output  logic           swap_video
+        output  logic           swap_video,
+        input   logic   [3:0]   crt_h_offset,
+        input   logic   [2:0]   crt_v_offset
 
     );
 
@@ -386,7 +388,9 @@ module CHIPSET #(
         .pause_core                         (pause_core),
         .cga_hw                             (cga_hw),
         .hercules_hw                        (hercules_hw),
-        .swap_video                         (swap_video)
+        .swap_video                         (swap_video),
+        .crt_h_offset                       (crt_h_offset),
+        .crt_v_offset                       (crt_v_offset)
     );
 
     RAM u_RAM 
