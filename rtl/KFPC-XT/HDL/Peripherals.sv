@@ -131,7 +131,9 @@ module PERIPHERALS #(
         output  logic           pause_core,
         input   logic           cga_hw,
         input   logic           hercules_hw,
-        output  logic           swap_video
+        output  logic           swap_video,
+        input   logic   [3:0]   crt_h_offset,
+        input   logic   [2:0]   crt_v_offset
         
     );
 
@@ -1075,7 +1077,9 @@ end
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
         .tandy_color_16             (tandy_color_16),
-        .cga_hw                     (cga_hw)
+        .cga_hw                     (cga_hw),
+        .crt_h_offset               (crt_h_offset),
+        .crt_v_offset               (crt_v_offset)
     );
 
     always_ff @(posedge clock)

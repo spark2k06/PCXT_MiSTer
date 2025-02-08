@@ -244,6 +244,8 @@ module emu
 		"P2o45,Audio Boost,No,2x,4x;",
 		"P2o67,Stereo Mix,none,25%,50%,100%;",
 		"P2-;",
+		"P2oEH,CRT H offset,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15;",
+		"P2oIK,CRT V offset,0,1,2,3,4,5,6,7;",
 		"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 		"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 		"P2OT,Border,No,Yes;",
@@ -1106,7 +1108,9 @@ module emu
 		.pause_core                         (pause_core),
 		.cga_hw                             (cga_hw),
 		.hercules_hw                        (hercules_hw),
-		.swap_video                         (swap_video)
+		.swap_video                         (swap_video),
+		.crt_h_offset                       (status[49:46]),
+		.crt_v_offset                       (status[52:50])
 	);
 
     wire [15:0] SDRAM_DQ_IN;
