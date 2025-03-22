@@ -299,9 +299,9 @@ module cga(
 		  .MA(crtc_addr),
 		  .RA(row_addr),
 		  
-                  .crt_h_offset(crt_h_offset),
-                  .crt_v_offset(crt_v_offset)
-
+		  .crt_h_offset(crt_h_offset),
+		  .crt_v_offset(crt_v_offset),
+		  .hres_mode(hres_mode)
 	 );
 
     // CGA 80 column timings
