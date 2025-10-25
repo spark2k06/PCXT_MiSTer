@@ -22,6 +22,9 @@
 // Revision 2.0 11/6/22 
 // Changed overflow flag calculation into rtl instead of microcode
 //
+// Revision 3.0 9/29/2025 
+// For DIV overflow AX and DX are restored to initial values
+//
 //
 //------------------------------------------------------------------------
 //
@@ -102,10 +105,10 @@ reg  eu_tr_latched;
 reg  biu_done_caught;
 reg  eu_biu_req_d1;
 reg  intr_enable_delayed;
-reg  intr_delay;
 reg  eu_overflow_override;
 reg  eu_add_overflow8_fixed;
 reg  eu_add_overflow16_fixed;
+reg  idiv_opcode;
 wire eu_prefix_rep;
 wire eu_prefix_repnz;
 wire eu_tf_debounce;
@@ -127,9 +130,11 @@ wire eu_jump_boolean;
 reg  [12:0] eu_rom_address;
 reg  [51:0] eu_calling_address;
 reg  [15:0] eu_register_ax;
+reg  [15:0] initial_ax;
 reg  [15:0] eu_register_bx;
 reg  [15:0] eu_register_cx;
 reg  [15:0] eu_register_dx;
+reg  [15:0] initial_dx;
 reg  [15:0] eu_register_sp;
 reg  [15:0] eu_register_bp;
 reg  [15:0] eu_register_si;
@@ -250,7 +255,9 @@ assign  eu_operand1 = (eu_opcode_op1_sel==4'h0) ? BIU_REGISTER_ES     :
 
 
 // JUMP condition codes
-assign eu_jump_boolean = (eu_opcode_jump_cond==4'h0)                               ? 1'b1 : // unconditional jump
+assign eu_jump_boolean = ( (idiv_opcode=='h1) && (eu_rom_address == 'h0E76) && (eu_register_ax[15:7]!='h0)) ? 1'b1 :
+                         ( (idiv_opcode=='h1) && (eu_rom_address == 'h0F02) && ( (eu_register_dx!='h0) || (eu_register_ax[15]!='h0) )) ? 1'b1 :
+                         (eu_opcode_jump_cond==4'h0)                               ? 1'b1 : // unconditional jump
                          (eu_opcode_jump_cond==4'h1 && eu_alu_last_result!=16'h0)  ? 1'b1 : 
                          (eu_opcode_jump_cond==4'h2 && eu_alu_last_result==16'h0)  ? 1'b1 : 
                                                                                      1'b0 ;
@@ -335,11 +342,10 @@ assign eu_parity = ~(eu_alu_last_result[0]^eu_alu_last_result[1]^eu_alu_last_res
 
 assign eu_biu_req                      = eu_biu_command[9];
 
-assign intr_asserted = BIU_INTR & intr_delay & intr_enable_delayed;
+assign intr_asserted = BIU_INTR & intr_enable_delayed;
 
 
-assign new_instruction = (((eu_rom_address[12:8]==5'h01) ? 1'b1 : 1'b0)     // New instruction
-                        | ((EU_BIU_COMMAND[8:4] ==8'h18) ? 1'b1 : 1'b0));   // Halt wait
+assign new_instruction = (eu_rom_address[12:8]==5'h01) ? 1'b1 : 1'b0;   
 
         
 assign add_total = eu_register_r0 + eu_register_r1;
@@ -390,7 +396,7 @@ begin : EU_MICROSEQUENCER
       eu_rom_address <= 13'h0020;
       eu_calling_address <= 'h0;
       intr_enable_delayed <= 1'b0;
-      intr_delay <= 1'b0;
+      idiv_opcode <= 'h0;
     end
     
 else    
@@ -402,14 +408,10 @@ else
       begin
         intr_enable_delayed <= 1'b0;
       end
-    else if (new_instruction==1'b1)
-      begin
-        intr_enable_delayed <= eu_flag_i;
-      end
-
+    else
     if (new_instruction==1'b1)
       begin
-        intr_delay <= BIU_INTR;
+        intr_enable_delayed <= eu_flag_i;
       end
       
     // Latch the TF flag on its rising edge.
@@ -574,10 +576,21 @@ else
   
   
     // Debounce the overflow flag override when microcode returns to the main loop
+	// Store initial values of AX and DX
 	//
-    if (eu_rom_address == 16'h0011) eu_overflow_override <= 1'b0;
+	if (eu_rom_address == 'h0011)
+	  begin
+	    eu_overflow_override <= 1'b0;
+	    initial_ax <= eu_register_ax;
+	    initial_dx <= eu_register_dx;
+		idiv_opcode <= 'h0;
+	  end
   
-  
+  	if ( (eu_rom_address=='h0E54) || (eu_rom_address=='h0ED0) )
+	  begin
+	    idiv_opcode <= 'h1;
+	  end
+
            
     // Generate and store flags for addition
     if (eu_stall_pipeline==1'b0 && eu_opcode_type==3'h2)
@@ -614,7 +627,15 @@ else
           default :  ;
         endcase
     end
-
+	
+	// Restore initial values of AX and DX upon entering overflow DIV0 microcode
+	//
+	if (eu_rom_address == 'h0F11)
+	  begin
+	    eu_register_ax <= initial_ax;
+	    eu_register_dx <= initial_dx;
+	  end
+  
 
     // JUMP Opcode
     if (eu_stall_pipeline==1'b0 && eu_opcode_type==3'h1 && eu_jump_boolean==1'b1)
