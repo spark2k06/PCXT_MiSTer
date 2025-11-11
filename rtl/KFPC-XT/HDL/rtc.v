@@ -92,7 +92,7 @@ wire [7:0] io_readdata_next =
     (ram_address == 7'h00) ? rtc_second :
     (ram_address == 7'h01) ? alarm_second :
     (ram_address == 7'h02) ? rtc_minute :
-    (ram_address == 7'h03) ? alarm_minute :
+	(ram_address == 7'h03) ? alarm_minute :
     (ram_address == 7'h04) ? rtc_hour :
     (ram_address == 7'h05) ? alarm_hour :
     (ram_address == 7'h06) ? rtc_dayofweek :
