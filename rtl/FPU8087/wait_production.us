@@ -1,0 +1,190 @@
+// Production Microcode for WAIT Instruction (9B)
+// 8086 + 8087 FPU Integration
+//
+// The WAIT instruction causes the CPU to wait until the FPU
+// is no longer busy (BUSY signal clear). It also checks for
+// FPU exceptions and generates an interrupt if any are pending.
+//
+// Instruction: WAIT (opcode 9Bh)
+//
+// Operation:
+// 1. Check FPU BUSY signal
+// 2. If BUSY, wait (poll) until clear
+// 3. Check FPU exception flags
+// 4. If exception, generate INT 16 (0x10)
+// 5. If no exception, continue to next instruction
+//
+// Memory Map:
+// 0xFFE2: FPU_STATUS - Status register (BUSY at bit 15, exceptions at bits 0-5)
+//
+// Date: 2025-11-10
+
+#include <config.h>
+
+// ============================================================================
+// WAIT Instruction Entry Point
+// ============================================================================
+
+.at 0x9b;
+    jmp do_wait;
+
+// ============================================================================
+// WAIT Instruction Handler
+// ============================================================================
+
+.auto_address;
+do_wait:
+    // --------------------------------------------------------------------
+    // Step 1: Poll FPU BUSY status
+    // Read FPU_STATUS register (0xFFE2) and check BUSY bit (bit 15)
+    // --------------------------------------------------------------------
+do_wait_poll_busy:
+    // MAR = 0xFFE2 (FPU_STATUS address)
+    b_sel IMMEDIATE, immediate 0xFFE2, alu_op SELB, mar_write, segment DS;
+
+    // Read status register into temp
+    mem_read, tmp_wr_en;
+
+    // Check BUSY bit (bit 15)
+    a_sel TMP, b_sel IMMEDIATE, immediate 0x8000, alu_op AND;
+
+    // If BUSY (result != 0), loop back and poll again
+    jnz do_wait_poll_busy;
+
+    // --------------------------------------------------------------------
+    // Step 2: BUSY is clear, now check for FPU exceptions
+    // Exception flags are in bits 0-5 of status word:
+    // Bit 0: Invalid Operation
+    // Bit 1: Denormalized Operand
+    // Bit 2: Zero Divide
+    // Bit 3: Overflow
+    // Bit 4: Underflow
+    // Bit 5: Precision
+    // --------------------------------------------------------------------
+do_wait_check_exceptions:
+    // Mask exception bits (bits 0-5: 0x003F)
+    a_sel TMP, b_sel IMMEDIATE, immediate 0x003F, alu_op AND, tmp_wr_en;
+
+    // If any exception bit is set, handle exception
+    jnz do_wait_exception;
+
+    // --------------------------------------------------------------------
+    // Step 3: No BUSY, no exceptions - continue to next instruction
+    // --------------------------------------------------------------------
+    next_instruction;
+
+// ============================================================================
+// WAIT Exception Handler
+// ============================================================================
+
+do_wait_exception:
+    // FPU exception detected during WAIT
+    // According to 8087 specification, generate INT 16 (0x10)
+    // This allows the OS/program to handle FPU errors
+
+    // Set interrupt vector to 16 (0x10) - FPU Error
+    b_sel IMMEDIATE, immediate 0x10, alu_op SELB, tmp_wr_en;
+
+    // Jump to common interrupt handler
+    jmp do_int;
+
+// ============================================================================
+// Alternative: Optimized WAIT (if FPU has hardware BUSY pin)
+// ============================================================================
+//
+// Some systems connect the FPU BUSY signal directly to CPU hardware,
+// allowing the CPU to halt automatically. In such systems:
+//
+// do_wait_hw:
+//     // Check hardware BUSY signal
+//     // (This would be a special CPU instruction/signal)
+//     // If BUSY, CPU stalls automatically in hardware
+//
+//     // Once BUSY clears, check exceptions
+//     jmp do_wait_check_exceptions;
+//
+// This approach is more efficient but requires hardware support.
+//
+
+// ============================================================================
+// WAIT Instruction Timing
+// ============================================================================
+//
+// Best case (FPU ready, no exceptions):
+//   - 1 memory read (status)
+//   - 2 ALU operations (mask and test)
+//   - ~6 cycles
+//
+// Typical case (FPU busy for N cycles):
+//   - N iterations of:
+//     * 1 memory read
+//     * 2 ALU operations
+//     * 1 conditional jump
+//   - ~(N * 4) + 6 cycles
+//
+// Exception case:
+//   - Same as typical case + interrupt overhead
+//   - Additional ~50-60 cycles for interrupt handling
+//
+// Usage:
+//   WAIT is typically used:
+//   - Before reading FPU results
+//   - Before executing instructions that depend on FPU state
+//   - After FPU operations that may cause exceptions
+//
+// Example code sequence:
+//   ESC D9 06        ; FLD dword [mem]
+//   WAIT             ; Wait for FPU to complete
+//   ESC D9 16        ; FST dword [result]
+//   WAIT             ; Wait before using result
+//
+// ============================================================================
+// Exception Handling Details
+// ============================================================================
+//
+// When WAIT detects an FPU exception:
+// 1. INT 16 (0x10) is generated
+// 2. Interrupt handler should:
+//    a. Read FPU status word for exception type
+//    b. Read FPU instruction pointer (if available)
+//    c. Handle or report the error
+//    d. Clear exception flags
+//    e. Return (IRET) or terminate program
+//
+// Exception types:
+// - Invalid Operation (0x01): Illegal operand or operation
+// - Denormalized (0x02): Operand is denormalized number
+// - Zero Divide (0x04): Division by zero
+// - Overflow (0x08): Result too large for destination
+// - Underflow (0x10): Result too small (near zero)
+// - Precision (0x20): Result cannot be represented exactly
+//
+// ============================================================================
+
+// ============================================================================
+// Integration Notes
+// ============================================================================
+//
+// 1. Memory-Mapped FPU Status:
+//    The FPU_STATUS register at 0xFFE2 must provide real-time status
+//    including BUSY and exception flags.
+//
+// 2. Interrupt Vector:
+//    INT 16 (0x10) should be configured to point to FPU error handler.
+//    This is typically set up during system initialization.
+//
+// 3. Exception Masking:
+//    The FPU control word can mask individual exceptions. Masked
+//    exceptions don't generate interrupts, but flags are still set.
+//
+// 4. WAIT Optimization:
+//    Compilers should minimize WAIT instructions by scheduling non-FPU
+//    code between FPU operations when possible.
+//
+// 5. Compatibility:
+//    This implementation is compatible with:
+//    - 8086/8088 with 8087
+//    - 80186/80188 with 80187
+//    - 80286 with 80287
+//    - Later systems with software FPU emulation
+//

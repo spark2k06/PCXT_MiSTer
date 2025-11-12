@@ -1,0 +1,10 @@
+Address  Encoded    Source
+------------------------------------------------------------
+0000    11000101                   LOAD
+0001    17050102                   LOOP_INIT ITERATIONS
+0002    15000103                   ADD
+0003    18000102                   LOOP_DEC loop_body
+0004    1B000105                   NORMALIZE
+0005    1A000106                   ROUND 0
+0006    12000107                   STORE
+0007    F0000108                   HALT

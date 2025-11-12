@@ -1,0 +1,8 @@
+Address  Encoded    Source
+------------------------------------------------------------
+0000    11000001                   LOAD
+0001    13000002                   SET_CONST CONST_PI
+0002    14000003                   ACCESS_CONST
+0003    12000004                   STORE
+0004    1C000005                   READ_STATUS
+0005    F0000006                   HALT

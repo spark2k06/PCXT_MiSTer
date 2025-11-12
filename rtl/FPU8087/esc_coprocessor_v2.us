@@ -1,0 +1,234 @@
+/**
+ * esc_coprocessor_v2.us
+ *
+ * Phase 8: ESC Instruction Microcode for Dedicated Coprocessor Ports
+ *
+ * This microcode uses dedicated FPU coprocessor ports instead of
+ * memory-mapped registers, providing ~50% performance improvement.
+ *
+ * Key Differences from Phase 7 (esc_production.us):
+ * - No memory writes to 0xFFE0-0xFFE1 (command registers)
+ * - Direct port assignments for opcode/modrm
+ * - Single-cycle BUSY polling (vs 2-cycle memory read)
+ * - 3-4 cycles total (vs 8+ cycles in Phase 7)
+ *
+ * Microcode Control Signals (New for Phase 8):
+ * - fpu_opcode_write: Write to FPU opcode port
+ * - fpu_modrm_write: Write to FPU modrm port
+ * - fpu_cmd_valid: Assert command valid pulse (1 cycle)
+ * - fpu_mem_addr_write: Write effective address to FPU
+ * - test_fpu_busy: Test FPU BUSY signal (for conditional jump)
+ * - test_fpu_error: Test FPU ERROR signal
+ *
+ * Date: 2025-11-10
+ */
+
+/*
+ * ESC Instruction Entry Points (D8-DF)
+ *
+ * All ESC opcodes jump to common handler
+ */
+
+.at 0xd8;
+    jmp do_esc;
+
+.at 0xd9;
+    jmp do_esc;
+
+.at 0xda;
+    jmp do_esc;
+
+.at 0xdb;
+    jmp do_esc;
+
+.at 0xdc;
+    jmp do_esc;
+
+.at 0xdd;
+    jmp do_esc;
+
+.at 0xde;
+    jmp do_esc;
+
+.at 0xdf;
+    jmp do_esc;
+
+/**
+ * do_esc: ESC Instruction Handler (Phase 8 - Dedicated Ports)
+ *
+ * Execution Sequence:
+ * 1. Write opcode to FPU opcode port (1 cycle)
+ * 2. Write ModR/M to FPU modrm port (1 cycle)
+ * 3. If memory operand: calculate EA and write to FPU (1 cycle)
+ * 4. Assert cmd_valid pulse (1 cycle)
+ * 5. Poll FPU BUSY signal (1 cycle per poll)
+ * 6. Check FPU ERROR signal (1 cycle)
+ * 7. Complete (next instruction)
+ *
+ * Total: 3-5 cycles (vs 8+ in Phase 7)
+ *
+ * Performance Improvement: ~50% faster
+ */
+
+do_esc:
+    /*
+     * Step 1: Write opcode to FPU coprocessor port
+     *
+     * Phase 7 (memory-mapped):
+     *   mar = 0xFFE0, mdr = opcode, mem_write  // 3 cycles
+     *
+     * Phase 8 (dedicated port):
+     *   fpu_opcode = opcode                    // 1 cycle
+     */
+    a_sel OPCODE, alu_op SELA;
+    fpu_opcode_write;
+
+    /*
+     * Step 2: Write ModR/M to FPU coprocessor port
+     *
+     * Phase 7:
+     *   mar = 0xFFE1, mdr = modrm, mem_write   // 3 cycles
+     *
+     * Phase 8:
+     *   fpu_modrm = modrm                      // 1 cycle
+     */
+    a_sel MODRM, alu_op SELA;
+    fpu_modrm_write;
+
+    /*
+     * Step 3: Check for memory operand (mod != 11)
+     *
+     * If memory operand:
+     * - Calculate effective address (existing CPU logic)
+     * - Write EA to FPU port
+     * - FPU will use EA for memory fetch/store
+     *
+     * If register operand (mod == 11):
+     * - Skip EA calculation
+     */
+    a_sel MODRM, b_sel IMMEDIATE, immediate 0xC0, alu_op AND;
+    tmp_wr_en;
+    a_sel TMP, b_sel IMMEDIATE, immediate 0xC0, alu_op XOR;
+    jz do_esc_no_ea;  // mod == 11 (register), skip EA
+
+    /*
+     * Calculate EA using existing CPU effective address logic
+     * (details depend on s80x86 microcode architecture)
+     */
+do_esc_calc_ea:
+    // [EA calculation sequence - reuse existing CPU logic]
+    // Result in EA register
+
+    // Write EA to FPU memory address port
+    a_sel EA, alu_op SELA;
+    fpu_mem_addr_write;
+
+do_esc_no_ea:
+    /*
+     * Step 4: Assert cmd_valid pulse to dispatch instruction to FPU
+     *
+     * This is a single-cycle pulse that tells the FPU:
+     * "I've set up opcode, modrm, and EA (if needed) - execute now"
+     */
+    fpu_cmd_valid_pulse;
+
+    /*
+     * Step 5: Poll FPU BUSY signal
+     *
+     * Phase 7 (memory-mapped):
+     *   mar = 0xFFE2, mem_read, tmp = status   // 2 cycles per poll
+     *   test tmp & 0x8000
+     *
+     * Phase 8 (dedicated signal):
+     *   test fpu_busy                          // 1 cycle per poll
+     *
+     * The FPU BUSY signal is connected to CPU coprocessor port.
+     * This is similar to the 8086 TEST pin connected to 8087 BUSY.
+     */
+do_esc_poll_busy:
+    test_fpu_busy;
+    jnz do_esc_poll_busy;  // Loop while BUSY=1
+
+    /*
+     * Step 6: FPU completed - check for exceptions
+     *
+     * Phase 7:
+     *   test tmp & 0x003F (exception bits)     // Already in tmp from step 5
+     *
+     * Phase 8:
+     *   test fpu_error                         // 1 cycle
+     *
+     * The FPU ERROR signal indicates unmasked exceptions occurred.
+     */
+    test_fpu_error;
+    jnz do_fpu_exception;
+
+    /*
+     * Step 7: No exception - instruction complete
+     *
+     * Return to normal instruction fetch/execute cycle
+     */
+    next_instruction;
+
+/**
+ * do_fpu_exception: FPU Exception Handler
+ *
+ * Called when FPU ERROR signal is asserted after instruction completes.
+ *
+ * Generates INT 16 (0x10) - standard 8087 exception interrupt
+ * Operating system or application can install INT 16 handler to:
+ * - Read FPU status word for exception details
+ * - Handle or report error
+ * - Clear exceptions
+ * - Resume execution or terminate
+ */
+do_fpu_exception:
+    // Set interrupt vector to 0x10 (INT 16)
+    b_sel IMMEDIATE, immediate 0x10, alu_op SELB;
+    tmp_wr_en;
+
+    // Jump to common interrupt handler
+    jmp do_int;
+
+/**
+ * Performance Comparison: Phase 7 vs Phase 8
+ *
+ * Phase 7 (Memory-Mapped):
+ * - Write opcode: 3 cycles
+ * - Write modrm: 3 cycles
+ * - Poll BUSY: 2 cycles per iteration
+ * - Total: 8+ cycles
+ *
+ * Phase 8 (Dedicated Ports):
+ * - Write opcode: 1 cycle
+ * - Write modrm: 1 cycle
+ * - Cmd valid: 1 cycle
+ * - Poll BUSY: 1 cycle per iteration
+ * - Total: 4+ cycles
+ *
+ * Improvement: ~50% faster (4 vs 8 cycles)
+ *
+ * For typical ESC instruction with minimal FPU wait:
+ * - Phase 7: ~12 cycles
+ * - Phase 8: ~6 cycles
+ * - Improvement: 50% faster
+ */
+
+/**
+ * Authentic 8087 Compatibility Notes:
+ *
+ * The original 8087 coprocessor used:
+ * 1. Bus monitoring: 8087 watched CPU address/data lines
+ * 2. BUSY pin: Connected to CPU TEST pin
+ * 3. Queue Status (QS0, QS1): CPU tells FPU about instruction fetches
+ * 4. RQ/GT: Request/Grant for bus arbitration
+ *
+ * This Phase 8 implementation simplifies while preserving authenticity:
+ * - Explicit opcode/modrm ports (vs bus monitoring)
+ * - BUSY signal (same as original)
+ * - Simplified bus arbitration (vs RQ/GT)
+ * - Same interrupt mechanism (INT 16)
+ *
+ * The result is more authentic than Phase 7 memory-mapped interface,
+ * while being simpler to implement in FPGA than full bus monitoring.
+ */

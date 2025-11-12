@@ -1,0 +1,443 @@
+======================================================================
+IEEE 754 Extended Precision Add/Subtract Test Vectors
+======================================================================
+
+Total test vectors: 15
+
+Test 1: 1.0 + 1.0 = 2.0
+  Operand A:  80'h3FFF8000000000000000
+  Operand B:  80'h3FFF8000000000000000
+  Operation:  ADD
+  Expected:   80'h40008000000000000000
+
+Test 2: 2.0 - 1.0 = 1.0
+  Operand A:  80'h40008000000000000000
+  Operand B:  80'h3FFF8000000000000000
+  Operation:  SUBTRACT
+  Expected:   80'h3FFF8000000000000000
+
+Test 3: 1.0 - 1.0 = 0.0
+  Operand A:  80'h3FFF8000000000000000
+  Operand B:  80'h3FFF8000000000000000
+  Operation:  SUBTRACT
+  Expected:   80'h00000000000000000000
+
+Test 4: 1.0 + 0.0 = 1.0
+  Operand A:  80'h3FFF8000000000000000
+  Operand B:  80'h00000000000000000000
+  Operation:  ADD
+  Expected:   80'h3FFF8000000000000000
+
+Test 5: (-1.0) + (-1.0) = -2.0
+  Operand A:  80'hBFFF8000000000000000
+  Operand B:  80'hBFFF8000000000000000
+  Operation:  ADD
+  Expected:   80'hC0008000000000000000
+
+Test 6: 1.0 + (-1.0) = 0.0
+  Operand A:  80'h3FFF8000000000000000
+  Operand B:  80'hBFFF8000000000000000
+  Operation:  ADD
+  Expected:   80'h00000000000000000000
+
+Test 7: +∞ + 1.0 = +∞
+  Operand A:  80'h7FFF8000000000000000
+  Operand B:  80'h3FFF8000000000000000
+  Operation:  ADD
+  Expected:   80'h7FFF8000000000000000
+
+Test 8: +∞ + +∞ = +∞
+  Operand A:  80'h7FFF8000000000000000
+  Operand B:  80'h7FFF8000000000000000
+  Operation:  ADD
+  Expected:   80'h7FFF8000000000000000
+
+Test 9: +∞ - +∞ = NaN (invalid)
+  Operand A:  80'h7FFF8000000000000000
+  Operand B:  80'h7FFF8000000000000000
+  Operation:  SUBTRACT
+  Expected:   80'h7FFFC000000000000000
+
+Test 10: 0.0 + 0.0 = 0.0
+  Operand A:  80'h00000000000000000000
+  Operand B:  80'h00000000000000000000
+  Operation:  ADD
+  Expected:   80'h00000000000000000000
+
+Test 11: Large + small (precision loss)
+  Operand A:  80'h40108000000000000000
+  Operand B:  80'h3FFF8000000000000000
+  Operation:  ADD
+  Expected:   80'h40108000000000000000
+
+Test 12: 1.0 - 0.5 = 0.5
+  Operand A:  80'h3FFF8000000000000000
+  Operand B:  80'h3FFE8000000000000000
+  Operation:  SUBTRACT
+  Expected:   80'h3FFE8000000000000000
+
+Test 13: 0.0 + (-0.0) = 0.0
+  Operand A:  80'h00000000000000000000
+  Operand B:  80'h80000000000000000000
+  Operation:  ADD
+  Expected:   80'h00000000000000000000
+
+Test 14: tiny + tiny
+  Operand A:  80'h00018000000000000000
+  Operand B:  80'h00018000000000000000
+  Operation:  ADD
+  Expected:   80'h00028000000000000000
+
+Test 15: max + 1 (no overflow in this case)
+  Operand A:  80'h7FFEFFFFFFFFFFFFFFFF
+  Operand B:  80'h3FFF8000000000000000
+  Operation:  ADD
+  Expected:   80'h7FFEFFFFFFFFFFFFFFFF
+
+======================================================================
+Verilog Test Stimulus Code
+======================================================================
+
+        // Test 1: 1.0 + 1.0 = 2.0
+        test_num = 1;
+        operand_a = 80'h3FFF8000000000000000;
+        operand_b = 80'h3FFF8000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h40008000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 1 - 1.0 + 1.0 = 2.0");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 1 - 1.0 + 1.0 = 2.0");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 2: 2.0 - 1.0 = 1.0
+        test_num = 2;
+        operand_a = 80'h40008000000000000000;
+        operand_b = 80'h3FFF8000000000000000;
+        subtract = 1'b1;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h3FFF8000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 2 - 2.0 - 1.0 = 1.0");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 2 - 2.0 - 1.0 = 1.0");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 3: 1.0 - 1.0 = 0.0
+        test_num = 3;
+        operand_a = 80'h3FFF8000000000000000;
+        operand_b = 80'h3FFF8000000000000000;
+        subtract = 1'b1;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h00000000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 3 - 1.0 - 1.0 = 0.0");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 3 - 1.0 - 1.0 = 0.0");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 4: 1.0 + 0.0 = 1.0
+        test_num = 4;
+        operand_a = 80'h3FFF8000000000000000;
+        operand_b = 80'h00000000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h3FFF8000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 4 - 1.0 + 0.0 = 1.0");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 4 - 1.0 + 0.0 = 1.0");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 5: (-1.0) + (-1.0) = -2.0
+        test_num = 5;
+        operand_a = 80'hBFFF8000000000000000;
+        operand_b = 80'hBFFF8000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'hC0008000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 5 - (-1.0) + (-1.0) = -2.0");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 5 - (-1.0) + (-1.0) = -2.0");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 6: 1.0 + (-1.0) = 0.0
+        test_num = 6;
+        operand_a = 80'h3FFF8000000000000000;
+        operand_b = 80'hBFFF8000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h00000000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 6 - 1.0 + (-1.0) = 0.0");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 6 - 1.0 + (-1.0) = 0.0");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 7: +∞ + 1.0 = +∞
+        test_num = 7;
+        operand_a = 80'h7FFF8000000000000000;
+        operand_b = 80'h3FFF8000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h7FFF8000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 7 - +∞ + 1.0 = +∞");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 7 - +∞ + 1.0 = +∞");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 8: +∞ + +∞ = +∞
+        test_num = 8;
+        operand_a = 80'h7FFF8000000000000000;
+        operand_b = 80'h7FFF8000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h7FFF8000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 8 - +∞ + +∞ = +∞");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 8 - +∞ + +∞ = +∞");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 9: +∞ - +∞ = NaN (invalid)
+        test_num = 9;
+        operand_a = 80'h7FFF8000000000000000;
+        operand_b = 80'h7FFF8000000000000000;
+        subtract = 1'b1;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h7FFFC000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 9 - +∞ - +∞ = NaN (invalid)");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 9 - +∞ - +∞ = NaN (invalid)");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 10: 0.0 + 0.0 = 0.0
+        test_num = 10;
+        operand_a = 80'h00000000000000000000;
+        operand_b = 80'h00000000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h00000000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 10 - 0.0 + 0.0 = 0.0");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 10 - 0.0 + 0.0 = 0.0");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 11: Large + small (precision loss)
+        test_num = 11;
+        operand_a = 80'h40108000000000000000;
+        operand_b = 80'h3FFF8000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h40108000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 11 - Large + small (precision loss)");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 11 - Large + small (precision loss)");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 12: 1.0 - 0.5 = 0.5
+        test_num = 12;
+        operand_a = 80'h3FFF8000000000000000;
+        operand_b = 80'h3FFE8000000000000000;
+        subtract = 1'b1;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h3FFE8000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 12 - 1.0 - 0.5 = 0.5");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 12 - 1.0 - 0.5 = 0.5");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 13: 0.0 + (-0.0) = 0.0
+        test_num = 13;
+        operand_a = 80'h00000000000000000000;
+        operand_b = 80'h80000000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h00000000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 13 - 0.0 + (-0.0) = 0.0");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 13 - 0.0 + (-0.0) = 0.0");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 14: tiny + tiny
+        test_num = 14;
+        operand_a = 80'h00018000000000000000;
+        operand_b = 80'h00018000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h00028000000000000000;
+        if (result == expected_result) begin
+            $display("  PASS: Test 14 - tiny + tiny");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 14 - tiny + tiny");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+        // Test 15: max + 1 (no overflow in this case)
+        test_num = 15;
+        operand_a = 80'h7FFEFFFFFFFFFFFFFFFF;
+        operand_b = 80'h3FFF8000000000000000;
+        subtract = 1'b0;
+        enable = 1;
+        #10 enable = 0;
+        wait(done);
+        #10;
+        expected_result = 80'h7FFEFFFFFFFFFFFFFFFF;
+        if (result == expected_result) begin
+            $display("  PASS: Test 15 - max + 1 (no overflow in this case)");
+            passed_tests = passed_tests + 1;
+        end else begin
+            $display("  FAIL: Test 15 - max + 1 (no overflow in this case)");
+            $display("    Got:      %h", result);
+            $display("    Expected: %h", expected_result);
+            failed_tests = failed_tests + 1;
+        end
+
+
+======================================================================
+Additional Special Value Tests
+======================================================================
+
+Test: NaN + anything = NaN
+  A: 80'h7FFFC000000000000000, B: 80'h3FFF8000000000000000, Expected: 80'h7FFFC000000000000000
+
+Test: anything + NaN = NaN
+  A: 80'h3FFF8000000000000000, B: 80'h7FFFC000000000000000, Expected: 80'h7FFFC000000000000000
+
+Test: -∞ + finite = -∞
+  A: 80'hFFFF8000000000000000, B: 80'h3FFF8000000000000000, Expected: 80'hFFFF8000000000000000
+
+Test: +∞ + -∞ = NaN
+  A: 80'h7FFF8000000000000000, B: 80'hFFFF8000000000000000, Expected: 80'h7FFFC000000000000000
+
+
+======================================================================
+Comparison Test Vectors
+======================================================================
+
+Test: 1.0 == 1.0
+  A: 80'h3FFF8000000000000000, B: 80'h3FFF8000000000000000, Expected: equal
+
+Test: 1.0 < 2.0
+  A: 80'h3FFF8000000000000000, B: 80'h40008000000000000000, Expected: less
+
+Test: 2.0 > 1.0
+  A: 80'h40008000000000000000, B: 80'h3FFF8000000000000000, Expected: greater
+
+Test: -1.0 < 1.0
+  A: 80'hBFFF8000000000000000, B: 80'h3FFF8000000000000000, Expected: less
+
+Test: 0.0 == -0.0
+  A: 80'h00000000000000000000, B: 80'h80000000000000000000, Expected: equal
+
+
+Tests generated successfully!
+Total basic tests: 15
+Total special tests: 4
+Total comparison tests: 5
+Grand total: 24 tests
