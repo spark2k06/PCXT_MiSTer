@@ -1,0 +1,86 @@
+Bit Position Analysis for 1.0 + 1.0 = 2.0
+===========================================
+
+Input: 1.0 = sign:0, exp:3FFF (16383), mantissa:8000000000000000
+Bit 63 of mantissa = 1 (integer bit), bits 62:0 = 0
+
+After alignment (68-bit format):
+aligned_mant_a = {1'b0, mant_a, 3'b000}
+Bit layout: [67:carry][66:int][65:3:fraction][2:1:0:grs]
+Value:      [0][1][0...0][000]
+
+For 1.0:
+  Bit 67: 0 (carry space)
+  Bit 66: 1 (integer bit from mant_a[63])
+  Bits 65:3: 0 (fraction from mant_a[62:0])
+  Bits 2:0: 000 (guard, round, sticky)
+
+Binary: 0_1000_0000_0000_0000_..._0000_000 (68 bits)
+
+Addition: 1.0 + 1.0
+result_mant = aligned_mant_a + aligned_mant_b
+            = 0_1000...000_000 + 0_1000...000_000
+            = 1_0000...000_000
+
+Now bit 67 is set (carry out), all others are 0.
+
+After carry handling (shift right by 1, increment exponent):
+result_mant = result_mant >> 1 = 0_1000...000_000
+result_exp = 3FFF + 1 = 4000
+
+Integer bit is now at position 66.
+
+After normalization (no shift needed):
+result_mant = 0_1000...000_000
+Integer bit still at position 66.
+
+In ROUND state:
+Guard bit = result_mant[1] = 0
+Round bit = result_mant[1] = 0  (BUG: should be checking different bits!)
+Sticky bit = result_mant[0] = 0
+
+Current code shifts right by 2:
+result_mant = result_mant >> 2 = 00_0100...000_00
+Integer bit moves to position 64.
+
+In PACK state:
+result = {result_sign, result_exp, result_mant[63:0]}
+       = {0, 4000, result_mant[63:0]}
+
+But result_mant[63:0] has integer bit at position 62, not 63!
+
+Expected: Integer bit at position 63
+Actual: Integer bit at position 62
+
+This causes the mantissa to appear as 0x4000000000000000 instead of 0x8000000000000000.
+
+SOLUTION:
+=========
+The issue is that we need to shift right by 3 (not 2) to move:
+- From: integer bit at position 66
+- To: integer bit at position 63
+
+This removes the 3 guard/round/sticky bits at positions 2:1:0.
+
+Actually, wait. Let me recount:
+
+Position 66 - 3 = position 63 ✓
+
+So shifting right by 3 is correct!
+
+But wait, we also need to extract the guard/round/sticky bits BEFORE we shift.
+The current code extracts bits 2, 1, 0 as guard, round, sticky.
+But after all the shifts, those might not be the right positions anymore.
+
+Let me recalculate where guard/round/sticky should be:
+
+After ADD and potential carry handling:
+- Integer bit is at position 66
+- The next 63 bits (positions 65:3) are the fraction
+- Positions 2:1:0 should be guard/round/sticky
+
+So extracting result_mant[2], result_mant[1], result_mant[0] seems right.
+
+The issue is just that we're shifting by 2 instead of 3.
+
+FIX: Change the shift from >> 2 to >> 3 in the ROUND state.

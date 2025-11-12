@@ -1,0 +1,21 @@
+# Test program for FADD subroutine
+# Tests the extended microsequencer with hardware unit calls
+#
+# This program:
+# 1. Loads operands into temp_fp_a and temp_fp_b
+# 2. Calls the FADD subroutine (program 0)
+# 3. Stores result
+# 4. Halts
+#
+# Instruction format:
+# [31:28] opcode, [27:23] micro_op, [22:15] immediate, [14:0] next_addr
+#
+# Expected behavior: 3.14 + 2.71 = 5.85
+
+# Address 0x0000: Main program entry point
+# Load operands manually for testing
+0000: 1F000001   # EXEC MOP_LOAD_IMM(placeholder), next=0x0001
+0001: 10800002   # EXEC MOP_CALL_ARITH op=0 (ADD), next=0x0002
+0002: 11000002   # EXEC MOP_WAIT_ARITH, loop at 0x0002 until done
+0003: 12000004   # EXEC MOP_LOAD_ARITH_RES, next=0x0004
+0004: F0000000   # HALT

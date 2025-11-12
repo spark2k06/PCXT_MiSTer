@@ -1,0 +1,93 @@
+Bit Position Analysis for Multiply Bug
+=======================================
+
+Test 1: 1.0 × 1.0 = 1.0
+Expected: 0x3FFF8000000000000000
+Got:      0x3FFF2000000000000000
+
+Mantissa mismatch:
+- Expected: 0x8000000000000000 (integer bit at position 63)
+- Got:      0x2000000000000000 (integer bit at position 61)
+
+This is a 2-bit shift error!
+
+ROOT CAUSE ANALYSIS:
+===================
+
+In NORMALIZE state (line 191-219):
+
+When product[127] = 1:
+  Current code: result_mant = {product[127:64], |product[63:0]};
+  This creates: 64 bits + 1 bit = 65 bits
+  Assigned to 67-bit result_mant[66:0]
+
+The assignment puts:
+  - result_mant[64:1] = product[127:64]
+  - result_mant[0] = |product[63:0]
+
+So integer bit ends up at position 64, not 66!
+
+But ROUND state expects:
+  - Integer bit at position 66
+  - Fraction at positions 65:3 (63 bits)
+  - Guard/round/sticky at positions 2:1:0
+
+Then ROUND shifts right by 3, moving integer bit from 66 → 63.
+
+Since integer bit is actually at position 64 (not 66):
+  - After >> 3 shift: integer bit ends up at position 61
+  - Should be at position 63
+
+SOLUTION:
+=========
+
+We need to properly format result_mant with all 67 bits:
+
+For product[127] = 1 (most significant bit set):
+  - Bit 66: integer bit = product[127]
+  - Bits 65:3: fraction (63 bits) = product[126:64]
+  - Bit 2: guard bit = product[63]
+  - Bit 1: round bit = product[62]
+  - Bit 0: sticky bit = |product[61:0]
+
+  result_mant = {product[127:62], |product[61:0]};
+                 └─ 66 bits ─┘  └─ 1 bit ─┘
+                 = 67 bits total ✓
+
+For product[126] = 1 (second bit set, no carry):
+  - Bit 66: integer bit = product[126]
+  - Bits 65:3: fraction (63 bits) = product[125:63]
+  - Bit 2: guard bit = product[62]
+  - Bit 1: round bit = product[61]
+  - Bit 0: sticky bit = |product[60:0]
+
+  result_mant = {product[126:61], |product[60:0]};
+                 └─ 66 bits ─┘  └─ 1 bit ─┘
+                 = 67 bits total ✓
+
+VERIFICATION:
+============
+
+For 1.0 × 1.0:
+  mant_a = 0x8000000000000000
+  mant_b = 0x8000000000000000
+  product = 0x40000000000000000000000000000000
+           (128 bits)
+
+  product[127] = 0
+  product[126] = 1 ✓
+
+  Using corrected formula:
+  result_mant = {product[126:61], |product[60:0]}
+              = {1'b1, 63'b0, product[64:61], |product[60:0]}
+              = {1'b1, 63'b0, 3'b000, 1'b0}
+
+  After >> 3 in ROUND:
+  result_mant[63:0] = {1'b1, 63'b0}
+                    = 0x8000000000000000 ✓ CORRECT!
+
+FIX REQUIRED:
+============
+
+Line 194: result_mant = {product[127:62], |product[61:0]};
+Line 199: result_mant = {product[126:61], |product[60:0]};

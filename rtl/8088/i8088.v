@@ -23,7 +23,13 @@ module i8088
     input               cycle_accrate,
     input  [7:0]        clock_cycle_counter_division_ratio,
     input  [7:0]        clock_cycle_counter_decrement_value,
-    input               shift_read_timing
+    input               shift_read_timing,
+
+    // FPU Interface Signals
+    output [7:0]        fpu_pfq_top_byte,      // Prefetch queue top byte para detección ESC
+    output              fpu_pfq_empty,         // Prefetch queue empty flag
+    output [15:0]       fpu_pfq_addr,          // Prefetch queue address
+    input               fpu_wait               // FPU señal de wait (detiene CPU si FPU ocupada)
 
   );
 
@@ -31,6 +37,14 @@ module i8088
 
 assign dout = ad_out[7:0];
 assign biu_done = t_biu_done;
+
+// FPU Interface Signals
+assign fpu_pfq_top_byte = t_pfq_top_byte;
+assign fpu_pfq_empty = t_pfq_empty;
+assign fpu_pfq_addr = t_pfq_addr_out;
+
+// Combine READY with FPU_WAIT (FPU can hold CPU)
+wire ready_combined = READY & ~fpu_wait;
 
 // Internal Signals
 
@@ -64,7 +78,7 @@ biu_max                     BIU_CORE
     .CORE_CLK_INT           (CORE_CLK),
     .RESET_INT              (RESET),
     .CLK                    (CLK),
-    .READY_IN               (READY),
+    .READY_IN               (ready_combined),  // Use combined READY signal with FPU wait
     .NMI                    (NMI),
     .INTR                   (INTR),
     .AD_OE                  (t_biu_ad_oe),

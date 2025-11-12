@@ -1124,7 +1124,16 @@ module emu
     wire s6_3_mux;
     wire [2:0] SEGMENT;
 
-    i8088 B1 	
+    // FPU Interface Signals
+    wire [7:0]  fpu_pfq_top_byte;
+    wire        fpu_pfq_empty;
+    wire [15:0] fpu_pfq_addr;
+    wire        fpu_wait;
+    wire        fpu_active;
+    wire        fpu_detected_esc;
+    wire [15:0] fpu_status_word;
+
+    i8088 B1
 	(
 		.CORE_CLK(clk_100),
 		.CLK(clk_cpu),
@@ -1147,8 +1156,47 @@ module emu
 		.cycle_accrate(cycle_accrate),
 		.clock_cycle_counter_division_ratio(clock_cycle_counter_division_ratio),
 		.clock_cycle_counter_decrement_value(clock_cycle_counter_decrement_value),
-		.shift_read_timing(shift_read_timing)
+		.shift_read_timing(shift_read_timing),
+
+		// FPU Interface
+		.fpu_pfq_top_byte(fpu_pfq_top_byte),
+		.fpu_pfq_empty(fpu_pfq_empty),
+		.fpu_pfq_addr(fpu_pfq_addr),
+		.fpu_wait(fpu_wait)
 	);
+
+    // FPU 8087 Coprocessor Adapter
+    i8088_FPU_Adapter FPU_ADAPTER
+    (
+        .clk(clk_100),
+        .reset(reset_cpu),
+
+        // CPU Interface
+        .cpu_pfq_top_byte(fpu_pfq_top_byte),
+        .cpu_pfq_empty(fpu_pfq_empty),
+        .cpu_pfq_addr(fpu_pfq_addr),
+        .cpu_data_bus_in(data_bus),
+        .cpu_addr_bus(cpu_ad_out),
+        .cpu_read(processor_status == 3'b101),  // Memory Read status
+        .cpu_write(processor_status == 3'b110), // Memory Write status
+
+        // FPU Control
+        .fpu_cpu_wait(fpu_wait),
+        .fpu_data_to_cpu(),  // Not used yet
+
+        // Memory Interface (not used yet, can be connected to system bus later)
+        .fpu_mem_addr(),
+        .fpu_mem_data_in(16'h0),
+        .fpu_mem_data_out(),
+        .fpu_mem_read(),
+        .fpu_mem_write(),
+        .fpu_mem_ready(1'b1),
+
+        // Debug/Status
+        .fpu_detected_esc(fpu_detected_esc),
+        .fpu_active(fpu_active),
+        .fpu_status_word(fpu_status_word)
+    );
 
     //
     ////////////////////////////  AUDIO  ///////////////////////////////////
