@@ -1132,6 +1132,9 @@ module emu
     wire        fpu_active;
     wire        fpu_detected_esc;
     wire [15:0] fpu_status_word;
+    wire        cpu_test_n;
+
+    assign cpu_test_n = reset_cpu ? 1'b1 : ~fpu_active;
 
     i8088 B1
 	(
@@ -1142,6 +1145,7 @@ module emu
 		.READY(processor_ready && ~pause_core),
 		.NMI(1'b0),
 		.INTR(interrupt_to_cpu),
+        .TEST_N(cpu_test_n),
 
 		.ad_out(cpu_ad_out),
 		.dout(cpu_data_bus),

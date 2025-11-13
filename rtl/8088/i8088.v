@@ -9,6 +9,7 @@ module i8088
     input               READY,
     input               INTR,
     input               NMI,
+    input               TEST_N,
 
     output [19:0]       ad_out,
     output [7:0]    		dout,
@@ -43,9 +44,6 @@ assign fpu_pfq_top_byte = t_pfq_top_byte;
 assign fpu_pfq_empty = t_pfq_empty;
 assign fpu_pfq_addr = t_pfq_addr_out;
 
-// Combine READY with FPU_WAIT (FPU can hold CPU)
-wire ready_combined = READY & ~fpu_wait;
-
 // Internal Signals
 
 wire t_eu_prefix_lock;
@@ -78,7 +76,7 @@ biu_max                     BIU_CORE
     .CORE_CLK_INT           (CORE_CLK),
     .RESET_INT              (RESET),
     .CLK                    (CLK),
-    .READY_IN               (ready_combined),  // Use combined READY signal with FPU wait
+    .READY_IN               (READY),
     .NMI                    (NMI),
     .INTR                   (INTR),
     .AD_OE                  (t_biu_ad_oe),
@@ -121,7 +119,7 @@ mcl86_eu_core               EU_CORE
   (
     .CORE_CLK_INT           (CORE_CLK),
     .RESET_INT              (RESET),
-    .TEST_N_INT             (1'b0),
+    .TEST_N_INT             (TEST_N),
     .EU_BIU_COMMAND         (t_eu_biu_command),
     .EU_BIU_DATAOUT         (t_eu_biu_dataout),
     .EU_REGISTER_R3         (t_eu_register_r3),
