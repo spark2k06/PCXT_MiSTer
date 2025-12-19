@@ -1392,16 +1392,13 @@ module emu
     always_comb
     begin
         if (swap_video & ~tandy_mode)
-
-        HBlank_VGA = HBlank_del[color ? 12 : 13];
-
+            HBlank_VGA = HBlank_del[12];
         else if (tandy_color_16)
-            HBlank_VGA = HBlank_del[color ? 11 : 13];
-
+            HBlank_VGA = HBlank_del[11];
         else if (tandy_16_gfx)
-            HBlank_VGA = HBlank_del[color ? 9 : 11];
-
-        else HBlank_VGA = HBlank_del[color ? 5 : 7];
+            HBlank_VGA = HBlank_del[9];
+        else
+            HBlank_VGA = HBlank_del[5];
     end
 
     always @ (posedge ce_pixel_cga)
