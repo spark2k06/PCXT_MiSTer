@@ -1387,7 +1387,8 @@ module emu
     reg [10:0] HBlank_counter = 0;
     reg HBlank_fixed = 1'b1;
     reg [1:0] HSync_del = 1'b11;
-
+    localparam integer MDA_VSYNC_DELAY = 19;
+    reg [MDA_VSYNC_DELAY:0] VSync_line;
     reg        video_pause_core_buf;
     reg        video_pause_core;
 
@@ -1412,6 +1413,7 @@ module emu
         begin
             HBlank_counter <= 0;
             HBlank_fixed <= 1'b1;
+            VSync_line <= {VSync_line[MDA_VSYNC_DELAY-1:0], VSync};
         end
         else
         begin
@@ -1471,6 +1473,7 @@ module emu
 
     wire LHBL = (~swap_video && border_video_ff) ? HBlank_fixed : HBlank_VGA;
     wire LVBL = (~swap_video && border_video_ff) ? std_hsyncwidth ? VGA_VBlank_border : ~VSync : VBlank;
+    wire VSync_hgc = VSync_line[MDA_VSYNC_DELAY];
 
     wire       pre2x_LHBL, pre2x_LVBL;
     wire [7:0] pre2x_r, pre2x_g, pre2x_b;
@@ -1525,7 +1528,7 @@ module emu
 		.HBlank(pre2x_LHBL),
 		.VBlank(pre2x_LVBL),
 		.HSync(HSync),
-		.VSync(VSync),
+		.VSync(VSync_hgc),
 
 		.scandoubler(scandoubler),
 		.hq2x(scale_video_ff==1),
@@ -1563,7 +1566,7 @@ module emu
 
         // input image
         .HB         ( LHBL  ),
-        .VB         ( LVBL  ),
+        .VB         ( (swap_video & ~tandy_mode) ? VBlank : LVBL ),
         .rgb_in     ( { VGA_R_AUX, VGA_G_AUX, VGA_B_AUX } ),
         .rotate     ( 2'd0  ),
         .toggle     ( 1'b0  ),
