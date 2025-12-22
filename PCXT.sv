@@ -960,9 +960,15 @@ module emu
 
     logic   [7:0]   port_b_out;
     logic   [7:0]   port_c_in;
+    wire    [1:0]   fdd_present;
     reg     [7:0]   sw;
 
-    assign  sw = hgc_mode ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (HGC or CGA 80)
+    wire    [5:0]   sw_base;
+    wire    [1:0]   sw_floppy;
+
+    assign  sw_base = hgc_mode ? 6'b111101 : 6'b101101;
+    assign  sw_floppy = fdd_present[1] ? 2'b01 : 2'b00;
+    assign  sw = {sw_floppy, sw_base}; // PCXT DIP Switches (HGC/CGA and floppy count)
     assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
     wire tandy_bios_flag = bios_write_n ? tandy_mode : tandy_bios_write;
@@ -1100,6 +1106,7 @@ module emu
 		.mgmt_write                         (mgmt_wr),
 		.mgmt_read                          (mgmt_rd),
 		.floppy_wp                          (status[20:19]),
+		.fdd_present                        (fdd_present),
 		.fdd_request                        (mgmt_req[7:6]),
 		.ide0_request                       (mgmt_req[2:0]),
 		.xtctl                              (xtctl),

@@ -120,6 +120,7 @@ module PERIPHERALS #(
         input   logic           mgmt_write,
         input   logic   [15:0]  mgmt_writedata,
         input   logic   [1:0]   floppy_wp,
+        output  logic   [1:0]   fdd_present,
         output  logic   [1:0]   fdd_request,
         output  logic   [2:0]   ide0_request,
         output  logic           fdd_dma_req,
@@ -1290,6 +1291,12 @@ end
     logic           fdd_dma_tc;
 
     assign  mgmt_fdd_cs = (mgmt_address[15:8] == 8'hF2);
+
+    always_ff @(posedge clock)
+    begin
+        if (mgmt_write & mgmt_fdd_cs & (mgmt_address[3:0] == 4'd0))
+            fdd_present[mgmt_address[7]] <= mgmt_writedata[0];
+    end
 
     always_ff @(posedge clock)
     begin

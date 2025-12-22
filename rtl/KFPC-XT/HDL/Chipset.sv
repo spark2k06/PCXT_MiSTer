@@ -150,6 +150,7 @@ module CHIPSET #(
         input   logic           mgmt_write,
         input   logic   [15:0]  mgmt_writedata,
         input   logic   [1:0]   floppy_wp,
+        output  logic   [1:0]   fdd_present,
         output  logic   [1:0]   fdd_request,
         output  logic   [2:0]   ide0_request,
         // XTCTL DATA
@@ -379,6 +380,7 @@ module CHIPSET #(
         .mgmt_write                         (mgmt_write),
         .mgmt_writedata                     (mgmt_writedata),
         .floppy_wp                          (floppy_wp),
+        .fdd_present                        (fdd_present),
         .fdd_request                        (fdd_request),
         .ide0_request                       (ide0_request),
         .fdd_dma_req                        (fdd_dma_req),
