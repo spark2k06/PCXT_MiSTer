@@ -446,7 +446,7 @@ module PERIPHERALS #(
     logic           swap_video_buffer_2;
 
     wire    clear_keycode = port_b_out[7];
-    wire    ps2_reset_n   = ~tandy_video ? port_b_out[6] : 1'b1;
+    wire    ps2_reset_n   = port_b_out[6];
 
     always_ff @(posedge clock, posedge reset)
     begin
