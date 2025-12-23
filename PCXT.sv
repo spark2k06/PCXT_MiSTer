@@ -1436,6 +1436,7 @@ module emu
     wire   scandoubler = (scale_video_ff>0); //|| forced_scandoubler);
 
     reg [14:0] HBlank_del;
+    reg [24:0] HBlank_del_hgc;
     wire tandy_16_gfx;
     wire color = (screen_mode_video_ff == 3'd0);
     
@@ -1444,6 +1445,7 @@ module emu
     reg [10:0] HBlank_counter = 0;
     reg HBlank_fixed = 1'b1;
     reg [1:0] HSync_del = 1'b11;
+    reg [1:0] HSync_del_hgc = 1'b11;
     localparam integer MDA_VSYNC_DELAY = 19;
     reg [MDA_VSYNC_DELAY:0] VSync_line;
     reg        video_pause_core_buf;
@@ -1452,7 +1454,7 @@ module emu
     always_comb
     begin
         if (swap_video & ~tandy_mode)
-            HBlank_VGA = HBlank_del[12];
+            HBlank_VGA = HBlank_del_hgc[24];
         else if (tandy_color_16)
             HBlank_VGA = HBlank_del[11];
         else if (tandy_16_gfx)
@@ -1470,7 +1472,6 @@ module emu
         begin
             HBlank_counter <= 0;
             HBlank_fixed <= 1'b1;
-            VSync_line <= {VSync_line[MDA_VSYNC_DELAY-1:0], VSync};
         end
         else
         begin
@@ -1478,6 +1479,17 @@ module emu
                 HBlank_fixed <= 1'b0;
             else
                 HBlank_counter <= HBlank_counter + 1;
+        end
+    end
+
+    always @(posedge clk_56_875)
+    begin
+        if (swap_video & ~tandy_mode)
+        begin
+            HBlank_del_hgc <= {HBlank_del_hgc[23:0], HBlank};
+            HSync_del_hgc <= {HSync_del_hgc[0], HSync};
+            if (HSync_del_hgc == 2'b01)
+                VSync_line <= {VSync_line[MDA_VSYNC_DELAY-1:0], VSync};
         end
     end
 
