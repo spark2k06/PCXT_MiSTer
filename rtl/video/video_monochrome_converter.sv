@@ -25,9 +25,14 @@ module video_monochrome_converter
 	
 );
   
-  wire [7:0] r, g, b;	
+  reg [7:0] r, g, b;	
+  wire [8:0] mono_sum;
   wire [7:0] mono;
   wire [7:0] shifted_mono;
+
+  assign mono_sum = red_weight[r] + green_weight[g] + blue_weight[b];
+  assign mono = mono_sum[7:0];
+  assign shifted_mono = mono_sum[8:1];
     
   reg [7:0] red_weight[0:255] = '{ // 0.2126*R 
 	 8'h0, 8'h0, 8'h0, 8'h0, 8'h0, 8'h1, 8'h1, 8'h1, 8'h1, 8'h1, 8'h2, 8'h2, 8'h2, 8'h2, 8'h2, 8'h3, 8'h3, 8'h3, 8'h3, 8'h4, 8'h4, 8'h4, 8'h4, 
@@ -76,16 +81,17 @@ module video_monochrome_converter
 	8'h11, 8'h12, 8'h12, 8'h12, 8'h12, 8'h12, 8'h12
   };
   
+  reg ce_pix_d;
+  wire ce_pix_rise = ce_pix & ~ce_pix_d;
+
   always @(posedge clk_vid) begin
-	if(ce_pix) begin
+	ce_pix_d <= ce_pix;
+	if(ce_pix_rise) begin
 
 		r <= R;
 		g <= G;
 		b <= B;
 		
-		mono         <= red_weight[r] + green_weight[g] + blue_weight[b];
-		shifted_mono <= red_weight[r] + green_weight[g] + blue_weight[b] >> 1;
-		  
 		case(gfx_mode[2:0])
 			// Green monitor mode
 			3'b001	: begin

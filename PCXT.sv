@@ -55,6 +55,7 @@ module emu
         input  [11:0] HDMI_HEIGHT,
         output        HDMI_FREEZE,
         output        HDMI_BLACKOUT,
+	output        HDMI_BOB_DEINT,
 
 		`ifdef MISTER_FB
         // Use framebuffer in DDRAM (USE_FB=1 in qsf)
@@ -187,6 +188,7 @@ module emu
     assign VGA_DISABLE = 0;
     assign HDMI_FREEZE = 0;
     assign HDMI_BLACKOUT = 0;
+    assign HDMI_BOB_DEINT = 0;
 
     assign LED_DISK = 0;
     assign LED_POWER = 0;
@@ -433,7 +435,7 @@ module emu
 		.locked(pll_locked)
 	);
 
-    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | splashscreen;
+    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | splashscreen | splash_reset_hold;
     wire reset_sdram_wire = RESET | !pll_locked;
 
     //////////////////////////////////////////////////////////////////
@@ -877,12 +879,42 @@ module emu
     reg [24:0] splash_cnt = 0;
     reg [3:0] splash_cnt2 = 0;
     reg splashscreen = 1;
+    reg status0_ff = 0;
+    reg splashscreen_sync1 = 0;
+    reg splashscreen_sync2 = 0;
+    reg splashscreen_sync_prev = 0;
+    reg splash_reset_hold = 0;
+    reg [16:0] splash_reset_cnt = 17'd0;
+    localparam [16:0] SPLASH_RESET_HOLD = 17'd131072;
+    reg phys_reset_hold = 0;
+    reg [23:0] phys_reset_cnt = 24'd0;
+    localparam [23:0] PHYS_RESET_HOLD = 24'd2863600;
 
     always @ (posedge clk_14_318)
     begin
         splash_off <= status[7];
+        status0_ff <= status[0];
 
-        if (splashscreen)
+        if (RESET || buttons[1])
+        begin
+            phys_reset_hold <= 1'b1;
+            phys_reset_cnt <= 24'd0;
+        end
+        else if (phys_reset_hold)
+        begin
+            if (phys_reset_cnt == PHYS_RESET_HOLD)
+                phys_reset_hold <= 1'b0;
+            else
+                phys_reset_cnt <= phys_reset_cnt + 24'd1;
+        end
+
+        if (~status0_ff && status[0] && ~phys_reset_hold)
+        begin
+            splashscreen <= 1'b1;
+            splash_cnt <= 0;
+            splash_cnt2 <= 0;
+        end
+        else if (splashscreen)
         begin
             if (splash_off)
                 splashscreen <= 0;
@@ -897,6 +929,26 @@ module emu
                 splash_cnt <= splash_cnt + 1;
         end
 
+    end
+
+    always @(posedge clk_chipset)
+    begin
+        splashscreen_sync1 <= splashscreen;
+        splashscreen_sync2 <= splashscreen_sync1;
+        splashscreen_sync_prev <= splashscreen_sync2;
+
+        if (splashscreen_sync_prev && ~splashscreen_sync2)
+        begin
+            splash_reset_hold <= 1'b1;
+            splash_reset_cnt  <= 17'd0;
+        end
+        else if (splash_reset_hold)
+        begin
+            if (splash_reset_cnt == SPLASH_RESET_HOLD)
+                splash_reset_hold <= 1'b0;
+            else
+                splash_reset_cnt <= splash_reset_cnt + 17'd1;
+        end
     end
 
     //
@@ -958,9 +1010,15 @@ module emu
 
     logic   [7:0]   port_b_out;
     logic   [7:0]   port_c_in;
+    wire    [1:0]   fdd_present;
     reg     [7:0]   sw;
 
-    assign  sw = hgc_mode ? 8'b00111101 : 8'b00101101; // PCXT DIP Switches (HGC or CGA 80)
+    wire    [5:0]   sw_base;
+    wire    [1:0]   sw_floppy;
+
+    assign  sw_base = hgc_mode ? 6'b111101 : 6'b101101;
+    assign  sw_floppy = fdd_present[1] ? 2'b01 : 2'b00;
+    assign  sw = {sw_floppy, sw_base}; // PCXT DIP Switches (HGC/CGA and floppy count)
     assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
     wire tandy_bios_flag = bios_write_n ? tandy_mode : tandy_bios_write;
@@ -1098,6 +1156,7 @@ module emu
 		.mgmt_write                         (mgmt_wr),
 		.mgmt_read                          (mgmt_rd),
 		.floppy_wp                          (status[20:19]),
+		.fdd_present                        (fdd_present),
 		.fdd_request                        (mgmt_req[7:6]),
 		.ide0_request                       (mgmt_req[2:0]),
 		.xtctl                              (xtctl),
@@ -1377,6 +1436,7 @@ module emu
     wire   scandoubler = (scale_video_ff>0); //|| forced_scandoubler);
 
     reg [14:0] HBlank_del;
+    reg [24:0] HBlank_del_hgc;
     wire tandy_16_gfx;
     wire color = (screen_mode_video_ff == 3'd0);
     
@@ -1385,23 +1445,22 @@ module emu
     reg [10:0] HBlank_counter = 0;
     reg HBlank_fixed = 1'b1;
     reg [1:0] HSync_del = 1'b11;
-
+    reg [1:0] HSync_del_hgc = 1'b11;
+    localparam integer MDA_VSYNC_DELAY = 19;
+    reg [MDA_VSYNC_DELAY:0] VSync_line;
     reg        video_pause_core_buf;
     reg        video_pause_core;
 
     always_comb
     begin
         if (swap_video & ~tandy_mode)
-
-        HBlank_VGA = HBlank_del[color ? 12 : 13];
-
+            HBlank_VGA = HBlank_del_hgc[24];
         else if (tandy_color_16)
-            HBlank_VGA = HBlank_del[color ? 11 : 13];
-
+            HBlank_VGA = HBlank_del[11];
         else if (tandy_16_gfx)
-            HBlank_VGA = HBlank_del[color ? 9 : 11];
-
-        else HBlank_VGA = HBlank_del[color ? 5 : 7];
+            HBlank_VGA = HBlank_del[9];
+        else
+            HBlank_VGA = HBlank_del[5];
     end
 
     always @ (posedge ce_pixel_cga)
@@ -1420,6 +1479,17 @@ module emu
                 HBlank_fixed <= 1'b0;
             else
                 HBlank_counter <= HBlank_counter + 1;
+        end
+    end
+
+    always @(posedge clk_56_875)
+    begin
+        if (swap_video & ~tandy_mode)
+        begin
+            HBlank_del_hgc <= {HBlank_del_hgc[23:0], HBlank};
+            HSync_del_hgc <= {HSync_del_hgc[0], HSync};
+            if (HSync_del_hgc == 2'b01)
+                VSync_line <= {VSync_line[MDA_VSYNC_DELAY-1:0], VSync};
         end
     end
 
@@ -1472,6 +1542,7 @@ module emu
 
     wire LHBL = (~swap_video && border_video_ff) ? HBlank_fixed : HBlank_VGA;
     wire LVBL = (~swap_video && border_video_ff) ? std_hsyncwidth ? VGA_VBlank_border : ~VSync : VBlank;
+    wire VSync_hgc = VSync_line[MDA_VSYNC_DELAY];
 
     wire       pre2x_LHBL, pre2x_LVBL;
     wire [7:0] pre2x_r, pre2x_g, pre2x_b;
@@ -1526,7 +1597,7 @@ module emu
 		.HBlank(pre2x_LHBL),
 		.VBlank(pre2x_LVBL),
 		.HSync(HSync),
-		.VSync(VSync),
+		.VSync(VSync_hgc),
 
 		.scandoubler(scandoubler),
 		.hq2x(scale_video_ff==1),
@@ -1564,7 +1635,7 @@ module emu
 
         // input image
         .HB         ( LHBL  ),
-        .VB         ( LVBL  ),
+        .VB         ( (swap_video & ~tandy_mode) ? VBlank : LVBL ),
         .rgb_in     ( { VGA_R_AUX, VGA_G_AUX, VGA_B_AUX } ),
         .rotate     ( 2'd0  ),
         .toggle     ( 1'b0  ),
