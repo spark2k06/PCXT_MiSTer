@@ -435,7 +435,7 @@ module emu
 		.locked(pll_locked)
 	);
 
-    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | splashscreen;
+    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | splashscreen | splash_reset_hold;
     wire reset_sdram_wire = RESET | !pll_locked;
 
     //////////////////////////////////////////////////////////////////
@@ -879,12 +879,42 @@ module emu
     reg [24:0] splash_cnt = 0;
     reg [3:0] splash_cnt2 = 0;
     reg splashscreen = 1;
+    reg status0_ff = 0;
+    reg splashscreen_sync1 = 0;
+    reg splashscreen_sync2 = 0;
+    reg splashscreen_sync_prev = 0;
+    reg splash_reset_hold = 0;
+    reg [16:0] splash_reset_cnt = 17'd0;
+    localparam [16:0] SPLASH_RESET_HOLD = 17'd131072;
+    reg phys_reset_hold = 0;
+    reg [23:0] phys_reset_cnt = 24'd0;
+    localparam [23:0] PHYS_RESET_HOLD = 24'd2863600;
 
     always @ (posedge clk_14_318)
     begin
         splash_off <= status[7];
+        status0_ff <= status[0];
 
-        if (splashscreen)
+        if (RESET || buttons[1])
+        begin
+            phys_reset_hold <= 1'b1;
+            phys_reset_cnt <= 24'd0;
+        end
+        else if (phys_reset_hold)
+        begin
+            if (phys_reset_cnt == PHYS_RESET_HOLD)
+                phys_reset_hold <= 1'b0;
+            else
+                phys_reset_cnt <= phys_reset_cnt + 24'd1;
+        end
+
+        if (~status0_ff && status[0] && ~phys_reset_hold)
+        begin
+            splashscreen <= 1'b1;
+            splash_cnt <= 0;
+            splash_cnt2 <= 0;
+        end
+        else if (splashscreen)
         begin
             if (splash_off)
                 splashscreen <= 0;
@@ -899,6 +929,26 @@ module emu
                 splash_cnt <= splash_cnt + 1;
         end
 
+    end
+
+    always @(posedge clk_chipset)
+    begin
+        splashscreen_sync1 <= splashscreen;
+        splashscreen_sync2 <= splashscreen_sync1;
+        splashscreen_sync_prev <= splashscreen_sync2;
+
+        if (splashscreen_sync_prev && ~splashscreen_sync2)
+        begin
+            splash_reset_hold <= 1'b1;
+            splash_reset_cnt  <= 17'd0;
+        end
+        else if (splash_reset_hold)
+        begin
+            if (splash_reset_cnt == SPLASH_RESET_HOLD)
+                splash_reset_hold <= 1'b0;
+            else
+                splash_reset_cnt <= splash_reset_cnt + 17'd1;
+        end
     end
 
     //

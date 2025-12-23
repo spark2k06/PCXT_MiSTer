@@ -709,7 +709,11 @@ end
     always_ff @(posedge clock, posedge reset)
     begin
         if (reset)        
-				xtctl <= 8'b00;
+        begin
+            xtctl <= 8'b00;
+            tandy_page_data <= 8'h00;
+            nmi_mask_register_data <= 8'hFF;
+        end
         else begin
             if (~io_write_n)
             begin
@@ -854,6 +858,21 @@ end
     logic          cga_io_read_n_2;
     logic          cga_address_enable_n_1;
     logic          cga_address_enable_n_2;
+    localparam int SPLASH_COPY_SIZE = 4000;
+    localparam int TEXT_CLEAR_SIZE = 131072;
+    localparam [11:0] SPLASH_COPY_LAST = SPLASH_COPY_SIZE - 1;
+    localparam [16:0] TEXT_CLEAR_LAST = TEXT_CLEAR_SIZE - 1;
+    logic         splashscreen_ff = 1'b0;
+    logic         splash_copy_active = 1'b0;
+    logic [11:0]  splash_copy_addr = 12'd0;
+    logic         splash_clear_active = 1'b0;
+    logic         splash_clear_pending = 1'b0;
+    logic [16:0]  splash_clear_addr = 17'd0;
+    wire          splash_copy_start = splashscreen & ~splashscreen_ff;
+    wire          splash_clear_start = ~splashscreen & splashscreen_ff;
+    wire  [7:0]   splash_rom_data;
+    wire          cga_vram_copy = splash_copy_active | splash_clear_active;
+    wire  [7:0]   splash_clear_data = 8'h00;
 
     always_ff @(posedge clock)
     begin
@@ -881,6 +900,61 @@ end
         video_io_write_n        <= io_write_n;
         video_io_read_n         <= io_read_n;
         video_address_enable_n  <= address_enable_n;
+    end
+
+    always_ff @(posedge clock)
+    begin
+        splashscreen_ff <= splashscreen;
+
+        if (splash_copy_start)
+        begin
+            splash_copy_active <= 1'b1;
+            splash_copy_addr   <= 12'd0;
+        end
+        else if (splash_copy_active)
+        begin
+            if (splash_copy_addr == SPLASH_COPY_LAST)
+            begin
+                splash_copy_active <= 1'b0;
+                splash_copy_addr   <= 12'd0;
+            end
+            else
+            begin
+                splash_copy_addr <= splash_copy_addr + 12'd1;
+            end
+        end
+        else
+        begin
+            splash_copy_active <= 1'b0;
+            splash_copy_addr   <= 12'd0;
+        end
+
+        if (splash_clear_start)
+            splash_clear_pending <= 1'b1;
+
+        if (~splash_copy_active && splash_clear_pending && ~splash_clear_active)
+        begin
+            splash_clear_active  <= 1'b1;
+            splash_clear_pending <= 1'b0;
+            splash_clear_addr    <= 17'd0;
+        end
+        else if (splash_clear_active)
+        begin
+            if (splash_clear_addr == TEXT_CLEAR_LAST)
+            begin
+                splash_clear_active <= 1'b0;
+                splash_clear_addr   <= 17'd0;
+            end
+            else
+            begin
+                splash_clear_addr <= splash_clear_addr + 17'd1;
+            end
+        end
+        else
+        begin
+            splash_clear_active <= 1'b0;
+            splash_clear_addr   <= 17'd0;
+        end
     end
 
     always_ff @(posedge clk_vga_hgc)
@@ -1097,13 +1171,27 @@ end
     wire [7:0] cga_vram_cpu_dout;
     wire [7:0] hgc_vram_cpu_dout;
 
+    splash_rom splash_rom_inst
+    (
+        .addr       (splash_copy_addr),
+        .data       (splash_rom_data)
+    );
+
+    wire [16:0] cga_copy_addr  = splash_copy_active ? {5'd0, splash_copy_addr} : splash_clear_addr;
+    wire [7:0]  cga_copy_data  = splash_copy_active ? splash_rom_data : splash_clear_data;
+    wire [16:0] cga_vram_addra = cga_vram_copy ? cga_copy_addr :
+                                 (tandy_video ? video_mem_select_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]);
+    wire [7:0]  cga_vram_dina  = cga_vram_copy ? cga_copy_data : video_ram_data;
+    wire        cga_vram_ena   = cga_vram_copy ? 1'b1 : (cga_mem_select_1 || video_mem_select_1);
+    wire        cga_vram_wea   = cga_vram_copy ? 1'b1 : (~video_memory_write_n & memory_write_n);
+
     vram #(.AW(17)) cga_vram
     (
         .clka                       (clock),
-        .ena                        (cga_mem_select_1 || video_mem_select_1),
-        .wea                        (~video_memory_write_n & memory_write_n),
-        .addra                      (tandy_video ? video_mem_select_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]),
-        .dina                       (video_ram_data),
+        .ena                        (cga_vram_ena),
+        .wea                        (cga_vram_wea),
+        .addra                      (cga_vram_addra),
+        .dina                       (cga_vram_dina),
         .douta                      (cga_vram_cpu_dout),
         .clkb                       (clk_vga_cga),
         .web                        (1'b0),
