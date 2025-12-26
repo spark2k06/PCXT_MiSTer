@@ -41,6 +41,7 @@ module CHIPSET_tm();
             # (`TB_CYCLE * 10)
         reset = 1'b0;
     end
+    logic status0_clear = 1'b0;
 
     //
     // Cycle counter

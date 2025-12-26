@@ -22,6 +22,7 @@ module PERIPHERALS #(
         output  logic           dma_page_chip_select_n,
         // SplashScreen
         input   logic           splashscreen,
+        input   logic           status0_clear,
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
@@ -870,6 +871,7 @@ end
     logic [16:0]  splash_clear_addr = 17'd0;
     wire          splash_copy_start = splashscreen & ~splashscreen_ff;
     wire          splash_clear_start = ~splashscreen & splashscreen_ff;
+    wire          status0_clear_start = status0_clear;
     wire  [7:0]   splash_rom_data;
     wire          cga_vram_copy = splash_copy_active | splash_clear_active;
     wire  [7:0]   splash_clear_data = 8'h00;
@@ -929,10 +931,10 @@ end
             splash_copy_addr   <= 12'd0;
         end
 
-        if (splash_clear_start)
+        if (splash_clear_start || status0_clear_start)
             splash_clear_pending <= 1'b1;
 
-        if (~splash_copy_active && splash_clear_pending && ~splash_clear_active)
+        if (~splash_copy_active && splash_clear_pending && ~splash_clear_active && ~splashscreen)
         begin
             splash_clear_active  <= 1'b1;
             splash_clear_pending <= 1'b0;

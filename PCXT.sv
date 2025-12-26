@@ -435,7 +435,7 @@ module emu
 		.locked(pll_locked)
 	);
 
-    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | splashscreen | splash_reset_hold;
+    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | splashscreen | splash_reset_hold | splash_pending;
     wire reset_sdram_wire = RESET | !pll_locked;
 
     //////////////////////////////////////////////////////////////////
@@ -875,26 +875,30 @@ module emu
     //
     // Splash screen
     //
-    reg splash_off;
+    reg splash_off = 1'b1;
     reg [24:0] splash_cnt = 0;
     reg [3:0] splash_cnt2 = 0;
-    reg splashscreen = 1;
-    reg status0_ff = 0;
+    reg splashscreen = 1'b0;
+    reg splash_pending = 1'b1;
+    reg [23:0] splash_boot_cnt = 24'd0;
     reg splashscreen_sync1 = 0;
     reg splashscreen_sync2 = 0;
     reg splashscreen_sync_prev = 0;
+    reg status0_sync1 = 0;
+    reg status0_sync2 = 0;
+    reg status0_sync_prev = 0;
+    wire status0_clear_pulse = status0_sync2 & ~status0_sync_prev;
     reg splash_reset_hold = 0;
     reg [16:0] splash_reset_cnt = 17'd0;
     localparam [16:0] SPLASH_RESET_HOLD = 17'd131072;
     reg phys_reset_hold = 0;
     reg [23:0] phys_reset_cnt = 24'd0;
     localparam [23:0] PHYS_RESET_HOLD = 24'd2863600;
+    localparam [23:0] SPLASH_BOOT_WAIT = 24'd14318000;
 
     always @ (posedge clk_14_318)
     begin
         splash_off <= status[7];
-        status0_ff <= status[0];
-
         if (RESET || buttons[1])
         begin
             phys_reset_hold <= 1'b1;
@@ -908,18 +912,35 @@ module emu
                 phys_reset_cnt <= phys_reset_cnt + 24'd1;
         end
 
-        if (~status0_ff && status[0] && ~phys_reset_hold)
+        if (splash_pending)
         begin
-            splashscreen <= 1'b1;
-            splash_cnt <= 0;
-            splash_cnt2 <= 0;
+            if (~splash_off)
+            begin
+                splashscreen <= 1'b1;
+                splash_cnt <= 0;
+                splash_cnt2 <= 0;
+                splash_pending <= 1'b0;
+                splash_boot_cnt <= 24'd0;
+            end
+            else if (splash_boot_cnt == SPLASH_BOOT_WAIT)
+            begin
+                splash_pending <= 1'b0;
+            end
+            else
+            begin
+                splash_boot_cnt <= splash_boot_cnt + 24'd1;
+            end
         end
         else if (splashscreen)
         begin
             if (splash_off)
+            begin
                 splashscreen <= 0;
+            end
             else if(splash_cnt2 == 5) // 5 seconds delay
+            begin
                 splashscreen <= 0;
+            end
             else if (splash_cnt == 14318000)
             begin // 1 second at 14.318Mhz
                 splash_cnt2 <= splash_cnt2 + 1;
@@ -936,6 +957,9 @@ module emu
         splashscreen_sync1 <= splashscreen;
         splashscreen_sync2 <= splashscreen_sync1;
         splashscreen_sync_prev <= splashscreen_sync2;
+        status0_sync1 <= status[0];
+        status0_sync2 <= status0_sync1;
+        status0_sync_prev <= status0_sync2;
 
         if (splashscreen_sync_prev && ~splashscreen_sync2)
         begin
@@ -1048,6 +1072,7 @@ module emu
 		.processor_ready                    (processor_ready),
 		.interrupt_to_cpu                   (interrupt_to_cpu),
 		.splashscreen                       (splashscreen),
+		.status0_clear                      (status0_clear_pulse),
 		.std_hsyncwidth                     (std_hsyncwidth),
 		.composite                          (composite),
 		.video_output                       (hgc_mode_video_ff),
