@@ -445,6 +445,12 @@ module PERIPHERALS #(
     logic           lock_recv_clock;
     logic           swap_video_buffer_1;
     logic           swap_video_buffer_2;
+    localparam [15:0] OPL_WARM_RESET_HOLD = 16'd5000;
+    logic           prev_keybord_irq;
+    logic           ctrl_down;
+    logic           alt_down;
+    logic   [15:0]  opl_reset_cnt;
+    wire            opl_warm_reset = (opl_reset_cnt != 16'd0);
 
     wire    clear_keycode = port_b_out[7];
     wire    ps2_reset_n   = port_b_out[6];
@@ -479,6 +485,37 @@ module PERIPHERALS #(
     );
 
     assign  keycode = ps2_reset_n ? keycode_buf : 8'h80;
+
+    always_ff @(posedge clock, posedge reset)
+    begin
+        if (reset)
+        begin
+            prev_keybord_irq <= 1'b0;
+            ctrl_down        <= 1'b0;
+            alt_down         <= 1'b0;
+            opl_reset_cnt    <= 16'd0;
+        end
+        else
+        begin
+            prev_keybord_irq <= keybord_irq;
+            if (opl_reset_cnt != 16'd0)
+                opl_reset_cnt <= opl_reset_cnt - 16'd1;
+
+            if (keybord_irq && ~prev_keybord_irq)
+            begin
+                case (keycode)
+                    8'h1D: ctrl_down <= 1'b1;
+                    8'h9D: ctrl_down <= 1'b0;
+                    8'h38: alt_down  <= 1'b1;
+                    8'hB8: alt_down  <= 1'b0;
+                    default: ;
+                endcase
+
+                if (keycode == 8'h53 && ctrl_down && alt_down)
+                    opl_reset_cnt <= OPL_WARM_RESET_HOLD;
+            end
+        end
+    end
 
     // Keyboard reset
     KFPS2KB_Send_Data u_KFPS2KB_Send_Data 
@@ -540,7 +577,7 @@ module PERIPHERALS #(
 
     jtopl2 jtopl2_inst
     (
-        .rst(reset),
+        .rst(reset | opl_warm_reset),
         .clk(clock),
         .cen(clk_en_opl2),
         .din(internal_data_bus),
