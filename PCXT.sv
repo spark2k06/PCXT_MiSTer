@@ -435,7 +435,7 @@ module emu
 		.locked(pll_locked)
 	);
 
-    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | splashscreen | splash_reset_hold;
+    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | splashscreen | splash_reset_hold | splash_pending;
     wire reset_sdram_wire = RESET | !pll_locked;
 
     //////////////////////////////////////////////////////////////////
@@ -875,26 +875,30 @@ module emu
     //
     // Splash screen
     //
-    reg splash_off;
+    reg splash_off = 1'b1;
     reg [24:0] splash_cnt = 0;
     reg [3:0] splash_cnt2 = 0;
-    reg splashscreen = 1;
-    reg status0_ff = 0;
+    reg splashscreen = 1'b0;
+    reg splash_pending = 1'b1;
+    reg [23:0] splash_boot_cnt = 24'd0;
     reg splashscreen_sync1 = 0;
     reg splashscreen_sync2 = 0;
     reg splashscreen_sync_prev = 0;
+    reg status0_sync1 = 0;
+    reg status0_sync2 = 0;
+    reg status0_sync_prev = 0;
+    wire status0_clear_pulse = status0_sync2 & ~status0_sync_prev;
     reg splash_reset_hold = 0;
     reg [16:0] splash_reset_cnt = 17'd0;
     localparam [16:0] SPLASH_RESET_HOLD = 17'd131072;
     reg phys_reset_hold = 0;
     reg [23:0] phys_reset_cnt = 24'd0;
     localparam [23:0] PHYS_RESET_HOLD = 24'd2863600;
+    localparam [23:0] SPLASH_BOOT_WAIT = 24'd14318000;
 
     always @ (posedge clk_14_318)
     begin
         splash_off <= status[7];
-        status0_ff <= status[0];
-
         if (RESET || buttons[1])
         begin
             phys_reset_hold <= 1'b1;
@@ -908,18 +912,35 @@ module emu
                 phys_reset_cnt <= phys_reset_cnt + 24'd1;
         end
 
-        if (~status0_ff && status[0] && ~phys_reset_hold)
+        if (splash_pending)
         begin
-            splashscreen <= 1'b1;
-            splash_cnt <= 0;
-            splash_cnt2 <= 0;
+            if (~splash_off)
+            begin
+                splashscreen <= 1'b1;
+                splash_cnt <= 0;
+                splash_cnt2 <= 0;
+                splash_pending <= 1'b0;
+                splash_boot_cnt <= 24'd0;
+            end
+            else if (splash_boot_cnt == SPLASH_BOOT_WAIT)
+            begin
+                splash_pending <= 1'b0;
+            end
+            else
+            begin
+                splash_boot_cnt <= splash_boot_cnt + 24'd1;
+            end
         end
         else if (splashscreen)
         begin
             if (splash_off)
+            begin
                 splashscreen <= 0;
+            end
             else if(splash_cnt2 == 5) // 5 seconds delay
+            begin
                 splashscreen <= 0;
+            end
             else if (splash_cnt == 14318000)
             begin // 1 second at 14.318Mhz
                 splash_cnt2 <= splash_cnt2 + 1;
@@ -936,6 +957,9 @@ module emu
         splashscreen_sync1 <= splashscreen;
         splashscreen_sync2 <= splashscreen_sync1;
         splashscreen_sync_prev <= splashscreen_sync2;
+        status0_sync1 <= status[0];
+        status0_sync2 <= status0_sync1;
+        status0_sync_prev <= status0_sync2;
 
         if (splashscreen_sync_prev && ~splashscreen_sync2)
         begin
@@ -1048,6 +1072,7 @@ module emu
 		.processor_ready                    (processor_ready),
 		.interrupt_to_cpu                   (interrupt_to_cpu),
 		.splashscreen                       (splashscreen),
+		.status0_clear                      (status0_clear_pulse),
 		.std_hsyncwidth                     (std_hsyncwidth),
 		.composite                          (composite),
 		.video_output                       (hgc_mode_video_ff),
@@ -1425,11 +1450,30 @@ module emu
     wire        VGA_DE_hgc;
     wire [21:0] gamma_bus_hgc;
     wire        CE_PIXEL_hgc;
+    reg  [1:0]  ce_pixel_hgc_div = 2'b0;
+    reg         ce_pixel_hgc_56 = 1'b0;
+    wire        CE_PIXEL_CREDITS;
+    reg  [5:0]  hgc_r_meta, hgc_g_meta, hgc_b_meta;
+    reg  [5:0]  hgc_r_sync, hgc_g_sync, hgc_b_sync;
+    reg         hgc_hs_meta, hgc_vs_meta;
+    reg         hgc_hs_sync, hgc_vs_sync;
+    reg         hgc_hb_meta, hgc_vb_meta;
+    reg         hgc_hb_sync, hgc_vb_sync;
+    reg  [7:0]  VGA_R_hgc_56, VGA_G_hgc_56, VGA_B_hgc_56;
+    reg         VGA_HS_hgc_56, VGA_VS_hgc_56, VGA_DE_hgc_56;
+    reg         ce_pixel_hgc_prev = 1'b0;
+    reg         ce_pixel_hgc_tog = 1'b0;
+    reg         ce_pixel_hgc_tog_1 = 1'b0;
+    reg         ce_pixel_hgc_tog_2 = 1'b0;
+    wire        CE_PIXEL_hgc_sync;
 
     assign CLK_VIDEO = clk_56_875;
     assign CLK_VIDEO_HGC = clk_113_750;
     assign CLK_VIDEO_CGA = clk_56_875;
-    assign ce_pixel_hgc = clk_28_636;
+    assign ce_pixel_hgc = ce_pixel_hgc_div[1];
+
+    always @(posedge clk_113_750)
+        ce_pixel_hgc_div <= ce_pixel_hgc_div + 2'd1;
 
     assign VGA_SL = {scale_video_ff==3, scale_video_ff==2};
 
@@ -1493,6 +1537,10 @@ module emu
         end
     end
 
+    // Credits overlay expects a pixel enable synchronous to clk_56_875.
+    always @(posedge clk_56_875)
+        ce_pixel_hgc_56 <= ~ce_pixel_hgc_56;
+
     always @ (posedge clk_56_875) begin
         video_pause_core_buf    <= pause_core;
         video_pause_core        <= video_pause_core_buf;
@@ -1519,9 +1567,9 @@ module emu
 		.clk_vid(CLK_VIDEO_HGC),
 		.ce_pix(ce_pixel_hgc),
 
-		.R({r, 2'b00}),
-		.G({g, 2'b00}),
-		.B({b, 2'b00}),
+		.R({hgc_r_sync, 2'b00}),
+		.G({hgc_g_sync, 2'b00}),
+		.B({hgc_b_sync, 2'b00}),
 
 		.gfx_mode(screen_mode_video_ff),
 
@@ -1580,6 +1628,28 @@ module emu
 
 	);
 
+    always @(posedge clk_113_750)
+    begin
+        if (ce_pixel_hgc)
+        begin
+            hgc_r_meta  <= r;
+            hgc_g_meta  <= g;
+            hgc_b_meta  <= b;
+            hgc_hs_meta <= HSync;
+            hgc_vs_meta <= VSync_hgc;
+            hgc_hb_meta <= pre2x_LHBL;
+            hgc_vb_meta <= pre2x_LVBL;
+
+            hgc_r_sync  <= hgc_r_meta;
+            hgc_g_sync  <= hgc_g_meta;
+            hgc_b_sync  <= hgc_b_meta;
+            hgc_hs_sync <= hgc_hs_meta;
+            hgc_vs_sync <= hgc_vs_meta;
+            hgc_hb_sync <= hgc_hb_meta;
+            hgc_vb_sync <= hgc_vb_meta;
+        end
+    end
+
     video_mixer #(.GAMMA(0)) video_mixer_hgc
 	(
 		.*,
@@ -1594,10 +1664,10 @@ module emu
 		.G(gaux_hgc),
 		.B(baux_hgc),
 
-		.HBlank(pre2x_LHBL),
-		.VBlank(pre2x_LVBL),
-		.HSync(HSync),
-		.VSync(VSync_hgc),
+		.HBlank(hgc_hb_sync),
+		.VBlank(hgc_vb_sync),
+		.HSync(hgc_hs_sync),
+		.VSync(hgc_vs_sync),
 
 		.scandoubler(scandoubler),
 		.hq2x(scale_video_ff==1),
@@ -1612,15 +1682,44 @@ module emu
 
 	);
 
+    always @(posedge clk_113_750)
+    begin
+        ce_pixel_hgc_prev <= CE_PIXEL_hgc;
+        if (CE_PIXEL_hgc && ~ce_pixel_hgc_prev)
+            ce_pixel_hgc_tog <= ~ce_pixel_hgc_tog;
+    end
 
-    assign VGA_R_AUX  =  swap_video & ~tandy_mode ? VGA_R_hgc  : VGA_R_cga;
-    assign VGA_G_AUX  =  swap_video & ~tandy_mode ? VGA_G_hgc  : VGA_G_cga;
-    assign VGA_B_AUX  =  swap_video & ~tandy_mode ? VGA_B_hgc  : VGA_B_cga;
-    assign VGA_HS =  swap_video & ~tandy_mode ? VGA_HS_hgc : VGA_HS_cga;
-    assign VGA_VS =  swap_video & ~tandy_mode ? VGA_VS_hgc : VGA_VS_cga;
-    assign VGA_DE =  swap_video & ~tandy_mode ? VGA_DE_hgc : VGA_DE_cga;
+    always @(posedge clk_56_875)
+    begin
+        ce_pixel_hgc_tog_1 <= ce_pixel_hgc_tog;
+        ce_pixel_hgc_tog_2 <= ce_pixel_hgc_tog_1;
+    end
+
+    assign CE_PIXEL_hgc_sync = ce_pixel_hgc_tog_1 ^ ce_pixel_hgc_tog_2;
+
+    always @(posedge clk_56_875)
+    begin
+        if (CE_PIXEL_hgc_sync)
+        begin
+            VGA_R_hgc_56 <= VGA_R_hgc;
+            VGA_G_hgc_56 <= VGA_G_hgc;
+            VGA_B_hgc_56 <= VGA_B_hgc;
+            VGA_HS_hgc_56 <= VGA_HS_hgc;
+            VGA_VS_hgc_56 <= VGA_VS_hgc;
+            VGA_DE_hgc_56 <= VGA_DE_hgc;
+        end
+    end
+
+
+    assign VGA_R_AUX  =  swap_video & ~tandy_mode ? VGA_R_hgc_56  : VGA_R_cga;
+    assign VGA_G_AUX  =  swap_video & ~tandy_mode ? VGA_G_hgc_56  : VGA_G_cga;
+    assign VGA_B_AUX  =  swap_video & ~tandy_mode ? VGA_B_hgc_56  : VGA_B_cga;
+    assign VGA_HS =  swap_video & ~tandy_mode ? VGA_HS_hgc_56 : VGA_HS_cga;
+    assign VGA_VS =  swap_video & ~tandy_mode ? VGA_VS_hgc_56 : VGA_VS_cga;
+    assign VGA_DE =  swap_video & ~tandy_mode ? VGA_DE_hgc_56 : VGA_DE_cga;
     assign gamma_bus =  swap_video & ~tandy_mode ? gamma_bus_hgc : gamma_bus_cga;
-    assign CE_PIXEL  =  swap_video & ~tandy_mode ? CE_PIXEL_hgc : CE_PIXEL_cga;
+    assign CE_PIXEL  =  swap_video & ~tandy_mode ? CE_PIXEL_hgc_sync : CE_PIXEL_cga;
+    assign CE_PIXEL_CREDITS = swap_video & ~tandy_mode ? ce_pixel_hgc_56 : CE_PIXEL_cga;
 
 
 
@@ -1631,7 +1730,7 @@ module emu
     ) u_credits(
         .rst        ( reset      ),
         .clk        ( clk_56_875 ),
-        .pxl_cen    ( CE_PIXEL   ),
+        .pxl_cen    ( CE_PIXEL_CREDITS ),
 
         // input image
         .HB         ( LHBL  ),
