@@ -453,7 +453,7 @@ module PERIPHERALS #(
     wire            opl_warm_reset = (opl_reset_cnt != 16'd0);
 
     wire    clear_keycode = port_b_out[7];
-    wire    ps2_reset_n   = port_b_out[6];
+    wire    ps2_reset_n   = ~tandy_video ? port_b_out[6] : 1'b1;
 
     always_ff @(posedge clock, posedge reset)
     begin
