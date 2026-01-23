@@ -2,20 +2,24 @@ derive_pll_clocks
 derive_clock_uncertainty
 
 # core specific constraints
-# Clocks
+# Clocks - PLL principal (Chipset/SDRAM domain)
 set CLOCK_CORE      {emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter[0].output_counter|divclk}
-set CLOCK_VGA_MDA   {emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter[1].output_counter|divclk}
-set CLOCK_VGA_CGA   {emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter[2].output_counter|divclk}
-set CLOCK_UART      {emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter[3].output_counter|divclk}
-set CLOCK_OPL       {emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter[4].output_counter|divclk}
-set CLOCK_CHIP      {emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter[5].output_counter|divclk}
-set CLOCK_VIDEO_MDA {emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter[6].output_counter|divclk}
+set CLOCK_CHIP      {emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter[1].output_counter|divclk}
+
+# Clocks - PLL video (CPU/Video domain - precise frequencies)
+set CLOCK_VGA_CGA   {emu|pll_system_inst|pll_system_inst|altera_pll_i|cyclonev_pll|counter[0].output_counter|divclk}
+set CLOCK_VGA_MDA   {emu|pll_system_inst|pll_system_inst|altera_pll_i|cyclonev_pll|counter[1].output_counter|divclk}
+set CLOCK_VIDEO_MDA {emu|pll_system_inst|pll_system_inst|altera_pll_i|cyclonev_pll|counter[2].output_counter|divclk}
+set CLOCK_9_54      {emu|pll_system_inst|pll_system_inst|altera_pll_i|cyclonev_pll|counter[3].output_counter|divclk}
+set CLOCK_7_16      {emu|pll_system_inst|pll_system_inst|altera_pll_i|cyclonev_pll|counter[4].output_counter|divclk}
+set CLOCK_4_77      {emu|pll_system_inst|pll_system_inst|altera_pll_i|cyclonev_pll|counter[5].output_counter|divclk}
+
+# Derived clocks (from PLL video domain)
 set CLOCK_14_318    {emu|clk_14_318|q}
-set CLOCK_4_77      {emu|clk_normal|clk_out|q}
 set PCLK            {emu|peripheral_clock|q}
 
+# clk_14_318 derives from clk_28_636 (PLL video - precise frequency)
 create_generated_clock -name clk_14_318 -source [get_pins $CLOCK_VGA_CGA] -divide_by 2 [get_pins $CLOCK_14_318]
-create_generated_clock -name clk_4_77 -source [get_pins $CLOCK_14_318] -divide_by 3 -duty_cycle 33 [get_pins $CLOCK_4_77]
 create_generated_clock -name peripheral_clock -source [get_pins $CLOCK_4_77] -divide_by 2 [get_pins $PCLK]
 create_generated_clock -name SDRAM_CLK -source [get_pins $CLOCK_CHIP] [get_ports { SDRAM_CLK }]
 create_clock -name VCLK_SDIO -period 20.000
@@ -23,9 +27,31 @@ create_clock -name VCLK_SDIO -period 20.000
 # SPLASH
 set_false_path -to [get_registers {emu:emu|splash_off}]
 
-# UART
-set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_UART]
-set_false_path -from [get_clocks $CLOCK_UART] -to [get_clocks $CLOCK_CHIP]
+# CDC: PLL principal (Chipset) <-> PLL video (CPU/Video) - asynchronous clock domains
+set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_VGA_CGA]
+set_false_path -from [get_clocks $CLOCK_VGA_CGA] -to [get_clocks $CLOCK_CHIP]
+set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_VGA_MDA]
+set_false_path -from [get_clocks $CLOCK_VGA_MDA] -to [get_clocks $CLOCK_CHIP]
+set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_VIDEO_MDA]
+set_false_path -from [get_clocks $CLOCK_VIDEO_MDA] -to [get_clocks $CLOCK_CHIP]
+set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_9_54]
+set_false_path -from [get_clocks $CLOCK_9_54] -to [get_clocks $CLOCK_CHIP]
+set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_7_16]
+set_false_path -from [get_clocks $CLOCK_7_16] -to [get_clocks $CLOCK_CHIP]
+set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_4_77]
+set_false_path -from [get_clocks $CLOCK_4_77] -to [get_clocks $CLOCK_CHIP]
+
+set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks clk_14_318]
+set_false_path -from [get_clocks clk_14_318] -to [get_clocks $CLOCK_CHIP]
+set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks peripheral_clock]
+set_false_path -from [get_clocks peripheral_clock] -to [get_clocks $CLOCK_CHIP]
+
+set_false_path -from [get_clocks $CLOCK_CORE] -to [get_clocks $CLOCK_VGA_CGA]
+set_false_path -from [get_clocks $CLOCK_VGA_CGA] -to [get_clocks $CLOCK_CORE]
+set_false_path -from [get_clocks $CLOCK_CORE] -to [get_clocks $CLOCK_4_77]
+set_false_path -from [get_clocks $CLOCK_4_77] -to [get_clocks $CLOCK_CORE]
+set_false_path -from [get_clocks $CLOCK_CORE] -to [get_clocks clk_14_318]
+set_false_path -from [get_clocks clk_14_318] -to [get_clocks $CLOCK_CORE]
 
 # VIDEO
 # NOTE: If the system clock and video clock are synchronous, the following description is not necessary.
@@ -164,4 +190,3 @@ set_input_delay -clock { SDRAM_CLK } -max 6 [get_ports { SDRAM_DQ[*] }]
 set_input_delay -clock { SDRAM_CLK } -min 3 [get_ports { SDRAM_DQ[*] }]
 set_output_delay -clock { SDRAM_CLK } -max 2 [get_ports { SDRAM_DQ[*] SDRAM_DQM* SDRAM_A[*] SDRAM_n*  SDRAM_BA[*] SDRAM_CKE }]
 set_output_delay -clock { SDRAM_CLK } -min 1.5 [get_ports { SDRAM_DQ[*] SDRAM_DQM* SDRAM_A[*] SDRAM_n*  SDRAM_BA[*] SDRAM_CKE }]
-

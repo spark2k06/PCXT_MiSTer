@@ -16,6 +16,16 @@
 //
 //============================================================================
 
+`ifndef ENABLE_CGA
+`define ENABLE_CGA 1
+`endif
+`ifndef ENABLE_HGC
+`define ENABLE_HGC 1
+`endif
+`ifndef ENABLE_TANDY_VIDEO
+`define ENABLE_TANDY_VIDEO 1
+`endif
+
 module emu
     (
         //Master input clock
@@ -320,6 +330,7 @@ module emu
     wire std_hsyncwidth;
     wire pause_core;
     wire swap_video;
+    wire swap_video_eff = `ENABLE_HGC ? (`ENABLE_CGA ? swap_video : (`ENABLE_TANDY_VIDEO ? 1'b0 : 1'b1)) : 1'b0;
 
     always @(posedge CLK_VIDEO)
     begin
@@ -406,36 +417,44 @@ module emu
 
     wire clk_100;
     wire clk_28_636;
-    wire clk_56_875;
-    wire clk_113_750;
+    wire clk_57_272;
+    wire clk_114_544;
+    wire clk_9_54;
+    wire clk_7_16;
+    wire clk_4_77;
     reg clk_25 = 1'b0;
     reg clk_14_318 = 1'b0;
-    reg clk_9_54 = 1'b0;
-    reg clk_7_16 = 1'b0;
-    wire clk_4_77;
     wire clk_cpu;
     wire pclk;
     wire clk_chipset;
     wire peripheral_clock;
-    wire clk_uart;
 
     localparam [27:0] cur_rate = 28'd50000000;
 
-    pll pll 
+    pll pll
 	(
 		.refclk(CLK_50M),
 		.rst(0),
 		.outclk_0(clk_100),
-		.outclk_1(clk_56_875),
-		.outclk_2(clk_28_636),
-		.outclk_3(clk_uart),
-		//.outclk_4(clk_opl2),
-		.outclk_5(clk_chipset),
-		.outclk_6(clk_113_750),
+        .outclk_1(clk_chipset),
 		.locked(pll_locked)
 	);
 
-    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | splashscreen | splash_reset_hold | splash_pending;
+    wire pll_system_locked;
+
+    pll_system pll_system_inst (
+        .refclk(CLK_50M),
+        .rst(0),
+        .outclk_0(clk_28_636),
+        .outclk_1(clk_57_272),
+        .outclk_2(clk_114_544),
+        .outclk_3(clk_9_54),
+        .outclk_4(clk_7_16),
+        .outclk_5(clk_4_77),
+        .locked(pll_system_locked)
+    );
+
+    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked  | splashscreen | splash_reset_hold | splash_pending;
     wire reset_sdram_wire = RESET | !pll_locked;
 
     //////////////////////////////////////////////////////////////////
@@ -450,31 +469,8 @@ module emu
         ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
     end
 
-    reg [4:0] clk_9_54_cnt = 1'b0;
-    always @(posedge clk_chipset)
-        if (4'd0 == clk_9_54_cnt) begin
-            if (clk_9_54)
-                clk_9_54_cnt  <= 4'd3 - 4'd1;
-            else
-                clk_9_54_cnt  <= 4'd2 - 4'd1;
-            clk_9_54      <= ~clk_9_54;
-        end
-        else begin
-            clk_9_54_cnt  <= clk_9_54_cnt - 4'd1;
-            clk_9_54      <= clk_9_54;
-        end
-
     always @(posedge clk_chipset)
         clk_25 <= ~clk_25;
-
-    always @(posedge clk_14_318)
-        clk_7_16 <= ~clk_7_16;      // 7.16Mhz
-
-    clk_div3 clk_normal             // 4.77MHz
-    (
-        .clk(clk_14_318),
-        .clk_out(clk_4_77)
-    );
 
     always @(posedge clk_4_77)
         peripheral_clock <= ~peripheral_clock; // 2.385Mhz
@@ -1078,7 +1074,7 @@ module emu
 		.video_output                       (hgc_mode_video_ff),
 		.clk_vga_cga                        (clk_28_636),
 		.enable_cga                         (1'b1),
-		.clk_vga_hgc                        (clk_56_875),
+		.clk_vga_hgc                        (clk_57_272),
 		.enable_hgc                         (1'b1),
 		.hgc_rgb                            (2'b10), // always B&W - monochrome monitor tint handled down below
 	//	.de_o                               (VGA_DE),
@@ -1332,7 +1328,7 @@ module emu
 
     always @(posedge clk_chipset)
     begin
-        clk_uart_ff_1 <= clk_uart;
+        clk_uart_ff_1 <= clk_14_318;
         clk_uart_ff_2 <= clk_uart_ff_1;
         clk_uart_ff_3 <= clk_uart_ff_2;
         clk_uart_en   <= ~clk_uart_ff_3 & clk_uart_ff_2;
@@ -1467,12 +1463,12 @@ module emu
     reg         ce_pixel_hgc_tog_2 = 1'b0;
     wire        CE_PIXEL_hgc_sync;
 
-    assign CLK_VIDEO = clk_56_875;
-    assign CLK_VIDEO_HGC = clk_113_750;
-    assign CLK_VIDEO_CGA = clk_56_875;
+    assign CLK_VIDEO = clk_57_272;
+    assign CLK_VIDEO_HGC = clk_114_544;
+    assign CLK_VIDEO_CGA = clk_57_272;
     assign ce_pixel_hgc = ce_pixel_hgc_div[1];
 
-    always @(posedge clk_113_750)
+    always @(posedge clk_114_544)
         ce_pixel_hgc_div <= ce_pixel_hgc_div + 2'd1;
 
     assign VGA_SL = {scale_video_ff==3, scale_video_ff==2};
@@ -1487,7 +1483,9 @@ module emu
 	 wire HBlank_VGA;
 
     reg [10:0] HBlank_counter = 0;
+    reg [10:0] HBlank_counter_hgc = 0;
     reg HBlank_fixed = 1'b1;
+    reg HBlank_fixed_hgc = 1'b1;
     reg [1:0] HSync_del = 1'b11;
     reg [1:0] HSync_del_hgc = 1'b11;
     localparam integer MDA_VSYNC_DELAY = 19;
@@ -1526,22 +1524,33 @@ module emu
         end
     end
 
-    always @(posedge clk_56_875)
+    always @(posedge clk_57_272)
     begin
         if (swap_video & ~tandy_mode)
         begin
             HBlank_del_hgc <= {HBlank_del_hgc[23:0], HBlank};
             HSync_del_hgc <= {HSync_del_hgc[0], HSync};
             if (HSync_del_hgc == 2'b01)
+            begin
                 VSync_line <= {VSync_line[MDA_VSYNC_DELAY-1:0], VSync};
+                HBlank_counter_hgc <= 0;
+                HBlank_fixed_hgc <= 1'b1;
+            end
+            else
+            begin
+                if (HBlank_counter_hgc == (std_hsyncwidth ? 120 : 143))
+                    HBlank_fixed_hgc <= 1'b0;
+                else
+                    HBlank_counter_hgc <= HBlank_counter_hgc + 1;
+            end
         end
     end
 
-    // Credits overlay expects a pixel enable synchronous to clk_56_875.
-    always @(posedge clk_56_875)
+    // Credits overlay expects a pixel enable synchronous to clk_57_272.
+    always @(posedge clk_57_272)
         ce_pixel_hgc_56 <= ~ce_pixel_hgc_56;
 
-    always @ (posedge clk_56_875) begin
+    always @ (posedge clk_57_272) begin
         video_pause_core_buf    <= pause_core;
         video_pause_core        <= video_pause_core_buf;
     end
@@ -1588,8 +1597,8 @@ module emu
     assign CE_PIXEL = ce_pixel;
     */
 
-    wire LHBL = (~swap_video && border_video_ff) ? HBlank_fixed : HBlank_VGA;
-    wire LVBL = (~swap_video && border_video_ff) ? std_hsyncwidth ? VGA_VBlank_border : ~VSync : VBlank;
+    wire LHBL = (border_video_ff) ? (swap_video_eff ? HBlank_fixed_hgc : HBlank_fixed) : HBlank_VGA;
+    wire LVBL = (border_video_ff) ? (std_hsyncwidth ? VGA_VBlank_border : VBlank) : VBlank;
     wire VSync_hgc = VSync_line[MDA_VSYNC_DELAY];
 
     wire       pre2x_LHBL, pre2x_LVBL;
@@ -1628,7 +1637,7 @@ module emu
 
 	);
 
-    always @(posedge clk_113_750)
+    always @(posedge clk_114_544)
     begin
         if (ce_pixel_hgc)
         begin
@@ -1682,14 +1691,14 @@ module emu
 
 	);
 
-    always @(posedge clk_113_750)
+    always @(posedge clk_114_544)
     begin
         ce_pixel_hgc_prev <= CE_PIXEL_hgc;
         if (CE_PIXEL_hgc && ~ce_pixel_hgc_prev)
             ce_pixel_hgc_tog <= ~ce_pixel_hgc_tog;
     end
 
-    always @(posedge clk_56_875)
+    always @(posedge clk_57_272)
     begin
         ce_pixel_hgc_tog_1 <= ce_pixel_hgc_tog;
         ce_pixel_hgc_tog_2 <= ce_pixel_hgc_tog_1;
@@ -1697,7 +1706,7 @@ module emu
 
     assign CE_PIXEL_hgc_sync = ce_pixel_hgc_tog_1 ^ ce_pixel_hgc_tog_2;
 
-    always @(posedge clk_56_875)
+    always @(posedge clk_57_272)
     begin
         if (CE_PIXEL_hgc_sync)
         begin
@@ -1729,7 +1738,7 @@ module emu
         .BLKPOL (1)
     ) u_credits(
         .rst        ( reset      ),
-        .clk        ( clk_56_875 ),
+        .clk        ( clk_57_272 ),
         .pxl_cen    ( CE_PIXEL_CREDITS ),
 
         // input image

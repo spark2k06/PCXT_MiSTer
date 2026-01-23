@@ -44,6 +44,7 @@ module UM6845R
 
 	output    [13:0] MA,
 	output     [4:0] RA,
+	output    [3:0] hsync_width,
 
 	input      [3:0] crt_h_offset,
 	input      [2:0] crt_v_offset,
@@ -68,6 +69,7 @@ assign FIELD = ~field & interlace[0];
 
 assign MA = row_addr_r;
 assign RA = line | (field & interlace[0]);
+assign hsync_width = R3_h_sync_width;
 
 assign DE = de[R8_skew & ~{2{CRTC_TYPE}}];
 

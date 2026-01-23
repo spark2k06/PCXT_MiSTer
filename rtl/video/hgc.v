@@ -38,11 +38,14 @@ module hgc(
     output intensity,
     output grph_mode,
     output grph_page,
+    output std_hsyncwidth,
+    output vblank_border,
     input hercules_hw
     );
 
     parameter HGC_70HZ = 1;
     parameter BLINK_MAX = 0;
+    localparam STD_HSYNCWIDTH = 4'd15;
 
     parameter IO_BASE_ADDR = 16'h3b0; // HGC is 3B0, CGA is 3D0
     wire crtc_cs;
@@ -80,6 +83,7 @@ module hgc(
     wire[4:0] clkdiv;
     wire crtc_clk;
     wire[7:0] ram_1_d;
+    wire[3:0] hsync_width_crtc;
 
     reg[23:0] blink_counter;
     reg blink;
@@ -154,6 +158,10 @@ module hgc(
     assign video_enabled = hgc_control_reg[3];
     assign grph_mode = hgc_control_reg[1];
 
+    // Standard sync width detection
+    assign std_hsyncwidth = (hsync_width_crtc == STD_HSYNCWIDTH);
+    assign vblank_border = vblank;
+
     // Hsync only present when video is enabled
     assign hsync = video_enabled & hsync_int;
 
@@ -190,17 +198,18 @@ module hgc(
 		  .DE(display_enable),
 		  // .FIELD(),
 		  .CURSOR(cursor),
-		  
+
 		  .MA(crtc_addr),
-		  .RA(row_addr)
+		  .RA(row_addr),
+		  .hsync_width(hsync_width_crtc)
 
 	 );
-	 
+
 //    if (HGC_70HZ) begin
         defparam crtc.H_TOTAL = 8'd99;
         defparam crtc.H_DISP = 8'd80;
         defparam crtc.H_SYNCPOS = 8'd82;
-        defparam crtc.H_SYNCWIDTH = 4'd12;
+        defparam crtc.H_SYNCWIDTH = 4'd15;
         defparam crtc.V_TOTAL = 7'd31;
         defparam crtc.V_TOTALADJ = 5'd1;
         defparam crtc.V_DISP = 7'd25;

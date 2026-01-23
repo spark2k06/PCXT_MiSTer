@@ -4,6 +4,17 @@
 //
 // Based on KFPC-XT written by @kitune-san
 //
+
+`ifndef ENABLE_CGA
+`define ENABLE_CGA 1
+`endif
+`ifndef ENABLE_HGC
+`define ENABLE_HGC 1
+`endif
+`ifndef ENABLE_TANDY_VIDEO
+`define ENABLE_TANDY_VIDEO 1
+`endif
+
 module PERIPHERALS #(
         parameter ps2_over_time = 16'd1000,
 		parameter clk_rate = 28'd50000000
@@ -1108,8 +1119,10 @@ end
         .de_o                       (de_o_hgc),
         .grph_mode                  (hgc_grph_mode),
         .grph_page                  (hgc_grph_page),
+        .std_hsyncwidth             (std_hsyncwidth_hgc),
+        .vblank_border              (vblank_border_hgc),
         .hercules_hw                (hercules_hw)
-		  
+
     );
 
     always_ff @(posedge clock)
@@ -1130,6 +1143,11 @@ end
     wire [7:0] CGA_CRTC_DOUT;
     wire [7:0] CGA_CRTC_DOUT_1;
     wire [7:0] CGA_CRTC_DOUT_2;
+
+    wire        VGA_VBlank_border_raw;
+    wire        std_hsyncwidth_raw;
+    wire        std_hsyncwidth_hgc;
+    wire        vblank_border_hgc;
 
     // Sets up the card to generate a video signal
     // that will work with a standard VGA monitor
@@ -1180,8 +1198,8 @@ end
         .hblank                     (HBLANK_CGA),
         .vsync                      (VSYNC_CGA),
         .vblank                     (VBLANK_CGA),
-        .vblank_border              (VGA_VBlank_border),
-        .std_hsyncwidth             (std_hsyncwidth),
+        .vblank_border              (VGA_VBlank_border_raw),
+        .std_hsyncwidth             (std_hsyncwidth_raw),
         .de_o                       (de_o_cga),
         .video                      (video_cga),              // non scandoubled
     //  .dbl_video                  (video_cga),              // scandoubled
@@ -1204,6 +1222,8 @@ end
         CGA_CRTC_DOUT_2 <= CGA_CRTC_DOUT_1;
     end
 
+    assign VGA_VBlank_border = `ENABLE_CGA ? VGA_VBlank_border_raw : (`ENABLE_HGC ? vblank_border_hgc : 1'b0);
+    assign std_hsyncwidth = `ENABLE_CGA ? std_hsyncwidth_raw : (`ENABLE_HGC ? std_hsyncwidth_hgc : 1'b0);
 
     defparam cga1.BLINK_MAX = 24'd4772727;
     defparam hgc1.BLINK_MAX = 24'd9100000;
