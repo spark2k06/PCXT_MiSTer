@@ -165,6 +165,7 @@ module CHIPSET #(
         // Others
         output  logic           pause_core,
         input   logic           cga_hw,
+        input   logic           cga_scandouble_en,
         input   logic           hercules_hw,
         output  logic           swap_video,
         input   logic   [3:0]   crt_h_offset,
@@ -393,6 +394,7 @@ module CHIPSET #(
         .xtctl                              (xtctl),
         .pause_core                         (pause_core),
         .cga_hw                             (cga_hw),
+        .cga_scandouble_en                  (cga_scandouble_en),
         .hercules_hw                        (hercules_hw),
         .swap_video                         (swap_video),
         .crt_h_offset                       (crt_h_offset),
