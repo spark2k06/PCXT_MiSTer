@@ -4,7 +4,8 @@
 //
 module READY (
     input   logic           clock,
-    input   logic           cpu_clock,
+    input   logic           cpu_ce_posedge,
+    input   logic           cpu_ce_negedge,
     input   logic           reset,
     // CPU
     output  logic           processor_ready,
@@ -19,21 +20,6 @@ module READY (
     input   logic           dma0_acknowledge_n,
     input   logic           address_enable_n
 );
-
-    //
-    // CPU clock edge
-    //
-    logic   prev_cpu_clock;
-
-    always_ff @(posedge clock, posedge reset) begin
-        if (reset)
-            prev_cpu_clock <= 1'b0;
-        else
-            prev_cpu_clock <= cpu_clock;
-    end
-
-    wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
-    wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
 
 
     //
@@ -83,7 +69,7 @@ module READY (
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             prev_ready_n_or_wait    <= 1'b0;
-        else if (cpu_clock_posedge)
+        else if (cpu_ce_posedge)
             prev_ready_n_or_wait    <= ready_n_or_wait;
         else
             prev_ready_n_or_wait    <= prev_ready_n_or_wait;
@@ -105,7 +91,7 @@ module READY (
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             processor_ready_ff_1    <= 1'b0;
-        else if (cpu_clock_posedge)
+        else if (cpu_ce_posedge)
             processor_ready_ff_1    <= dma_wait_n & ~ready_n_or_wait;
         else
             processor_ready_ff_1    <= processor_ready_ff_1;
@@ -114,7 +100,7 @@ module READY (
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             processor_ready_ff_2    <= 1'b0;
-        else if (cpu_clock_negedge)
+        else if (cpu_ce_negedge)
             processor_ready_ff_2    <= processor_ready_ff_1 & dma_wait_n & ~ready_n_or_wait;
         else
             processor_ready_ff_2    <= processor_ready_ff_2;

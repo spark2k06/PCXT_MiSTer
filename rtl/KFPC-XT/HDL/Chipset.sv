@@ -8,9 +8,10 @@ module CHIPSET #(
         parameter clk_rate = 28'd50000000)
         (
         input   logic           clock,
-        input   logic           cpu_clock,
+        input   logic           cpu_ce_posedge,
+        input   logic           cpu_ce_negedge,
         input   logic           clk_sys,
-        input   logic           peripheral_clock,
+        input   logic           peripheral_ce,
         input   logic   [1:0]   clk_select,
         input   logic           reset,
         input   logic           sdram_reset,
@@ -228,7 +229,8 @@ module CHIPSET #(
     READY u_READY 
     (
         .clock                              (clock),
-        .cpu_clock                          (cpu_clock),
+        .cpu_ce_posedge                     (cpu_ce_posedge),
+        .cpu_ce_negedge                     (cpu_ce_negedge),
         .reset                              (reset),
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
@@ -244,7 +246,8 @@ module CHIPSET #(
     BUS_ARBITER u_BUS_ARBITER 
     (
         .clock                              (clock),
-        .cpu_clock                          (cpu_clock),
+        .cpu_ce_posedge                     (cpu_ce_posedge),
+        .cpu_ce_negedge                     (cpu_ce_negedge),
         .reset                              (reset),
         .cpu_address                        (cpu_address),
         .cpu_data_bus                       (cpu_data_bus),
@@ -287,9 +290,10 @@ module CHIPSET #(
     (
         .clock                              (clock),
         .clk_sys                            (clk_sys),
-        .cpu_clock                          (cpu_clock),
+        .cpu_ce_posedge                     (cpu_ce_posedge),
+        .cpu_ce_negedge                     (cpu_ce_negedge),
         .clk_uart                           (clk_uart),
-        .peripheral_clock                   (peripheral_clock),
+        .peripheral_ce                      (peripheral_ce),
         .clk_select                         (clk_select),
         .reset                              (reset),
         .interrupt_to_cpu                   (interrupt_to_cpu),

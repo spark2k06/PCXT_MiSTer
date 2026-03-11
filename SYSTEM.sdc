@@ -6,24 +6,15 @@ derive_clock_uncertainty
 set CLOCK_CORE      {emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter[0].output_counter|divclk}
 set CLOCK_CHIP      {emu|pll|pll_inst|altera_pll_i|cyclonev_pll|counter[1].output_counter|divclk}
 # Clocks - PLL video (CPU/Video domain - precise frequencies)
-set CLOCK_VGA_CGA   {emu|pll_system_inst|pll_system_inst|altera_pll_i|cyclonev_pll|counter[0].output_counter|divclk}
-set CLOCK_VGA_MDA   {emu|pll_system_inst|pll_system_inst|altera_pll_i|cyclonev_pll|counter[1].output_counter|divclk}
-set CLOCK_VIDEO_MDA {emu|pll_system_inst|pll_system_inst|altera_pll_i|cyclonev_pll|counter[2].output_counter|divclk}
-set CLOCK_VIDEO_OUT_PS {emu|pll_system_inst|pll_system_inst|altera_pll_i|cyclonev_pll|counter[3].output_counter|divclk}
-set CLOCK_9_54      {emu|clk_9_54|q}
-set CLOCK_7_16      {emu|clk_7_16|q}
-set CLOCK_4_77      {emu|clk_4_77|q}
-
+set CLOCK_VGA_CGA   {emu|pll_system_inst|pll_system_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}
+set CLOCK_VGA_MDA   {emu|pll_system_inst|pll_system_inst|altera_pll_i|general[1].gpll~PLL_OUTPUT_COUNTER|divclk}
+set CLOCK_VIDEO_MDA {emu|pll_system_inst|pll_system_inst|altera_pll_i|general[2].gpll~PLL_OUTPUT_COUNTER|divclk}
+set CLOCK_VIDEO_OUT_PS {emu|pll_system_inst|pll_system_inst|altera_pll_i|general[3].gpll~PLL_OUTPUT_COUNTER|divclk}
 # Derived clocks (from PLL video domain)
-set CLOCK_14_318    {emu|clk_14_318|q}
-set PCLK            {emu|peripheral_clock|q}
+set CLOCK_14_318    {emu:emu|clk_14_318|q}
 
 # clk_14_318 derives from clk_28_636 (PLL video - precise frequency)
 create_generated_clock -name clk_14_318 -source [get_pins $CLOCK_VGA_CGA] -divide_by 2 [get_pins $CLOCK_14_318]
-create_generated_clock -name clk_9_54 -source [get_pins $CLOCK_VGA_MDA] -divide_by 6 [get_pins $CLOCK_9_54]
-create_generated_clock -name clk_7_16 -source [get_pins $CLOCK_VGA_MDA] -divide_by 8 [get_pins $CLOCK_7_16]
-create_generated_clock -name clk_4_77 -source [get_pins $CLOCK_VGA_MDA] -divide_by 12 [get_pins $CLOCK_4_77]
-create_generated_clock -name peripheral_clock -source [get_pins $CLOCK_VGA_MDA] -divide_by 24 [get_pins $PCLK]
 create_generated_clock -name SDRAM_CLK -source [get_pins $CLOCK_CHIP] [get_ports { SDRAM_CLK }]
 create_clock -name VCLK_SDIO -period 20.000
 
@@ -37,22 +28,11 @@ set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_VGA_MDA]
 set_false_path -from [get_clocks $CLOCK_VGA_MDA] -to [get_clocks $CLOCK_CHIP]
 set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_VIDEO_MDA]
 set_false_path -from [get_clocks $CLOCK_VIDEO_MDA] -to [get_clocks $CLOCK_CHIP]
-set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_9_54]
-set_false_path -from [get_clocks $CLOCK_9_54] -to [get_clocks $CLOCK_CHIP]
-set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_7_16]
-set_false_path -from [get_clocks $CLOCK_7_16] -to [get_clocks $CLOCK_CHIP]
-set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_4_77]
-set_false_path -from [get_clocks $CLOCK_4_77] -to [get_clocks $CLOCK_CHIP]
-
 set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks clk_14_318]
 set_false_path -from [get_clocks clk_14_318] -to [get_clocks $CLOCK_CHIP]
-set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks peripheral_clock]
-set_false_path -from [get_clocks peripheral_clock] -to [get_clocks $CLOCK_CHIP]
 
 set_false_path -from [get_clocks $CLOCK_CORE] -to [get_clocks $CLOCK_VGA_CGA]
 set_false_path -from [get_clocks $CLOCK_VGA_CGA] -to [get_clocks $CLOCK_CORE]
-set_false_path -from [get_clocks $CLOCK_CORE] -to [get_clocks $CLOCK_4_77]
-set_false_path -from [get_clocks $CLOCK_4_77] -to [get_clocks $CLOCK_CORE]
 set_false_path -from [get_clocks $CLOCK_CORE] -to [get_clocks clk_14_318]
 set_false_path -from [get_clocks clk_14_318] -to [get_clocks $CLOCK_CORE]
 
@@ -65,35 +45,27 @@ set_max_delay -from [get_clocks $CLOCK_VIDEO_MDA] -to [get_clocks $CLOCK_VIDEO_O
 set VIDEO_TO_SYSYEM_DELAY 10
 
 set_false_path -to [get_registers  {emu:emu|scale_video_ff[*] \
-                                    emu:emu|mda_mode_video_ff \
                                     emu:emu|screen_mode_video_ff[*] \
                                     emu:emu|border_video_ff \
                                     emu:emu|VIDEO_ARX[*] \
                                     emu:emu|VIDEO_ARY[*]}]
 
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_address[*]}] \
-              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|mda_io_address_1[*]   \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_address_1[*]}] $VIDEO_TO_SYSYEM_DELAY
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_address_1[*]}] $VIDEO_TO_SYSYEM_DELAY
 
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_data[*]}] \
-              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|mda_io_data_1[*]   \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_data_1[*]}] $VIDEO_TO_SYSYEM_DELAY
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_data_1[*]}] $VIDEO_TO_SYSYEM_DELAY
 
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_write_n}] \
-              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|mda_io_write_n_1   \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_write_n_1}] $VIDEO_TO_SYSYEM_DELAY
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_write_n_1}] $VIDEO_TO_SYSYEM_DELAY
 
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_read_n}] \
-              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|mda_io_read_n_1   \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_read_n_1}] $VIDEO_TO_SYSYEM_DELAY
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_read_n_1}] $VIDEO_TO_SYSYEM_DELAY
 
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_address_enable_n}] \
-              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|mda_address_enable_n_1   \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_address_enable_n_1}] $VIDEO_TO_SYSYEM_DELAY
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_address_enable_n_1}] $VIDEO_TO_SYSYEM_DELAY
 
-set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|MDA_CRTC_DOUT_1[*] \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|MDA_CRTC_OE_1      \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|CGA_CRTC_DOUT_1[*] \
+set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|CGA_CRTC_DOUT_1[*] \
                                     emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|CGA_CRTC_OE_1}] $VIDEO_TO_SYSYEM_DELAY
 
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_address[*]}] \
@@ -127,12 +99,9 @@ set_max_delay -from [get_registers {emu:emu|hps_io:hps_io|video_calc:video_calc|
                                     emu:emu|hps_io:hps_io|video_calc:video_calc|vid_vcnt[*]}] \
               -to   [get_registers {emu:emu|hps_io:hps_io|video_calc:video_calc|dout[*]}] $VIDEO_TO_SYSYEM_DELAY
 
-set_max_delay -from [get_registers {emu:emu|mda_mode_video_ff}] \
-              -to   [get_registers {emu:emu|hps_io:hps_io|io_dout[0]}] $VIDEO_TO_SYSYEM_DELAY
 
 set_max_delay -from [get_registers {emu:emu|scale_video_ff[*]}] \
-              -to   [get_registers {sl_r[*]                     \
-                                    emu:emu|video_mixer:video_mixer_mda|CE_PIXEL}] $VIDEO_TO_SYSYEM_DELAY
+              -to   [get_registers {sl_r[*]}] $VIDEO_TO_SYSYEM_DELAY
 
 set_max_delay -to   [get_registers {emu:emu|cga_hw}] $VIDEO_TO_SYSYEM_DELAY
 

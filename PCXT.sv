@@ -455,18 +455,12 @@ module emu
     wire clk_57_272;
     wire clk_114_544;
     wire clk_video_out_ps;
-    reg clk_9_54 = 1'b0;
-    reg clk_7_16 = 1'b0;
-    reg clk_4_77 = 1'b0;
-    reg clk_25 = 1'b0;
     reg clk_14_318 = 1'b0;
     wire clk_cpu;
-    wire pclk;
+    logic cpu_ce_posedge;
+    logic cpu_ce_negedge;
+    logic peripheral_ce;
     wire clk_chipset;
-    reg peripheral_clock = 1'b0;
-    reg [1:0] clk_9_54_div = 2'd0;
-    reg [1:0] clk_7_16_div = 2'd0;
-    reg [2:0] clk_4_77_div = 3'd0;
 
     localparam [27:0] cur_rate = 28'd50000000;
 
@@ -507,51 +501,6 @@ module emu
         ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
     end
 
-    always @(posedge clk_chipset)
-        clk_25 <= ~clk_25;
-
-    always @(posedge clk_57_272 or posedge reset)
-    begin
-        if (reset)
-        begin
-            clk_9_54_div     <= 2'd0;
-            clk_7_16_div     <= 2'd0;
-            clk_4_77_div     <= 3'd0;
-            clk_9_54         <= 1'b0;
-            clk_7_16         <= 1'b0;
-            clk_4_77         <= 1'b0;
-            peripheral_clock <= 1'b0;
-        end
-        else
-        begin
-            if (clk_9_54_div == 2'd2)
-            begin
-                clk_9_54_div <= 2'd0;
-                clk_9_54     <= ~clk_9_54;
-            end
-            else
-                clk_9_54_div <= clk_9_54_div + 2'd1;
-
-            if (clk_7_16_div == 2'd3)
-            begin
-                clk_7_16_div <= 2'd0;
-                clk_7_16     <= ~clk_7_16;
-            end
-            else
-                clk_7_16_div <= clk_7_16_div + 2'd1;
-
-            if (clk_4_77_div == 3'd5)
-            begin
-                clk_4_77_div <= 3'd0;
-                if (!clk_4_77)
-                    peripheral_clock <= ~peripheral_clock; // 2.385 MHz
-                clk_4_77 <= ~clk_4_77;
-            end
-            else
-                clk_4_77_div <= clk_4_77_div + 3'd1;
-        end
-    end
-
     //////////////////////////////////////////////////////////////////
 
     logic  biu_done;
@@ -562,93 +511,34 @@ module emu
     logic  [1:0] ram_write_wait_cycle;
     logic        cycle_accrate;
     logic  [1:0] clk_select;
-
+    wire   [1:0] clk_select_next = ((xtctl[3:2] == 2'b00) && ~xtctl[7]) ? status[18:17] :
+                                   (xtctl[7] ? 2'b11 : xtctl[3:2] - 2'b01);
 
     always @(posedge clk_chipset, posedge reset)
     begin
         if (reset)
-            clk_select  <= 2'b00;
-
+            clk_select <= 2'b00;
         else if (biu_done)
-            clk_select  <= (xtctl[3:2] == 2'b00 & ~xtctl[7]) ? status[18:17] : xtctl[7] ? 2'b11 : xtctl[3:2] - 2'b01;
-
-        else
-            clk_select  <= clk_select;
-
+            clk_select <= clk_select_next;
     end
 
-    logic  clk_cpu_ff_1;
-    logic  clk_cpu_ff_2;
-
-    logic  pclk_ff_1;
-    logic  pclk_ff_2;
-
-    always @(posedge clk_chipset, posedge reset)
-    begin
-        if (reset)
-        begin
-            clk_cpu_ff_1    <= 1'b0;
-            clk_cpu_ff_2    <= 1'b0;
-            clk_cpu         <= 1'b0;
-            pclk_ff_1       <= 1'b0;
-            pclk_ff_2       <= 1'b0;
-            pclk            <= 1'b0;
-            cycle_accrate   <= 1'b1;
-            clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
-            clock_cycle_counter_decrement_value <= 8'd1;
-            shift_read_timing                   <= 1'b0;
-            ram_read_wait_cycle                 <= 2'd0;
-            ram_write_wait_cycle                <= 2'd0;
-        end
-        else
-        begin
-            clk_cpu_ff_2    <= clk_cpu_ff_1;
-            clk_cpu         <= clk_cpu_ff_2;
-            pclk_ff_1       <= peripheral_clock;
-            pclk_ff_2       <= pclk_ff_1;
-            pclk            <= pclk_ff_2;
-            casez (clk_select)
-                2'b00: begin
-                    clk_cpu_ff_1    <= clk_4_77;
-                    clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
-                    clock_cycle_counter_decrement_value <= 8'd1;
-                    shift_read_timing                   <= 1'b0;
-                    ram_read_wait_cycle                 <= 2'd0;
-                    ram_write_wait_cycle                <= 2'd0;
-                    cycle_accrate                       <= 1'b1;
-                end
-                2'b01: begin
-                    clk_cpu_ff_1    <= clk_7_16;
-                    clock_cycle_counter_division_ratio  <= 8'd2 - 8'd1;
-                    clock_cycle_counter_decrement_value <= 8'd3;
-                    shift_read_timing                   <= 1'b0;
-                    ram_read_wait_cycle                 <= 2'd0;
-                    ram_write_wait_cycle                <= 2'd0;
-                    cycle_accrate                       <= 1'b1;
-                end
-                2'b10: begin
-                    clk_cpu_ff_1    <= clk_9_54;
-                    clock_cycle_counter_division_ratio  <= 8'd10 - 8'd1;
-                    clock_cycle_counter_decrement_value <= 8'd21;
-                    shift_read_timing                   <= 1'b0;
-                    ram_read_wait_cycle                 <= 2'd0;
-                    ram_write_wait_cycle                <= 2'd0;
-                    cycle_accrate                       <= 1'b1;
-
-                end
-                2'b11: begin
-                    clk_cpu_ff_1    <= clk_25;
-                    clock_cycle_counter_division_ratio  <= 8'd1 - 8'd1;
-                    clock_cycle_counter_decrement_value <= 8'd5;
-                    shift_read_timing                   <= 1'b1;
-                    ram_read_wait_cycle                 <= 2'd1;
-                    ram_write_wait_cycle                <= 2'd0;
-                    cycle_accrate                       <= 1'b0;
-                end
-            endcase
-        end
-    end
-
+    XT_CE_Generator u_XT_CE_Generator
+    (
+        .clock                              (clk_chipset),
+        .reset                              (reset),
+        .clk_select_load                    (biu_done),
+        .clk_select                         (clk_select_next),
+        .cpu_clk_pin                        (clk_cpu),
+        .cpu_ce_posedge                     (cpu_ce_posedge),
+        .cpu_ce_negedge                     (cpu_ce_negedge),
+        .peripheral_ce                      (peripheral_ce),
+        .cycle_accrate                      (cycle_accrate),
+        .clock_cycle_counter_division_ratio (clock_cycle_counter_division_ratio),
+        .clock_cycle_counter_decrement_value(clock_cycle_counter_decrement_value),
+        .shift_read_timing                  (shift_read_timing),
+        .ram_read_wait_cycle                (ram_read_wait_cycle),
+        .ram_write_wait_cycle               (ram_write_wait_cycle)
+    );
     //////////////////////////////////////////////////////////////////
 
     logic reset = 1'b1;
@@ -1134,9 +1024,10 @@ module emu
     CHIPSET #(.clk_rate(cur_rate)) u_CHIPSET
 	(
 		.clock                              (clk_chipset),
-		.cpu_clock                          (clk_cpu),
+		.cpu_ce_posedge                     (cpu_ce_posedge),
+		.cpu_ce_negedge                     (cpu_ce_negedge),
 		.clk_sys                            (clk_chipset),
-		.peripheral_clock                   (pclk),
+		.peripheral_ce                      (peripheral_ce),
 		.clk_select                         (clk_select),
 		.reset                              (reset_cpu),
 		.sdram_reset                        (reset_sdram),
@@ -1262,7 +1153,7 @@ module emu
 		.ide0_request                       (mgmt_req[2:0]),
 		.xtctl                              (xtctl),
 		.enable_a000h                       (a000h),
-		.wait_count_clk_en                  (~clk_cpu & clk_cpu_ff_2),
+		.wait_count_clk_en                  (cpu_ce_negedge),
 		.ram_read_wait_cycle                (ram_read_wait_cycle),
 		.ram_write_wait_cycle               (ram_write_wait_cycle),
 		.pause_core                         (pause_core),

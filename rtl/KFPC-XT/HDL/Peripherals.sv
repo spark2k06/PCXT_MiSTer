@@ -35,8 +35,9 @@ module PERIPHERALS #(
     ) (
         input   logic           clock,
         input   logic           clk_sys,
-        input   logic           cpu_clock,
-        input   logic           peripheral_clock,
+        input   logic           cpu_ce_posedge,
+        input   logic           cpu_ce_negedge,
+        input   logic           peripheral_ce,
         input   logic   [1:0]   clk_select,
         input   logic           reset,
         // CPU
@@ -183,22 +184,6 @@ module PERIPHERALS #(
 
     assign tandy_16_gfx = `ENABLE_CGA ? (tandy_video_en & grph_mode & hres_mode) : 1'b0;
 
-
-    //
-    // CPU clock edge
-    //
-    logic   prev_cpu_clock;
-
-    always_ff @(posedge clock, posedge reset)
-    begin
-        if (reset)
-            prev_cpu_clock <= 1'b0;
-        else
-            prev_cpu_clock <= cpu_clock;
-    end
-
-    wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
-    wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
 
 
     //
@@ -373,7 +358,7 @@ module PERIPHERALS #(
     always_ff @(posedge clock, posedge reset)
         if (reset)
             interrupt_to_cpu    <= 1'b0;
-        else if (cpu_clock_negedge)
+        else if (cpu_ce_negedge)
             interrupt_to_cpu    <= interrupt_to_cpu_buf;
         else
             interrupt_to_cpu    <= interrupt_to_cpu;
@@ -382,31 +367,12 @@ module PERIPHERALS #(
     //
     // 8253
     //
-    logic   prev_p_clock_1;
-    logic   prev_p_clock_2;
-    always_ff @(posedge clock, posedge reset)
-    begin
-        if (reset)
-        begin
-            prev_p_clock_1 <= 1'b0;
-            prev_p_clock_2 <= 1'b0;
-        end
-        else
-        begin
-            prev_p_clock_1 <= peripheral_clock;
-            prev_p_clock_2 <= prev_p_clock_1;
-
-        end
-    end
-
-    wire    p_clock_posedge = prev_p_clock_1 & ~prev_p_clock_2;
-
     logic   timer_clock;
     always_ff @(posedge clock, posedge reset)
     begin
         if (reset)
             timer_clock         <= 1'b0;
-        else if (p_clock_posedge)
+        else if (peripheral_ce)
             timer_clock         <= ~timer_clock;
         else
             timer_clock         <= timer_clock;
@@ -511,7 +477,7 @@ module PERIPHERALS #(
     (
         // Bus
         .clock                      (clock),
-        .peripheral_clock           (peripheral_clock),
+        .peripheral_ce              (peripheral_ce),
         .reset                      (reset),
 
         // PS/2 I/O
@@ -573,7 +539,7 @@ module PERIPHERALS #(
     (
         // Bus
         .clock                      (clock),
-        .peripheral_clock           (peripheral_clock),
+        .peripheral_ce              (peripheral_ce),
         .reset                      (reset),
 
         // PS/2 I/O
@@ -1672,7 +1638,7 @@ end
     begin
         if (fdd_dma_ack)
             fdd_dma_req <= 1'b0;
-        else if (cpu_clock_negedge)
+        else if (cpu_ce_negedge)
             fdd_dma_req <= fdd_dma_req_wire;
         else
             fdd_dma_req <= fdd_dma_req;

@@ -7,7 +7,8 @@
 
 module KF8237 (
     input   logic           clock,
-    input   logic           cpu_clock,
+    input   logic           cpu_ce_posedge,
+    input   logic           cpu_ce_negedge,
     input   logic           reset,
     input   logic           chip_select_n,
     input   logic           ready,
@@ -33,21 +34,6 @@ module KF8237 (
     output  logic           memory_read_n,
     output  logic           memory_write_n
 );
-
-    //
-    // CPU clock edge
-    //
-    logic   prev_cpu_clock;
-
-    always_ff @(posedge clock, posedge reset) begin
-        if (reset)
-            prev_cpu_clock <= 1'b0;
-        else
-            prev_cpu_clock <= cpu_clock;
-    end
-
-    wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
-    wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
 
 
     //
@@ -119,8 +105,8 @@ module KF8237 (
 
     KF8237_Priority_Encoder u_Priority_Encoder (
         .clock                              (clock),
-        .cpu_clock_posedge                  (cpu_clock_posedge),
-        .cpu_clock_negedge                  (cpu_clock_negedge),
+        .cpu_clock_posedge                  (cpu_ce_posedge),
+        .cpu_clock_negedge                  (cpu_ce_negedge),
         .reset                              (reset),
 
         // Internal Bus
@@ -161,8 +147,8 @@ module KF8237 (
 
     KF8237_Address_And_Count_Registers u_Address_And_Count_Registers (
         .clock                              (clock),
-        .cpu_clock_posedge                  (cpu_clock_posedge),
-        .cpu_clock_negedge                  (cpu_clock_negedge),
+        .cpu_clock_posedge                  (cpu_ce_posedge),
+        .cpu_clock_negedge                  (cpu_ce_negedge),
         .reset                              (reset),
 
         // Internal Bus
@@ -200,8 +186,8 @@ module KF8237 (
 
     KF8237_Timing_And_Control u_Timing_And_Control (
         .clock                              (clock),
-        .cpu_clock_posedge                  (cpu_clock_posedge),
-        .cpu_clock_negedge                  (cpu_clock_negedge),
+        .cpu_clock_posedge                  (cpu_ce_posedge),
+        .cpu_clock_negedge                  (cpu_ce_negedge),
         .reset                              (reset),
 
         // Internal Bus
