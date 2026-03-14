@@ -8,7 +8,8 @@
 module KF8288 (
     // Control input
     input   logic           clock,
-    input   logic           cpu_clock,
+    input   logic           cpu_ce_posedge,
+    input   logic           cpu_ce_negedge,
     input   logic           reset,
     input   logic           address_enable_n,
     input   logic           command_enable,
@@ -37,21 +38,6 @@ module KF8288 (
     output  logic           peripheral_data_enable_n,
     output  logic           address_latch_enable
 );
-
-    //
-    // CPU clock edge
-    //
-    logic   prev_cpu_clock;
-
-    always_ff @(posedge clock, posedge reset) begin
-        if (reset)
-            prev_cpu_clock <= 1'b0;
-        else
-            prev_cpu_clock <= cpu_clock;
-    end
-
-    wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
-    wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
 
 
     //
@@ -85,7 +71,7 @@ module KF8288 (
             strobed_read_memory_status           <= 1'b0;
             strobed_write_memory_status          <= 1'b0;
         end
-        else if (cpu_clock_negedge) begin
+        else if (cpu_ce_negedge) begin
             strobed_interrupt_acknowledge_status <= is_interrupt_acknowledge_status;
             strobed_read_io_port_status          <= is_read_io_port_status;
             strobed_write_io_port_status         <= is_write_io_port_status;
@@ -116,7 +102,7 @@ module KF8288 (
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             machine_cycle_period <= 1'b1;
-        else if (cpu_clock_posedge)
+        else if (cpu_ce_posedge)
             if (machine_cycle == 3'b000)
                 if (is_passive_status)
                     machine_cycle_period <= 1'b1;
@@ -132,7 +118,7 @@ module KF8288 (
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             machine_cycle <= 3'b000;
-        else if (cpu_clock_negedge)
+        else if (cpu_ce_negedge)
             if (is_passive_status)
                 machine_cycle <= 3'b000;
             else if (machine_cycle_period)
@@ -217,7 +203,7 @@ module KF8288 (
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             direction_transmit_or_receive_n <= 1'b1;
-        else if (cpu_clock_posedge)
+        else if (cpu_ce_posedge)
             if (machine_cycle_period) begin
                 if (is_interrupt_acknowledge_status)
                     direction_transmit_or_receive_n <= 1'b0;
@@ -262,7 +248,7 @@ module KF8288 (
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             write_command_tmp <= 1'b0;
-        else if (cpu_clock_negedge)
+        else if (cpu_ce_negedge)
             if (machine_cycle_period)
                 write_command_tmp <= 1'b0;
             else if (is_halt_status)
@@ -278,7 +264,7 @@ module KF8288 (
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             read_command_tmp <= 1'b0;
-        else if (cpu_clock_posedge)
+        else if (cpu_ce_posedge)
             read_command_tmp <= ~read_and_advanced_write_command_n;
         else
             read_command_tmp <= read_command_tmp;

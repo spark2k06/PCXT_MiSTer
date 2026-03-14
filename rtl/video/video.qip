@@ -8,7 +8,7 @@ set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) UM6845R
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) cga_vram.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) cga_vgaport.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) cga_sequencer.v ]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) cga_scandoubler.v ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) video_scandoubler.v ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) cga_pixel.sv ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) cga_composite.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) cga_attrib.v ]

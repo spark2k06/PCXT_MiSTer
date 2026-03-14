@@ -8,7 +8,7 @@ module KFPS2KB #(
     parameter over_time = 16'd1000
 ) (
     input   logic           clock,
-    input   logic           peripheral_clock,
+    input   logic           peripheral_ce,
     input   logic           reset,
 
     input   logic           device_clock,
@@ -38,7 +38,7 @@ module KFPS2KB #(
         .over_time      (over_time)
     ) u_Shift_Register (
         .clock              (clock),
-        .peripheral_clock   (peripheral_clock),
+        .peripheral_ce      (peripheral_ce),
         .reset              (reset),
 
         .device_clock       (device_clock),

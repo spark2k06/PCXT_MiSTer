@@ -48,6 +48,8 @@ module UM6845R
 
 	input      [3:0] crt_h_offset,
 	input      [2:0] crt_v_offset,
+	input      [2:0] vsync_width_osd, // OSD vsync pulse width: 0=Auto (use register), 1-7=override
+	input      [2:0] hsync_width_osd, // OSD hsync pulse width: 0=Auto, 1-7=fixed (N*16 pixel clocks)
 	input            hres_mode
 );
 
@@ -96,6 +98,9 @@ reg [5:0] R12_start_addr_h = 6'd0;
 reg [7:0] R13_start_addr_l = 8'd0;
 reg [5:0] R14_cursor_h = 6'd0;
 reg [7:0] R15_cursor_l = 8'd0;
+
+// Effective vsync width: OSD override (1-7) takes priority, 0 = use register/CRTC_TYPE default
+wire [3:0] eff_v_sync_width = |vsync_width_osd ? {1'b0, vsync_width_osd} : (CRTC_TYPE ? 4'd0 : R3_v_sync_width);
 
 reg [4:0] addr;
 always @(*) begin
@@ -263,9 +268,34 @@ always @(posedge CLOCK) begin
 	end
 end
 
+// Fixed-width HSYNC pulse shaping (for TV compatibility across 40/80-col modes)
+// Detect rising edge of hsync_raw and generate a fixed-width pulse in pixel clocks.
+reg hsync_raw_prev;
+always @(posedge CLOCK) hsync_raw_prev <= hsync_raw;
+wire hsync_rising = hsync_raw & ~hsync_raw_prev;
+
+reg [6:0] hsync_fixed_cnt;
+reg hsync_shaped;
+always @(posedge CLOCK) begin
+	if (~nRESET) begin
+		hsync_fixed_cnt <= 0;
+		hsync_shaped <= 0;
+	end else if (hsync_rising) begin
+		hsync_fixed_cnt <= {hsync_width_osd, 4'b0} - 1'd1; // N * 16 pixel clocks
+		hsync_shaped <= 1;
+	end else if (|hsync_fixed_cnt) begin
+		hsync_fixed_cnt <= hsync_fixed_cnt - 1'd1;
+	end else begin
+		hsync_shaped <= 0;
+	end
+end
+
+// Use reshaped HSYNC only in low-res (40-col) mode when OSD override is active.
+wire hsync_effective = (|hsync_width_osd & ~hres_mode) ? hsync_shaped : hsync_raw;
+
 reg [121:0] hsync_delay_line;
 always @(posedge CLOCK) begin
-    hsync_delay_line <= {hsync_delay_line[120:0], hsync_raw};
+    hsync_delay_line <= {hsync_delay_line[120:0], hsync_effective};
     HSYNC <= hsync_delay_line[(hres_mode ? 60 : 120) - (crt_h_offset << (hres_mode ? 2 : 3))];
 end
 
@@ -302,7 +332,7 @@ always @(posedge CLOCK) begin
 				VSYNC_r <= 1;
 				// Don't allow a new vsync until a new row (Onescreen Colonies) or the R7 is written (PHX)
 				vsync_allow <= 0;
-				vsc <= (CRTC_TYPE ? 4'd0 : R3_v_sync_width) - 1'd1;
+				vsc <= eff_v_sync_width - 1'd1;
 			end
 			else VSYNC_r <= 0;
 		end
@@ -319,7 +349,7 @@ always @(posedge CLOCK) begin
 		if (row == DI[6:0] && !VSYNC_r) begin
 			// TODO: extra conditions for CRTC0
 			VSYNC_r <= 1;
-			vsc <= (CRTC_TYPE ? 4'd0 : R3_v_sync_width) - 1'd1;
+			vsc <= eff_v_sync_width - 1'd1;
 		end
 	end
 	if (nCLKEN & ENABLE & RS & ~nCS & ~R_nW & addr == 5'd06) begin

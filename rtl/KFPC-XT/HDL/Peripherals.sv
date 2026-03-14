@@ -4,15 +4,29 @@
 //
 // Based on KFPC-XT written by @kitune-san
 //
-
+`ifndef ENABLE_TANDY_VIDEO
+`define ENABLE_TANDY_VIDEO 0
+`endif
+`ifndef ENABLE_TANDY_AUDIO
+`define ENABLE_TANDY_AUDIO 0
+`endif
+`ifndef ENABLE_TANDY_KBD
+`define ENABLE_TANDY_KBD 0
+`endif
 `ifndef ENABLE_CGA
 `define ENABLE_CGA 1
 `endif
 `ifndef ENABLE_HGC
-`define ENABLE_HGC 1
+`define ENABLE_HGC 0
 `endif
-`ifndef ENABLE_TANDY_VIDEO
-`define ENABLE_TANDY_VIDEO 1
+`ifndef ENABLE_OPL2
+`define ENABLE_OPL2 0
+`endif
+`ifndef ENABLE_CMS
+`define ENABLE_CMS 0
+`endif
+`ifndef ENABLE_EMS
+`define ENABLE_EMS 0
 `endif
 
 module PERIPHERALS #(
@@ -21,8 +35,9 @@ module PERIPHERALS #(
     ) (
         input   logic           clock,
         input   logic           clk_sys,
-        input   logic           cpu_clock,
-        input   logic           peripheral_clock,
+        input   logic           cpu_ce_posedge,
+        input   logic           cpu_ce_negedge,
+        input   logic           peripheral_ce,
         input   logic   [1:0]   clk_select,
         input   logic           reset,
         // CPU
@@ -143,10 +158,13 @@ module PERIPHERALS #(
         // Others
         output  logic           pause_core,
         input   logic           cga_hw,
+        input   logic           cga_scandouble_en,
         input   logic           hercules_hw,
         output  logic           swap_video,
         input   logic   [3:0]   crt_h_offset,
-        input   logic   [2:0]   crt_v_offset
+        input   logic   [2:0]   crt_v_offset,
+        input   logic   [2:0]   vsync_width_osd,
+        input   logic   [2:0]   hsync_width_osd
         
     );
 
@@ -154,24 +172,18 @@ module PERIPHERALS #(
     wire grph_mode;
     wire hres_mode;
 
-    assign tandy_16_gfx = (tandy_video & grph_mode & hres_mode);
+    wire tandy_video_en = `ENABLE_TANDY_VIDEO ? tandy_video : 1'b0;
+    wire tandy_audio_en = `ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0;
+    wire tandy_kbd_en = `ENABLE_TANDY_KBD ? 1'b1 : 1'b0;
 
+    wire tandy_io_en = tandy_video_en | tandy_audio_en;
 
-    //
-    // CPU clock edge
-    //
-    logic   prev_cpu_clock;
+    wire hgc_enable = `ENABLE_HGC ? enable_hgc : 1'b0;
+    wire hgc_grph_mode;
+    wire hgc_grph_page;
 
-    always_ff @(posedge clock, posedge reset)
-    begin
-        if (reset)
-            prev_cpu_clock <= 1'b0;
-        else
-            prev_cpu_clock <= cpu_clock;
-    end
+    assign tandy_16_gfx = `ENABLE_CGA ? (tandy_video_en & grph_mode & hres_mode) : 1'b0;
 
-    wire    cpu_clock_posedge = ~prev_cpu_clock & cpu_clock;
-    wire    cpu_clock_negedge = prev_cpu_clock & ~cpu_clock;
 
 
     //
@@ -181,7 +193,7 @@ module PERIPHERALS #(
 
     always_comb
     begin
-        if (iorq & ~address_enable_n & ~address[9] & ~address[8] & (tandy_video ? ~address[4] : 1'b1))
+        if (iorq & ~address_enable_n & ~address[9] & ~address[8] & (tandy_io_en ? ~address[4] : 1'b1))
         begin
             casez (address[7:5])
                 3'b000:
@@ -218,31 +230,30 @@ module PERIPHERALS #(
     wire    ppi_chip_select_n       = chip_select_n[3]; // 0x60 .. 0x7F
     assign  dma_page_chip_select_n  = chip_select_n[4]; // 0x80 .. 0x8F
     wire    nmi_chip_select_n       = chip_select_n[5]; // 0xA0 .. 0xBF
-    wire    tandy_chip_select_n     = ~tandy_video ? 1'b1 :
-                                      chip_select_n[6]; // 0xC0 .. 0xDF
     wire    joystick_select         = (iorq && ~address_enable_n && address[15:3] == (16'h0200 >> 3)); // 0x200 .. 0x207
-    wire    nmi_mask_register       = (tandy_video && ~nmi_chip_select_n);
+    wire    tandy_chip_select_n     = tandy_io_en ? chip_select_n[6] : 1'b1; // 0xC0 .. 0xDF
+    wire    nmi_mask_register       = (tandy_video_en && ~nmi_chip_select_n);
 
-    wire    opl_388_chip_select     = (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)); // 0x388 .. 0x389 (Adlib)
-    wire    opl_228_chip_select     = (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)); // 0x228 .. 0x229 (Sound Blaster FM)
-    wire    cms_220_chip_select     = (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)); // 0x220 .. 0x22F (C/MS Audio)
-    wire    video_mem_select        = (tandy_video && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])); // 128KB
-    wire    cga_mem_select          = (~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)); // B8000 - BFFFF (16 KB / 32 KB)
-    wire    hgc_mem_select          = (~iorq && ~address_enable_n && enable_hgc & (address[19:15] == {5'b1011, hgc_grph_page})); // B0000 - BFFFF (32KB / 64 KB)
+    wire    opl_388_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)) : 1'b0; // 0x388 .. 0x389 (Adlib)
+    wire    opl_228_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)) : 1'b0; // 0x228 .. 0x229 (Sound Blaster FM)
+    wire    cms_220_chip_select     = `ENABLE_CMS ? (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)) : 1'b0; // 0x220 .. 0x22F (C/MS Audio)
+    wire    video_mem_select        = `ENABLE_TANDY_VIDEO ? (tandy_video_en && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])) : 1'b0; // 128KB
+    wire    cga_mem_select          = `ENABLE_CGA ? (~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)) : 1'b0; // B8000 - BFFFF (16 KB / 32 KB)
+    wire    hgc_mem_select          = `ENABLE_HGC ? (~iorq && ~address_enable_n && hgc_enable & (address[19:15] == {5'b1011, hgc_grph_page})) : 1'b0; // B0000 - BFFFF (32KB / 64 KB)
     wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
     wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
     wire    lpt_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h0378 >> 1)); // 0x378 ... 0x379
 	 wire    lpt_ctrl_select         = (iorq && ~address_enable_n && address[15:0] == 16'h037A); // 0x37A
-    wire    tandy_page_chip_select  = (tandy_video && iorq && ~address_enable_n && address[15:0] == 16'h03DF);
+    wire    tandy_page_chip_select  = `ENABLE_TANDY_VIDEO ? (tandy_video_en && iorq && ~address_enable_n && address[15:0] == 16'h03DF) : 1'b0;
     wire    xtctl_chip_select       = (iorq && ~address_enable_n && address[15:0] == 16'h8888);
     wire    rtc_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h02C0 >> 1)); // 0x2C0 .. 0x2C1
 
     wire    [3:0] ems_page_address  = (ems_address == 2'b00) ? 4'b1100 : (ems_address == 2'b01) ? 4'b1101 : 4'b1110;
-    wire    ems_chip_select         = (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260));          // 260h..263h
-    assign  ems_b1                  = (~iorq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})); // C0000h - D0000h - E0000h
-    assign  ems_b2                  = (~iorq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})); // C4000h - D4000h - E4000h
-    assign  ems_b3                  = (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})); // C8000h - D8000h - E8000h
-    assign  ems_b4                  = (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})); // CC000h - DC000h - EC000h
+    wire    ems_chip_select         = `ENABLE_EMS ? (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260)) : 1'b0;          // 260h..263h
+    assign  ems_b1                  = `ENABLE_EMS ? (~iorq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})) : 1'b0; // C0000h - D0000h - E0000h
+    assign  ems_b2                  = `ENABLE_EMS ? (~iorq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})) : 1'b0; // C4000h - D4000h - E4000h
+    assign  ems_b3                  = `ENABLE_EMS ? (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})) : 1'b0; // C8000h - D8000h - E0000h
+    assign  ems_b4                  = `ENABLE_EMS ? (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})) : 1'b0; // CC000h - DC000h - EC000h
     wire    ide0_chip_select_n      = ~(iorq && ~address_enable_n && ({address[15:4], 4'd0} == 16'h0300));
     wire    floppy0_chip_select_n   = ~(~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
 
@@ -256,7 +267,7 @@ module PERIPHERALS #(
     //
     // Address
     always_comb begin
-        if (cga_mem_select && ~memory_write_n && tandy_video)
+        if (`ENABLE_TANDY_VIDEO && cga_mem_select && ~memory_write_n && tandy_video_en)
             latch_address   = {nmi_mask_register_data[3:1], tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]}};
         else
             latch_address   = address;
@@ -271,18 +282,25 @@ module PERIPHERALS #(
             write_map_ems_data  <= 8'd0;
             write_map_ena_data  <= 1'b0;
         end
-        else
+        else if (`ENABLE_EMS)
         begin
             ems_access_address  <= address[1:0];
             ems_write_enable    <= ems_chip_select && ~io_write_n;
             write_map_ems_data  <= (internal_data_bus == 8'hFF) ? 8'hFF : (internal_data_bus < 8'h80) ? internal_data_bus[6:0] : map_ems[address[1:0]];
             write_map_ena_data  <= (internal_data_bus == 8'hFF) ? 1'b0  : (internal_data_bus < 8'h80) ? 1'b1 : ena_ems[address[1:0]];
         end
+        else
+        begin
+            ems_access_address  <= 2'b11;
+            ems_write_enable    <= 1'b0;
+            write_map_ems_data  <= 8'd0;
+            write_map_ena_data  <= 1'b0;
+        end
     end
 
     always_ff @(posedge clock, posedge reset)
     begin
-        if (reset)
+        if (reset || !`ENABLE_EMS)
         begin
             map_ems = '{7'h00, 7'h00, 7'h00, 7'h00};
             ena_ems = '{1'b0, 1'b0, 1'b0, 1'b0};
@@ -340,7 +358,7 @@ module PERIPHERALS #(
     always_ff @(posedge clock, posedge reset)
         if (reset)
             interrupt_to_cpu    <= 1'b0;
-        else if (cpu_clock_negedge)
+        else if (cpu_ce_negedge)
             interrupt_to_cpu    <= interrupt_to_cpu_buf;
         else
             interrupt_to_cpu    <= interrupt_to_cpu;
@@ -349,31 +367,12 @@ module PERIPHERALS #(
     //
     // 8253
     //
-    logic   prev_p_clock_1;
-    logic   prev_p_clock_2;
-    always_ff @(posedge clock, posedge reset)
-    begin
-        if (reset)
-        begin
-            prev_p_clock_1 <= 1'b0;
-            prev_p_clock_2 <= 1'b0;
-        end
-        else
-        begin
-            prev_p_clock_1 <= peripheral_clock;
-            prev_p_clock_2 <= prev_p_clock_1;
-
-        end
-    end
-
-    wire    p_clock_posedge = prev_p_clock_1 & ~prev_p_clock_2;
-
     logic   timer_clock;
     always_ff @(posedge clock, posedge reset)
     begin
         if (reset)
             timer_clock         <= 1'b0;
-        else if (p_clock_posedge)
+        else if (peripheral_ce)
             timer_clock         <= ~timer_clock;
         else
             timer_clock         <= timer_clock;
@@ -450,7 +449,7 @@ module PERIPHERALS #(
     logic           uart2_irq;
     logic   [7:0]   keycode_buf;
     logic   [7:0]   keycode;
-    logic   [7:0]   tandy_keycode;
+    logic   [7:0]   tandy_keycode_conv;
     logic           prev_ps2_reset;
     logic           prev_ps2_reset_n;
     logic           lock_recv_clock;
@@ -461,7 +460,7 @@ module PERIPHERALS #(
     logic           ctrl_down;
     logic           alt_down;
     logic   [15:0]  opl_reset_cnt;
-    wire            opl_warm_reset = (opl_reset_cnt != 16'd0);
+    wire            opl_warm_reset = `ENABLE_OPL2 ? (opl_reset_cnt != 16'd0) : 1'b0;
 
     wire    clear_keycode = port_b_out[7];
     wire    ps2_reset_n   = ~tandy_video ? port_b_out[6] : 1'b1;
@@ -478,7 +477,7 @@ module PERIPHERALS #(
     (
         // Bus
         .clock                      (clock),
-        .peripheral_clock           (peripheral_clock),
+        .peripheral_ce              (peripheral_ce),
         .reset                      (reset),
 
         // PS/2 I/O
@@ -492,7 +491,7 @@ module PERIPHERALS #(
         .pause_core                 (pause_core),
         .swap_video                 (swap_video_buffer_1),
         .video_output               (video_output),
-        .tandy_video                (tandy_video)
+        .tandy_video                (tandy_video_en)
     );
 
     assign  keycode = ps2_reset_n ? keycode_buf : 8'h80;
@@ -506,7 +505,7 @@ module PERIPHERALS #(
             alt_down         <= 1'b0;
             opl_reset_cnt    <= 16'd0;
         end
-        else
+        else if (`ENABLE_OPL2)
         begin
             prev_keybord_irq <= keybord_irq;
             if (opl_reset_cnt != 16'd0)
@@ -526,6 +525,13 @@ module PERIPHERALS #(
                     opl_reset_cnt <= OPL_WARM_RESET_HOLD;
             end
         end
+        else
+        begin
+            prev_keybord_irq <= 1'b0;
+            ctrl_down        <= 1'b0;
+            alt_down         <= 1'b0;
+            opl_reset_cnt    <= 16'd0;
+        end
     end
 
     // Keyboard reset
@@ -533,7 +539,7 @@ module PERIPHERALS #(
     (
         // Bus
         .clock                      (clock),
-        .peripheral_clock           (peripheral_clock),
+        .peripheral_ce              (peripheral_ce),
         .reset                      (reset),
 
         // PS/2 I/O
@@ -554,8 +560,9 @@ module PERIPHERALS #(
         .reset                      (reset),
         .scancode                   (keycode),
         .keybord_irq                (keybord_irq),
-        .convert_data               (tandy_keycode)
+        .convert_data               (tandy_keycode_conv)
     );
+    wire [7:0] tandy_keycode = `ENABLE_TANDY_KBD ? tandy_keycode_conv : keycode;
 
     always_ff @(posedge clock, posedge reset)
     begin
@@ -572,7 +579,10 @@ module PERIPHERALS #(
     end
 
 
-    wire [7:0] jtopl2_dout;
+    wire [7:0] jtopl2_dout_int;
+    wire [15:0] jtopl2_snd_e_int;
+    wire [7:0] jtopl2_dout = `ENABLE_OPL2 ? jtopl2_dout_int : 8'hFF;
+    assign jtopl2_snd_e = `ENABLE_OPL2 ? jtopl2_snd_e_int : 16'd0;
 
     reg clk_en_opl2;
     always @(posedge clock) begin
@@ -592,18 +602,23 @@ module PERIPHERALS #(
         .clk(clock),
         .cen(clk_en_opl2),
         .din(internal_data_bus),
-        .dout(jtopl2_dout),
+        .dout(jtopl2_dout_int),
         .addr(address[0]),
         .cs_n(~(opl_228_chip_select || opl_388_chip_select)),
         .wr_n(io_write_n),
         .irq_n(),
-        .snd(jtopl2_snd_e),
+        .snd(jtopl2_snd_e_int),
         .sample()
     );
 
 
+    wire [10:0] tandy_snd_e_int;
+    wire        tandy_snd_rdy_int;
+    assign tandy_snd_e = `ENABLE_TANDY_AUDIO ? tandy_snd_e_int : 11'd0;
+    assign tandy_snd_rdy = `ENABLE_TANDY_AUDIO ? tandy_snd_rdy_int : 1'b1;
+
     // Tandy sound
-	 jt89 sn76489
+		 jt89 sn76489
     (
         .rst(reset),
 		  .clk(clock),
@@ -611,8 +626,8 @@ module PERIPHERALS #(
 		  .wr_n(io_write_n),
 		  .cs_n(tandy_chip_select_n),
 		  .din(internal_data_bus),
-		  .sound(tandy_snd_e),
-		  .ready(tandy_snd_rdy)
+		  .sound(tandy_snd_e_int),
+		  .ready(tandy_snd_rdy_int)
     );
 	 
 //------------------------------------------------------------------------------
@@ -631,24 +646,32 @@ end
 	 
 //------------------------------------------------------------------------------ c/ms
 
-    wire cms_rd = (address[3:0] == 4'h4 || address[3:0] == 4'hB) && cms_220_chip_select && cms_en;
-    wire [7:0] data_from_cms = address[3] ? cms_det : 8'h7F;
-
-    wire cms_wr = ~address[3] & cms_220_chip_select & cms_en;
-
     reg [7:0] cms_det;
-    always @(posedge clock) if(~io_write_n && cms_wr && &address[2:1]) cms_det <= internal_data_bus;
+    wire cms_rd = `ENABLE_CMS ? ((address[3:0] == 4'h4 || address[3:0] == 4'hB) && cms_220_chip_select && cms_en) : 1'b0;
+    wire [7:0] data_from_cms = `ENABLE_CMS ? (address[3] ? cms_det : 8'h7F) : 8'hFF;
+
+    wire cms_wr = `ENABLE_CMS ? (~address[3] & cms_220_chip_select & cms_en) : 1'b0;
+    always @(posedge clock)
+        if (`ENABLE_CMS && ~io_write_n && cms_wr && &address[2:1])
+            cms_det <= internal_data_bus;
+        else if (!`ENABLE_CMS)
+            cms_det <= 8'h00;
 
     reg ce_saa;
     always @(posedge clock) begin
 	    reg [27:0] sum = 0;
 
-	    ce_saa <= 0;
-	    sum = sum + 28'd7159090;
-	    if(sum >= clk_rate) begin
-		    sum = sum - clk_rate;
-		    ce_saa <= 1;
-	    end
+	    if (`ENABLE_CMS)
+        begin
+	        ce_saa <= 0;
+	        sum = sum + 28'd7159090;
+	        if(sum >= clk_rate) begin
+		        sum = sum - clk_rate;
+		        ce_saa <= 1;
+	        end
+        end
+        else
+            ce_saa <= 1'b0;
     end
 
     wire [7:0] saa1_l,saa1_r;
@@ -684,13 +707,29 @@ end
 	 
     reg [15:0] sample_pre_l, sample_pre_r;
     always @(posedge clock) begin
-	    sample_pre_l <= {2'b0, cms_l, cms_l[8:4]};
-	    sample_pre_r <= {2'b0, cms_r, cms_r[8:4]};
+        if (`ENABLE_CMS)
+        begin
+	        sample_pre_l <= {2'b0, cms_l, cms_l[8:4]};
+	        sample_pre_r <= {2'b0, cms_r, cms_r[8:4]};
+        end
+        else
+        begin
+            sample_pre_l <= 16'd0;
+            sample_pre_r <= 16'd0;
+        end
     end
 
     always @(posedge clock) begin
-	    o_cms_l <= $signed(sample_pre_l) >>> ~{3'd7};
-	    o_cms_r <= $signed(sample_pre_r) >>> ~{3'd7};
+        if (`ENABLE_CMS)
+        begin
+	        o_cms_l <= $signed(sample_pre_l) >>> ~{3'd7};
+	        o_cms_r <= $signed(sample_pre_r) >>> ~{3'd7};
+        end
+        else
+        begin
+            o_cms_l <= 16'd0;
+            o_cms_r <= 16'd0;
+        end
     end
 	 
 //
@@ -745,7 +784,7 @@ end
         end
         else
         begin
-            keycode_ff  <= ~tandy_video ? keycode : tandy_keycode;
+            keycode_ff  <= tandy_kbd_en ? tandy_keycode : keycode;
             port_a_in   <= keycode_ff;
         end
     end
@@ -787,10 +826,10 @@ end
             if ((xtctl_chip_select) && (~io_write_n))
                 xtctl <= internal_data_bus;
 
-            if ((tandy_page_chip_select) && (~io_write_n))
+            if (`ENABLE_TANDY_VIDEO && (tandy_page_chip_select) && (~io_write_n))
                 tandy_page_data <= internal_data_bus;
 
-            if (nmi_mask_register && (~io_write_n))
+            if (`ENABLE_TANDY_VIDEO && nmi_mask_register && (~io_write_n))
                 nmi_mask_register_data <= internal_data_bus;
         end
 
@@ -1009,43 +1048,83 @@ end
 
     always_ff @(posedge clk_vga_hgc)
     begin
-        hgc_io_address_1        <= video_io_address;
-        hgc_io_address_2        <= hgc_io_address_1;
-        hgc_io_data_1           <= video_io_data;
-        hgc_io_data_2           <= hgc_io_data_1;
-        hgc_io_write_n_1        <= video_io_write_n;
-        hgc_io_write_n_2        <= hgc_io_write_n_1;
-        hgc_io_write_n_3        <= hgc_io_write_n_2;
-        hgc_io_read_n_1         <= video_io_read_n;
-        hgc_io_read_n_2         <= hgc_io_read_n_1;
-        hgc_io_read_n_3         <= hgc_io_read_n_2;
-        hgc_address_enable_n_1  <= video_address_enable_n;
-        hgc_address_enable_n_2  <= hgc_address_enable_n_1;
+        if (`ENABLE_HGC)
+        begin
+            hgc_io_address_1        <= video_io_address;
+            hgc_io_address_2        <= hgc_io_address_1;
+            hgc_io_data_1           <= video_io_data;
+            hgc_io_data_2           <= hgc_io_data_1;
+            hgc_io_write_n_1        <= video_io_write_n;
+            hgc_io_write_n_2        <= hgc_io_write_n_1;
+            hgc_io_write_n_3        <= hgc_io_write_n_2;
+            hgc_io_read_n_1         <= video_io_read_n;
+            hgc_io_read_n_2         <= hgc_io_read_n_1;
+            hgc_io_read_n_3         <= hgc_io_read_n_2;
+            hgc_address_enable_n_1  <= video_address_enable_n;
+            hgc_address_enable_n_2  <= hgc_address_enable_n_1;
+        end
+        else
+        begin
+            hgc_io_address_1        <= 15'd0;
+            hgc_io_address_2        <= 15'd0;
+            hgc_io_data_1           <= 8'd0;
+            hgc_io_data_2           <= 8'd0;
+            hgc_io_write_n_1        <= 1'b1;
+            hgc_io_write_n_2        <= 1'b1;
+            hgc_io_write_n_3        <= 1'b1;
+            hgc_io_read_n_1         <= 1'b1;
+            hgc_io_read_n_2         <= 1'b1;
+            hgc_io_read_n_3         <= 1'b1;
+            hgc_address_enable_n_1  <= 1'b1;
+            hgc_address_enable_n_2  <= 1'b1;
+        end
     end
 
     always_ff @(posedge clk_vga_cga)
     begin
-        cga_io_address_1    <= video_io_address;
-        cga_io_address_2    <= cga_io_address_1;
-        cga_io_data_1       <= video_io_data;
-        cga_io_data_2       <= cga_io_data_1;
-        cga_io_write_n_1    <= video_io_write_n;
-        cga_io_write_n_2    <= cga_io_write_n_1;
-        cga_io_read_n_1     <= video_io_read_n;
-        cga_io_read_n_2     <= cga_io_read_n_1;
-        cga_address_enable_n_1  <= video_address_enable_n;
-        cga_address_enable_n_2  <= cga_address_enable_n_1;
+        if (`ENABLE_CGA)
+        begin
+            cga_io_address_1        <= video_io_address;
+            cga_io_address_2        <= cga_io_address_1;
+            cga_io_data_1           <= video_io_data;
+            cga_io_data_2           <= cga_io_data_1;
+            cga_io_write_n_1        <= video_io_write_n;
+            cga_io_write_n_2        <= cga_io_write_n_1;
+            cga_io_read_n_1         <= video_io_read_n;
+            cga_io_read_n_2         <= cga_io_read_n_1;
+            cga_address_enable_n_1  <= video_address_enable_n;
+            cga_address_enable_n_2  <= cga_address_enable_n_1;
+        end
+        else
+        begin
+            cga_io_address_1        <= 15'd0;
+            cga_io_address_2        <= 15'd0;
+            cga_io_data_1           <= 8'd0;
+            cga_io_data_2           <= 8'd0;
+            cga_io_write_n_1        <= 1'b1;
+            cga_io_write_n_2        <= 1'b1;
+            cga_io_read_n_1         <= 1'b1;
+            cga_io_read_n_2         <= 1'b1;
+            cga_address_enable_n_1  <= 1'b1;
+            cga_address_enable_n_2  <= 1'b1;
+        end
     end
 
 
-    reg   [5:0]   R_CGA;
-    reg   [5:0]   G_CGA;
-    reg   [5:0]   B_CGA;
-    reg           HSYNC_CGA;
-    reg           VSYNC_CGA;
-    reg           HBLANK_CGA;
-    reg           VBLANK_CGA;
+    wire  [5:0]   R_CGA;
+    wire  [5:0]   G_CGA;
+    wire  [5:0]   B_CGA;
+    wire          HSYNC_CGA;
+    wire          VSYNC_CGA;
+    wire          HBLANK_CGA;
+    wire          VBLANK_CGA;
+    wire          de_o_cga;
 
+    wire [3:0] video_cga;
+    wire       hsync_cga_raw;
+    wire       hsync_cga_sd;
+    wire [3:0] video_cga_raw;
+    wire [3:0] video_cga_sd;
     reg   [5:0]   R_HGC;
     reg   [5:0]   G_HGC;
     reg   [5:0]   B_HGC;
@@ -1053,23 +1132,23 @@ end
     reg           VSYNC_HGC;
     reg           HBLANK_HGC;
     reg           VBLANK_HGC;
-
-    reg           de_o_cga;
     reg           de_o_hgc;
+    wire          video_hgc;
 
-    wire[3:0] video_cga;
-    wire video_hgc;
+    wire swap_video_sel = `ENABLE_HGC ? (`ENABLE_CGA ? (swap_video & ~tandy_video_en) : ~tandy_video_en) : 1'b0;
 
-    assign VGA_R = swap_video & ~tandy_video ? R_HGC : R_CGA;
-    assign VGA_G = swap_video & ~tandy_video ? G_HGC : G_CGA;
-    assign VGA_B = swap_video & ~tandy_video ? B_HGC : B_CGA;
-    assign VGA_HSYNC = swap_video & ~tandy_video ? HSYNC_HGC : HSYNC_CGA;
-    assign VGA_VSYNC = swap_video & ~tandy_video ? VSYNC_HGC : VSYNC_CGA;
+    assign VGA_R = swap_video_sel ? R_HGC : (`ENABLE_CGA ? R_CGA : 6'd0);
+    assign VGA_G = swap_video_sel ? G_HGC : (`ENABLE_CGA ? G_CGA : 6'd0);
+    assign VGA_B = swap_video_sel ? B_HGC : (`ENABLE_CGA ? B_CGA : 6'd0);
+    assign VGA_HSYNC = swap_video_sel ? HSYNC_HGC : (`ENABLE_CGA ? HSYNC_CGA : 1'b0);
+    assign VGA_VSYNC = swap_video_sel ? VSYNC_HGC : (`ENABLE_CGA ? VSYNC_CGA : 1'b0);
 
-    assign VGA_HBlank = swap_video & ~tandy_video ? HBLANK_HGC : HBLANK_CGA;
-    assign VGA_VBlank = swap_video & ~tandy_video ? VBLANK_HGC : VBLANK_CGA;
+    assign VGA_HBlank = swap_video_sel ? HBLANK_HGC : (`ENABLE_CGA ? HBLANK_CGA : 1'b0);
+    assign VGA_VBlank = swap_video_sel ? VBLANK_HGC : (`ENABLE_CGA ? VBLANK_CGA : 1'b0);
 
-    assign de_o = swap_video & ~tandy_video ? de_o_hgc : de_o_cga;
+    assign de_o = swap_video_sel ? de_o_hgc : (`ENABLE_CGA ? de_o_cga : 1'b0);
+    assign HSYNC_CGA = cga_scandouble_en ? hsync_cga_sd : hsync_cga_raw;
+    assign video_cga = cga_scandouble_en ? video_cga_sd : video_cga_raw;
 
     wire HGC_VRAM_ENABLE;
     wire [18:0] HGC_VRAM_ADDR;
@@ -1095,7 +1174,7 @@ end
         .hgc_rgb(hgc_rgb)
     );
 
-    hgc hgc1 
+    hgc hgc1
     (
         .clk                        (clk_vga_hgc),
         .bus_a                      (hgc_io_address_2),
@@ -1127,25 +1206,35 @@ end
 
     always_ff @(posedge clock)
     begin
-        HGC_CRTC_DOUT_1 <= HGC_CRTC_DOUT;
-        HGC_CRTC_DOUT_2 <= HGC_CRTC_DOUT_1;
-        HGC_CRTC_OE_1   <= HGC_CRTC_OE;
-        HGC_CRTC_OE_2   <= HGC_CRTC_OE_1;
+        if (`ENABLE_HGC)
+        begin
+            HGC_CRTC_DOUT_1 <= HGC_CRTC_DOUT;
+            HGC_CRTC_DOUT_2 <= HGC_CRTC_DOUT_1;
+            HGC_CRTC_OE_1   <= HGC_CRTC_OE;
+            HGC_CRTC_OE_2   <= HGC_CRTC_OE_1;
+        end
+        else
+        begin
+            HGC_CRTC_DOUT_1 <= 8'h00;
+            HGC_CRTC_DOUT_2 <= 8'h00;
+            HGC_CRTC_OE_1   <= 1'b0;
+            HGC_CRTC_OE_2   <= 1'b0;
+        end
     end
 
 
     wire CGA_VRAM_ENABLE;
     wire [18:0] CGA_VRAM_ADDR;
     wire [7:0] CGA_VRAM_DOUT;
-    wire CGA_CRTC_OE;
-    wire CGA_CRTC_OE_1;
-    wire CGA_CRTC_OE_2;
-    wire [7:0] CGA_CRTC_DOUT;
-    wire [7:0] CGA_CRTC_DOUT_1;
-    wire [7:0] CGA_CRTC_DOUT_2;
-
+    wire        CGA_CRTC_OE;
+    logic       CGA_CRTC_OE_1;
+    logic       CGA_CRTC_OE_2;
+    wire [7:0]  CGA_CRTC_DOUT;
+    logic [7:0] CGA_CRTC_DOUT_1;
+    logic [7:0] CGA_CRTC_DOUT_2;
     wire        VGA_VBlank_border_raw;
     wire        std_hsyncwidth_raw;
+    wire        tandy_color_16_raw;
     wire        std_hsyncwidth_hgc;
     wire        vblank_border_hgc;
 
@@ -1163,6 +1252,12 @@ end
     // Thin font switch (TODO: switchable with Keyboard shortcut)
     assign thin_font = 1'b0; // Default: No thin font
 
+    wire composite_cga = tandy_video_en ? (swap_video ? ~composite : composite) : composite;
+
+    assign VGA_VBlank_border = `ENABLE_CGA ? VGA_VBlank_border_raw : (`ENABLE_HGC ? vblank_border_hgc : 1'b0);
+    assign std_hsyncwidth = `ENABLE_CGA ? std_hsyncwidth_raw : (`ENABLE_HGC ? std_hsyncwidth_hgc : 1'b0);
+    assign tandy_color_16 = `ENABLE_CGA ? tandy_color_16_raw : 1'b0;
+
 
     // CGA digital to analog converter
     cga_vgaport vga_cga 
@@ -1171,7 +1266,7 @@ end
         .clkdiv(clkdiv),
         .video(video_cga),
         .hblank(HBLANK_CGA),
-        .composite(tandy_video ? swap_video ? ~composite : composite : composite),
+        .composite(composite_cga),
         .red(R_CGA),
         .green(G_CGA),
         .blue(B_CGA)
@@ -1193,37 +1288,48 @@ end
         .ram_we_l                   (CGA_VRAM_ENABLE),
         .ram_a                      (CGA_VRAM_ADDR),
         .ram_d                      (CGA_VRAM_DOUT),
-        .hsync                      (HSYNC_CGA),              // non scandoubled
-    //  .dbl_hsync                  (HSYNC_CGA),              // scandoubled
+        .hsync                      (hsync_cga_raw),
+        .dbl_hsync                  (hsync_cga_sd),
         .hblank                     (HBLANK_CGA),
         .vsync                      (VSYNC_CGA),
         .vblank                     (VBLANK_CGA),
         .vblank_border              (VGA_VBlank_border_raw),
         .std_hsyncwidth             (std_hsyncwidth_raw),
         .de_o                       (de_o_cga),
-        .video                      (video_cga),              // non scandoubled
-    //  .dbl_video                  (video_cga),              // scandoubled
+        .video                      (video_cga_raw),
+        .dbl_video                  (video_cga_sd),
         .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
-        .tandy_video                (tandy_video),
+        .tandy_video                (tandy_video_en),
+        .scandouble_en              (cga_scandouble_en),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
-        .tandy_color_16             (tandy_color_16),
+        .tandy_color_16             (tandy_color_16_raw),
         .cga_hw                     (cga_hw),
         .crt_h_offset               (crt_h_offset),
-        .crt_v_offset               (crt_v_offset)
+        .crt_v_offset               (crt_v_offset),
+        .vsync_width_osd            (vsync_width_osd),
+        .hsync_width_osd            (hsync_width_osd)
     );
 
     always_ff @(posedge clock)
     begin
-        CGA_CRTC_OE_1   <= CGA_CRTC_OE;
-        CGA_CRTC_OE_2   <= CGA_CRTC_OE_1;
-        CGA_CRTC_DOUT_1 <= CGA_CRTC_DOUT;
-        CGA_CRTC_DOUT_2 <= CGA_CRTC_DOUT_1;
+        if (`ENABLE_CGA)
+        begin
+            CGA_CRTC_OE_1   <= CGA_CRTC_OE;
+            CGA_CRTC_OE_2   <= CGA_CRTC_OE_1;
+            CGA_CRTC_DOUT_1 <= CGA_CRTC_DOUT;
+            CGA_CRTC_DOUT_2 <= CGA_CRTC_DOUT_1;
+        end
+        else
+        begin
+            CGA_CRTC_OE_1   <= 1'b0;
+            CGA_CRTC_OE_2   <= 1'b0;
+            CGA_CRTC_DOUT_1 <= 8'h00;
+            CGA_CRTC_DOUT_2 <= 8'h00;
+        end
     end
 
-    assign VGA_VBlank_border = `ENABLE_CGA ? VGA_VBlank_border_raw : (`ENABLE_HGC ? vblank_border_hgc : 1'b0);
-    assign std_hsyncwidth = `ENABLE_CGA ? std_hsyncwidth_raw : (`ENABLE_HGC ? std_hsyncwidth_hgc : 1'b0);
 
     defparam cga1.BLINK_MAX = 24'd4772727;
     defparam hgc1.BLINK_MAX = 24'd9100000;
@@ -1238,11 +1344,17 @@ end
 
     wire [16:0] cga_copy_addr  = splash_copy_active ? {5'd0, splash_copy_addr} : splash_clear_addr;
     wire [7:0]  cga_copy_data  = splash_copy_active ? splash_rom_data : splash_clear_data;
-    wire [16:0] cga_vram_addra = cga_vram_copy ? cga_copy_addr :
-                                 (tandy_video ? video_mem_select_1 ? video_ram_address : tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]} : video_ram_address[13:0]);
+    wire [16:0] cga_vram_addra = `ENABLE_CGA ? (cga_vram_copy ? cga_copy_addr :
+                                 (tandy_video_en ? (video_mem_select_1 ? video_ram_address :
+                                 (tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} :
+                                 {tandy_page_data[5:4], video_ram_address[14:0]})) : {3'b000, video_ram_address[13:0]})) : 17'd0;
+    wire [16:0] cga_vram_addrb = `ENABLE_CGA ? (tandy_video_en ?
+                                 ((grph_mode & hres_mode) ? {tandy_page_data[2:1], CGA_VRAM_ADDR[14:0]} :
+                                 {tandy_page_data[2:0], CGA_VRAM_ADDR[13:0]}) : {3'b000, CGA_VRAM_ADDR[13:0]}) : 17'd0;
     wire [7:0]  cga_vram_dina  = cga_vram_copy ? cga_copy_data : video_ram_data;
-    wire        cga_vram_ena   = cga_vram_copy ? 1'b1 : (cga_mem_select_1 || video_mem_select_1);
-    wire        cga_vram_wea   = cga_vram_copy ? 1'b1 : (~video_memory_write_n & memory_write_n);
+    wire        cga_vram_ena   = `ENABLE_CGA ? (cga_vram_copy ? 1'b1 : (cga_mem_select_1 || video_mem_select_1)) : 1'b0;
+    wire        cga_vram_wea   = `ENABLE_CGA ? (cga_vram_copy ? 1'b1 : (~video_memory_write_n & memory_write_n)) : 1'b0;
+    wire        cga_vram_enb   = `ENABLE_CGA ? CGA_VRAM_ENABLE : 1'b0;
 
     vram #(.AW(17)) cga_vram
     (
@@ -1254,24 +1366,26 @@ end
         .douta                      (cga_vram_cpu_dout),
         .clkb                       (clk_vga_cga),
         .web                        (1'b0),
-        .enb                        (CGA_VRAM_ENABLE),
-        .addrb                      (tandy_video ? (grph_mode & hres_mode) ? {tandy_page_data[2:1], CGA_VRAM_ADDR[14:0]} : {tandy_page_data[2:0], CGA_VRAM_ADDR[13:0]} : CGA_VRAM_ADDR[13:0]),
+        .enb                        (cga_vram_enb),
+        .addrb                      (cga_vram_addrb),
         .dinb                       (8'h0),
         .doutb                      (CGA_VRAM_DOUT)
     );
 
+    wire hgc_vram_ena = `ENABLE_HGC ? hgc_mem_select_1 : 1'b0;
+    wire hgc_vram_enb = `ENABLE_HGC ? HGC_VRAM_ENABLE : 1'b0;
 
     vram #(.AW(16)) hgc_vram
     (
         .clka                       (clock),
-        .ena                        (hgc_mem_select_1),
-        .wea                        (~video_memory_write_n),
+        .ena                        (hgc_vram_ena),
+        .wea                        (`ENABLE_HGC ? ~video_memory_write_n : 1'b0),
         .addra                      ({hgc_grph_page, video_ram_address[14:0]}),
         .dina                       (video_ram_data),
         .douta                      (hgc_vram_cpu_dout),
         .clkb                       (clk_vga_hgc),
         .web                        (1'b0),
-        .enb                        (HGC_VRAM_ENABLE),
+        .enb                        (hgc_vram_enb),
         .addrb                      ({hgc_grph_page, HGC_VRAM_ADDR[14:0]}),
         .dinb                       (8'h0),
         .doutb                      (HGC_VRAM_DOUT)
@@ -1524,7 +1638,7 @@ end
     begin
         if (fdd_dma_ack)
             fdd_dma_req <= 1'b0;
-        else if (cpu_clock_negedge)
+        else if (cpu_ce_negedge)
             fdd_dma_req <= fdd_dma_req_wire;
         else
             fdd_dma_req <= fdd_dma_req;
@@ -1651,27 +1765,27 @@ end
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= ppi_data_bus_out;
         end
-        else if (cga_mem_select && (~memory_read_n))
+        else if (`ENABLE_CGA && cga_mem_select && (~memory_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= cga_vram_cpu_dout;
         end
-        else if (hgc_mem_select && (~memory_read_n))
+        else if (`ENABLE_HGC && hgc_mem_select && (~memory_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= hgc_vram_cpu_dout;
         end
-        else if (CGA_CRTC_OE_2)
+        else if (`ENABLE_CGA && CGA_CRTC_OE_2)
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= CGA_CRTC_DOUT_2;
         end
-        else if (HGC_CRTC_OE_2)
+        else if (`ENABLE_HGC && HGC_CRTC_OE_2)
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= HGC_CRTC_DOUT_2;
         end
-        else if ((opl_228_chip_select || opl_388_chip_select) && ~io_read_n)
+        else if (`ENABLE_OPL2 && (opl_228_chip_select || opl_388_chip_select) && ~io_read_n)
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= jtopl2_dout;
@@ -1691,7 +1805,7 @@ end
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= uart2_readdata;
         end
-        else if ((ems_chip_select) && (~io_read_n))
+        else if (`ENABLE_EMS && (ems_chip_select) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= ena_ems[address[1:0]] ? map_ems[address[1:0]] : 8'hFF;
@@ -1711,7 +1825,7 @@ end
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= xtctl;
         end
-        else if (nmi_mask_register && (~io_read_n))
+        else if (`ENABLE_TANDY_VIDEO && nmi_mask_register && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= nmi_mask_register_data;

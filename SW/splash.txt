@@ -7,7 +7,7 @@
           | |\/| || \__ \  | | / -_)| '_| |  _/| (__ >  <   | |    
           |_|  |_||_|___/  |_| \___||_|   |_|   \___/_/\_\  |_|    
                                                                    
-          & Tandy 1000                               by spark2k06  
+                                                     by spark2k06  
                                                                    
                               ***POWERED BY***                     
                                                                    
@@ -20,6 +20,6 @@
           (MicroCoreLabs)                            (TubeTime)    
                                                                    
                                                                    
-            F11: CGA <-> HGC (PCXT) * RGB <-> Composite (Tandy)    
+            F11: CGA <-> HGC                                       
             F12: Pause & Credits            Win + F12: Menu OSD    
                                                                    

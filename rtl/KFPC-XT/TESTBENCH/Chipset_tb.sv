@@ -126,6 +126,7 @@ module CHIPSET_tm();
     logic   [3:0]   video_g;
     logic   [3:0]   video_b;
     logic           enable_sdram;
+    logic           cga_scandouble_en;
     logic   [12:0]  sdram_address;
     logic           sdram_cke;
     logic           sdram_cs;
@@ -175,6 +176,7 @@ module CHIPSET_tm();
         enable_tvga         = 1'b1;
         video_reset         = 1'b1;
         enable_sdram        = 1'b1;
+        cga_scandouble_en   = 1'b0;
         sdram_dq_in         = 16'hAAAA;
         #(`TB_CYCLE * 12);
     end
