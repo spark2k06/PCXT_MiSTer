@@ -198,13 +198,13 @@ module hgc(
 		  .DE(display_enable),
 		  // .FIELD(),
 		  .CURSOR(cursor),
-
+		  
 		  .MA(crtc_addr),
 		  .RA(row_addr),
 		  .hsync_width(hsync_width_crtc)
 
 	 );
-
+	 
 //    if (HGC_70HZ) begin
         defparam crtc.H_TOTAL = 8'd99;
         defparam crtc.H_DISP = 8'd80;

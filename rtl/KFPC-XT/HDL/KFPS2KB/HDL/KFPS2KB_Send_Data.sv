@@ -7,7 +7,7 @@ module KFPS2KB_Send_Data #(
     parameter device_out_clock_wait = 16'd240
 ) (
     input   logic           clock,
-    input   logic           peripheral_clock,
+    input   logic           peripheral_ce,
     input   logic           reset,
 
     input   logic           device_clock,
@@ -39,25 +39,9 @@ module KFPS2KB_Send_Data #(
 
 
     //
-    // Detect peripheral clock edge
+    // Peripheral clock enable
     //
-    logic           prev_p_clock_1;
-    logic           prev_p_clock_2;
     logic           device_clock_last_edge;
-
-    always_ff @(posedge clock, posedge reset) begin
-        if (reset) begin
-            prev_p_clock_1 <= 1'b0;
-            prev_p_clock_2 <= 1'b0;
-        end
-        else begin
-            prev_p_clock_1 <= peripheral_clock;
-            prev_p_clock_2 <= prev_p_clock_1;
-
-        end
-    end
-
-    wire    p_clock_posedge = prev_p_clock_1 & ~prev_p_clock_2;
 
 
     //
@@ -157,7 +141,7 @@ module KFPS2KB_Send_Data #(
             state_counter <= 16'h00;
         else if (state != next_state)
             state_counter <= 16'h00;
-        else if (p_clock_posedge)
+        else if (peripheral_ce)
             state_counter <= state_counter + 16'h01;
         else
             state_counter <= state_counter;

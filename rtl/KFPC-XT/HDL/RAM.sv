@@ -4,6 +4,16 @@
 //
 // Based on KFPC-XT written by @kitune-san
 //
+`ifndef SYSTEM_VARIANT_TANDY
+`define SYSTEM_VARIANT_TANDY 0
+`endif
+`ifndef ROM_VARIANT_TANDY
+`define ROM_VARIANT_TANDY `SYSTEM_VARIANT_TANDY
+`endif
+`ifndef ROM_IS_TANDY
+`define ROM_IS_TANDY `ROM_VARIANT_TANDY
+`endif
+
 module RAM (
     input   logic           clock,
     input   logic           reset,
@@ -59,6 +69,7 @@ module RAM (
     logic           prev_no_command_state;
     logic           enable_refresh;
     logic           write_protect;
+    logic           tandy_bios_select;
 
     logic   [1:0]   read_wait_count;
     logic   [1:0]   write_wait_count;
@@ -71,7 +82,7 @@ module RAM (
 	                               ~(~enable_a000h && address[19:16] == 4'b1010));    // A0000h is optional
 	 
 
-    assign tandy_bios_select    = tandy_bios_flag & (address[19:16] == 4'b1111);
+    assign tandy_bios_select    = `ROM_IS_TANDY ? (tandy_bios_flag & (address[19:16] == 4'b1111)) : 1'b0;
 
 
     //
@@ -363,4 +374,3 @@ module RAM (
                                         ? (access_ready & ((read_wait_count==0) || (~read_command)) & ((write_wait_count==0) || (~write_command))) : 1'b1;
 
 endmodule
-

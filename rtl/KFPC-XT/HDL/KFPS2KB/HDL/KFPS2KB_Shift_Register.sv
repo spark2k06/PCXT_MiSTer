@@ -8,7 +8,7 @@ module KFPS2KB_Shift_Register #(
     parameter over_time = 16'd1000
 ) (
     input   logic           clock,
-    input   logic           peripheral_clock,
+    input   logic           peripheral_ce,
     input   logic           reset,
 
     input   logic           device_clock,
@@ -38,26 +38,6 @@ module KFPS2KB_Shift_Register #(
     shit_state_t    next_state;
     shit_state_t    state;
 
-
-    //
-    // Detect peripheral clock edge
-    //
-    logic           prev_p_clock_1;
-    logic           prev_p_clock_2;
-
-    always_ff @(posedge clock, posedge reset) begin
-        if (reset) begin
-            prev_p_clock_1 <= 1'b0;
-            prev_p_clock_2 <= 1'b0;
-        end
-        else begin
-            prev_p_clock_1 <= peripheral_clock;
-            prev_p_clock_2 <= prev_p_clock_1;
-
-        end
-    end
-
-    wire    p_clock_posedge = prev_p_clock_1 & ~prev_p_clock_2;
 
 
     //
@@ -120,7 +100,7 @@ module KFPS2KB_Shift_Register #(
             receiving_time <= 16'h0000;
         else if (device_clock_edge)
             receiving_time <= 16'h0000;
-        else if ((p_clock_posedge) && (over_receiving_time == 1'b0))
+        else if ((peripheral_ce) && (over_receiving_time == 1'b0))
             receiving_time <= receiving_time + 16'h0001;
         else
             receiving_time <= receiving_time;

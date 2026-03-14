@@ -1,5 +1,4 @@
-set_global_assignment -name SDC_FILE PCXT.sdc
-set_global_assignment -name SYSTEMVERILOG_FILE PCXT.sv
+set_global_assignment -name SDC_FILE SYSTEM.sdc
 set_global_assignment -name QIP_FILE rtl/pll.qip
 set_global_assignment -name QIP_FILE rtl/common/common.qip
 set_global_assignment -name QIP_FILE rtl/video/video.qip
@@ -33,6 +32,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF823
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237_Bus_Control_Logic.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237_Address_And_Count_Registers.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/KF8237/HDL/KF8237.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/XT_CE_Generator.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Ready.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/RAM.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/XT2IDE.sv"
