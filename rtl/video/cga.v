@@ -32,6 +32,7 @@ module cga(
     output ram_we_l,
     output[18:0] ram_a,
     input[7:0] ram_d,
+    input ram_data_valid,
 
     // Video outputs
     output hsync,
@@ -374,6 +375,7 @@ module cga(
         .tandy_16_mode(tandy_16_mode),
         .thin_font(thin_font),
         .vram_data(ram_1_d),
+        .vram_data_valid(ram_data_valid),
         .vram_read_char(vram_read_char),
         .vram_read_att(vram_read_att),
         .disp_pipeline(disp_pipeline),

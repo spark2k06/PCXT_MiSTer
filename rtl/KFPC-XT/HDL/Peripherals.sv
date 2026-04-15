@@ -19,6 +19,9 @@
 `ifndef ENABLE_HGC
 `define ENABLE_HGC 0
 `endif
+`ifndef ENABLE_EGA
+`define ENABLE_EGA 1
+`endif
 `ifndef ENABLE_OPL2
 `define ENABLE_OPL2 0
 `endif
@@ -49,6 +52,7 @@ module PERIPHERALS #(
         // SplashScreen
         input   logic           splashscreen,
         input   logic           status0_clear,
+        output  logic           cga_clear_busy,
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
@@ -79,6 +83,9 @@ module PERIPHERALS #(
         input   logic           memory_read_n,
         input   logic           memory_write_n,
         input   logic           address_enable_n,
+        output  logic           hgc_memory_access_ready,
+        output  logic           cga_memory_access_ready,
+        output  logic           ega_memory_access_ready,
         // Peripherals
         output  logic   [2:0]   timer_counter_out,
         output  logic           speaker_out,
@@ -158,6 +165,8 @@ module PERIPHERALS #(
         // Others
         output  logic           pause_core,
         input   logic           cga_hw,
+        input   logic           ega_enabled,
+        input   logic   [1:0]   ega_display_mode,
         input   logic           cga_scandouble_en,
         input   logic           hercules_hw,
         output  logic           swap_video,
@@ -238,6 +247,7 @@ module PERIPHERALS #(
     wire    opl_228_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)) : 1'b0; // 0x228 .. 0x229 (Sound Blaster FM)
     wire    cms_220_chip_select     = `ENABLE_CMS ? (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)) : 1'b0; // 0x220 .. 0x22F (C/MS Audio)
     wire    video_mem_select        = `ENABLE_TANDY_VIDEO ? (tandy_video_en && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])) : 1'b0; // 128KB
+    wire    ega_mem_select          = `ENABLE_EGA ? (~iorq && ~address_enable_n && ega_enabled && enable_cga && (address[19:16] == 4'hA)) : 1'b0; // A0000 - AFFFF (64KB)
     wire    cga_mem_select          = `ENABLE_CGA ? (~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)) : 1'b0; // B8000 - BFFFF (16 KB / 32 KB)
     wire    hgc_mem_select          = `ENABLE_HGC ? (~iorq && ~address_enable_n && hgc_enable & (address[19:15] == {5'b1011, hgc_grph_page})) : 1'b0; // B0000 - BFFFF (32KB / 64 KB)
     wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
@@ -946,21 +956,41 @@ end
     logic          cga_io_read_n_2;
     logic          cga_address_enable_n_1;
     logic          cga_address_enable_n_2;
+    logic          ega_mem_select_sys;
+    logic          ega_mem_write_sys;
+    logic          ega_mem_select_1;
+    logic          ega_mem_select_2;
+    logic          ega_mem_write_1;
+    logic          ega_mem_write_2;
+    logic          ega_enabled_cga_ff_1;
+    logic          ega_enabled_cga_ff_2;
     localparam int SPLASH_COPY_SIZE = 4000;
-    localparam int TEXT_CLEAR_SIZE = 131072;
+    localparam int TEXT_CLEAR_SIZE = (`ENABLE_TANDY_VIDEO ? 131072 : 16384);
     localparam [11:0] SPLASH_COPY_LAST = SPLASH_COPY_SIZE - 1;
     localparam [16:0] TEXT_CLEAR_LAST = TEXT_CLEAR_SIZE - 1;
+    typedef enum logic [1:0] {
+        HGC_SPLASH_IDLE,
+        HGC_SPLASH_ASSERT,
+        HGC_SPLASH_RELEASE
+    } hgc_splash_state_t;
     logic         splashscreen_ff = 1'b0;
     logic         splash_copy_active = 1'b0;
+    logic         splash_copy_dest_hgc = 1'b0;
     logic [11:0]  splash_copy_addr = 12'd0;
+    logic         hgc_splash_seen_busy = 1'b0;
+    hgc_splash_state_t hgc_splash_state = HGC_SPLASH_IDLE;
     logic         splash_clear_active = 1'b0;
     logic         splash_clear_pending = 1'b0;
     logic [16:0]  splash_clear_addr = 17'd0;
+    assign cga_clear_busy = splash_clear_pending | splash_clear_active;
     wire          splash_copy_start = splashscreen & ~splashscreen_ff;
     wire          splash_clear_start = ~splashscreen & splashscreen_ff;
     wire          status0_clear_start = status0_clear;
     wire  [7:0]   splash_rom_data;
-    wire          cga_vram_copy = splash_copy_active | splash_clear_active;
+    wire          hgc_splash_copy_active = splash_copy_active & splash_copy_dest_hgc;
+    wire          cga_splash_copy_active = splash_copy_active;
+    wire          cga_vram_copy = cga_splash_copy_active | splash_clear_active;
+    wire          hgc_splash_cpu_write = hgc_splash_copy_active & (hgc_splash_state == HGC_SPLASH_ASSERT);
     wire  [7:0]   splash_clear_data = 8'h00;
 
     always_ff @(posedge clock)
@@ -985,6 +1015,8 @@ end
         hgc_mem_select_1        <= hgc_mem_select;
         cga_mem_select_1        <= cga_mem_select;
         video_mem_select_1      <= video_mem_select;
+        ega_mem_select_sys      <= ega_mem_select;
+        ega_mem_write_sys       <= ega_mem_select & ~memory_write_n;
 
         video_io_write_n        <= io_write_n;
         video_io_read_n         <= io_read_n;
@@ -998,24 +1030,73 @@ end
         if (splash_copy_start)
         begin
             splash_copy_active <= 1'b1;
+            splash_copy_dest_hgc <= `ENABLE_HGC ? 1'b1 : 1'b0;
             splash_copy_addr   <= 12'd0;
+            hgc_splash_seen_busy <= 1'b0;
+            hgc_splash_state <= `ENABLE_HGC ? HGC_SPLASH_ASSERT : HGC_SPLASH_IDLE;
         end
         else if (splash_copy_active)
         begin
-            if (splash_copy_addr == SPLASH_COPY_LAST)
+            if (splash_copy_dest_hgc)
             begin
-                splash_copy_active <= 1'b0;
-                splash_copy_addr   <= 12'd0;
+                case (hgc_splash_state)
+                    HGC_SPLASH_ASSERT:
+                    begin
+                        if (~hgc_splash_seen_busy && ~hgc_vram_cpu_ready)
+                            hgc_splash_seen_busy <= 1'b1;
+
+                        if (hgc_vram_cpu_ready)
+                            hgc_splash_state <= HGC_SPLASH_RELEASE;
+                    end
+
+                    HGC_SPLASH_RELEASE:
+                    begin
+                        if (splash_copy_addr == SPLASH_COPY_LAST)
+                        begin
+                            splash_copy_active <= 1'b0;
+                            splash_copy_dest_hgc <= 1'b0;
+                            splash_copy_addr   <= 12'd0;
+                            hgc_splash_seen_busy <= 1'b0;
+                            hgc_splash_state <= HGC_SPLASH_IDLE;
+                        end
+                        else
+                        begin
+                            splash_copy_addr <= splash_copy_addr + 12'd1;
+                            hgc_splash_seen_busy <= 1'b0;
+                            hgc_splash_state <= HGC_SPLASH_ASSERT;
+                        end
+                    end
+
+                    default:
+                    begin
+                        hgc_splash_seen_busy <= 1'b0;
+                        hgc_splash_state <= HGC_SPLASH_ASSERT;
+                    end
+                endcase
             end
             else
             begin
-                splash_copy_addr <= splash_copy_addr + 12'd1;
+                if (cga_vram_int_progress)
+                begin
+                    if (splash_copy_addr == SPLASH_COPY_LAST)
+                    begin
+                        splash_copy_active <= 1'b0;
+                        splash_copy_addr   <= 12'd0;
+                    end
+                    else
+                    begin
+                        splash_copy_addr <= splash_copy_addr + 12'd1;
+                    end
+                end
             end
         end
         else
         begin
             splash_copy_active <= 1'b0;
+            splash_copy_dest_hgc <= 1'b0;
             splash_copy_addr   <= 12'd0;
+            hgc_splash_seen_busy <= 1'b0;
+            hgc_splash_state <= HGC_SPLASH_IDLE;
         end
 
         if (splash_clear_start || status0_clear_start)
@@ -1029,14 +1110,17 @@ end
         end
         else if (splash_clear_active)
         begin
-            if (splash_clear_addr == TEXT_CLEAR_LAST)
+            if (cga_vram_int_progress)
             begin
-                splash_clear_active <= 1'b0;
-                splash_clear_addr   <= 17'd0;
-            end
-            else
-            begin
-                splash_clear_addr <= splash_clear_addr + 17'd1;
+                if (splash_clear_addr == TEXT_CLEAR_LAST)
+                begin
+                    splash_clear_active <= 1'b0;
+                    splash_clear_addr   <= 17'd0;
+                end
+                else
+                begin
+                    splash_clear_addr <= splash_clear_addr + 17'd1;
+                end
             end
         end
         else
@@ -1080,9 +1164,28 @@ end
         end
     end
 
-    always_ff @(posedge clk_vga_cga)
+    always_ff @(posedge clk_vga_cga, posedge reset)
     begin
-        if (`ENABLE_CGA)
+        if (reset)
+        begin
+            cga_io_address_1        <= 15'd0;
+            cga_io_address_2        <= 15'd0;
+            cga_io_data_1           <= 8'd0;
+            cga_io_data_2           <= 8'd0;
+            cga_io_write_n_1        <= 1'b1;
+            cga_io_write_n_2        <= 1'b1;
+            cga_io_read_n_1         <= 1'b1;
+            cga_io_read_n_2         <= 1'b1;
+            cga_address_enable_n_1  <= 1'b1;
+            cga_address_enable_n_2  <= 1'b1;
+            ega_mem_select_1        <= 1'b0;
+            ega_mem_select_2        <= 1'b0;
+            ega_mem_write_1         <= 1'b0;
+            ega_mem_write_2         <= 1'b0;
+            ega_enabled_cga_ff_1    <= 1'b0;
+            ega_enabled_cga_ff_2    <= 1'b0;
+        end
+        else if (`ENABLE_CGA)
         begin
             cga_io_address_1        <= video_io_address;
             cga_io_address_2        <= cga_io_address_1;
@@ -1094,6 +1197,12 @@ end
             cga_io_read_n_2         <= cga_io_read_n_1;
             cga_address_enable_n_1  <= video_address_enable_n;
             cga_address_enable_n_2  <= cga_address_enable_n_1;
+            ega_mem_select_1        <= ega_mem_select_sys;
+            ega_mem_select_2        <= ega_mem_select_1;
+            ega_mem_write_1         <= ega_mem_write_sys;
+            ega_mem_write_2         <= ega_mem_write_1;
+            ega_enabled_cga_ff_1    <= `ENABLE_EGA ? ega_enabled : 1'b0;
+            ega_enabled_cga_ff_2    <= ega_enabled_cga_ff_1;
         end
         else
         begin
@@ -1107,6 +1216,12 @@ end
             cga_io_read_n_2         <= 1'b1;
             cga_address_enable_n_1  <= 1'b1;
             cga_address_enable_n_2  <= 1'b1;
+            ega_mem_select_1        <= 1'b0;
+            ega_mem_select_2        <= 1'b0;
+            ega_mem_write_1         <= 1'b0;
+            ega_mem_write_2         <= 1'b0;
+            ega_enabled_cga_ff_1    <= 1'b0;
+            ega_enabled_cga_ff_2    <= 1'b0;
         end
     end
 
@@ -1125,6 +1240,10 @@ end
     wire       hsync_cga_sd;
     wire [3:0] video_cga_raw;
     wire [3:0] video_cga_sd;
+    wire [5:0] R_EGA;
+    wire [5:0] G_EGA;
+    wire [5:0] B_EGA;
+    wire       ega_rgb_active;
     reg   [5:0]   R_HGC;
     reg   [5:0]   G_HGC;
     reg   [5:0]   B_HGC;
@@ -1137,9 +1256,9 @@ end
 
     wire swap_video_sel = `ENABLE_HGC ? (`ENABLE_CGA ? (swap_video & ~tandy_video_en) : ~tandy_video_en) : 1'b0;
 
-    assign VGA_R = swap_video_sel ? R_HGC : (`ENABLE_CGA ? R_CGA : 6'd0);
-    assign VGA_G = swap_video_sel ? G_HGC : (`ENABLE_CGA ? G_CGA : 6'd0);
-    assign VGA_B = swap_video_sel ? B_HGC : (`ENABLE_CGA ? B_CGA : 6'd0);
+    assign VGA_R = swap_video_sel ? R_HGC : (ega_rgb_active ? R_EGA : (`ENABLE_CGA ? R_CGA : 6'd0));
+    assign VGA_G = swap_video_sel ? G_HGC : (ega_rgb_active ? G_EGA : (`ENABLE_CGA ? G_CGA : 6'd0));
+    assign VGA_B = swap_video_sel ? B_HGC : (ega_rgb_active ? B_EGA : (`ENABLE_CGA ? B_CGA : 6'd0));
     assign VGA_HSYNC = swap_video_sel ? HSYNC_HGC : (`ENABLE_CGA ? HSYNC_CGA : 1'b0);
     assign VGA_VSYNC = swap_video_sel ? VSYNC_HGC : (`ENABLE_CGA ? VSYNC_CGA : 1'b0);
 
@@ -1189,6 +1308,7 @@ end
         .ram_we_l                   (HGC_VRAM_ENABLE),
         .ram_a                      (HGC_VRAM_ADDR),
         .ram_d                      (HGC_VRAM_DOUT),
+        .ram_data_valid             (hgc_vram_video_valid),
         .hsync                      (HSYNC_HGC),
         .hblank                     (HBLANK_HGC),
         .vsync                      (VSYNC_HGC),
@@ -1232,6 +1352,32 @@ end
     wire [7:0]  CGA_CRTC_DOUT;
     logic [7:0] CGA_CRTC_DOUT_1;
     logic [7:0] CGA_CRTC_DOUT_2;
+    wire [15:0] EGA_FETCH_ADDR;
+    wire        EGA_FETCH_EN;
+    wire [7:0]  EGA_PLANE0_DOUT;
+    wire [7:0]  EGA_PLANE1_DOUT;
+    wire [7:0]  EGA_PLANE2_DOUT;
+    wire [7:0]  EGA_PLANE3_DOUT;
+    wire        EGA_FETCH_DATA_VALID;
+    wire        ega_cfg_toggle;
+    wire [3:0]  ega_plane_write_mask_cfg;
+    wire        ega_odd_even_mode_cfg;
+    wire        ega_cpu_access_slot_cfg;
+    wire        ega_chain2_write_cfg;
+    wire        ega_chain2_read_cfg;
+    wire        ega_extended_memory_cfg;
+    wire [1:0]  ega_mem_map_sel_cfg;
+    wire        ega_page_select_cfg;
+    wire [1:0]  ega_write_mode_cfg;
+    wire [1:0]  ega_read_mode_cfg;
+    wire [1:0]  ega_read_plane_sel_cfg;
+    wire [7:0]  ega_color_compare_cfg;
+    wire [7:0]  ega_color_dont_care_cfg;
+    wire [7:0]  ega_bit_mask_cfg;
+    wire [7:0]  ega_set_reset_cfg;
+    wire [3:0]  ega_enable_set_reset_cfg;
+    wire [1:0]  ega_rop_select_cfg;
+    wire [2:0]  ega_rotate_count_cfg;
     wire        VGA_VBlank_border_raw;
     wire        std_hsyncwidth_raw;
     wire        tandy_color_16_raw;
@@ -1272,9 +1418,10 @@ end
         .blue(B_CGA)
     );
 
-    cga cga1 
+    ega_top ega1 
     (
         .clk                        (clk_vga_cga),
+        .reset                      (reset),
         .clkdiv                     (clkdiv),
         .bus_a                      (cga_io_address_2),
         .bus_ior_l                  (cga_io_read_n_2),
@@ -1288,6 +1435,35 @@ end
         .ram_we_l                   (CGA_VRAM_ENABLE),
         .ram_a                      (CGA_VRAM_ADDR),
         .ram_d                      (CGA_VRAM_DOUT),
+        .ram_data_valid             (cga_vram_video_valid),
+        .ega_fetch_addr             (EGA_FETCH_ADDR),
+        .ega_fetch_en               (EGA_FETCH_EN),
+        .ega_plane0_data            (EGA_PLANE0_DOUT),
+        .ega_plane1_data            (EGA_PLANE1_DOUT),
+        .ega_plane2_data            (EGA_PLANE2_DOUT),
+        .ega_plane3_data            (EGA_PLANE3_DOUT),
+        .ega_fetch_data_valid       (EGA_FETCH_DATA_VALID),
+        .cpu_mem_select             (ega_mem_select_2),
+        .cpu_mem_write              (ega_mem_write_2),
+        .ega_cfg_toggle             (ega_cfg_toggle),
+        .ega_plane_write_mask_out   (ega_plane_write_mask_cfg),
+        .ega_odd_even_mode_out      (ega_odd_even_mode_cfg),
+        .ega_cpu_access_slot_out    (ega_cpu_access_slot_cfg),
+        .ega_chain2_write_out       (ega_chain2_write_cfg),
+        .ega_chain2_read_out        (ega_chain2_read_cfg),
+        .ega_extended_memory_out    (ega_extended_memory_cfg),
+        .ega_mem_map_sel_out        (ega_mem_map_sel_cfg),
+        .ega_page_select_out        (ega_page_select_cfg),
+        .ega_write_mode_out         (ega_write_mode_cfg),
+        .ega_read_mode_out          (ega_read_mode_cfg),
+        .ega_read_plane_sel_out     (ega_read_plane_sel_cfg),
+        .ega_color_compare_out      (ega_color_compare_cfg),
+        .ega_color_dont_care_out    (ega_color_dont_care_cfg),
+        .ega_bit_mask_out           (ega_bit_mask_cfg),
+        .ega_set_reset_out          (ega_set_reset_cfg),
+        .ega_enable_set_reset_out   (ega_enable_set_reset_cfg),
+        .ega_rop_select_out         (ega_rop_select_cfg),
+        .ega_rotate_count_out       (ega_rotate_count_cfg),
         .hsync                      (hsync_cga_raw),
         .dbl_hsync                  (hsync_cga_sd),
         .hblank                     (HBLANK_CGA),
@@ -1298,10 +1474,16 @@ end
         .de_o                       (de_o_cga),
         .video                      (video_cga_raw),
         .dbl_video                  (video_cga_sd),
+        .ega_red                    (R_EGA),
+        .ega_green                  (G_EGA),
+        .ega_blue                   (B_EGA),
+        .ega_rgb_active             (ega_rgb_active),
         .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
         .tandy_video                (tandy_video_en),
         .scandouble_en              (cga_scandouble_en),
+        .ega_enabled                (ega_enabled_cga_ff_2),
+        .ega_display_mode           (ega_display_mode),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
         .tandy_color_16             (tandy_color_16_raw),
@@ -1331,10 +1513,23 @@ end
     end
 
 
-    defparam cga1.BLINK_MAX = 24'd4772727;
+    defparam ega1.BLINK_MAX = 24'd4772727;
     defparam hgc1.BLINK_MAX = 24'd9100000;
+    localparam int CGA_VRAM_AW = (`ENABLE_TANDY_VIDEO ? 17 : 14);
+
     wire [7:0] cga_vram_cpu_dout;
+    wire [7:0] ega_vram_cpu_dout;
     wire [7:0] hgc_vram_cpu_dout;
+    wire       hgc_vram_cpu_ready = 1'b1;
+    wire       cga_vram_cpu_ready = 1'b1;
+    wire       hgc_vram_video_valid = 1'b1;
+    wire       cga_vram_video_valid = 1'b1;
+    wire [15:0] ega_vram_cpu_addr = address[15:0];
+    wire [7:0]  ega_vram_cpu_din = internal_data_bus;
+    wire        ega_vram_cpu_read_req = `ENABLE_EGA ? (ega_mem_select && ~memory_read_n) : 1'b0;
+    wire        ega_vram_cpu_write_req = `ENABLE_EGA ? (ega_mem_select && ~memory_write_n) : 1'b0;
+    wire        ega_vram_cpu_cycle = ega_vram_cpu_read_req | ega_vram_cpu_write_req;
+    wire        ega_vram_cpu_ready;
 
     splash_rom splash_rom_inst
     (
@@ -1353,35 +1548,40 @@ end
                                  {tandy_page_data[2:0], CGA_VRAM_ADDR[13:0]}) : {3'b000, CGA_VRAM_ADDR[13:0]}) : 17'd0;
     wire [7:0]  cga_vram_dina  = cga_vram_copy ? cga_copy_data : video_ram_data;
     wire        cga_vram_ena   = `ENABLE_CGA ? (cga_vram_copy ? 1'b1 : (cga_mem_select_1 || video_mem_select_1)) : 1'b0;
-    wire        cga_vram_wea   = `ENABLE_CGA ? (cga_vram_copy ? 1'b1 : (~video_memory_write_n & memory_write_n)) : 1'b0;
+    wire        cga_vram_wea   = `ENABLE_CGA ? (cga_vram_copy ? 1'b1 : ~video_memory_write_n) : 1'b0;
     wire        cga_vram_enb   = `ENABLE_CGA ? CGA_VRAM_ENABLE : 1'b0;
+    wire [CGA_VRAM_AW-1:0] cga_vram_addra_eff = cga_vram_addra[CGA_VRAM_AW-1:0];
+    wire [CGA_VRAM_AW-1:0] cga_vram_addrb_eff = cga_vram_addrb[CGA_VRAM_AW-1:0];
+    wire        cga_vram_cpu_cycle = `ENABLE_CGA ? (cga_mem_select && (~memory_read_n || ~memory_write_n)) : 1'b0;
+    wire        cga_vram_int_ready = 1'b1;
+    wire        cga_vram_int_progress = `ENABLE_CGA ? cga_vram_int_ready : 1'b1;
 
-    vram #(.AW(17)) cga_vram
+    vram #(.AW(CGA_VRAM_AW)) cga_vram
     (
         .clka                       (clock),
         .ena                        (cga_vram_ena),
         .wea                        (cga_vram_wea),
-        .addra                      (cga_vram_addra),
+        .addra                      (cga_vram_addra_eff),
         .dina                       (cga_vram_dina),
         .douta                      (cga_vram_cpu_dout),
         .clkb                       (clk_vga_cga),
         .web                        (1'b0),
         .enb                        (cga_vram_enb),
-        .addrb                      (cga_vram_addrb),
+        .addrb                      (cga_vram_addrb_eff),
         .dinb                       (8'h0),
         .doutb                      (CGA_VRAM_DOUT)
     );
 
-    wire hgc_vram_ena = `ENABLE_HGC ? hgc_mem_select_1 : 1'b0;
+    wire hgc_vram_ena = `ENABLE_HGC ? (hgc_mem_select_1 | hgc_splash_cpu_write) : 1'b0;
     wire hgc_vram_enb = `ENABLE_HGC ? HGC_VRAM_ENABLE : 1'b0;
 
     vram #(.AW(16)) hgc_vram
     (
         .clka                       (clock),
         .ena                        (hgc_vram_ena),
-        .wea                        (`ENABLE_HGC ? ~video_memory_write_n : 1'b0),
-        .addra                      ({hgc_grph_page, video_ram_address[14:0]}),
-        .dina                       (video_ram_data),
+        .wea                        (`ENABLE_HGC ? (hgc_splash_cpu_write ? 1'b1 : ~video_memory_write_n) : 1'b0),
+        .addra                      (hgc_splash_copy_active ? {hgc_grph_page, splash_copy_addr} : {hgc_grph_page, video_ram_address[14:0]}),
+        .dina                       (hgc_splash_copy_active ? splash_rom_data : video_ram_data),
         .douta                      (hgc_vram_cpu_dout),
         .clkb                       (clk_vga_hgc),
         .web                        (1'b0),
@@ -1391,7 +1591,54 @@ end
         .doutb                      (HGC_VRAM_DOUT)
     );
 
+    ega_vram_bram_frontend ega_vram_frontend
+    (
+        .clock                      (clock),
+        .reset                      (reset),
+        .clk_video                  (clk_vga_cga),
+        .cpu_addr                   (ega_vram_cpu_addr),
+        .cpu_din                    (ega_vram_cpu_din),
+        .cpu_read                   (ega_vram_cpu_read_req),
+        .cpu_write                  (ega_vram_cpu_write_req),
+        .cpu_dout                   (ega_vram_cpu_dout),
+        .cpu_ready                  (ega_vram_cpu_ready),
+        .video_addr                 (EGA_FETCH_ADDR),
+        .video_read_en              (EGA_FETCH_EN),
+        .video_plane0               (EGA_PLANE0_DOUT),
+        .video_plane1               (EGA_PLANE1_DOUT),
+        .video_plane2               (EGA_PLANE2_DOUT),
+        .video_plane3               (EGA_PLANE3_DOUT),
+        .video_data_valid           (EGA_FETCH_DATA_VALID),
+        .cfg_toggle                 (ega_cfg_toggle),
+        .plane_write_mask           (ega_plane_write_mask_cfg),
+        .odd_even_mode              (ega_odd_even_mode_cfg),
+        .cpu_access_en              (ega_cpu_access_slot_cfg),
+        .chain2_write               (ega_chain2_write_cfg),
+        .chain2_read                (ega_chain2_read_cfg),
+        .extended_memory            (ega_extended_memory_cfg),
+        .mem_map_sel                (ega_mem_map_sel_cfg),
+        .page_select                (ega_page_select_cfg),
+        .write_mode                 (ega_write_mode_cfg),
+        .read_mode                  (ega_read_mode_cfg),
+        .read_plane_sel             (ega_read_plane_sel_cfg),
+        .color_compare              (ega_color_compare_cfg),
+        .color_dont_care            (ega_color_dont_care_cfg),
+        .bit_mask                   (ega_bit_mask_cfg),
+        .set_reset                  (ega_set_reset_cfg),
+        .enable_set_reset           (ega_enable_set_reset_cfg),
+        .rop_select                 (ega_rop_select_cfg),
+        .rotate_count               (ega_rotate_count_cfg)
+    );
 
+    assign hgc_memory_access_ready = `ENABLE_HGC
+                                   ? ((hgc_mem_select && (~memory_read_n || ~memory_write_n)) ? hgc_vram_cpu_ready : 1'b1)
+                                   : 1'b1;
+    assign cga_memory_access_ready = `ENABLE_CGA
+                                   ? (cga_vram_cpu_cycle ? cga_vram_cpu_ready : 1'b1)
+                                   : 1'b1;
+    assign ega_memory_access_ready = `ENABLE_EGA
+                                   ? (ega_vram_cpu_cycle ? ega_vram_cpu_ready : 1'b1)
+                                   : 1'b1;
     //
     // XT2IDE
     //
@@ -1764,6 +2011,11 @@ end
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= ppi_data_bus_out;
+        end
+        else if (`ENABLE_EGA && ega_mem_select && (~memory_read_n))
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= ega_vram_cpu_dout;
         end
         else if (`ENABLE_CGA && cga_mem_select && (~memory_read_n))
         begin

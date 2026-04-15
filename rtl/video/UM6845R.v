@@ -44,7 +44,24 @@ module UM6845R
 
 	output    [13:0] MA,
 	output     [4:0] RA,
+	output     [7:0] HC,
+	output     [6:0] VC,
+	output     [7:0] H_DISP_REG,
+	output     [4:0] V_MAXSCAN_REG,
 	output    [3:0] hsync_width,
+	output           status_vretrace,
+	output           status_not_displaying,
+	output           vert_blank_active,
+	output     [3:0] scanline_mod16_debug,
+	output     [3:0] vslines_debug,
+	output     [7:0] crtc_r10_debug,
+	output     [7:0] crtc_r11_debug,
+	output     [7:0] crtc_r12_debug,
+	output     [7:0] crtc_r13_debug,
+	output     [7:0] crtc_r14_debug,
+	output     [7:0] crtc_r17_debug,
+	output     [7:0] crtc_r15_debug,
+	output     [7:0] crtc_r16_debug,
 
 	input      [3:0] crt_h_offset,
 	input      [2:0] crt_v_offset,
@@ -64,6 +81,7 @@ parameter V_SYNCPOS = 0;
 parameter V_MAXSCAN = 0;
 parameter C_START = 0;
 parameter C_END = 0;
+parameter DISPLAYED_CHARS_PLUS1 = 0;
 
 /* verilator lint_off WIDTH */
 
@@ -71,12 +89,32 @@ assign FIELD = ~field & interlace[0];
 
 assign MA = row_addr_r;
 assign RA = line | (field & interlace[0]);
+assign HC = hcc;
+assign VC = row;
+assign H_DISP_REG = R1_h_displayed;
+assign V_MAXSCAN_REG = R9_v_max_line;
 assign hsync_width = R3_h_sync_width;
+// Match 86Box more closely: Input Status #1 bit 3 tracks the retrace window
+// opened at VSYNC start and closed a few scanlines later, not the whole
+// vertical blank interval.
+assign status_vretrace = CRTC_TYPE ? ega_status_vretrace : 1'b0;
+assign status_not_displaying = CRTC_TYPE ? (~hde | ega_vert_blank_active_r) : ~DE;
+assign vert_blank_active = CRTC_TYPE ? ega_vert_blank_active_r : ~vde;
+assign scanline_mod16_debug = ega_scanline_mod16;
+assign vslines_debug = ega_vslines;
+assign crtc_r10_debug = R16_v_sync_pos_e;
+assign crtc_r11_debug = R17_v_sync_end_e;
+assign crtc_r12_debug = R12_start_addr_h;
+assign crtc_r13_debug = R13_start_addr_l;
+assign crtc_r14_debug = R20_underline_loc_e;
+assign crtc_r17_debug = R23_mode_control_e;
+assign crtc_r15_debug = R21_v_blank_start_e;
+assign crtc_r16_debug = R22_v_blank_end_e;
 
 assign DE = de[R8_skew & ~{2{CRTC_TYPE}}];
 
 assign hblank = ~hde;
-assign vblank = ~vde;
+assign vblank = CRTC_TYPE ? ega_vert_blank_active_r : ~vde;
 assign line_reset = hcc_last;
 
 reg [7:0] R0_h_total = H_TOTAL;
@@ -94,13 +132,35 @@ reg [4:0] R9_v_max_line = V_MAXSCAN;
 reg [1:0] R10_cursor_mode = 2'd0;
 reg [4:0] R10_cursor_start = C_START;
 reg [4:0] R11_cursor_end = C_END;
-reg [5:0] R12_start_addr_h = 6'd0;
+reg [7:0] R12_start_addr_h = 8'd0;
 reg [7:0] R13_start_addr_l = 8'd0;
 reg [5:0] R14_cursor_h = 6'd0;
 reg [7:0] R15_cursor_l = 8'd0;
+reg [7:0] R16_v_sync_pos_e = 8'd0;
+reg [7:0] R17_v_sync_end_e = 8'h01;
+reg [7:0] R18_v_display_end_e = 8'd0;
+reg [7:0] R19_offset_e = 8'd0;
+reg [7:0] R20_underline_loc_e = 8'd0;
+reg [7:0] R21_v_blank_start_e = 8'd0;
+reg [7:0] R22_v_blank_end_e = 8'd0;
+reg [7:0] R23_mode_control_e = 8'h80;
+reg [7:0] R24_line_compare_e = 8'd0;
+reg       ega_status_vretrace = 1'b0;
+reg       ega_vert_blank_active_r = 1'b0;
+reg [3:0] ega_scanline_mod16 = 4'd0;
+reg [3:0] ega_vslines = 4'd0;
 
 // Effective vsync width: OSD override (1-7) takes priority, 0 = use register/CRTC_TYPE default
-wire [3:0] eff_v_sync_width = |vsync_width_osd ? {1'b0, vsync_width_osd} : (CRTC_TYPE ? 4'd0 : R3_v_sync_width);
+wire [3:0] eff_v_sync_width = |vsync_width_osd ? {1'b0, vsync_width_osd} :
+	(CRTC_TYPE ? (|R17_v_sync_end_e[3:0] ? R17_v_sync_end_e[3:0] : 4'd1) : R3_v_sync_width);
+wire ega_v_blank_start_valid = CRTC_TYPE && |R21_v_blank_start_e[6:0];
+wire ega_v_blank_end_valid = CRTC_TYPE && |R22_v_blank_end_e[6:0];
+wire [7:0] eff_v_displayed_cmp = (CRTC_TYPE && |R18_v_display_end_e[6:0]) ? ({1'b0, R18_v_display_end_e[6:0]} + 8'd1) : {1'b0, R6_v_displayed};
+wire [7:0] eff_v_sync_pos_cmp = (CRTC_TYPE && |R16_v_sync_pos_e[6:0]) ? ({1'b0, R16_v_sync_pos_e[6:0]} + 8'd1) : {1'b0, R7_v_sync_pos};
+wire [6:0] eff_v_displayed = eff_v_displayed_cmp[6:0];
+wire [6:0] eff_v_sync_pos = eff_v_sync_pos_cmp[6:0];
+wire [6:0] eff_v_blank_start = ega_v_blank_start_valid ? R21_v_blank_start_e[6:0] : eff_v_displayed;
+wire [6:0] eff_v_blank_end = ega_v_blank_end_valid ? R22_v_blank_end_e[6:0] : 7'd0;
 
 reg [4:0] addr;
 always @(*) begin
@@ -110,10 +170,19 @@ always @(*) begin
 			case (addr)
 				10: DO = {R10_cursor_mode, R10_cursor_start};
 				11: DO = R11_cursor_end;
-				12: DO = CRTC_TYPE ? 8'h00 : R12_start_addr_h;
-				13: DO = CRTC_TYPE ? 8'h00 : R13_start_addr_l;
+				12: DO = R12_start_addr_h;
+				13: DO = R13_start_addr_l;
 				14: DO = R14_cursor_h;
 				15: DO = R15_cursor_l;
+				16: DO = CRTC_TYPE ? R16_v_sync_pos_e : 8'h00;
+				17: DO = CRTC_TYPE ? R17_v_sync_end_e : 8'h00;
+				18: DO = CRTC_TYPE ? R18_v_display_end_e : 8'h00;
+				19: DO = CRTC_TYPE ? R19_offset_e : 8'h00;
+				20: DO = CRTC_TYPE ? R20_underline_loc_e : 8'h00;
+				21: DO = CRTC_TYPE ? R21_v_blank_start_e : 8'h00;
+				22: DO = CRTC_TYPE ? R22_v_blank_end_e : 8'h00;
+				23: DO = CRTC_TYPE ? R23_mode_control_e : 8'h00;
+				24: DO = CRTC_TYPE ? R24_line_compare_e : 8'h00;
 				31: DO = CRTC_TYPE ? 8'hFF : 8'h00;
 			 default: DO = 0;
 			endcase
@@ -125,7 +194,37 @@ always @(*) begin
 end
 
 always @(posedge CLOCK) begin
-	if (ENABLE & ~nCS & ~R_nW) begin
+	if (~nRESET) begin
+		addr <= 5'd0;
+		R0_h_total <= H_TOTAL;
+		R1_h_displayed <= H_DISP;
+		R2_h_sync_pos <= H_SYNCPOS;
+		R3_v_sync_width <= 4'd0;
+		R3_h_sync_width <= H_SYNCWIDTH;
+		R4_v_total <= V_TOTAL;
+		R5_v_total_adj <= V_TOTALADJ;
+		R6_v_displayed <= V_DISP;
+		R7_v_sync_pos <= V_SYNCPOS;
+		R8_skew <= 2'd0;
+		R8_interlace <= 2'd2;
+		R9_v_max_line <= V_MAXSCAN;
+		R10_cursor_mode <= 2'd0;
+		R10_cursor_start <= C_START;
+		R11_cursor_end <= C_END;
+		R12_start_addr_h <= 8'd0;
+		R13_start_addr_l <= 8'd0;
+		R14_cursor_h <= 6'd0;
+		R15_cursor_l <= 8'd0;
+		R16_v_sync_pos_e <= 8'd0;
+		R17_v_sync_end_e <= 8'h01;
+		R18_v_display_end_e <= 8'd0;
+		R19_offset_e <= 8'd0;
+		R20_underline_loc_e <= 8'd0;
+		R21_v_blank_start_e <= 8'd0;
+		R22_v_blank_end_e <= 8'd0;
+		R23_mode_control_e <= 8'h80;
+		R24_line_compare_e <= 8'd0;
+	end else if (ENABLE & ~nCS & ~R_nW) begin
 		if (~RS) addr <= DI[4:0];
 		else begin
 			case (addr)
@@ -141,10 +240,19 @@ always @(posedge CLOCK) begin
 				09: R9_v_max_line <= DI[4:0];
 				10: {R10_cursor_mode,R10_cursor_start} <= DI[6:0];
 				11: R11_cursor_end <= DI[4:0];
-				12: R12_start_addr_h <= DI[5:0];
+				12: R12_start_addr_h <= DI[7:0];
 				13: R13_start_addr_l <= DI[7:0];
 				14: R14_cursor_h <= DI[5:0];
 				15: R15_cursor_l <= DI[7:0];
+				16: if (CRTC_TYPE) R16_v_sync_pos_e <= DI;
+				17: if (CRTC_TYPE) R17_v_sync_end_e <= DI;
+				18: if (CRTC_TYPE) R18_v_display_end_e <= DI;
+				19: if (CRTC_TYPE) R19_offset_e <= DI;
+				20: if (CRTC_TYPE) R20_underline_loc_e <= DI;
+				21: if (CRTC_TYPE) R21_v_blank_start_e <= DI;
+				22: if (CRTC_TYPE) R22_v_blank_end_e <= DI;
+				23: if (CRTC_TYPE) R23_mode_control_e <= DI;
+				24: if (CRTC_TYPE) R24_line_compare_e <= DI;
 			endcase
 		end
 	end
@@ -187,6 +295,9 @@ always @(posedge CLOCK) begin
 		row    <= 0;
 		in_adj <= 0;
 		field  <= 0;
+		line_last_r <= 1'b0;
+		row_last_r <= 1'b0;
+		frame_adj_r <= 1'b0;
 	end
 	else if(CLKEN) begin
 		hcc <= hcc_next;
@@ -220,7 +331,11 @@ wire row_addr_save = hcc == R1_h_displayed && (CRTC_TYPE ? line_last : line_last
 reg  [13:0] row_addr;   // saved pointer
 reg  [13:0] row_addr_r; // current pointer
 always @(posedge CLOCK) begin
-	if(CLKEN) begin
+	if(~nRESET) begin
+		row_addr <= {R12_start_addr_h, R13_start_addr_l};
+		row_addr_r <= {R12_start_addr_h, R13_start_addr_l};
+	end
+	else if(CLKEN) begin
 		if(row_addr_save) row_addr <= row_addr_r; // save current pointer
 
 		if(hcc_last & !row_addr_save) row_addr_r <= row_addr; // restore the pointer, take care of simultaneous saving and restoring
@@ -260,7 +375,10 @@ always @(posedge CLOCK) begin
 
 		if (CLKEN) begin
 			if(line_new)                   hde <= 1;
-			if(hcc_next == R1_h_displayed) hde <= 0;
+			// Some adapters program R1 as "displayed chars - 1". Keep the
+			// shared default behaviour unchanged and enable the +1 quirk only
+			// on the instances that explicitly opt in.
+			if(DISPLAYED_CHARS_PLUS1 ? (hcc == R1_h_displayed) : (hcc_next == R1_h_displayed)) hde <= 0;
 
 			if(hsync_raw) hsc <= hsc + 1'd1;
 			else hsc <= 0;
@@ -271,7 +389,10 @@ end
 // Fixed-width HSYNC pulse shaping (for TV compatibility across 40/80-col modes)
 // Detect rising edge of hsync_raw and generate a fixed-width pulse in pixel clocks.
 reg hsync_raw_prev;
-always @(posedge CLOCK) hsync_raw_prev <= hsync_raw;
+always @(posedge CLOCK) begin
+	if(~nRESET) hsync_raw_prev <= 1'b0;
+	else hsync_raw_prev <= hsync_raw;
+end
 wire hsync_rising = hsync_raw & ~hsync_raw_prev;
 
 reg [6:0] hsync_fixed_cnt;
@@ -295,15 +416,23 @@ wire hsync_effective = (|hsync_width_osd & ~hres_mode) ? hsync_shaped : hsync_ra
 
 reg [121:0] hsync_delay_line;
 always @(posedge CLOCK) begin
-    hsync_delay_line <= {hsync_delay_line[120:0], hsync_effective};
-    HSYNC <= hsync_delay_line[(hres_mode ? 60 : 120) - (crt_h_offset << (hres_mode ? 2 : 3))];
+    if(~nRESET) begin
+        hsync_delay_line <= 122'd0;
+        HSYNC <= 1'b0;
+    end else begin
+        hsync_delay_line <= {hsync_delay_line[120:0], hsync_effective};
+        HSYNC <= hsync_delay_line[(hres_mode ? 60 : 120) - (crt_h_offset << (hres_mode ? 2 : 3))];
+    end
 end
 
 reg vsync_raw;
 // vertical output
 reg vde, vde_r;
 reg VSYNC_r;
-always @(posedge CLOCK) vsync_raw <= VSYNC_r; // delay the same as HSYNC to not confuse the GA
+always @(posedge CLOCK) begin
+	if(~nRESET) vsync_raw <= 1'b0;
+	else vsync_raw <= VSYNC_r; // delay the same as HSYNC to not confuse the GA
+end
 always @(posedge CLOCK) begin
 	reg  [3:0] vsc;
 	reg        vsync_allow;
@@ -314,6 +443,7 @@ always @(posedge CLOCK) begin
 		vde_r  <= 0;
 		VSYNC_r<= 0;
 		vsync_allow <= 1;
+		ega_vert_blank_active_r <= 1'b0;
 	end
 	else if (CLKEN) begin
 		if (!CRTC_TYPE && row == 0 && line == 0 && R6_v_displayed == 0) begin
@@ -323,12 +453,22 @@ always @(posedge CLOCK) begin
 
 		if(row_new) begin
 			if((frame_new & row !=0) | row_next != row) vsync_allow <= 1;
-			if(frame_new)                  begin vde <= 1; vde_r <= 1; end
-			if(row_next == R6_v_displayed) begin vde <= 0; vde_r <= 0; end
+			if(frame_new) begin
+				vde <= 1;
+				vde_r <= 1;
+				ega_vert_blank_active_r <= 1'b0;
+			end
+			if(row_next == eff_v_displayed) begin vde <= 0; vde_r <= 0; end
+			if(CRTC_TYPE) begin
+				if(row_next == eff_v_blank_start)
+					ega_vert_blank_active_r <= 1'b1;
+				if(ega_v_blank_end_valid && ega_vert_blank_active_r && row_next == eff_v_blank_end)
+					ega_vert_blank_active_r <= 1'b0;
+			end
 		end
 		if(field ? (hcc_next == {1'b0, R0_h_total[7:1]}) : line_new) begin
 			if(vsc) vsc <= vsc - 1'd1;
-			else if (vsync_allow & (field ? ((row == R7_v_sync_pos - (hres_mode ? 1 : 2)) && !line) : ((row_next == R7_v_sync_pos - (hres_mode ? 1 : 2)) && line_last))) begin
+			else if (vsync_allow & (field ? ((row == eff_v_sync_pos - (hres_mode ? 1 : 2)) && !line) : ((row_next == eff_v_sync_pos - (hres_mode ? 1 : 2)) && line_last))) begin
 				VSYNC_r <= 1;
 				// Don't allow a new vsync until a new row (Onescreen Colonies) or the R7 is written (PHX)
 				vsync_allow <= 0;
@@ -356,7 +496,7 @@ always @(posedge CLOCK) begin
 		if (CRTC_TYPE) begin
 			if (row == DI[6:0]) vde_r <= 0;
 			if (row != DI[6:0] && DI[6:0] != 0) vde <= vde_r;
-			if (row == R6_v_displayed && DI[6:0] != row) vde <= 1;
+			if (row == eff_v_displayed && DI[6:0] != row) vde <= 1;
 			if (row == DI[6:0] || DI[6:0] == 0) vde <= 0;
 		end else begin
 			if (row == DI[6:0] && !(row == 0 && line == 0)) vde_r <= 0;
@@ -364,15 +504,53 @@ always @(posedge CLOCK) begin
 	end
 end
 
+always @(posedge CLOCK) begin
+	if(~nRESET) begin
+		ega_status_vretrace <= 1'b0;
+		ega_scanline_mod16 <= 4'd0;
+		ega_vslines <= 4'd0;
+	end
+	else if (CLKEN && CRTC_TYPE) begin
+		if(frame_new)
+			ega_scanline_mod16 <= 4'd0;
+		else if(line_new)
+			ega_scanline_mod16 <= ega_scanline_mod16 + 4'd1;
+
+		if(line_new && ega_status_vretrace) begin
+			if(ega_vslines != 4'd0 && ega_scanline_mod16 == R17_v_sync_end_e[3:0])
+				ega_status_vretrace <= 1'b0;
+			ega_vslines <= ega_vslines + 4'd1;
+		end
+
+		if(row_new && row_next == eff_v_sync_pos) begin
+			ega_status_vretrace <= 1'b1;
+			ega_vslines <= 4'd0;
+		end
+	end
+	else if (CLKEN) begin
+		ega_status_vretrace <= 1'b0;
+		ega_scanline_mod16 <= 4'd0;
+		ega_vslines <= 4'd0;
+	end
+end
+
 reg [8:0] vsync_delay_line;
 always @(posedge HSYNC) begin
-    vsync_delay_line <= {vsync_delay_line[7:0], vsync_raw};
-    VSYNC <= vsync_delay_line[7 - crt_v_offset];
+    if(~nRESET) begin
+        vsync_delay_line <= 9'd0;
+        VSYNC <= 1'b0;
+    end else begin
+        vsync_delay_line <= {vsync_delay_line[7:0], vsync_raw};
+        VSYNC <= vsync_delay_line[7 - crt_v_offset];
+    end
 end
 
 wire [3:0] de = {1'b0, dde[1:0], hde & vde & vde_r};
 reg  [1:0] dde;
-always @(posedge CLOCK) if (CLKEN) dde <= {dde[0],de[0]};
+always @(posedge CLOCK) begin
+	if(~nRESET) dde <= 2'b00;
+	else if (CLKEN) dde <= {dde[0],de[0]};
+end
 
 // Cursor control
 reg cursor_line;

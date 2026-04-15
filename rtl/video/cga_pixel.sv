@@ -17,6 +17,7 @@ module cga_pixel(
     input tandy_16_mode,
     input thin_font,
     input[7:0] vram_data,
+    input vram_data_valid,
     input vram_read_char,
     input vram_read_att,
     input disp_pipeline,
@@ -88,10 +89,10 @@ module cga_pixel(
 	     if (tandy_palette_set)
 		     tandy_palette[tandy_palette_color] = tandy_newcolor;
 			  
-        if (vram_read_char) begin
+        if (vram_read_char && vram_data_valid) begin
             char_byte <= vram_data;
         end
-        if (vram_read_att) begin
+        if (vram_read_att && vram_data_valid) begin
             attr_byte <= vram_data;
         end
     end

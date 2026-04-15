@@ -11,6 +11,7 @@ module hgc_pixel(
     input clk,
     input[4:0] clk_seq,
     input[7:0] vram_data,
+    input vram_data_valid,
     input vram_read_char,
     input vram_read_att,
     input disp_pipeline,
@@ -47,15 +48,16 @@ module hgc_pixel(
 
 
     // Latch character and attribute data from VRAM
-    // at appropriate times
+    // at appropriate times. During a line-buffer miss/refill, keep the last
+    // stable byte instead of consuming stale data.
     always @ (posedge clk)
     begin
-        if (vram_read_char) begin
-            char_byte <= vram_data; //ES testing
+        if (vram_read_char && vram_data_valid) begin
+            char_byte <= vram_data;
             char_byte_old <= char_byte;
         end
-        if (vram_read_att) begin
-            attr_byte <= vram_data; //ES testing				
+        if (vram_read_att && vram_data_valid) begin
+            attr_byte <= vram_data;
         end
     end
 	 

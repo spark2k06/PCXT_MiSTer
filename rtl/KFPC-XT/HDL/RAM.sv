@@ -48,7 +48,7 @@ module RAM (
      input   logic           ems_b3,
      input   logic           ems_b4,
      // BIOS
-     input  logic    [1:0]  bios_protect_flag,
+     input  logic    [2:0]  bios_protect_flag,
      input  logic           tandy_bios_flag,
     // Optional flags
     input  logic           enable_a000h,
@@ -88,8 +88,9 @@ module RAM (
     //
     // Write protect
     //
-    assign write_protect = bios_protect_flag[1] & (address[19:16] == 4'b1111)
-                         | bios_protect_flag[0] & (address[19:14] == 6'b111011);
+    assign write_protect = (bios_protect_flag[2] & (address[19:14] == 6'b110000))
+                         | (bios_protect_flag[1] & (address[19:16] == 4'b1111))
+                         | (bios_protect_flag[0] & (address[19:14] == 6'b111011));
 
 
     //

@@ -27,6 +27,7 @@ module hgc(
     output ram_we_l,
     output[18:0] ram_a,
     input[7:0] ram_d,
+    input ram_data_valid,
 
     // Video outputs
     output hsync,
@@ -273,6 +274,7 @@ module hgc(
         .clk(clk),
         .clk_seq(clkdiv),
         .vram_data(ram_1_d),
+        .vram_data_valid(ram_data_valid),
         .vram_read_char(vram_read_char),
         .vram_read_att(vram_read_att),
         .disp_pipeline(disp_pipeline),

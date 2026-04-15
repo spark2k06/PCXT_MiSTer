@@ -46,6 +46,9 @@
 `ifndef ENABLE_HGC
 `define ENABLE_HGC 0
 `endif
+`ifndef ENABLE_EGA
+`define ENABLE_EGA 1
+`endif
 `ifndef ENABLE_OPL2
 `define ENABLE_OPL2 0
 `endif
@@ -248,7 +251,9 @@ module emu
 
 	`include "build_id.v"
 
-    localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1oC,PCXT CGA Graphics,Yes,No;P1oD,PCXT Hercules Graphics,Yes,No;P1O4,PCXT 1st Video,CGA,Hercules;P1-;" : "");
+    localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1oC,PCXT CGA Graphics,Yes,No;P1oD,PCXT Hercules Graphics,Yes,No;" : "");
+    localparam CONF_STR_EGA = (`ENABLE_EGA ? "P1oL,EGA Gate,Disabled,Enabled;d1P1oST,EGA Display,Auto,CGA,EGA;" : "");
+    localparam CONF_STR_VIDEO_PRIMARY = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1O4,PCXT 1st Video,CGA,Hercules;" : "");
     localparam CONF_STR_ROM = (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;");
     localparam CONF_STR_CMS = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
     localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
@@ -271,10 +276,13 @@ module emu
 		"P1,System & BIOS;",
 		"P1-;",
 		CONF_STR_HGC,
+		CONF_STR_EGA,
+		CONF_STR_VIDEO_PRIMARY,
 		"P1O7,Boot Splash Screen,Yes,No;",
 		"P1-;",
 		CONF_STR_ROM,
 		"P1FC2,ROM,EC00 BIOS:;",
+		"P1FC3,ROM,EGA BIOS:;",
 		"P1-;",
 		"P1OUV,BIOS Writable,None,EC00,Main,All;",
 		"P1-;",	
@@ -349,6 +357,8 @@ module emu
     wire [1:0] ar = status[9:8];
     wire border = status[29] | xtctl[1];
     wire a000h = `ENABLE_A000_UMB ? (~status[41] & ~xtctl[6]) : 1'b0;
+    wire ega_enabled = `ENABLE_EGA ? status[53] : 1'b0;
+    wire [1:0] ega_display_mode = status[61:60];
     wire [2:0] vsync_width_osd = status[56:54];  // 0=Auto (use register), 1-7=override
     wire [2:0] hsync_width_osd = status[59:57];  // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
 
@@ -360,6 +370,7 @@ module emu
     wire        video_scandoubler_en = (scale_video_ff > 0) || forced_scandoubler;
     wire        cga_scandouble_en = video_scandoubler_en;
     reg         hercules_hw;
+    wire [15:0] status_menumask = {12'd0, ega_enabled, ega_enabled, status[5]};
 
     wire VGA_VBlank_border;
     wire std_hsyncwidth;
@@ -392,7 +403,7 @@ module emu
 
 		.buttons(buttons),
 		.status(status),
-		.status_menumask({status[5]}),
+		.status_menumask(status_menumask),
 
 		.ps2_kbd_clk_in		(ps2_kbd_clk_out),
 		.ps2_kbd_data_in	(ps2_kbd_data_out),
@@ -485,6 +496,7 @@ module emu
         .locked(pll_system_locked)
     );
 
+    wire cga_clear_busy;
     wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked  | splashscreen | splash_reset_hold | splash_pending;
     wire video_retime_reset = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked | splash_pending;
     wire reset_sdram_wire = RESET | !pll_locked;
@@ -648,7 +660,7 @@ module emu
     //
 
     reg [4:0]  bios_load_state = 4'h0;
-    reg [1:0]  bios_protect_flag;
+    reg [2:0]  bios_protect_flag;
     reg        bios_access_request;
     reg [19:0] bios_access_address;
     reg [15:0] bios_write_data;
@@ -656,22 +668,25 @@ module emu
     reg [7:0]  bios_write_wait_cnt;
     reg        bios_write_byte_cnt;
     reg        tandy_bios_write;
+    reg        ega_bios_loaded;
     wire select_pcxt  = (ioctl_index[5:0] == 0) && (ioctl_addr[24:16] == 9'b000000000);
     wire select_tandy = `ROM_IS_TANDY ? (ioctl_index[5:0] == 1) && (ioctl_addr[24:16] == 9'b000000000) : 1'b0;
     wire select_xtide = ioctl_index == 2;
+    wire select_ega_bios = (ioctl_index[5:0] == 3) && (ioctl_addr[24:16] == 9'b000000000);
 
     wire [19:0] bios_access_address_wire = select_pcxt  ? { 4'b1111, ioctl_addr[15:0]} :
          select_tandy ? { 4'b1111, ioctl_addr[15:0]} :
          select_xtide ? { 6'b111011, ioctl_addr[13:0]} :
+         select_ega_bios ? { 4'b1100, ioctl_addr[15:0]} :
          20'hFFFFF;
 
-    wire bios_load_n = ~(ioctl_download & (select_pcxt | select_tandy | select_xtide));
+    wire bios_load_n = ~(ioctl_download & (select_pcxt | select_tandy | select_xtide | select_ega_bios));
 
     always @(posedge clk_chipset, posedge reset_sdram)
     begin
         if (reset_sdram)
         begin
-            bios_protect_flag   <= 2'b11;
+            bios_protect_flag   <= 3'b011;
             bios_access_request <= 1'b0;
             bios_access_address <= 20'hFFFFF;
             bios_write_data     <= 16'hFFFF;
@@ -679,18 +694,21 @@ module emu
             bios_write_wait_cnt <= 'h0;
             bios_write_byte_cnt <= 1'h0;
             tandy_bios_write    <= 1'b0;
+            ega_bios_loaded     <= 1'b0;
             ioctl_wait          <= 1'b1;
             bios_load_state     <= 4'h00;
         end
         else if (~initilized_sdram)
         begin
-            bios_protect_flag   <= 2'b11;
+            bios_protect_flag   <= 3'b011;
             bios_access_request <= 1'b0;
             bios_access_address <= 20'hFFFFF;
             bios_write_data     <= 16'hFFFF;
             bios_write_n        <= 1'b1;
             bios_write_wait_cnt <= 'h0;
             bios_write_byte_cnt <= 1'h0;
+            tandy_bios_write    <= 1'b0;
+            ega_bios_loaded     <= 1'b0;
             ioctl_wait          <= 1'b1;
             bios_load_state     <= 4'h00;
         end
@@ -699,13 +717,14 @@ module emu
             casez (bios_load_state)
                 4'h00:
                 begin
-                    bios_protect_flag   <= ~status[31:30];  // bios_writable
+                    bios_protect_flag   <= {ega_bios_loaded, ~status[31:30]};  // ega/f000/ec00 protection
                     bios_access_address <= 20'hFFFFF;
                     bios_write_data     <= 16'hFFFF;
                     bios_write_n        <= 1'b1;
                     bios_write_wait_cnt <= 'h0;
                     bios_write_byte_cnt <= 1'h0;
                     tandy_bios_write    <= 1'b0;
+                    ega_bios_loaded     <= ega_bios_loaded;
                     if (~ioctl_download)
                     begin
                         bios_access_request <= 1'b0;
@@ -724,10 +743,11 @@ module emu
                 end
                 4'h01:
                 begin
-                    bios_protect_flag   <= 2'b00;
+                    bios_protect_flag   <= 3'b000;
                     bios_access_request <= 1'b1;
                     bios_write_byte_cnt <= 1'h0;
                     tandy_bios_write    <= select_tandy;
+                    ega_bios_loaded     <= select_ega_bios ? 1'b0 : ega_bios_loaded;
                     if (~ioctl_download)
                     begin
                         bios_access_address <= 20'hFFFFF;
@@ -758,7 +778,7 @@ module emu
                 end
                 4'h02:
                 begin
-                    bios_protect_flag   <= 2'b00;
+                    bios_protect_flag   <= 3'b000;
                     bios_access_request <= 1'b1;
                     bios_access_address <= bios_access_address;
                     bios_write_data     <= bios_write_data;
@@ -780,7 +800,7 @@ module emu
                 end
                 4'h03:
                 begin
-                    bios_protect_flag   <= 2'b00;
+                    bios_protect_flag   <= 3'b000;
                     bios_access_request <= 1'b1;
                     bios_access_address <= bios_access_address;
                     bios_write_data     <= bios_write_data;
@@ -797,7 +817,7 @@ module emu
                 end
                 4'h04:
                 begin
-                    bios_protect_flag   <= 2'b00;
+                    bios_protect_flag   <= 3'b000;
                     bios_access_request <= 1'b1;
                     bios_access_address <= bios_access_address + 'h1;
                     bios_write_data     <= {8'hFF, bios_write_data[15:8]};
@@ -805,6 +825,7 @@ module emu
                     bios_write_wait_cnt <= 'h0;
                     bios_write_byte_cnt <= ~bios_write_byte_cnt;
                     tandy_bios_write    <= 1'b0;
+                    ega_bios_loaded     <= (bios_write_byte_cnt == 1'b1 && select_ega_bios) ? 1'b1 : ega_bios_loaded;
                     ioctl_wait          <= 1'b1;
                     if (bios_write_byte_cnt == 1'b0)
                         bios_load_state     <= 4'h02;
@@ -813,7 +834,7 @@ module emu
                 end
                 default:
                 begin
-                    bios_protect_flag   <= 2'b11;
+                    bios_protect_flag   <= {ega_bios_loaded, 2'b11};
                     bios_access_request <= 1'b0;
                     bios_access_address <= 20'hFFFFF;
                     bios_write_data     <= 16'hFFFF;
@@ -846,10 +867,15 @@ module emu
     reg status0_sync1 = 0;
     reg status0_sync2 = 0;
     reg status0_sync_prev = 0;
+    typedef enum logic [1:0] {
+        SPLASH_HOLD_IDLE,
+        SPLASH_HOLD_WAIT_BUSY_START,
+        SPLASH_HOLD_WAIT_BUSY_END
+    } splash_hold_state_t;
     wire status0_clear_pulse = status0_sync2 & ~status0_sync_prev;
+    wire splash_clear_hold_start = status0_clear_pulse | (splashscreen_sync_prev & ~splashscreen_sync2);
     reg splash_reset_hold = 0;
-    reg [16:0] splash_reset_cnt = 17'd0;
-    localparam [16:0] SPLASH_RESET_HOLD = 17'd131072;
+    splash_hold_state_t splash_hold_state = SPLASH_HOLD_IDLE;
     reg phys_reset_hold = 0;
     reg [23:0] phys_reset_cnt = 24'd0;
     localparam [23:0] PHYS_RESET_HOLD = 24'd2863600;
@@ -920,17 +946,41 @@ module emu
         status0_sync2 <= status0_sync1;
         status0_sync_prev <= status0_sync2;
 
-        if (splashscreen_sync_prev && ~splashscreen_sync2)
+        if (RESET || !pll_locked || !pll_system_locked)
         begin
-            splash_reset_hold <= 1'b1;
-            splash_reset_cnt  <= 17'd0;
+            splash_reset_hold <= 1'b0;
+            splash_hold_state <= SPLASH_HOLD_IDLE;
         end
-        else if (splash_reset_hold)
+        else
         begin
-            if (splash_reset_cnt == SPLASH_RESET_HOLD)
-                splash_reset_hold <= 1'b0;
-            else
-                splash_reset_cnt <= splash_reset_cnt + 17'd1;
+            case (splash_hold_state)
+                SPLASH_HOLD_IDLE:
+                begin
+                    splash_reset_hold <= 1'b0;
+                    if (splash_clear_hold_start)
+                    begin
+                        splash_reset_hold <= 1'b1;
+                        splash_hold_state <= SPLASH_HOLD_WAIT_BUSY_START;
+                    end
+                end
+
+                SPLASH_HOLD_WAIT_BUSY_START:
+                begin
+                    splash_reset_hold <= 1'b1;
+                    if (cga_clear_busy)
+                        splash_hold_state <= SPLASH_HOLD_WAIT_BUSY_END;
+                end
+
+                default:
+                begin
+                    splash_reset_hold <= 1'b1;
+                    if (~cga_clear_busy)
+                    begin
+                        splash_reset_hold <= 1'b0;
+                        splash_hold_state <= SPLASH_HOLD_IDLE;
+                    end
+                end
+            endcase
         end
     end
 
@@ -1040,6 +1090,7 @@ module emu
 		.interrupt_to_cpu                   (interrupt_to_cpu),
 		.splashscreen                       (splashscreen),
 		.status0_clear                      (status0_clear_pulse),
+		.cga_clear_busy                     (cga_clear_busy),
 		.std_hsyncwidth                     (std_hsyncwidth),
 		.composite                          (composite),
 		.video_output                       (video_output_sel),
@@ -1152,12 +1203,14 @@ module emu
 		.fdd_request                        (mgmt_req[7:6]),
 		.ide0_request                       (mgmt_req[2:0]),
 		.xtctl                              (xtctl),
-		.enable_a000h                       (a000h),
+		.enable_a000h                       (a000h & ~ega_enabled),
 		.wait_count_clk_en                  (cpu_ce_negedge),
 		.ram_read_wait_cycle                (ram_read_wait_cycle),
 		.ram_write_wait_cycle               (ram_write_wait_cycle),
 		.pause_core                         (pause_core),
 		.cga_hw                             (cga_hw),
+		.ega_enabled                        (ega_enabled),
+		.ega_display_mode                   (ega_display_mode),
 		.cga_scandouble_en                  (cga_scandouble_en),
 		.hercules_hw                        (hercules_hw_sel),
 		.swap_video                         (swap_video),
@@ -1628,6 +1681,7 @@ module emu
 
     wire       pre2x_LHBL, pre2x_LVBL;
     wire [7:0] pre2x_r, pre2x_g, pre2x_b;
+    wire [23:0] credits_rgb_out;
 	 
 
 	video_mixer #(.GAMMA(1)) video_mixer_cga
@@ -1902,8 +1956,11 @@ module emu
         // output image
         .HB_out     ( pre2x_LHBL      ),
         .VB_out     ( pre2x_LVBL      ),
-        .rgb_out    ( {VGA_R, VGA_G, VGA_B } )
+        .rgb_out    ( credits_rgb_out )
     );
+
+    assign {VGA_R, VGA_G, VGA_B} = credits_rgb_out;
 
 
 endmodule
+

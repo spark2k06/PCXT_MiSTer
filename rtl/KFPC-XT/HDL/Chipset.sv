@@ -26,6 +26,7 @@ module CHIPSET #(
         // SplashScreen
         input   logic           splashscreen,
         input   logic           status0_clear,
+        output  logic           cga_clear_busy,
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
@@ -138,7 +139,7 @@ module CHIPSET #(
         input   logic           ems_enabled,
         input   logic   [1:0]   ems_address,
         // BIOS
-        input  logic    [1:0]   bios_protect_flag,
+        input  logic    [2:0]   bios_protect_flag,
         // MMC interface
         input   logic   [1:0]   use_mmc,
         output  logic           spi_clk,
@@ -166,6 +167,8 @@ module CHIPSET #(
         // Others
         output  logic           pause_core,
         input   logic           cga_hw,
+        input   logic           ega_enabled,
+        input   logic   [1:0]   ega_display_mode,
         input   logic           cga_scandouble_en,
         input   logic           hercules_hw,
         output  logic           swap_video,
@@ -184,6 +187,9 @@ module CHIPSET #(
     logic           dma_chip_select_n;
     logic           dma_page_chip_select_n;
     logic           memory_access_ready;
+    logic           hgc_memory_access_ready;
+    logic           cga_memory_access_ready;
+    logic           ega_memory_access_ready;
     logic           ram_address_select_n;
     logic   [7:0]   internal_data_bus;
     logic   [7:0]   internal_data_bus_ext;
@@ -192,7 +198,6 @@ module CHIPSET #(
     logic           data_bus_out_from_chipset;
     logic           internal_data_bus_direction;
     logic           no_command_state;
-
     logic           prev_timer_count_1;
     logic           DRQ0;
 
@@ -235,7 +240,7 @@ module CHIPSET #(
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
         .dma_wait_n                         (dma_wait_n),
-        .io_channel_ready                   (io_channel_ready & memory_access_ready & tandy_snd_rdy),
+        .io_channel_ready                   (io_channel_ready & memory_access_ready & hgc_memory_access_ready & cga_memory_access_ready & ega_memory_access_ready & tandy_snd_rdy),
         .io_read_n                          (io_read_n),
         .io_write_n                         (io_write_n),
         .memory_read_n                      (memory_read_n),
@@ -302,6 +307,7 @@ module CHIPSET #(
         .dma_page_chip_select_n             (dma_page_chip_select_n),
         .splashscreen                       (splashscreen),
         .status0_clear                      (status0_clear),
+        .cga_clear_busy                     (cga_clear_busy),
         .std_hsyncwidth                     (std_hsyncwidth),
         .composite                          (composite),
         .video_output                       (video_output),
@@ -330,6 +336,9 @@ module CHIPSET #(
         .memory_read_n                      (memory_read_n),
         .memory_write_n                     (memory_write_n),
         .address_enable_n                   (address_enable_n),
+        .hgc_memory_access_ready            (hgc_memory_access_ready),
+        .cga_memory_access_ready            (cga_memory_access_ready),
+        .ega_memory_access_ready            (ega_memory_access_ready),
         .timer_counter_out                  (timer_counter_out),
         .speaker_out                        (speaker_out),
         .port_a_out                         (port_a_out),
@@ -398,6 +407,8 @@ module CHIPSET #(
         .xtctl                              (xtctl),
         .pause_core                         (pause_core),
         .cga_hw                             (cga_hw),
+        .ega_enabled                        (ega_enabled),
+        .ega_display_mode                   (ega_display_mode),
         .cga_scandouble_en                  (cga_scandouble_en),
         .hercules_hw                        (hercules_hw),
         .swap_video                         (swap_video),
