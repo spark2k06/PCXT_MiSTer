@@ -252,7 +252,7 @@ module emu
 	`include "build_id.v"
 
     localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1oC,PCXT CGA Graphics,Yes,No;P1oD,PCXT Hercules Graphics,Yes,No;" : "");
-    localparam CONF_STR_EGA = (`ENABLE_EGA ? "P1oL,EGA Gate,Disabled,Enabled;d1P1oST,EGA Display,Auto,CGA,EGA;" : "");
+    localparam CONF_STR_EGA = (`ENABLE_EGA ? "P1oL,EGA Gate,Disabled,Enabled;" : "");
     localparam CONF_STR_VIDEO_PRIMARY = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1O4,PCXT 1st Video,CGA,Hercules;" : "");
     localparam CONF_STR_ROM = (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;");
     localparam CONF_STR_CMS = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
@@ -358,7 +358,6 @@ module emu
     wire border = status[29] | xtctl[1];
     wire a000h = `ENABLE_A000_UMB ? (~status[41] & ~xtctl[6]) : 1'b0;
     wire ega_enabled = `ENABLE_EGA ? status[53] : 1'b0;
-    wire [1:0] ega_display_mode = status[61:60];
     wire [2:0] vsync_width_osd = status[56:54];  // 0=Auto (use register), 1-7=override
     wire [2:0] hsync_width_osd = status[59:57];  // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
 
@@ -1210,7 +1209,6 @@ module emu
 		.pause_core                         (pause_core),
 		.cga_hw                             (cga_hw),
 		.ega_enabled                        (ega_enabled),
-		.ega_display_mode                   (ega_display_mode),
 		.cga_scandouble_en                  (cga_scandouble_en),
 		.hercules_hw                        (hercules_hw_sel),
 		.swap_video                         (swap_video),

@@ -73,7 +73,6 @@ module ega_top(
     input tandy_video,
     input scandouble_en,
     input ega_enabled,
-    input [1:0] ega_display_mode,
     output grph_mode,
     output hres_mode,
     output tandy_color_16,
@@ -187,9 +186,7 @@ module ega_top(
     reg ega_write_seen_since_vblank = 1'b0;
     reg cga_vblank_q = 1'b0;
     wire cga_vblank_rise = ~cga_vblank_q & cga_vblank;
-    wire ega_force_cga = (ega_display_mode == 2'b01);
-    wire ega_force_ega = ega_display_mode[1];
-    wire ega_display_sel = ega_enabled & (ega_force_ega | ega_video_active);
+    wire ega_display_sel = ega_enabled & ega_video_active;
 
     wire [7:0] ega_crtc_data_out;
     wire ega_hsync_int;
@@ -578,16 +575,6 @@ module ega_top(
             end
 
             if (!ega_enabled) begin
-                ega_video_active <= 1'b0;
-                ega_video_pending <= 1'b0;
-                ega_write_seen_since_vblank <= 1'b0;
-            end
-            else if (ega_force_ega) begin
-                ega_video_active <= 1'b1;
-                ega_video_pending <= 1'b0;
-                ega_write_seen_since_vblank <= 1'b0;
-            end
-            else if (ega_force_cga) begin
                 ega_video_active <= 1'b0;
                 ega_video_pending <= 1'b0;
                 ega_write_seen_since_vblank <= 1'b0;
