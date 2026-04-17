@@ -258,6 +258,9 @@ module ega_top(
 
     reg ega_display_enable_q = 1'b0;
     reg ega_vblank_crtc_q = 1'b0;
+    reg cpu_mem_write_evt_d = 1'b0;
+    wire cpu_mem_write_evt = cpu_mem_select & cpu_mem_write;
+    wire cpu_mem_write_stretched = cpu_mem_write_evt | cpu_mem_write_evt_d;
     reg [7:0] ega_scanline_ctr = 8'd0;
     reg [6:0] ega_byte_col_ctr = 7'd0;
     reg [15:0] ega_start_addr_active = 16'h0000;
@@ -505,6 +508,7 @@ module ega_top(
             cga_vblank_q <= cga_vblank;
             ega_display_enable_q <= ega_display_enable;
             ega_vblank_crtc_q <= ega_vblank_crtc;
+            cpu_mem_write_evt_d <= cpu_mem_write_evt;
             if (ega_misc_write_cs && ega_io_we)
                 ega_misc_output_reg <= bus_d;
             if (ega_cfg_we)
@@ -589,18 +593,18 @@ module ega_top(
                 ega_write_seen_since_vblank <= 1'b0;
             end
             else begin
-                if (cpu_mem_select & cpu_mem_write) begin
+                if (cpu_mem_write_stretched) begin
                     ega_video_pending <= 1'b1;
                     ega_write_seen_since_vblank <= 1'b1;
                 end
 
                 if (cga_vblank_rise) begin
-                    if (ega_video_pending & ~ega_write_seen_since_vblank & ~(cpu_mem_select & cpu_mem_write)) begin
+                    if (ega_video_pending & ~ega_write_seen_since_vblank & ~cpu_mem_write_stretched) begin
                         ega_video_active <= 1'b1;
                         ega_video_pending <= 1'b0;
                     end
 
-                    ega_write_seen_since_vblank <= cpu_mem_select & cpu_mem_write;
+                    ega_write_seen_since_vblank <= cpu_mem_write_stretched;
                 end
             end
         end
