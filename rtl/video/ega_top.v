@@ -67,6 +67,7 @@ module ega_top(
     output [5:0] ega_green,
     output [5:0] ega_blue,
     output ega_rgb_active,
+    output ega_display_sel_out,
     input splashscreen,
     input thin_font,
     input tandy_video,
@@ -447,7 +448,7 @@ module ega_top(
     );
 
     reg [7:0] ega_bus_out_mux;
-    wire ega_bus_dir_sel = (ega_status_cs & ~bus_ior_l)
+    wire ega_bus_dir_sel = (ega_status_cs & ~bus_ior_l & ega_display_sel)
                          | (ega_seq_data_cs & ~bus_ior_l)
                          | (ega_attr_read_cs & ~bus_ior_l)
                          | (ega_misc_read_cs & ~bus_ior_l)
@@ -455,10 +456,10 @@ module ega_top(
                          | (ega_dac_read_index_cs & ~bus_ior_l)
                          | (ega_dac_write_index_cs & ~bus_ior_l)
                          | (ega_dac_data_cs & ~bus_ior_l)
-                         | (ega_crtc_cs & ~bus_ior_l & bus_a[0]);
+                         | (ega_crtc_cs & ~bus_ior_l & bus_a[0] & ega_display_sel);
 
     always @(*) begin
-        if (ega_status_cs & ~bus_ior_l)
+        if (ega_status_cs & ~bus_ior_l & ega_display_sel)
             ega_bus_out_mux = ega_status_reg;
         else if (ega_seq_data_cs & ~bus_ior_l)
             ega_bus_out_mux = ega_seq_data_out;
@@ -470,7 +471,7 @@ module ega_top(
             ega_bus_out_mux = ega_gfx_data_out;
         else if ((ega_dac_read_index_cs | ega_dac_write_index_cs | ega_dac_data_cs) & ~bus_ior_l)
             ega_bus_out_mux = 8'h00;
-        else if (ega_crtc_cs & ~bus_ior_l & bus_a[0])
+        else if (ega_crtc_cs & ~bus_ior_l & bus_a[0] & ega_display_sel)
             ega_bus_out_mux = ega_crtc_data_out;
         else
             ega_bus_out_mux = cga_bus_out;
@@ -629,6 +630,7 @@ module ega_top(
     assign ega_rop_select_out = ega_rop_select;
     assign ega_rotate_count_out = ega_rotate_count;
     assign ega_rgb_active = ega_display_sel;
+    assign ega_display_sel_out = ega_display_sel;
 
     assign bus_out = ega_bus_out_mux;
     assign bus_dir = ega_enabled ? (ega_bus_dir_sel | cga_bus_dir) : cga_bus_dir;

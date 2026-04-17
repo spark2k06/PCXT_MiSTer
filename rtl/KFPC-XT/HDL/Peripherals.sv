@@ -1244,6 +1244,7 @@ end
     wire [5:0] G_EGA;
     wire [5:0] B_EGA;
     wire       ega_rgb_active;
+    wire       ega_display_sel_cga;
     reg   [5:0]   R_HGC;
     reg   [5:0]   G_HGC;
     reg   [5:0]   B_HGC;
@@ -1478,6 +1479,7 @@ end
         .ega_green                  (G_EGA),
         .ega_blue                   (B_EGA),
         .ega_rgb_active             (ega_rgb_active),
+        .ega_display_sel_out        (ega_display_sel_cga),
         .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
         .tandy_video                (tandy_video_en),
@@ -1487,7 +1489,7 @@ end
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
         .tandy_color_16             (tandy_color_16_raw),
-        .cga_hw                     (cga_hw),
+        .cga_hw                     (`ENABLE_EGA ? (cga_hw & ~ega_display_sel_cga) : cga_hw),
         .crt_h_offset               (crt_h_offset),
         .crt_v_offset               (crt_v_offset),
         .vsync_width_osd            (vsync_width_osd),
