@@ -30,7 +30,7 @@ module ega_attrib_ctrl (
     localparam [15:0] ATTR_READ_PORT0 = 16'h03C1;
     localparam [15:0] ATTR_READ_PORT1 = 16'h02C1;
 
-    reg [5:0] raw_palette[0:15];
+    reg [7:0] raw_palette[0:15];
     reg [4:0] attr_index = 5'h00;
     reg       address_phase = 1'b1;
     reg       video_enable_reg = 1'b1;
@@ -49,7 +49,7 @@ module ega_attrib_ctrl (
     wire [3:0] masked_plane_index = plane_index & plane_enable_reg[3:0];
     // Match 86Box IBM EGA behavior: Color Select (0x14) is latched/readable,
     // but does not alter the effective 6-bit EGA palette on the base IBM card.
-    wire [5:0] pixel_color_code = raw_palette[masked_plane_index];
+    wire [5:0] pixel_color_code = raw_palette[masked_plane_index][5:0];
     wire [5:0] border_color_code = palette_64_mode ? overscan_reg[5:0] : {2'b00, overscan_reg[3:0]};
 
     integer palette_index;
@@ -87,7 +87,7 @@ module ega_attrib_ctrl (
                         5'h04, 5'h05, 5'h06, 5'h07,
                         5'h08, 5'h09, 5'h0A, 5'h0B,
                         5'h0C, 5'h0D, 5'h0E, 5'h0F:
-                            raw_palette[attr_index[3:0]] <= io_data_in[5:0];
+                            raw_palette[attr_index[3:0]] <= io_data_in;
                         5'h10: mode_control_reg <= io_data_in;
                         5'h11: overscan_reg <= io_data_in;
                         5'h12: plane_enable_reg <= io_data_in;
@@ -126,7 +126,7 @@ module ega_attrib_ctrl (
             5'h04, 5'h05, 5'h06, 5'h07,
             5'h08, 5'h09, 5'h0A, 5'h0B,
             5'h0C, 5'h0D, 5'h0E, 5'h0F:
-                io_data_out = {2'b00, raw_palette[attr_index[3:0]]};
+                io_data_out = raw_palette[attr_index[3:0]];
             5'h10: io_data_out = mode_control_reg;
             5'h11: io_data_out = overscan_reg;
             5'h12: io_data_out = plane_enable_reg;
