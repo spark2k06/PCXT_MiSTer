@@ -1525,6 +1525,7 @@ end
     wire       hgc_vram_video_valid = 1'b1;
     wire       cga_vram_video_valid = 1'b1;
     wire [15:0] ega_vram_cpu_addr = address[15:0];
+    wire        ega_vram_cpu_a16 = address[16];
     wire [7:0]  ega_vram_cpu_din = internal_data_bus;
     wire        ega_vram_cpu_read_req = `ENABLE_EGA ? (ega_mem_select && ~memory_read_n) : 1'b0;
     wire        ega_vram_cpu_write_req = `ENABLE_EGA ? (ega_mem_select && ~memory_write_n) : 1'b0;
@@ -1597,6 +1598,7 @@ end
         .reset                      (reset),
         .clk_video                  (clk_vga_cga),
         .cpu_addr                   (ega_vram_cpu_addr),
+        .cpu_a16                    (ega_vram_cpu_a16),
         .cpu_din                    (ega_vram_cpu_din),
         .cpu_read                   (ega_vram_cpu_read_req),
         .cpu_write                  (ega_vram_cpu_write_req),

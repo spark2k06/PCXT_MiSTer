@@ -4,6 +4,7 @@ module ega_vram_bram_frontend (
     input  logic         clk_video,
 
     input  logic [15:0]  cpu_addr,
+    input  logic         cpu_a16,
     input  logic [7:0]   cpu_din,
     input  logic         cpu_read,
     input  logic         cpu_write,
@@ -94,6 +95,7 @@ module ega_vram_bram_frontend (
         .clk                (clock),
         .clk_vram           (clk_video),
         .cpu_addr           (cpu_addr),
+        .cpu_a16            (cpu_a16),
         .cpu_data_in        (cpu_din),
         .cpu_data_out       (core_cpu_dout),
         .cpu_we             (core_cpu_select && cpu_write),

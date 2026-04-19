@@ -25,6 +25,7 @@ module ega_vram (
     input  wire        clk,
     input  wire        clk_vram,
     input  wire [15:0] cpu_addr,
+    input  wire        cpu_a16,
     input  wire [7:0]  cpu_data_in,
     output reg  [7:0]  cpu_data_out = 8'h00,
     input  wire        cpu_we,
@@ -78,6 +79,7 @@ module ega_vram (
 `endif
 
     reg [15:0] cpu_addr_q = 16'h0000;
+    reg        cpu_a16_q = 1'b0;
     reg [7:0]  cpu_data_in_q = 8'h00;
     reg        cpu_we_q = 1'b0;
     reg        cpu_re_q = 1'b0;
@@ -123,8 +125,8 @@ module ega_vram (
 `endif
 
     wire cpu_access = cpu_mem_select & (cpu_re | cpu_we);
-    wire [15:0] cpu_addr_remapped = remap_cpu_addr(cpu_addr, odd_even_mode, extended_memory, mem_map_sel, page_select);
-    wire [15:0] cpu_addr_q_remapped = remap_cpu_addr(cpu_addr_q, odd_even_mode_q, extended_memory_q, mem_map_sel_q, page_select_q);
+    wire [15:0] cpu_addr_remapped = remap_cpu_addr(cpu_addr, cpu_a16, odd_even_mode, extended_memory, mem_map_sel, page_select, 1'b0); // card_is_64k mirrors 86Box ega_remap_cpu_addr (vid_ega.c:1137); this core has 256 KB.
+    wire [15:0] cpu_addr_q_remapped = remap_cpu_addr(cpu_addr_q, cpu_a16_q, odd_even_mode_q, extended_memory_q, mem_map_sel_q, page_select_q, 1'b0);
     wire [EGA_PLANE_ADDR_WIDTH-1:0] cpu_plane_addr = cpu_addr_remapped[EGA_PLANE_ADDR_WIDTH-1:0];
     wire [EGA_PLANE_ADDR_WIDTH-1:0] cpu_plane_addr_qw = cpu_addr_q_remapped[EGA_PLANE_ADDR_WIDTH-1:0];
     wire [1:0] effective_read_plane = chain2_read_q ? {read_plane_sel_q[1], cpu_addr_q[0]} : read_plane_sel_q;
@@ -170,18 +172,26 @@ module ega_vram (
 
     function [15:0] remap_cpu_addr;
         input [15:0] inaddr;
+        input        inaddr_a16;
         input        odd_even_mode_sel;
         input        extended_memory_sel;
         input [1:0]  mem_map_sel_in;
         input        page_select_in;
+        input        card_is_64k;
         reg   [15:0] addr;
         reg   [2:0]  a0mux;
         begin
             addr = inaddr;
-            a0mux = 3'b001; // This core exposes 256 KB of planar EGA VRAM.
+            a0mux = 3'b000;
 
             if (odd_even_mode_sel)
                 a0mux = a0mux | 3'b010;
+
+            if (card_is_64k)
+                a0mux = a0mux | 3'b001;
+
+            if (mem_map_sel_in == 2'b00)
+                a0mux = a0mux | 3'b100;
 
             case (mem_map_sel_in)
                 2'b10,
@@ -197,6 +207,10 @@ module ega_vram (
                 3'b011: begin
                     addr = addr & 16'hFFFE;
                     addr[0] = inaddr[14];
+                end
+                3'b110: begin
+                    addr = addr & 16'hFFFE;
+                    addr[0] = inaddr_a16;
                 end
                 default: begin
                 end
@@ -303,6 +317,7 @@ module ega_vram (
 
     always @(posedge clk) begin
         cpu_addr_q <= cpu_addr;
+        cpu_a16_q <= cpu_a16;
         cpu_data_in_q <= cpu_data_in;
         cpu_we_q <= cpu_mem_select & cpu_we;
         cpu_re_q <= cpu_mem_select & cpu_re;
