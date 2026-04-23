@@ -277,7 +277,7 @@ int10_hook:
 ;=========================================================================
 set_mode_0d_regs:
     mov dx, 3C2h
-    mov al, 0A1h
+    mov al, 63h     ; bit7=0: 200-line mode (pallook16), bit5=1: page sel, bit1=1: enable RAM, bit0=1: color I/O
     out dx, al
     mov ax, 0100h
     call seq_write
@@ -407,9 +407,11 @@ crtc_data:
     db 38h, 28h, 2Dh, 05h, 1Fh, 06h, 19h, 1Ch
     db 00h, 07h, 06h, 07h, 00h, 00h, 00h, 00h
 
-; Palette for mode 0Dh (16 entries)
+; Palette for mode 0Dh (16 entries) - standard IBM EGA values
+; Entry 6 = 06h: with pallook16 (bit7=0 in Misc Output), value 6 triggers
+; the brown exception in ega_vgaport: (color & 0x17)==0x06 -> R=0xAA,G=0x55,B=0
 palette_data:
-    db 00h, 01h, 02h, 03h, 04h, 05h, 14h, 07h
+    db 00h, 01h, 02h, 03h, 04h, 05h, 06h, 07h
     db 38h, 39h, 3Ah, 3Bh, 3Ch, 3Dh, 3Eh, 3Fh
 
 ; Minimal non-null VGA save/override table placeholder.
@@ -417,4 +419,4 @@ ega_vga_table_stub:
     db 00h, 00h, 00h, 00h
 
     times ROM_SIZE - ($ - $$) - 1 db 0
-checksum_byte: db 0C7h
+checksum_byte: db 013h
