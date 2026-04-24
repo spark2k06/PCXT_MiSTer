@@ -272,7 +272,7 @@ module ega_top(
     reg [7:0]  ega_last_crtc_data = 8'h00;
     reg [7:0]  ega_prev_crtc_index = 8'h00;
     reg [7:0]  ega_prev_crtc_data = 8'h00;
-    reg [7:0]  ega_misc_output_reg = 8'hA1;
+    reg [7:0]  ega_misc_output_reg = 8'h63;
     wire [7:0] ega_status_reg = {4'b0000, ega_status_vretrace_active, 2'b00, ega_blanking_active};
 
     assign ega_display_rise = ~ega_display_enable_q & ega_display_enable;
@@ -492,7 +492,7 @@ module ega_top(
             ega_last_crtc_data <= 8'h00;
             ega_prev_crtc_index <= 8'h00;
             ega_prev_crtc_data <= 8'h00;
-            ega_misc_output_reg <= 8'hA1;
+            ega_misc_output_reg <= 8'h63;
             ega_scanline_ctr <= 8'd0;
             ega_byte_col_ctr <= 7'd0;
             ega_start_addr_active <= 16'h0000;
