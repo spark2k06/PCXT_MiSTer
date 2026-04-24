@@ -191,6 +191,10 @@ int10_hook:
 .chk_pal:
     cmp ah, 10h
     jne .chk_get
+    cmp al, 00h
+    je .pal_one
+    cmp al, 01h
+    je .pal_overscan
     cmp al, 02h
     je .pal_all
     jmp chain_old_int10
@@ -234,6 +238,33 @@ int10_hook:
     pop si
     pop dx
     pop cx
+    pop bx
+    pop ax
+    iret
+
+.pal_one:
+    push ax
+    push bx
+    call attr_write
+    mov dx, 3DAh
+    in al, dx
+    mov dx, 3C0h
+    mov al, 20h
+    out dx, al
+    pop bx
+    pop ax
+    iret
+
+.pal_overscan:
+    push ax
+    push bx
+    mov bl, 11h
+    call attr_write
+    mov dx, 3DAh
+    in al, dx
+    mov dx, 3C0h
+    mov al, 20h
+    out dx, al
     pop bx
     pop ax
     iret
@@ -419,4 +450,4 @@ ega_vga_table_stub:
     db 00h, 00h, 00h, 00h
 
     times ROM_SIZE - ($ - $$) - 1 db 0
-checksum_byte: db 013h
+checksum_byte: db 009h
