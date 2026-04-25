@@ -1,3 +1,6 @@
+cpu 8086        ; v4b: 8088 ISA enforcement only. Without this, NASM -O9
+                ; emits 0F 84 rel16 (386+ JE near) for the .pal_all dispatch
+                ; once .pal_all moved out of rel8 range in v4. 
 bits 16
 org 0
 
@@ -450,4 +453,4 @@ ega_vga_table_stub:
     db 00h, 00h, 00h, 00h
 
     times ROM_SIZE - ($ - $$) - 1 db 0
-checksum_byte: db 009h
+checksum_byte: db 020h     ; v4b ROM checksum (full 8-bit sum of image == 0)
