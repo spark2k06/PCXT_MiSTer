@@ -436,10 +436,12 @@ current_mode:   db 03h
 current_cols:   db 50h
 current_page:   db 0
 
-; CRTC timing for 320x200 (16 registers R0-RF)
+; CRTC timing for 320x200 in EGA register semantics (R00-R0F).
+; Extended EGA-only registers R10h/R12h/R13h (R16/R18/R19 decimal)
+; are supplied by UM6845R EGA reset defaults.
 crtc_data:
-    db 38h, 28h, 2Dh, 05h, 1Fh, 06h, 19h, 1Ch
-    db 00h, 07h, 06h, 07h, 00h, 00h, 00h, 00h
+    db 36h, 27h, 2Dh, 05h, 1Fh, 06h, 04h, 01h
+    db 00h, 00h, 06h, 07h, 00h, 00h, 00h, 00h
 
 ; Palette for mode 0Dh (16 entries) - standard IBM EGA values
 ; Entry 6 = 06h: with pallook16 (bit7=0 in Misc Output), value 6 triggers
@@ -453,4 +455,4 @@ ega_vga_table_stub:
     db 00h, 00h, 00h, 00h
 
     times ROM_SIZE - ($ - $$) - 1 db 0
-checksum_byte: db 020h     ; v4b ROM checksum (full 8-bit sum of image == 0)
+checksum_byte: db 05Ah     ; v4c ROM checksum (full 8-bit sum of image == 0)
