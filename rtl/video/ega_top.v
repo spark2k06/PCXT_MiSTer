@@ -249,21 +249,10 @@ module ega_top(
     wire ega_display_enable = ega_display_enable_crtc;
     wire ega_blanking_active = ega_status_not_displaying_crtc;
     wire ega_status_vretrace_active = ega_status_vretrace_crtc;
-    wire [6:0] ega_bytes_per_line = ega_dot_clock_div2 ? 7'd40 : 7'd80;
-    wire [15:0] ega_start_addr = {ega_crtc_r12_debug, ega_crtc_r13_debug};
-    wire [15:0] ega_fetch_addr_linear = ({8'd0, ega_scanline_ctr} * {9'd0, ega_bytes_per_line}) + {9'd0, ega_byte_col_ctr};
-    wire ega_display_rise;
 
-    reg ega_display_enable_q = 1'b0;
-    reg ega_vblank_crtc_q = 1'b0;
     reg cpu_mem_write_evt_d = 1'b0;
     wire cpu_mem_write_evt = cpu_mem_select & cpu_mem_write;
     wire cpu_mem_write_stretched = cpu_mem_write_evt | cpu_mem_write_evt_d;
-    reg [7:0] ega_scanline_ctr = 8'd0;
-    reg [6:0] ega_byte_col_ctr = 7'd0;
-    reg [15:0] ega_start_addr_active = 16'h0000;
-    reg [15:0] ega_start_addr_pending = 16'h0000;
-    reg        ega_start_addr_pending_valid = 1'b0;
     reg [15:0] ega_last_wr_addr = 16'h0000;
     reg [7:0]  ega_last_wr_data = 8'h00;
     reg [15:0] ega_last_rd_addr = 16'h0000;
@@ -275,8 +264,6 @@ module ega_top(
     reg [7:0]  ega_prev_crtc_data = 8'h00;
     reg [7:0]  ega_misc_output_reg = 8'h63;
     wire [7:0] ega_status_reg = {4'b0000, ega_status_vretrace_active, 2'b00, ega_blanking_active};
-
-    assign ega_display_rise = ~ega_display_enable_q & ega_display_enable;
 
     UM6845R ega_crtc (
         .CLOCK(clk),
@@ -485,8 +472,6 @@ module ega_top(
     always @(posedge clk or posedge reset) begin
         if (reset) begin
             cga_vblank_q <= 1'b0;
-            ega_display_enable_q <= 1'b0;
-            ega_vblank_crtc_q <= 1'b0;
             ega_cfg_toggle <= 1'b0;
             ega_last_wr_addr <= 16'h0000;
             ega_last_wr_data <= 8'h00;
@@ -498,18 +483,11 @@ module ega_top(
             ega_prev_crtc_index <= 8'h00;
             ega_prev_crtc_data <= 8'h00;
             ega_misc_output_reg <= 8'h63;
-            ega_scanline_ctr <= 8'd0;
-            ega_byte_col_ctr <= 7'd0;
-            ega_start_addr_active <= 16'h0000;
-            ega_start_addr_pending <= 16'h0000;
-            ega_start_addr_pending_valid <= 1'b0;
             ega_video_active <= 1'b0;
             ega_video_pending <= 1'b0;
             ega_write_seen_since_vblank <= 1'b0;
         end else begin
             cga_vblank_q <= cga_vblank;
-            ega_display_enable_q <= ega_display_enable;
-            ega_vblank_crtc_q <= ega_vblank_crtc;
             cpu_mem_write_evt_d <= cpu_mem_write_evt;
             if (ega_misc_write_cs && ega_io_we)
                 ega_misc_output_reg <= bus_d;
@@ -540,43 +518,12 @@ module ega_top(
                     ega_prev_crtc_data <= ega_last_crtc_data;
                     ega_last_crtc_index <= {3'b000, ega_crtc_index_shadow};
                     ega_last_crtc_data <= bus_d;
-
-                    if (ega_crtc_index_shadow == 5'h0C) begin
-                        ega_start_addr_pending <= {bus_d, ega_start_addr_pending[7:0]};
-                        ega_start_addr_pending_valid <= 1'b1;
-                    end else if (ega_crtc_index_shadow == 5'h0D) begin
-                        ega_start_addr_pending <= {ega_start_addr_pending[15:8], bus_d};
-                        ega_start_addr_pending_valid <= 1'b1;
-                    end
                 end
-            end
-
-            if (!ega_display_enable && ega_start_addr_pending_valid) begin
-                ega_start_addr_active <= ega_start_addr_pending;
-                ega_start_addr_pending_valid <= 1'b0;
             end
 
             if (ega_io_re && ega_debug_io_range) begin
                 ega_last_rd_addr <= ega_io_addr;
                 ega_last_rd_data <= ega_bus_out_mux;
-            end
-
-            if (!ega_enabled || !ega_display_sel) begin
-                ega_scanline_ctr <= 8'd0;
-                ega_byte_col_ctr <= 7'd0;
-            end
-            else begin
-                if (ega_display_rise) begin
-                    ega_byte_col_ctr <= 7'd0;
-                    if (ega_vblank_crtc_q || (ega_scanline_ctr == 8'd199))
-                        ega_scanline_ctr <= 8'd0;
-                    else
-                        ega_scanline_ctr <= ega_scanline_ctr + 8'd1;
-                end
-                else if (ega_ce_crt_fetch && ega_display_enable) begin
-                    if (ega_byte_col_ctr != (ega_bytes_per_line - 7'd1))
-                        ega_byte_col_ctr <= ega_byte_col_ctr + 7'd1;
-                end
             end
 
             if (!ega_enabled) begin
