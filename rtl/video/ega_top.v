@@ -246,7 +246,7 @@ module ega_top(
     wire [3:0] ega_plane_index;
     wire ega_pixel_valid;
     wire ega_hres_mode_int = ~ega_dot_clock_div2;
-    wire ega_display_enable = ~ega_hblank_crtc & ~ega_vblank_crtc;
+    wire ega_display_enable = ega_display_enable_crtc;
     wire ega_blanking_active = ega_status_not_displaying_crtc;
     wire ega_status_vretrace_active = ega_status_vretrace_crtc;
     wire [6:0] ega_bytes_per_line = ega_dot_clock_div2 ? 7'd40 : 7'd80;
