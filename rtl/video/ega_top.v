@@ -255,6 +255,9 @@ module ega_top(
 
     reg ega_display_enable_q = 1'b0;
     reg ega_vblank_crtc_q = 1'b0;
+    // 86Box reloads the start address when Input Status #1 bit 3 rises.
+    reg ega_status_vretrace_q = 1'b0;
+    wire ega_status_vretrace_rise = ~ega_status_vretrace_q & ega_status_vretrace_crtc;
     reg cpu_mem_write_evt_d = 1'b0;
     wire cpu_mem_write_evt = cpu_mem_select & cpu_mem_write;
     wire cpu_mem_write_stretched = cpu_mem_write_evt | cpu_mem_write_evt_d;
@@ -482,6 +485,7 @@ module ega_top(
             cga_vblank_q <= 1'b0;
             ega_display_enable_q <= 1'b0;
             ega_vblank_crtc_q <= 1'b0;
+            ega_status_vretrace_q <= 1'b0;
             ega_cfg_toggle <= 1'b0;
             ega_last_wr_addr <= 16'h0000;
             ega_last_wr_data <= 8'h00;
@@ -505,6 +509,7 @@ module ega_top(
             cga_vblank_q <= cga_vblank;
             ega_display_enable_q <= ega_display_enable;
             ega_vblank_crtc_q <= ega_vblank_crtc;
+            ega_status_vretrace_q <= ega_status_vretrace_crtc;
             cpu_mem_write_evt_d <= cpu_mem_write_evt;
             if (ega_misc_write_cs && ega_io_we)
                 ega_misc_output_reg <= bus_d;
@@ -536,18 +541,16 @@ module ega_top(
                     ega_last_crtc_index <= {3'b000, ega_crtc_index_shadow};
                     ega_last_crtc_data <= bus_d;
 
-                    if (ega_crtc_index_shadow == 5'h0C) begin
-                        ega_start_addr_pending <= {bus_d, ega_start_addr_pending[7:0]};
+                    // Mark CRTC start-address writes; commit from the CRTC bank
+                    // later so the two BIOS OUTs cannot expose a partial value.
+                    if ((ega_crtc_index_shadow == 5'h0C) ||
+                        (ega_crtc_index_shadow == 5'h0D))
                         ega_start_addr_pending_valid <= 1'b1;
-                    end else if (ega_crtc_index_shadow == 5'h0D) begin
-                        ega_start_addr_pending <= {ega_start_addr_pending[15:8], bus_d};
-                        ega_start_addr_pending_valid <= 1'b1;
-                    end
                 end
             end
 
-            if (!ega_display_enable && ega_start_addr_pending_valid) begin
-                ega_start_addr_active <= ega_start_addr_pending;
+            if (ega_status_vretrace_rise && ega_start_addr_pending_valid) begin
+                ega_start_addr_active <= {ega_crtc_r12_debug, ega_crtc_r13_debug};
                 ega_start_addr_pending_valid <= 1'b0;
             end
 
@@ -597,9 +600,8 @@ module ega_top(
         end
     end
 
-    // Match 86Box more closely: writes to CRTC start address update the
-    // latch immediately, but the visible fetch base only changes for the
-    // next frame after vertical blank has completed.
+    // Match 86Box: CRTC start-address writes affect the visible fetch base
+    // only when vertical retrace starts.
     assign ega_fetch_addr = ega_start_addr_active + ega_fetch_addr_linear;
     assign ega_fetch_en = ega_display_sel ? (ega_ce_crt_fetch & ega_display_enable) : 1'b0;
     assign ega_plane_write_mask_out = ega_plane_write_mask;
