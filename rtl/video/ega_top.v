@@ -245,6 +245,7 @@ module ega_top(
     wire ega_attr_video_enable;
     wire [3:0] ega_plane_index;
     wire ega_pixel_valid;
+    wire [3:0] ega_h_pixel_pan; //NEW
     wire ega_hres_mode_int = ~ega_dot_clock_div2;
     wire ega_display_enable = ega_display_enable_crtc;
     wire ega_blanking_active = ega_status_not_displaying_crtc;
@@ -382,6 +383,7 @@ module ega_top(
         .fetch_en(ega_fetch_data_valid),
         .dot_clock_div2(ega_dot_clock_div2),
         .plane_index(ega_plane_index),
+        .h_pixel_pan(ega_h_pixel_pan),  //NEW
         .pixel_valid(ega_pixel_valid)
     );
 
@@ -398,6 +400,7 @@ module ega_top(
         .plane_index(ega_plane_index),
         .pixel_valid(ega_pixel_valid),
         .display_enable(ega_display_enable),
+        .pixel_pan_out(ega_h_pixel_pan),  //NEW
         .palette_64_mode(ega_misc_output_reg[7]),
         .color_out(ega_color_raw),
         .display_enable_out(ega_display_enable_raw),

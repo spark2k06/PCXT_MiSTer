@@ -20,6 +20,7 @@ module ega_attrib_ctrl (
     input  wire        pixel_valid,
     input  wire        display_enable,
     input  wire        palette_64_mode,
+    output wire [3:0]  pixel_pan_out, //NEW
     output reg  [5:0]  color_out,
     output reg         display_enable_out,
     output reg         video_enable_out
@@ -51,6 +52,7 @@ module ega_attrib_ctrl (
     // but does not alter the effective 6-bit EGA palette on the base IBM card.
     wire [5:0] pixel_color_code = raw_palette[masked_plane_index][5:0];
     wire [5:0] border_color_code = palette_64_mode ? overscan_reg[5:0] : {2'b00, overscan_reg[3:0]};
+    assign pixel_pan_out = pixel_panning_reg[3:0];    //NEW
 
     integer palette_index;
 
