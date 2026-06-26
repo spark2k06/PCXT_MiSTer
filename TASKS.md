@@ -584,7 +584,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-207 - Implement CRTC Write Protection
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-201.
 - Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
@@ -597,6 +597,14 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Tests can prove protected writes are ignored and unprotected writes still
     update the expected registers.
+- Verification:
+  - `UM6845R.v` now gates EGA CRTC writes to registers `00h..06h` when CRTC
+    register `11h[7]` is set.
+  - Protected writes to register `07h` now preserve all bits except bit `4`,
+    matching the x86Box EGA write path.
+  - Unprotected CRTC writes and non-EGA CRTC instances keep the previous direct
+    write behavior.
+  - Quartus Analysis & Elaboration passed with `0 errors, 258 warnings`.
 
 ### EGA-208 - Add Register-Oriented Testbench Coverage
 

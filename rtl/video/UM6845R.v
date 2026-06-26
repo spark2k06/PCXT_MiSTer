@@ -181,6 +181,8 @@ wire [9:0] eff_v_sync_match = eff_v_sync_pos - timing_offset;
 
 
 reg [4:0] addr;
+wire ega_crtc_write_protect = CRTC_TYPE && R17_v_sync_end_e[7];
+
 always @(*) begin
 	DO = 8'hFF;
 	if (ENABLE & ~nCS) begin
@@ -253,14 +255,16 @@ always @(posedge CLOCK) begin
 		if (~RS) addr <= DI[4:0];
 		else begin
 			case (addr)
-				00: R0_h_total <= DI;
-				01: R1_h_displayed <= DI;
-				02: R2_h_sync_pos <= DI;
-				03: {R3_v_sync_width,R3_h_sync_width} <= DI;
-				04: R4_v_total <= DI[6:0];
-				05: R5_v_total_adj <= DI[4:0];
-				06: R6_v_displayed <= DI;
-				07: R7_v_sync_pos <= DI; //R7_v_overflow <= DI;
+				00: if (!ega_crtc_write_protect) R0_h_total <= DI;
+				01: if (!ega_crtc_write_protect) R1_h_displayed <= DI;
+				02: if (!ega_crtc_write_protect) R2_h_sync_pos <= DI;
+				03: if (!ega_crtc_write_protect) {R3_v_sync_width, R3_h_sync_width} <= DI;
+				04: if (!ega_crtc_write_protect) R4_v_total <= DI[6:0];
+				05: if (!ega_crtc_write_protect) R5_v_total_adj <= DI[4:0];
+				06: if (!ega_crtc_write_protect) R6_v_displayed <= DI;
+				07: R7_v_sync_pos <= ega_crtc_write_protect
+					? {R7_v_sync_pos[7:5], DI[4], R7_v_sync_pos[3:0]}
+					: DI; //R7_v_overflow <= DI;
 				08: {R8_skew, R8_interlace} <= {DI[5:4],DI[1:0]};
 				09: R9_v_max_line <= DI[4:0];
 				10: {R10_cursor_mode,R10_cursor_start} <= DI[6:0];
