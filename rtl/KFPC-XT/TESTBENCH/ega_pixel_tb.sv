@@ -64,6 +64,30 @@ module ega_pixel_tb;
         end
     endfunction
 
+    function automatic [3:0] egaremap2bpp;
+        input [7:0] value;
+        begin
+            egaremap2bpp = {value[6], value[4], value[2], value[0]};
+        end
+    endfunction
+
+    task automatic cga2bpp_convert;
+        input [7:0] edat0;
+        input [7:0] edat1;
+        input [7:0] edat2;
+        input [7:0] edat3;
+        output [7:0] dat0;
+        output [7:0] dat1;
+        output [7:0] dat2;
+        output [7:0] dat3;
+        begin
+            dat0 = {egaremap2bpp(edat0), egaremap2bpp(edat1)};
+            dat1 = {egaremap2bpp({1'b0, edat0[7:1]}), egaremap2bpp({1'b0, edat1[7:1]})};
+            dat2 = {egaremap2bpp(edat2), egaremap2bpp(edat3)};
+            dat3 = {egaremap2bpp({1'b0, edat2[7:1]}), egaremap2bpp({1'b0, edat3[7:1]})};
+        end
+    endtask
+
     task automatic expect_pixel;
         input [3:0] expected;
         input integer sample;
@@ -265,6 +289,41 @@ module ega_pixel_tb;
         end
     endtask
 
+    task automatic check_cga2bpp_conversion;
+        reg [7:0] edat0;
+        reg [7:0] edat1;
+        reg [7:0] edat2;
+        reg [7:0] edat3;
+        reg [7:0] dat0;
+        reg [7:0] dat1;
+        reg [7:0] dat2;
+        reg [7:0] dat3;
+        integer i;
+        begin
+            edat0 = 8'b11001001;
+            edat1 = 8'b00110110;
+            edat2 = 8'b10100101;
+            edat3 = 8'b01011010;
+            cga2bpp_convert(edat0, edat1, edat2, edat3, dat0, dat1, dat2, dat3);
+
+            render_mode = 2'd2;
+            dot_clock_div2 = 1'b0;
+            h_pixel_pan = 4'd0;
+            display_enable = 1'b1;
+
+            load_planes(edat0, edat1, edat2, edat3);
+            expect_pixel(planar_pixel(dat0, dat1, dat2, dat3, 0), 0);
+
+            for (i = 1; i < 8; i = i + 1) begin
+                @(posedge clk);
+                #1;
+                expect_pixel(planar_pixel(dat0, dat1, dat2, dat3, i), i);
+            end
+
+            render_mode = 2'd1;
+        end
+    endtask
+
     initial begin
         repeat (2) @(posedge clk);
 
@@ -275,6 +334,8 @@ module ega_pixel_tb;
         check_panned_shift();
         repeat (2) @(posedge clk);
         check_render_mode_selection();
+        repeat (2) @(posedge clk);
+        check_cga2bpp_conversion();
 
         if (errors == 0) begin
             $display("PASS ega_pixel_tb");

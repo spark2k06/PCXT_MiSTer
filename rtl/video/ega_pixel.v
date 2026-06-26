@@ -40,10 +40,23 @@ module ega_pixel (
     reg       load_pending = 1'b0;
     reg       display_enable_q = 1'b0;
     reg [3:0] pan_cache = 4'd0;
-    wire [7:0] load_plane0 = fetch_en ? plane0_data : fetch_plane0;
-    wire [7:0] load_plane1 = fetch_en ? plane1_data : fetch_plane1;
-    wire [7:0] load_plane2 = fetch_en ? plane2_data : fetch_plane2;
-    wire [7:0] load_plane3 = fetch_en ? plane3_data : fetch_plane3;
+
+    function [3:0] egaremap2bpp;
+        input [7:0] value;
+        begin
+            egaremap2bpp = {value[6], value[4], value[2], value[0]};
+        end
+    endfunction
+
+    wire       cga2_render = (render_mode == RENDER_CGA2);
+    wire [7:0] input_plane0 = cga2_render ? {egaremap2bpp(plane0_data), egaremap2bpp(plane1_data)} : plane0_data;
+    wire [7:0] input_plane1 = cga2_render ? {egaremap2bpp({1'b0, plane0_data[7:1]}), egaremap2bpp({1'b0, plane1_data[7:1]})} : plane1_data;
+    wire [7:0] input_plane2 = cga2_render ? {egaremap2bpp(plane2_data), egaremap2bpp(plane3_data)} : plane2_data;
+    wire [7:0] input_plane3 = cga2_render ? {egaremap2bpp({1'b0, plane2_data[7:1]}), egaremap2bpp({1'b0, plane3_data[7:1]})} : plane3_data;
+    wire [7:0] load_plane0 = fetch_en ? input_plane0 : fetch_plane0;
+    wire [7:0] load_plane1 = fetch_en ? input_plane1 : fetch_plane1;
+    wire [7:0] load_plane2 = fetch_en ? input_plane2 : fetch_plane2;
+    wire [7:0] load_plane3 = fetch_en ? input_plane3 : fetch_plane3;
     wire [3:0] sanitized_pan = h_pixel_pan[3] ? 4'd0 : h_pixel_pan;
     wire [3:0] active_pan = (display_enable && !display_enable_q) ? sanitized_pan : pan_cache;
     //NEW pixel panning
@@ -66,10 +79,10 @@ module ega_pixel (
 
     always @(posedge clk) begin
         if (fetch_en && graphics_render) begin
-            fetch_plane0 <= plane0_data;
-            fetch_plane1 <= plane1_data;
-            fetch_plane2 <= plane2_data;
-            fetch_plane3 <= plane3_data;
+            fetch_plane0 <= input_plane0;
+            fetch_plane1 <= input_plane1;
+            fetch_plane2 <= input_plane2;
+            fetch_plane3 <= input_plane3;
             load_pending <= 1'b1;
         end
 

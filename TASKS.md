@@ -950,7 +950,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-404 - Implement CGA-Compatible 2bpp EGA Graphics
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-403.
 - Files: `rtl/video/ega_pixel.v`, `rtl/video/ega_attrib_ctrl.v`.
@@ -963,6 +963,17 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - A known 2bpp pattern produces the same color-index sequence as the reference
     model.
+- Completed:
+  - `ega_pixel.v` now implements the x86Box `egaremap2bpp` mapping from source
+    bits `0,2,4,6` into nibble bits `0..3`.
+  - CGA-compatible render mode converts the four fetched EGA bytes into planar
+    `dat0..dat3` before the existing panning and shift pipeline.
+  - `ega_pixel_tb.sv` now calculates the same reference conversion and checks
+    the full eight-pixel color-index sequence for a known 2bpp pattern.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 251 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-405 - Verify Sequencer Odd/Even Effects On Graphics Fetch
 
