@@ -1294,7 +1294,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-801 - Add Pure Reference Models For Tests
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-001.
 - Files: testbench helper package or shared include under
@@ -1306,6 +1306,14 @@ must be anchored to the behavior it proves.
   - Keep helpers independent from DUT signal names.
 - Acceptance:
   - New testbenches share reference helpers instead of duplicating formulas.
+- Verification:
+  - Added `rtl/KFPC-XT/TESTBENCH/ega_reference_pkg.sv` with pure `ega_ref_*`
+    functions for CPU address/window remap, VRAM write/read modes, CRTC scanout
+    remap and row advance, planar pixel assembly, graphics blink, palette code,
+    and RGB6 conversion.
+  - Helpers use explicit arguments and do not reference DUT signal names.
+  - Existing executable simulator tools are unavailable in this environment, so
+    verification is limited to static review and `git diff --check`.
 
 ### EGA-802 - Add `ega_registers_tb`
 
