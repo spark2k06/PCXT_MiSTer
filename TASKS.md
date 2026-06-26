@@ -787,7 +787,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-306 - Verify Split Screen And Line Compare
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-303, EGA-305.
 - Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
@@ -799,6 +799,21 @@ must be anchored to the behavior it proves.
   - Confirm horizontal panning and start-address behavior across the split.
 - Acceptance:
   - A deterministic test can detect wrong split-screen restart line or address.
+- Verification:
+  - `UM6845R.v` gives `line_compare_match` priority over the normal EGA
+    scanout address increment, so split cannot be overwritten in the same
+    cycle.
+  - Split now resets both saved/current scanout addresses and the CRTC scanline
+    counter to page 0 behavior matching the x86Box base path.
+  - `line_compare_target` already composes `18h`, `07h[4]`, and `09h[6]`; the
+    register testbench covers this formula and now covers the reset
+    side-effects.
+  - x86Box split handling does not change fine horizontal panning; ATTR `13h`
+    remains an independent register path already covered by
+    `ega_registers_tb.sv`.
+  - Quartus Analysis & Elaboration passed: 0 errors, 255 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-307 - Verify CRTC Reset And Display Disable Paths
 

@@ -721,6 +721,26 @@ module ega_registers_tb;
         release crtc_dut.hcc_last;
         release crtc_dut.row_addr_save;
 
+        begin_test("CRTC split resets address and scanline");
+        crtc_write(1'b0, 8'h13);
+        crtc_write(1'b1, 8'h14);
+        crtc_dut.row_addr = 16'h5555;
+        crtc_dut.row_addr_r = 16'hAAAA;
+        crtc_dut.line = 5'd9;
+        force crtc_dut.line_compare_match = 1'b1;
+        force crtc_dut.hcc_last = 1'b0;
+        @(posedge clk);
+        #1 begin
+            expect16("CRTC split resets saved row address",
+                     crtc_dut.row_addr, 16'h0000);
+            expect16("CRTC split resets current row address",
+                     crtc_dut.row_addr_r, 16'h0000);
+            expect8("CRTC split resets scanline",
+                    {3'b000, crtc_dut.line}, 8'h00);
+        end
+        release crtc_dut.line_compare_match;
+        release crtc_dut.hcc_last;
+
         begin_test("top-level misc output and color CRTC ports");
         top_io_read(16'h03CC, read_value);
         expect8("Misc Output reset", read_value, 8'h63);

@@ -375,6 +375,7 @@ always @(posedge CLOCK) begin
 				field <= ~field & R8_interlace[0];
 			end
 		end
+		if(CRTC_TYPE && line_compare_match) line <= 5'd0;
 		if (vblank) begin
             // Hold the counter at 0 during the entire vertical blanking/retrace phase
             frame_scanline_cnt <= 10'd0;
@@ -415,8 +416,7 @@ always @(posedge CLOCK) begin
 			if (line_compare_match) begin
 				row_addr   <= 16'd0;
 				row_addr_r <= 16'd0;
-			end
-			if(!hcc_last) begin
+			end else if(!hcc_last) begin
 				row_addr_r <= row_addr_r + 16'd1;
 			end else if(frame_new) begin
 				row_addr <= start_addr_latch;

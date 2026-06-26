@@ -37,9 +37,9 @@ Sources:
 | `04h` | Vertical Total Low | `R4_v_total[6:0]`. | Stored and protected. Used only by non-extended fallback path. | EGA vertical total must compose from `06h` plus `07h[0]` and `07h[5]`; EGA-302. |
 | `05h` | Vertical Total Adjust | `R5_v_total_adj[4:0]`. | Stored and protected. Used by frame adjustment logic. | Needs frame-adjust regression coverage in EGA-302. |
 | `06h` | Vertical Displayed Low | `R6_v_displayed`. | Stored and protected. Used by non-extended fallback path. | EGA display end must compose from `12h` plus `07h[1]` and `07h[6]`; EGA-302. |
-| `07h` | Overflow | `R7_v_sync_pos`. | Stored with partial protection: when `11h[7]` is set, only bit 4 can change. Active formulas use bits 0, 1, 2, 3, 4, 5, 6, and 7. | Formula composition is covered by EGA-302; split side effects remain EGA-306. |
+| `07h` | Overflow | `R7_v_sync_pos`. | Stored with partial protection: when `11h[7]` is set, only bit 4 can change. Active formulas use bits 0, 1, 2, 3, 4, 5, 6, and 7. | Formula composition is covered by EGA-302; split side effects are covered by EGA-306. |
 | `08h` | Preset Row Scan / Interlace | `{R8_skew, R8_interlace}`. | Stored. Interlace participates in generic field/line logic. | Verify whether EGA interlace odd/even start-address adjustment is needed in EGA-305. |
-| `09h` | Maximum Scan Line | `R9_v_max_line`; low five bits are exported as `V_MAXSCAN_REG`. | Full byte is stored. Low five bits drive scanline row length, bit `6` participates in split target composition, and bit `7` doubles row advance. | Split side effects remain EGA-306. |
+| `09h` | Maximum Scan Line | `R9_v_max_line`; low five bits are exported as `V_MAXSCAN_REG`. | Full byte is stored. Low five bits drive scanline row length, bit `6` participates in split target composition, and bit `7` doubles row advance. | Covered by EGA-304/EGA-306. |
 | `0Ah` | Cursor Start | `{R10_cursor_mode, R10_cursor_start}`. | Stored/readable. Generic cursor line logic uses `R10_cursor_start`. | Text cursor blink/disable behavior belongs to later text-render tasks; keep visible in EGA-301 traceability. |
 | `0Bh` | Cursor End | `R11_cursor_end[4:0]`. | Stored/readable. Generic cursor line logic uses low five bits. | Bits `6:5` blink-delay semantics are not implemented; defer to text cursor task after CRTC address work. |
 | `0Ch` | Start Address High | `R12_start_addr_h`; also writes `start_addr_latch[15:8]`. | Stored/readable. Writes update the pending latch immediately; visible EGA reloads use `start_addr_frame`, which updates only on `frame_new`. | Covered by EGA-305. |
@@ -54,7 +54,7 @@ Sources:
 | `15h` | Vertical Blank Start | `R21_v_blank_start_e`; exported as `crtc_r15_debug`. | Stored/readable. Used for EGA vertical blank start if extended timing is active. | Needs blanking/status coverage in EGA-302/EGA-307. |
 | `16h` | Vertical Blank End | `R22_v_blank_end_e`; exported as `crtc_r16_debug`. | Stored/readable. Used for EGA vertical blank end if nonzero. | Needs blanking/status coverage in EGA-302/EGA-307. |
 | `17h` | Mode Control | `R23_mode_control_e`; exported as `crtc_r17_debug`. | Stored/readable. Bits `0`, `1`, `5`, and `6` control display-address remap and scanline substitution. | Bit `7` reset/display-disable blanking remains EGA-307. |
-| `18h` | Line Compare | `R24_line_compare_e`; readback defaults to `FFh` on reset. | Stored/readable. Current split target uses `{09h[6], 07h[4], 18h} + 1`. | Split must still reset address/scanline deterministically; EGA-306. |
+| `18h` | Line Compare | `R24_line_compare_e`; readback defaults to `FFh` on reset. | Stored/readable. Current split target uses `{09h[6], 07h[4], 18h} + 1`; split resets saved/current address and scanline to page 0. | Covered by EGA-306. |
 
 ## Derived Behavior Checklist
 
@@ -130,15 +130,19 @@ Remaining text cursor scope:
 
 Current RTL:
 
-- Compares `frame_scanline_cnt` against `{07h[4], 18h}`.
-- Resets `row_addr` and `row_addr_r` to zero in EGA row-address mode.
+- Compares `frame_scanline_cnt` against `{09h[6], 07h[4], 18h} + 1`.
+- In EGA row-address mode, split reset has priority over the normal scanout
+  address increment and resets both `row_addr` and `row_addr_r` to zero.
+- Split also resets the CRTC scanline counter to zero, matching the base
+  x86Box page-0 split behavior.
 
-Missing behavior:
+Deferred behavior:
 
-- Reset scanline state consistently with display address.
+- The x86Box interlace odd/even exception (`rowoffset << 1`) is not implemented
+  yet because the current EGA scanout path does not model that interlace mode.
 - Verify behavior when split occurs outside or at the visible range.
 
-Missing behavior is assigned to EGA-306.
+Out-of-visible-range coverage is assigned to EGA-308.
 
 ### CRTC Reset / Display Disable
 
