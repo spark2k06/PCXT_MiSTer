@@ -1325,7 +1325,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-601 - Choose Text Renderer Architecture
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-303, EGA-501.
 - Files: `rtl/video/ega_top.v`, `rtl/video/ega_pixel.v`,
@@ -1339,6 +1339,16 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Architecture decision identifies module boundaries and required VRAM
     frontend changes before implementation begins.
+- Completed:
+  - Added `EGA_TEXT_ARCHITECTURE.md` selecting a dedicated `ega_text.v`
+    renderer instead of extending the graphics shifter in `ega_pixel.v`.
+  - The architecture defines `ega_top.v`, `ega_pixel.v`, `ega_text.v`, and
+    VRAM/frontend module boundaries.
+  - The text fetch contract covers character byte, attribute byte, font row
+    byte, registered latency, and Character Map Select bank inputs.
+  - The document records how text output should share palette, blink, border,
+    and blanking behavior with the existing Attribute Controller path.
+  - `git diff --check` passed.
 
 ### EGA-602 - Extend VRAM Frontend For Text Fetches
 
