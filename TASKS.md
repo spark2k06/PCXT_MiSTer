@@ -533,7 +533,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-205 - Verify Sequencer Register Behavior
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-201.
 - Files: `rtl/video/ega_sequencer.v`, `rtl/video/ega_top.v`.
@@ -546,6 +546,15 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Sequencer register readback and exported control signals match programmed
     values after reset and writes.
+- Verification:
+  - Added `EGA_SEQUENCER_AUDIT.md` mapping registers `00h..04h`, reset values,
+    data-port readback, and exported control signals.
+  - The audit traces map mask, chain-2 write, extended memory, dot-clock, CRT
+    fetch, and CPU-access slot outputs to their current consumers.
+  - The document records the deterministic sequence EGA-208 should encode in an
+    executable register testbench.
+  - Character Map Select storage/readback is verified, with downstream text
+    rendering consumption left to the text-renderer tasks.
 
 ### EGA-206 - Verify Graphics Controller Register Behavior
 
