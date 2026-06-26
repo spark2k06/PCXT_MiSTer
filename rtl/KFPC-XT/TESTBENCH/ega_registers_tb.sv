@@ -680,6 +680,47 @@ module ega_registers_tb;
         expect8("CRTC max scan line ignores line-double bit",
                 {3'b000, crtc_v_maxscan}, 8'h07);
 
+        begin_test("CRTC start address frame latch");
+        crtc_write(1'b0, 8'h13);
+        crtc_write(1'b1, 8'h00);
+        crtc_dut.start_addr_frame = 16'h1234;
+        crtc_dut.cursor_addr_frame = 14'h0123;
+        crtc_dut.row_addr_r = 16'h0000;
+        crtc_write(1'b0, 8'h0C);
+        crtc_write(1'b1, 8'h56);
+        crtc_write(1'b0, 8'h0D);
+        crtc_write(1'b1, 8'h78);
+        crtc_write(1'b0, 8'h0E);
+        crtc_write(1'b1, 8'h04);
+        crtc_write(1'b0, 8'h0F);
+        crtc_write(1'b1, 8'h56);
+        expect16("CRTC start address write updates pending latch",
+                 crtc_dut.start_addr_latch, 16'h5678);
+        expect16("CRTC cursor writes do not change current frame cursor",
+                 {2'b00, crtc_dut.cursor_addr_frame}, 16'h0123);
+        force crtc_dut.CRTC1_reload = 1'b1;
+        force crtc_dut.frame_new = 1'b0;
+        force crtc_dut.hcc_last = 1'b1;
+        force crtc_dut.row_addr_save = 1'b0;
+        @(posedge clk);
+        #1 expect16("CRTC first-row reload keeps current frame start",
+                    crtc_dut.row_addr_r, 16'h1234);
+        crtc_dut.row_addr_r = 16'h0000;
+        force crtc_dut.frame_new = 1'b1;
+        @(posedge clk);
+        #1 begin
+            expect16("CRTC frame reload applies pending start address",
+                     crtc_dut.row_addr_r, 16'h5678);
+            expect16("CRTC visible frame start updates at frame boundary",
+                     crtc_dut.start_addr_frame, 16'h5678);
+            expect16("CRTC visible cursor address updates at frame boundary",
+                     {2'b00, crtc_dut.cursor_addr_frame}, 16'h0456);
+        end
+        release crtc_dut.CRTC1_reload;
+        release crtc_dut.frame_new;
+        release crtc_dut.hcc_last;
+        release crtc_dut.row_addr_save;
+
         begin_test("top-level misc output and color CRTC ports");
         top_io_read(16'h03CC, read_value);
         expect8("Misc Output reset", read_value, 8'h63);

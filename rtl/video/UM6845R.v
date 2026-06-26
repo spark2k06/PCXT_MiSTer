@@ -392,15 +392,25 @@ wire row_addr_save = hcc == R1_h_displayed && (CRTC_TYPE ? line_last : line_last
 reg  [15:0] row_addr;   // saved pointer
 reg  [15:0] row_addr_r; // current pointer
 reg  [15:0] start_addr_latch;
+reg  [15:0] start_addr_frame;
+wire [15:0] crtc_reg_start_addr = {R12_start_addr_h, R13_start_addr_l};
+reg  [13:0] cursor_addr_frame;
+wire [13:0] crtc_reg_cursor_addr = {R14_cursor_h, R15_cursor_l};
 wire [15:0] ega_row_advance = R9_v_max_line[7] ? {6'd0, R19_offset_e, 2'b00} :
                                                    {7'd0, R19_offset_e, 1'b0};
 wire        ega_ma_mode = CRTC_TYPE && |R19_offset_e;
 always @(posedge CLOCK) begin
 	if(~nRESET) begin
-		row_addr <= {R12_start_addr_h, R13_start_addr_l};
-		row_addr_r <= {R12_start_addr_h, R13_start_addr_l};
+		row_addr <= crtc_reg_start_addr;
+		row_addr_r <= crtc_reg_start_addr;
+		start_addr_frame <= crtc_reg_start_addr;
+		cursor_addr_frame <= crtc_reg_cursor_addr;
 	end
 	else if(CLKEN) begin
+		if(CRTC_TYPE && frame_new) begin
+			start_addr_frame <= start_addr_latch;
+			cursor_addr_frame <= crtc_reg_cursor_addr;
+		end
 		if(ega_ma_mode) begin
 			if (line_compare_match) begin
 				row_addr   <= 16'd0;
@@ -423,11 +433,11 @@ always @(posedge CLOCK) begin
 			if(!hcc_last)                 row_addr_r <= row_addr_r + 1'd1;
 
 			if(CRTC0_reload) begin
-				row_addr <= {R12_start_addr_h, R13_start_addr_l};
-				row_addr_r <= {R12_start_addr_h, R13_start_addr_l};
+				row_addr <= crtc_reg_start_addr;
+				row_addr_r <= crtc_reg_start_addr;
 			end
 			if(CRTC1_reload) begin
-				row_addr_r <= {R12_start_addr_h, R13_start_addr_l};
+				row_addr_r <= frame_new ? start_addr_latch : start_addr_frame;
 			end
 		end
 	end
@@ -638,7 +648,7 @@ end
 
 // Cursor control
 reg cursor_line;
-assign CURSOR = hde & vde & MA == {R14_cursor_h, R15_cursor_l} & cursor_line;
+assign CURSOR = hde & vde & (MA == (CRTC_TYPE ? cursor_addr_frame : crtc_reg_cursor_addr)) & cursor_line;
 
 always @(posedge CLOCK) begin
 

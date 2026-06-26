@@ -42,10 +42,10 @@ Sources:
 | `09h` | Maximum Scan Line | `R9_v_max_line`; low five bits are exported as `V_MAXSCAN_REG`. | Full byte is stored. Low five bits drive scanline row length, bit `6` participates in split target composition, and bit `7` doubles row advance. | Split side effects remain EGA-306. |
 | `0Ah` | Cursor Start | `{R10_cursor_mode, R10_cursor_start}`. | Stored/readable. Generic cursor line logic uses `R10_cursor_start`. | Text cursor blink/disable behavior belongs to later text-render tasks; keep visible in EGA-301 traceability. |
 | `0Bh` | Cursor End | `R11_cursor_end[4:0]`. | Stored/readable. Generic cursor line logic uses low five bits. | Bits `6:5` blink-delay semantics are not implemented; defer to text cursor task after CRTC address work. |
-| `0Ch` | Start Address High | `R12_start_addr_h`; also writes `start_addr_latch[15:8]`. | Stored/readable. Writes update the latch immediately. | Visible fetch-base reload must be frame-latched across all EGA address modes; EGA-305. |
-| `0Dh` | Start Address Low | `R13_start_addr_l`; also writes `start_addr_latch[7:0]`. | Stored/readable. Writes update the latch immediately. | Same frame-latching verification as `0Ch`; EGA-305. |
-| `0Eh` | Cursor Location High | `R14_cursor_h[5:0]`. | Stored/readable. Generic `CURSOR` compares `MA` against `{R14_cursor_h, R15_cursor_l}`. | Full EGA text cursor render behavior is outside Phase 3, but cursor address reload should be checked with EGA-305. |
-| `0Fh` | Cursor Location Low | `R15_cursor_l`. | Stored/readable. Used by generic cursor compare. | Same as `0Eh`. |
+| `0Ch` | Start Address High | `R12_start_addr_h`; also writes `start_addr_latch[15:8]`. | Stored/readable. Writes update the pending latch immediately; visible EGA reloads use `start_addr_frame`, which updates only on `frame_new`. | Covered by EGA-305. |
+| `0Dh` | Start Address Low | `R13_start_addr_l`; also writes `start_addr_latch[7:0]`. | Stored/readable. Same pending/visible split as `0Ch`. | Covered by EGA-305. |
+| `0Eh` | Cursor Location High | `R14_cursor_h[5:0]`. | Stored/readable. EGA `CURSOR` compares against `cursor_addr_frame`, which updates only on `frame_new`; non-EGA keeps raw-register behavior. | Full EGA text cursor render behavior is outside Phase 3. |
+| `0Fh` | Cursor Location Low | `R15_cursor_l`. | Stored/readable. Same frame-latched cursor address behavior as `0Eh`. | Covered by EGA-305. |
 | `10h` | Vertical Retrace Start Low | `R16_v_sync_pos_e`; exported as `crtc_r10_debug`. | Stored/readable and used in EGA vertical sync start formula with overflow bit `07h[7]`. | Covered by EGA-302. |
 | `11h` | Vertical Retrace End / Protect | `R17_v_sync_end_e`; exported as `crtc_r11_debug`. | Stored/readable. Bit `7` protects indexes `00h..06h` and partially protects `07h`. Bits `3:0` close the EGA status retrace window. | Implemented protection is covered by EGA-207/EGA-208; retrace-window timing still needs EGA-302 validation. |
 | `12h` | Vertical Display End Low | `R18_v_display_end_e`. | Stored/readable and used in EGA display-end formula with overflow bit `07h[6]`. | Covered by EGA-302. |
@@ -115,13 +115,16 @@ Current RTL:
 - Writes to `0Ch/0Dh` update `start_addr_latch` immediately.
 - In EGA row-address mode, `frame_new` reloads `row_addr` and `row_addr_r` from
   `start_addr_latch`.
-- In the non-row-address fallback path, the CRTC1 reload path still reloads
-  from the raw `0Ch/0Dh` register pair.
+- `start_addr_frame` tracks the visible EGA frame start and updates only on
+  `frame_new`, so first-row reloads in the non-row-address fallback path keep
+  the current frame address after mid-frame writes.
+- `cursor_addr_frame` applies the same frame-boundary rule to EGA cursor
+  address compares.
 
-Required next step:
+Remaining text cursor scope:
 
-- EGA-305 must make the visible reload rule explicit and test it across all EGA
-  address modes.
+- Future cursor-render tasks still need to validate text cursor shape, blink,
+  and disable behavior.
 
 ### Split / Line Compare
 

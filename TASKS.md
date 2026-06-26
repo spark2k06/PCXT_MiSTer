@@ -761,7 +761,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-305 - Implement Start Address Frame Latching
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-303.
 - Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
@@ -771,6 +771,19 @@ must be anchored to the behavior it proves.
   - Avoid mid-frame tearing behavior unless it is required by the reference.
 - Acceptance:
   - Tests or smoke cases show stable page flips at frame boundaries.
+- Verification:
+  - `UM6845R.v` now separates the pending CRTC start-address latch from the
+    visible `start_addr_frame`, which updates only on EGA `frame_new`.
+  - EGA cursor address comparison now uses `cursor_addr_frame`, updated at the
+    same frame boundary as the start address.
+  - First-row reloads in the non-row-address EGA fallback path use the current
+    visible frame start until `frame_new` applies pending `0Ch/0Dh` writes.
+  - `ega_registers_tb.sv` includes directed checks for pending start writes,
+    first-row reload stability, frame-boundary start reload, and cursor-address
+    frame latching.
+  - Quartus Analysis & Elaboration passed: 0 errors, 255 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-306 - Verify Split Screen And Line Compare
 
