@@ -1556,7 +1556,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-609 - Implement Text Horizontal Panning
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-603, EGA-203.
 - Files: text renderer module, `rtl/video/ega_attrib_ctrl.v`.
@@ -1639,6 +1639,19 @@ must be anchored to the behavior it proves.
     address ranges.
 - Acceptance:
   - Non-EGA modes still boot and display after EGA decode changes.
+- Completed:
+  - Added `EGA_CGA_HGC_COEXISTENCE_AUDIT.md` covering EGA, CGA, Tandy, and HGC
+    memory-decode priority and output mux behavior.
+  - Verified statically that `ega_mem_select` is false when runtime EGA is
+    disabled, so CGA/Tandy/HGC memory selects are not masked in non-EGA modes.
+  - Verified statically that overlapping EGA-enabled apertures intentionally
+    prioritize EGA before CGA/Tandy/HGC on both memory decode and CPU readback.
+  - Verified statically that HGC output-swap still has priority over EGA RGB,
+    and that CGA is only suppressed by `ega_display_sel_cga` when EGA is
+    actually selected for display.
+  - `git diff --check` passed.
+  - End-to-end boot/display smoke was not run in this environment; this task is
+    a static coexistence audit.
 
 ### EGA-703 - Verify EGA BIOS ROM Loading And Protection
 
