@@ -223,7 +223,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-102 - Add CPU Address Remap Reference Helpers
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-101.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`.
@@ -236,6 +236,13 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Test expected values are calculated through reference helpers rather than
     duplicated ad hoc logic.
+- Verification:
+  - `ega_vram_tb.sv` now has pure reference helpers for CPU plane address
+    remapping, chain-2 read plane selection, and chain-2 write mask selection.
+  - The current CPU A16 case uses the remap helper instead of hardcoded internal
+    plane addresses.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-103 - Cover GC Memory Map Selection In Tests
 

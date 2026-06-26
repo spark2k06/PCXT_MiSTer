@@ -200,6 +200,71 @@ module ega_vram_tb;
         end
     endfunction
 
+    function automatic [15:0] expected_cpu_plane_addr(
+        input [16:0] addr,
+        input        odd_even_mode_sel,
+        input        extended_memory_sel,
+        input [1:0]  mem_map_sel_in,
+        input        page_select_in
+    );
+        reg [15:0] remapped_addr;
+        reg [2:0]  a0mux;
+        begin
+            remapped_addr = addr[15:0];
+            a0mux = 3'b000;
+
+            if (odd_even_mode_sel)
+                a0mux = a0mux | 3'b010;
+
+            if (mem_map_sel_in == 2'b00)
+                a0mux = a0mux | 3'b100;
+
+            case (mem_map_sel_in)
+                2'b10,
+                2'b11: remapped_addr = remapped_addr & 16'h7FFF;
+                default: remapped_addr = remapped_addr & 16'hFFFF;
+            endcase
+
+            case (a0mux)
+                3'b010: begin
+                    remapped_addr = remapped_addr & 16'hFFFE;
+                    remapped_addr[0] = ~page_select_in;
+                end
+                3'b110: begin
+                    remapped_addr = remapped_addr & 16'hFFFE;
+                    remapped_addr[0] = addr[16];
+                end
+                default: begin
+                end
+            endcase
+
+            if (!extended_memory_sel)
+                remapped_addr = remapped_addr & 16'h3FFF;
+
+            expected_cpu_plane_addr = remapped_addr;
+        end
+    endfunction
+
+    function automatic [1:0] expected_read_plane(
+        input [16:0] addr,
+        input [1:0]  read_plane,
+        input        chain2_read_sel
+    );
+        begin
+            expected_read_plane = chain2_read_sel ? {read_plane[1], addr[0]} : read_plane;
+        end
+    endfunction
+
+    function automatic [3:0] expected_write_mask(
+        input [16:0] addr,
+        input [3:0]  mask,
+        input        chain2_write_sel
+    );
+        begin
+            expected_write_mask = chain2_write_sel ? (mask & (4'b0101 << addr[0])) : mask;
+        end
+    endfunction
+
     task automatic expect_eq8(
         input [8*48-1:0] label,
         input [7:0] actual,
@@ -451,6 +516,8 @@ module ega_vram_tb;
     endtask
 
     task automatic test_cpu_a16_remap;
+        reg [15:0] low_addr;
+        reg [15:0] high_addr;
         begin
             begin_test("CPU A16 selects remapped low/high A000 aperture bytes");
             plane_write_mask = 4'hF;
@@ -469,14 +536,22 @@ module ega_vram_tb;
             set_reset = 8'h00;
             enable_set_reset = 4'h0;
 
-            set_planes(16'h0040, 8'h00, 8'h00, 8'h00, 8'h00);
-            set_planes(16'h0041, 8'h00, 8'h00, 8'h00, 8'h00);
+            low_addr = expected_cpu_plane_addr(17'h00040, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            high_addr = expected_cpu_plane_addr(17'h10040, odd_even_mode, extended_memory, mem_map_sel, page_select);
+
+            expect_eq8("cpu a16=0 expected remap address", low_addr[7:0], 8'h40);
+            expect_eq8("cpu a16=1 expected remap address", high_addr[7:0], 8'h41);
+            expect_eq8("chain2 disabled read plane", {6'b000000, expected_read_plane(17'h10040, read_plane_sel, chain2_read)}, 8'h00);
+            expect_eq8("chain2 disabled write mask", {4'b0000, expected_write_mask(17'h10040, plane_write_mask, chain2_write)}, 8'h0F);
+
+            set_planes(low_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            set_planes(high_addr, 8'h00, 8'h00, 8'h00, 8'h00);
 
             cpu_write_tx(17'h00040, 8'hA5);
             cpu_write_tx(17'h10040, 8'h5A);
 
-            expect_eq8("cpu a16=0 write maps to even remap byte", dut.plane0[16'h0040], 8'hA5);
-            expect_eq8("cpu a16=1 write maps to odd remap byte", dut.plane0[16'h0041], 8'h5A);
+            expect_eq8("cpu a16=0 write maps to even remap byte", dut.plane0[low_addr], 8'hA5);
+            expect_eq8("cpu a16=1 write maps to odd remap byte", dut.plane0[high_addr], 8'h5A);
 
             cpu_read_tx(17'h00040);
             expect_eq8("cpu a16=0 read plane0", cpu_data_out, 8'hA5);
