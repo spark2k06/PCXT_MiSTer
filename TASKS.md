@@ -656,7 +656,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-301 - Build A CRTC Register Behavior Checklist
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-208.
 - Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
@@ -669,6 +669,14 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Missing EGA-specific CRTC behaviors have task IDs before scanout changes
     start.
+- Verification:
+  - Added `EGA_CRTC_REGISTER_CHECKLIST.md` covering CRTC indexes `00h..18h`,
+    current `UM6845R.v` storage/readback, derived timing/address behavior, and
+    EGA-specific gaps.
+  - The checklist assigns missing overflow formulas to EGA-302, scanout remap
+    to EGA-303, row advance/max-scan behavior to EGA-304, start-address frame
+    latching to EGA-305, split/line compare to EGA-306, reset/display-disable
+    blanking to EGA-307, and final address testbench coverage to EGA-308.
 
 ### EGA-302 - Verify Overflow And Vertical Timing Formulas
 
