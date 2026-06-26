@@ -1084,7 +1084,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-409 - Add Graphics Pixel Testbench Coverage
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-401, EGA-402, EGA-404, EGA-406, EGA-408.
 - Files: new or existing EGA pixel testbench under
@@ -1097,6 +1097,23 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Pixel tests fail on static-plane output, incorrect low-resolution repeat,
     wrong panning, or broken 2bpp conversion.
+- Completed:
+  - `ega_pixel_tb.sv` covers high-resolution planar shifting with distinct
+    per-pixel indexes, catching static fetch-byte output.
+  - Low-resolution/double-dot repeat is checked for all 16 output dots from an
+    8-bit plane fetch.
+  - Horizontal panning is checked with a two-byte previous/current window.
+  - Render-mode routing is checked for text handoff, planar graphics, and
+    CGA-compatible graphics.
+  - CGA-compatible 2bpp conversion is checked against the x86Box `egaremap2bpp`
+    reference sequence.
+  - Display-disable gating is checked for blank output and recovery on the next
+    active fetch.
+  - Attribute/palette integration now programs palette entries and plane masks
+    and verifies final color output through `ega_attrib_ctrl`.
+  - `git diff --check` passed.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ## EGA-500: Attribute, Palette, Border, And Status
 

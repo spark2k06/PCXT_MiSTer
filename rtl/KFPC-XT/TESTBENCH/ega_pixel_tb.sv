@@ -15,6 +15,17 @@ module ega_pixel_tb;
     wire [3:0] plane_index;
     wire       pixel_valid;
     wire [1:0] render_mode_debug;
+    reg        attr_reset = 1'b1;
+    reg [15:0] attr_io_addr = 16'h0000;
+    reg [7:0]  attr_io_data_in = 8'h00;
+    wire [7:0] attr_io_data_out;
+    reg        attr_io_we = 1'b0;
+    reg        attr_io_re = 1'b0;
+    reg        attr_status_re = 1'b0;
+    wire [3:0] attr_pixel_pan_unused;
+    wire [5:0] attr_color_out;
+    wire       attr_display_enable_out;
+    wire       attr_video_enable_out;
 
     integer errors = 0;
 
@@ -33,6 +44,27 @@ module ega_pixel_tb;
         .plane_index(plane_index),
         .pixel_valid(pixel_valid),
         .render_mode_debug(render_mode_debug)
+    );
+
+    ega_attrib_ctrl attr_dut (
+        .clk(clk),
+        .reset(attr_reset),
+        .ce_pix(ce_pix),
+        .io_addr(attr_io_addr),
+        .io_data_in(attr_io_data_in),
+        .io_data_out(attr_io_data_out),
+        .io_we(attr_io_we),
+        .io_re(attr_io_re),
+        .status_re(attr_status_re),
+        .plane_index(plane_index),
+        .pixel_valid(pixel_valid),
+        .display_enable(display_enable),
+        .blink_state(1'b0),
+        .palette_64_mode(1'b1),
+        .pixel_pan_out(attr_pixel_pan_unused),
+        .color_out(attr_color_out),
+        .display_enable_out(attr_display_enable_out),
+        .video_enable_out(attr_video_enable_out)
     );
 
     always #5 clk = ~clk;
@@ -118,6 +150,59 @@ module ega_pixel_tb;
                 );
                 errors = errors + 1;
             end
+        end
+    endtask
+
+    task automatic expect_color;
+        input [5:0] expected;
+        input [80*8-1:0] label;
+        begin
+            if (attr_color_out !== expected) begin
+                $display(
+                    "FAIL %0s: color=%02h expected=%02h display_en=%0b video_en=%0b",
+                    label,
+                    attr_color_out,
+                    expected,
+                    attr_display_enable_out,
+                    attr_video_enable_out
+                );
+                errors = errors + 1;
+            end
+        end
+    endtask
+
+    task automatic attr_status_read;
+        begin
+            @(negedge clk);
+            attr_status_re = 1'b1;
+            @(negedge clk);
+            attr_status_re = 1'b0;
+        end
+    endtask
+
+    task automatic attr_io_write;
+        input [15:0] addr;
+        input [7:0] data;
+        begin
+            @(negedge clk);
+            attr_io_addr = addr;
+            attr_io_data_in = data;
+            attr_io_re = 1'b0;
+            attr_io_we = 1'b1;
+            @(negedge clk);
+            attr_io_we = 1'b0;
+            attr_io_addr = 16'h0000;
+            attr_io_data_in = 8'h00;
+        end
+    endtask
+
+    task automatic attr_write_reg;
+        input [4:0] index;
+        input [7:0] data;
+        begin
+            attr_status_read();
+            attr_io_write(16'h03C0, {2'b01, index});
+            attr_io_write(16'h03C0, data);
         end
     endtask
 
@@ -352,7 +437,37 @@ module ega_pixel_tb;
         end
     endtask
 
+    task automatic check_attribute_palette_path;
+        begin
+            render_mode = 2'd1;
+            dot_clock_div2 = 1'b0;
+            h_pixel_pan = 4'd0;
+            display_enable = 1'b1;
+
+            attr_write_reg(5'h10, 8'h01);
+            attr_write_reg(5'h05, 8'h2A);
+            attr_write_reg(5'h12, 8'h05);
+
+            load_planes(8'hFF, 8'hFF, 8'hFF, 8'hFF);
+            expect_pixel(4'hF, 0);
+            @(posedge clk);
+            #1;
+            expect_color(6'h2A, "attribute palette mask 0101");
+
+            attr_write_reg(5'h0A, 8'h15);
+            attr_write_reg(5'h12, 8'h0A);
+
+            load_planes(8'hFF, 8'hFF, 8'hFF, 8'hFF);
+            expect_pixel(4'hF, 0);
+            @(posedge clk);
+            #1;
+            expect_color(6'h15, "attribute palette mask 1010");
+        end
+    endtask
+
     initial begin
+        repeat (2) @(posedge clk);
+        attr_reset = 1'b0;
         repeat (2) @(posedge clk);
 
         check_high_res_shift();
@@ -366,6 +481,8 @@ module ega_pixel_tb;
         check_cga2bpp_conversion();
         repeat (2) @(posedge clk);
         check_display_disable_gating();
+        repeat (2) @(posedge clk);
+        check_attribute_palette_path();
 
         if (errors == 0) begin
             $display("PASS ega_pixel_tb");
