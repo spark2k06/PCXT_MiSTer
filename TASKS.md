@@ -1501,7 +1501,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-701 - Audit Video Output Selection And EGA Activation
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-505, EGA-408.
 - Files: `rtl/KFPC-XT/HDL/Peripherals.sv`, `rtl/KFPC-XT/HDL/Chipset.sv`,
@@ -1514,6 +1514,18 @@ must be anchored to the behavior it proves.
     writes if they mask real hardware behavior.
 - Acceptance:
   - EGA BIOS can program registers and memory before the first selected frame.
+- Completed:
+  - Added `EGA_VIDEO_SELECTION_AUDIT.md` covering EGA memory decode, I/O
+    visibility before display selection, the RGB/sync output mux, and the
+    `ega_video_active` / `ega_video_pending` activation heuristic.
+  - The audit verifies that EGA register I/O is gated by `ega_enabled`, not
+    `ega_display_sel`, so BIOS and game probes can program EGA before the first
+    selected EGA frame.
+  - The audit verifies that outer EGA VRAM decode uses GC Misc memory-map
+    selection and masks overlapping CGA/Tandy/HGC windows with `~ega_mem_select`.
+  - The delayed activation heuristic is recorded as a PCXT output-mux policy and
+    a platform-smoke follow-up risk, not as EGA hardware semantics.
+  - `git diff --check` passed for the staged EGA-701 documentation changes.
 
 ### EGA-702 - Preserve CGA/HGC/Tandy Coexistence
 
