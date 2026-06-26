@@ -1,0 +1,607 @@
+`timescale 1ns / 1ps
+
+module ega_registers_tb;
+
+    timeunit 1ns;
+    timeprecision 1ps;
+
+    reg clk = 1'b0;
+    reg reset = 1'b1;
+    integer failures = 0;
+    reg [8*80-1:0] current_test = "initialization";
+
+    always #5 clk = ~clk;
+
+    task automatic begin_test(input [8*80-1:0] name);
+        begin
+            current_test = name;
+            $display("TEST: %0s", current_test);
+        end
+    endtask
+
+    task automatic expect8(
+        input [8*80-1:0] label,
+        input [7:0] actual,
+        input [7:0] expected
+    );
+        begin
+            if (actual !== expected) begin
+                $display("FAIL [%0s] %0s: expected %02x got %02x",
+                         current_test, label, expected, actual);
+                failures = failures + 1;
+            end
+        end
+    endtask
+
+    task automatic expect1(
+        input [8*80-1:0] label,
+        input actual,
+        input expected
+    );
+        begin
+            if (actual !== expected) begin
+                $display("FAIL [%0s] %0s: expected %0d got %0d",
+                         current_test, label, expected, actual);
+                failures = failures + 1;
+            end
+        end
+    endtask
+
+    task automatic expect_true(
+        input [8*80-1:0] label,
+        input condition
+    );
+        begin
+            if (!condition) begin
+                $display("FAIL [%0s] %0s", current_test, label);
+                failures = failures + 1;
+            end
+        end
+    endtask
+
+    reg [15:0] io_addr = 16'h0000;
+    reg [7:0]  io_data_in = 8'h00;
+    reg        io_we = 1'b0;
+    reg        io_re = 1'b0;
+
+    wire [7:0] seq_data_out;
+    wire [3:0] seq_plane_write_mask;
+    wire       seq_chain2_write;
+    wire       seq_extended_memory;
+    wire       seq_ce_crt_fetch;
+    wire       seq_ce_cpu_access;
+    wire       seq_dot_clock_div2;
+    wire [7:0] seq_map_mask_debug;
+    wire [7:0] seq_memory_mode_debug;
+
+    ega_sequencer seq_dut (
+        .clk(clk),
+        .reset(reset),
+        .ce_pix(1'b1),
+        .io_addr(io_addr),
+        .io_data_in(io_data_in),
+        .io_data_out(seq_data_out),
+        .io_we(io_we),
+        .io_re(io_re),
+        .plane_write_mask(seq_plane_write_mask),
+        .chain2_write(seq_chain2_write),
+        .extended_memory(seq_extended_memory),
+        .ce_crt_fetch(seq_ce_crt_fetch),
+        .ce_cpu_access(seq_ce_cpu_access),
+        .dot_clock_div2(seq_dot_clock_div2),
+        .map_mask_debug(seq_map_mask_debug),
+        .memory_mode_debug(seq_memory_mode_debug)
+    );
+
+    wire [7:0] gfx_data_out;
+    wire [1:0] gfx_write_mode;
+    wire [1:0] gfx_read_mode;
+    wire [1:0] gfx_read_plane_sel;
+    wire [7:0] gfx_color_compare;
+    wire [7:0] gfx_color_dont_care;
+    wire [7:0] gfx_bit_mask;
+    wire [7:0] gfx_set_reset;
+    wire [3:0] gfx_enable_set_reset;
+    wire [1:0] gfx_rop_select;
+    wire [2:0] gfx_rotate_count;
+    wire       gfx_odd_even_mode;
+    wire       gfx_chain2_read;
+    wire [1:0] gfx_mem_map_sel;
+    wire [7:0] gfx_mode_debug;
+
+    ega_gfx_ctrl gfx_dut (
+        .clk(clk),
+        .reset(reset),
+        .io_addr(io_addr),
+        .io_data_in(io_data_in),
+        .io_data_out(gfx_data_out),
+        .io_we(io_we),
+        .io_re(io_re),
+        .write_mode(gfx_write_mode),
+        .read_mode(gfx_read_mode),
+        .read_plane_sel(gfx_read_plane_sel),
+        .color_compare(gfx_color_compare),
+        .color_dont_care(gfx_color_dont_care),
+        .bit_mask(gfx_bit_mask),
+        .set_reset(gfx_set_reset),
+        .enable_set_reset(gfx_enable_set_reset),
+        .rop_select(gfx_rop_select),
+        .rotate_count(gfx_rotate_count),
+        .odd_even_mode(gfx_odd_even_mode),
+        .chain2_read(gfx_chain2_read),
+        .mem_map_sel(gfx_mem_map_sel),
+        .mode_debug(gfx_mode_debug)
+    );
+
+    reg        attr_status_re = 1'b0;
+    reg [3:0] attr_plane_index = 4'h0;
+    wire [7:0] attr_data_out;
+    wire [3:0] attr_pixel_pan_out;
+    wire [5:0] attr_color_out;
+    wire       attr_display_enable_out;
+    wire       attr_video_enable_out;
+
+    ega_attrib_ctrl attr_dut (
+        .clk(clk),
+        .reset(reset),
+        .ce_pix(1'b1),
+        .io_addr(io_addr),
+        .io_data_in(io_data_in),
+        .io_data_out(attr_data_out),
+        .io_we(io_we),
+        .io_re(io_re),
+        .status_re(attr_status_re),
+        .plane_index(attr_plane_index),
+        .pixel_valid(1'b1),
+        .display_enable(1'b1),
+        .blink_state(1'b0),
+        .palette_64_mode(1'b1),
+        .pixel_pan_out(attr_pixel_pan_out),
+        .color_out(attr_color_out),
+        .display_enable_out(attr_display_enable_out),
+        .video_enable_out(attr_video_enable_out)
+    );
+
+    reg        crtc_enable = 1'b1;
+    reg        crtc_ncs = 1'b1;
+    reg        crtc_rw = 1'b1;
+    reg        crtc_rs = 1'b0;
+    reg [7:0]  crtc_di = 8'h00;
+    wire [7:0] crtc_do;
+    wire [7:0] crtc_h_displayed;
+    wire [4:0] crtc_v_maxscan;
+    wire [7:0] crtc_r11_debug;
+
+    UM6845R crtc_dut (
+        .CLOCK(clk),
+        .CLKEN(1'b1),
+        .nCLKEN(1'b0),
+        .nRESET(~reset),
+        .CRTC_TYPE(1'b1),
+        .ENABLE(crtc_enable),
+        .nCS(crtc_ncs),
+        .R_nW(crtc_rw),
+        .RS(crtc_rs),
+        .DI(crtc_di),
+        .DO(crtc_do),
+        .hblank(),
+        .vblank(),
+        .line_reset(),
+        .VSYNC(),
+        .HSYNC(),
+        .DE(),
+        .FIELD(),
+        .CURSOR(),
+        .MA(),
+        .MA_FULL(),
+        .RA(),
+        .HC(),
+        .VC(),
+        .H_DISP_REG(crtc_h_displayed),
+        .V_MAXSCAN_REG(crtc_v_maxscan),
+        .hsync_width(),
+        .status_vretrace(),
+        .status_not_displaying(),
+        .vert_blank_active(),
+        .scanline_mod16_debug(),
+        .vslines_debug(),
+        .crtc_r10_debug(),
+        .crtc_r11_debug(crtc_r11_debug),
+        .crtc_r12_debug(),
+        .crtc_r13_debug(),
+        .crtc_r14_debug(),
+        .crtc_r17_debug(),
+        .crtc_r15_debug(),
+        .crtc_r16_debug(),
+        .crt_h_offset(4'h0),
+        .crt_v_offset(3'h0),
+        .vsync_width_osd(3'h0),
+        .hsync_width_osd(3'h0),
+        .hres_mode(1'b0)
+    );
+
+    wire [4:0] top_clkdiv;
+    reg [14:0] top_bus_a = 15'h0000;
+    reg        top_bus_ior_l = 1'b1;
+    reg        top_bus_iow_l = 1'b1;
+    reg        top_bus_memr_l = 1'b1;
+    reg        top_bus_memw_l = 1'b1;
+    reg [7:0]  top_bus_d = 8'h00;
+    wire [7:0] top_bus_out;
+    wire       top_bus_dir;
+    wire       top_bus_rdy;
+    wire       top_ram_we_l;
+    wire [18:0] top_ram_a;
+    wire [15:0] top_ega_fetch_addr;
+    wire        top_ega_fetch_en;
+    wire [3:0] top_ega_plane_write_mask;
+    wire       top_ega_odd_even_mode;
+    wire       top_ega_cpu_access_slot;
+    wire       top_ega_chain2_write;
+    wire       top_ega_chain2_read;
+    wire       top_ega_extended_memory;
+    wire [1:0] top_ega_mem_map_sel;
+    wire       top_ega_page_select;
+    wire [1:0] top_ega_write_mode;
+    wire [1:0] top_ega_read_mode;
+    wire [1:0] top_ega_read_plane_sel;
+    wire [7:0] top_ega_color_compare;
+    wire [7:0] top_ega_color_dont_care;
+    wire [7:0] top_ega_bit_mask;
+    wire [7:0] top_ega_set_reset;
+    wire [3:0] top_ega_enable_set_reset;
+    wire [1:0] top_ega_rop_select;
+    wire [2:0] top_ega_rotate_count;
+    wire [6:0] top_ega_blink_counter;
+    wire       top_ega_blink_state;
+    wire       top_hsync;
+    wire       top_hblank;
+    wire       top_dbl_hsync;
+    wire       top_vsync;
+    wire       top_vblank;
+    wire       top_vblank_border;
+    wire       top_std_hsyncwidth;
+    wire       top_de_o;
+    wire [3:0] top_video;
+    wire [3:0] top_dbl_video;
+    wire [6:0] top_comp_video;
+    wire [5:0] top_ega_red;
+    wire [5:0] top_ega_green;
+    wire [5:0] top_ega_blue;
+    wire       top_ega_rgb_active;
+    wire       top_ega_display_sel;
+    wire       top_grph_mode;
+    wire       top_hres_mode;
+    wire       top_tandy_color_16;
+
+    ega_top top_dut (
+        .clk(clk),
+        .reset(reset),
+        .clkdiv(top_clkdiv),
+        .bus_a(top_bus_a),
+        .bus_ior_l(top_bus_ior_l),
+        .bus_iow_l(top_bus_iow_l),
+        .bus_memr_l(top_bus_memr_l),
+        .bus_memw_l(top_bus_memw_l),
+        .bus_d(top_bus_d),
+        .bus_out(top_bus_out),
+        .bus_dir(top_bus_dir),
+        .bus_aen(1'b0),
+        .bus_rdy(top_bus_rdy),
+        .ram_we_l(top_ram_we_l),
+        .ram_a(top_ram_a),
+        .ram_d(8'h00),
+        .ram_data_valid(1'b0),
+        .ega_fetch_addr(top_ega_fetch_addr),
+        .ega_fetch_en(top_ega_fetch_en),
+        .ega_plane0_data(8'h00),
+        .ega_plane1_data(8'h00),
+        .ega_plane2_data(8'h00),
+        .ega_plane3_data(8'h00),
+        .ega_fetch_data_valid(1'b0),
+        .cpu_mem_select(1'b0),
+        .cpu_mem_write(1'b0),
+        .ega_cfg_toggle(),
+        .ega_plane_write_mask_out(top_ega_plane_write_mask),
+        .ega_odd_even_mode_out(top_ega_odd_even_mode),
+        .ega_cpu_access_slot_out(top_ega_cpu_access_slot),
+        .ega_chain2_write_out(top_ega_chain2_write),
+        .ega_chain2_read_out(top_ega_chain2_read),
+        .ega_extended_memory_out(top_ega_extended_memory),
+        .ega_mem_map_sel_out(top_ega_mem_map_sel),
+        .ega_page_select_out(top_ega_page_select),
+        .ega_write_mode_out(top_ega_write_mode),
+        .ega_read_mode_out(top_ega_read_mode),
+        .ega_read_plane_sel_out(top_ega_read_plane_sel),
+        .ega_color_compare_out(top_ega_color_compare),
+        .ega_color_dont_care_out(top_ega_color_dont_care),
+        .ega_bit_mask_out(top_ega_bit_mask),
+        .ega_set_reset_out(top_ega_set_reset),
+        .ega_enable_set_reset_out(top_ega_enable_set_reset),
+        .ega_rop_select_out(top_ega_rop_select),
+        .ega_rotate_count_out(top_ega_rotate_count),
+        .ega_blink_counter_out(top_ega_blink_counter),
+        .ega_blink_state_out(top_ega_blink_state),
+        .hsync(top_hsync),
+        .hblank(top_hblank),
+        .dbl_hsync(top_dbl_hsync),
+        .vsync(top_vsync),
+        .vblank(top_vblank),
+        .vblank_border(top_vblank_border),
+        .std_hsyncwidth(top_std_hsyncwidth),
+        .de_o(top_de_o),
+        .video(top_video),
+        .dbl_video(top_dbl_video),
+        .comp_video(top_comp_video),
+        .ega_red(top_ega_red),
+        .ega_green(top_ega_green),
+        .ega_blue(top_ega_blue),
+        .ega_rgb_active(top_ega_rgb_active),
+        .ega_display_sel_out(top_ega_display_sel),
+        .splashscreen(1'b0),
+        .thin_font(1'b0),
+        .tandy_video(1'b0),
+        .scandouble_en(1'b0),
+        .ega_enabled(1'b1),
+        .grph_mode(top_grph_mode),
+        .hres_mode(top_hres_mode),
+        .tandy_color_16(top_tandy_color_16),
+        .cga_hw(1'b0),
+        .crt_h_offset(4'h0),
+        .crt_v_offset(3'h0),
+        .vsync_width_osd(3'h0),
+        .hsync_width_osd(3'h0)
+    );
+
+    task automatic reset_duts;
+        begin
+            io_addr = 16'h0000;
+            io_data_in = 8'h00;
+            io_we = 1'b0;
+            io_re = 1'b0;
+            attr_status_re = 1'b0;
+            crtc_ncs = 1'b1;
+            crtc_rw = 1'b1;
+            crtc_rs = 1'b0;
+            crtc_di = 8'h00;
+            top_bus_a = 15'h0000;
+            top_bus_d = 8'h00;
+            top_bus_ior_l = 1'b1;
+            top_bus_iow_l = 1'b1;
+            top_bus_memr_l = 1'b1;
+            top_bus_memw_l = 1'b1;
+            reset = 1'b1;
+            repeat (4) @(negedge clk);
+            reset = 1'b0;
+            repeat (4) @(negedge clk);
+        end
+    endtask
+
+    task automatic io_write(input [15:0] addr, input [7:0] data);
+        begin
+            @(negedge clk);
+            io_addr = addr;
+            io_data_in = data;
+            io_re = 1'b0;
+            io_we = 1'b1;
+            @(negedge clk);
+            io_we = 1'b0;
+            io_addr = 16'h0000;
+            io_data_in = 8'h00;
+        end
+    endtask
+
+    task automatic io_read(input [15:0] addr, output [7:0] data);
+        begin
+            @(negedge clk);
+            io_addr = addr;
+            io_re = 1'b1;
+            io_we = 1'b0;
+            #1 data = seq_data_out | gfx_data_out | attr_data_out;
+            @(negedge clk);
+            io_re = 1'b0;
+            io_addr = 16'h0000;
+        end
+    endtask
+
+    task automatic attr_status_read;
+        begin
+            @(negedge clk);
+            attr_status_re = 1'b1;
+            @(negedge clk);
+            attr_status_re = 1'b0;
+        end
+    endtask
+
+    task automatic crtc_write(input rs, input [7:0] data);
+        begin
+            @(negedge clk);
+            crtc_ncs = 1'b0;
+            crtc_rw = 1'b0;
+            crtc_rs = rs;
+            crtc_di = data;
+            @(negedge clk);
+            crtc_ncs = 1'b1;
+            crtc_rw = 1'b1;
+            crtc_rs = 1'b0;
+            crtc_di = 8'h00;
+        end
+    endtask
+
+    task automatic top_io_write(input [15:0] addr, input [7:0] data);
+        begin
+            @(negedge clk);
+            top_bus_a = addr[14:0];
+            top_bus_d = data;
+            top_bus_ior_l = 1'b1;
+            top_bus_iow_l = 1'b0;
+            @(negedge clk);
+            top_bus_iow_l = 1'b1;
+            top_bus_a = 15'h0000;
+            top_bus_d = 8'h00;
+        end
+    endtask
+
+    task automatic top_io_read(input [15:0] addr, output [7:0] data);
+        begin
+            @(negedge clk);
+            top_bus_a = addr[14:0];
+            top_bus_ior_l = 1'b0;
+            top_bus_iow_l = 1'b1;
+            #1 data = top_bus_out;
+            @(negedge clk);
+            top_bus_ior_l = 1'b1;
+            top_bus_a = 15'h0000;
+        end
+    endtask
+
+    task automatic select_and_read_attr(
+        input [4:0] index,
+        output [7:0] data
+    );
+        begin
+            attr_status_read();
+            io_write(16'h03C0, {2'b01, index});
+            io_read(16'h03C1, data);
+        end
+    endtask
+
+    task automatic top_select_and_read_attr(
+        input [15:0] status_port,
+        input [4:0] index,
+        output [7:0] data
+    );
+        reg [7:0] ignored;
+        begin
+            top_io_read(status_port, ignored);
+            top_io_write(16'h03C0, {2'b01, index});
+            top_io_read(16'h03C1, data);
+        end
+    endtask
+
+    initial begin
+        reg [7:0] read_value;
+        reg [7:0] status_a;
+        reg [7:0] status_b;
+
+        reset_duts();
+
+        begin_test("sequencer reset and index/data readback");
+        io_write(16'h03C4, 8'h00);
+        io_read(16'h03C5, read_value);
+        expect8("SEQ reset register", read_value, 8'h03);
+        io_write(16'h03C4, 8'h01);
+        io_read(16'h03C5, read_value);
+        expect8("SEQ clocking register", read_value, 8'h08);
+        io_write(16'h03C4, 8'h02);
+        io_read(16'h03C5, read_value);
+        expect8("SEQ map mask reset", read_value, 8'h0F);
+        io_write(16'h03C5, 8'h05);
+        io_read(16'h03C5, read_value);
+        expect8("SEQ map mask write", read_value, 8'h05);
+        expect8("SEQ plane mask output", {4'h0, seq_plane_write_mask}, 8'h05);
+        io_write(16'h03C4, 8'h04);
+        io_write(16'h03C5, 8'h02);
+        expect1("SEQ chain-2 write follows memory mode bit 2", seq_chain2_write, 1'b1);
+        expect1("SEQ extended memory follows memory mode bit 1", seq_extended_memory, 1'b1);
+
+        begin_test("graphics controller reset and readback");
+        io_write(16'h03CE, 8'h07);
+        io_read(16'h03CF, read_value);
+        expect8("GC color don't care reset", read_value, 8'h0F);
+        io_write(16'h03CE, 8'h08);
+        io_read(16'h03CF, read_value);
+        expect8("GC bit mask reset", read_value, 8'hFF);
+        io_write(16'h03CE, 8'h05);
+        io_write(16'h03CF, 8'h18);
+        io_read(16'h03CF, read_value);
+        expect8("GC mode readback", read_value, 8'h18);
+        expect8("GC mode debug", gfx_mode_debug, 8'h18);
+        expect8("GC write/read mode outputs", {4'h0, gfx_chain2_read, gfx_read_mode[0], gfx_write_mode}, 8'h0C);
+        io_write(16'h03CE, 8'h06);
+        io_write(16'h03CF, 8'h0A);
+        expect8("GC memory map and odd/even outputs", {3'b000, gfx_mem_map_sel, gfx_odd_even_mode, 2'b00}, 8'h14);
+
+        begin_test("attribute controller flip-flop and readback");
+        attr_status_read();
+        io_write(16'h03C0, 8'h22);
+        io_write(16'h03C0, 8'h2A);
+        select_and_read_attr(5'h02, read_value);
+        expect8("ATTR palette register 02h", read_value, 8'h2A);
+        attr_status_read();
+        io_write(16'h03C0, 8'h30);
+        io_write(16'h03C0, 8'h09);
+        select_and_read_attr(5'h10, read_value);
+        expect8("ATTR mode control register", read_value, 8'h09);
+        attr_status_read();
+        io_write(16'h03C0, 8'h33);
+        io_write(16'h03C0, 8'h07);
+        select_and_read_attr(5'h13, read_value);
+        expect8("ATTR pixel panning register", read_value, 8'h07);
+        expect8("ATTR pixel pan output", {4'h0, attr_pixel_pan_out}, 8'h07);
+
+        begin_test("CRTC EGA write protection");
+        crtc_write(1'b0, 8'h01);
+        crtc_write(1'b1, 8'h28);
+        expect8("CRTC H displayed initial write", crtc_h_displayed, 8'h28);
+        crtc_write(1'b0, 8'h11);
+        crtc_write(1'b1, 8'h80);
+        expect8("CRTC protection register", crtc_r11_debug, 8'h80);
+        crtc_write(1'b0, 8'h01);
+        crtc_write(1'b1, 8'h34);
+        expect8("CRTC protected register 01h", crtc_h_displayed, 8'h28);
+        crtc_write(1'b0, 8'h11);
+        crtc_write(1'b1, 8'h00);
+        crtc_write(1'b0, 8'h01);
+        crtc_write(1'b1, 8'h34);
+        expect8("CRTC unprotected register 01h", crtc_h_displayed, 8'h34);
+
+        begin_test("top-level misc output and color CRTC ports");
+        top_io_read(16'h03CC, read_value);
+        expect8("Misc Output reset", read_value, 8'h63);
+        top_io_write(16'h03D4, 8'h12);
+        top_io_write(16'h03D5, 8'h44);
+        top_io_read(16'h03D5, read_value);
+        expect8("color CRTC data readback", read_value, 8'h44);
+
+        begin_test("top-level mono CRTC port selection");
+        top_io_write(16'h03C2, 8'h62);
+        top_io_write(16'h03B4, 8'h12);
+        top_io_write(16'h03B5, 8'h55);
+        top_io_read(16'h03B5, read_value);
+        expect8("mono CRTC data readback", read_value, 8'h55);
+        top_io_write(16'h03D4, 8'h12);
+        top_io_write(16'h03D5, 8'h77);
+        top_io_read(16'h03B5, read_value);
+        expect8("color CRTC write ignored in mono mode", read_value, 8'h55);
+        top_io_write(16'h03C2, 8'h63);
+        top_io_read(16'h03D5, read_value);
+        expect8("color CRTC sees shared EGA CRTC after reselect", read_value, 8'h55);
+
+        begin_test("top-level selected status read side effects");
+        top_io_read(16'h03DA, read_value);
+        top_io_write(16'h03C0, 8'h24);
+        top_io_write(16'h03C0, 8'h3C);
+        top_select_and_read_attr(16'h03DA, 5'h04, read_value);
+        expect8("color status resets ATTR flip-flop", read_value, 8'h3C);
+        top_io_write(16'h03C2, 8'h62);
+        top_io_read(16'h03BA, read_value);
+        top_io_write(16'h03C0, 8'h25);
+        top_io_read(16'h03DA, read_value);
+        top_io_write(16'h03C0, 8'h5A);
+        top_select_and_read_attr(16'h03BA, 5'h05, read_value);
+        expect8("unselected color status does not reset ATTR flip-flop", read_value, 8'h5A);
+        top_io_read(16'h03BA, status_a);
+        top_io_read(16'h03BA, status_b);
+        expect_true("selected status read toggles bits 5:4", ((status_a ^ status_b) & 8'h30) == 8'h30);
+
+        if (failures == 0) begin
+            $display("PASS: ega_registers_tb");
+        end else begin
+            $display("FAIL: ega_registers_tb failures=%0d", failures);
+            $fatal(1);
+        end
+        $finish;
+    end
+
+endmodule

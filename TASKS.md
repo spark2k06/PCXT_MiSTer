@@ -624,7 +624,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-208 - Add Register-Oriented Testbench Coverage
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-202, EGA-203, EGA-204, EGA-205, EGA-206, EGA-207.
 - Files: new or existing EGA register testbench under
@@ -638,6 +638,19 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Register tests fail on incorrect attribute flip-flop, CRTC protection, or
     color/mono port selection behavior.
+- Verification:
+  - Added `rtl/KFPC-XT/TESTBENCH/ega_registers_tb.sv` with deterministic
+    register-level coverage for Sequencer, Graphics Controller, Attribute
+    Controller, CRTC write protection, Misc Output readback, selected CRTC
+    color/mono ports, and selected status-read Attribute Controller side
+    effects.
+  - The testbench includes failing checks for incorrect Attribute Controller
+    flip-flop reset, CRTC write protection, and color/mono CRTC/status port
+    selection behavior.
+  - `git diff --check -- TASKS.md rtl\KFPC-XT\TESTBENCH\ega_registers_tb.sv`
+    passed.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ## EGA-300: CRTC Timing And Display Address Core
 
