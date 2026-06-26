@@ -698,6 +698,77 @@ module ega_vram_tb;
         end
     endtask
 
+    task automatic test_odd_even_page_select;
+        reg [15:0] page_even_addr;
+        reg [15:0] page_odd_addr;
+        reg [15:0] bank_low_addr;
+        reg [15:0] bank_high_addr;
+        reg [15:0] ext_mask_addr;
+        begin
+            begin_test("odd/even page select address remap");
+            plane_write_mask = 4'hF;
+            odd_even_mode = 1'b1;
+            chain2_write = 1'b0;
+            chain2_read = 1'b0;
+            extended_memory = 1'b1;
+            mem_map_sel = 2'b01;
+            page_select = 1'b1;
+            write_mode = 2'b00;
+            read_mode = 2'b00;
+            read_plane_sel = 2'b00;
+            bit_mask = 8'hFF;
+            rop_select = 2'b00;
+            rotate_count = 3'd0;
+            set_reset = 8'h00;
+            enable_set_reset = 4'h0;
+
+            page_even_addr = expected_cpu_plane_addr(17'h00080, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            expect_eq8("page select 1 forces even addr", page_even_addr[7:0], 8'h80);
+            set_planes(page_even_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            cpu_write_tx(17'h00080, 8'h66);
+            expect_eq8("page select 1 write plane0", dut.plane0[page_even_addr], 8'h66);
+            cpu_read_tx(17'h00080);
+            expect_eq8("page select 1 read plane0", cpu_data_out, 8'h66);
+
+            page_select = 1'b0;
+            page_odd_addr = expected_cpu_plane_addr(17'h00080, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            expect_eq8("page select 0 forces odd addr", page_odd_addr[7:0], 8'h81);
+            set_planes(page_odd_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            cpu_write_tx(17'h00080, 8'h77);
+            expect_eq8("page select 0 write plane0", dut.plane0[page_odd_addr], 8'h77);
+            cpu_read_tx(17'h00080);
+            expect_eq8("page select 0 read plane0", cpu_data_out, 8'h77);
+
+            mem_map_sel = 2'b00;
+            page_select = 1'b0;
+            bank_low_addr = expected_cpu_plane_addr(17'h00090, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            bank_high_addr = expected_cpu_plane_addr(17'h10090, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            expect_eq8("odd/even a16 low bank addr", bank_low_addr[7:0], 8'h90);
+            expect_eq8("odd/even a16 high bank addr", bank_high_addr[7:0], 8'h91);
+            set_planes(bank_low_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            set_planes(bank_high_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            cpu_write_tx(17'h00090, 8'h88);
+            cpu_write_tx(17'h10090, 8'h99);
+            expect_eq8("odd/even a16 low write", dut.plane0[bank_low_addr], 8'h88);
+            expect_eq8("odd/even a16 high write", dut.plane0[bank_high_addr], 8'h99);
+            cpu_read_tx(17'h00090);
+            expect_eq8("odd/even a16 low read", cpu_data_out, 8'h88);
+            cpu_read_tx(17'h10090);
+            expect_eq8("odd/even a16 high read", cpu_data_out, 8'h99);
+
+            mem_map_sel = 2'b01;
+            page_select = 1'b1;
+            extended_memory = 1'b0;
+            ext_mask_addr = expected_cpu_plane_addr(17'h08082, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            expect_eq8("odd/even ext memory mask addr", ext_mask_addr[7:0], 8'h82);
+            set_planes(ext_mask_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            cpu_write_tx(17'h08082, 8'hAA);
+            expect_eq8("odd/even ext mask write", dut.plane0[ext_mask_addr], 8'hAA);
+            cpu_read_tx(17'h08082);
+            expect_eq8("odd/even ext mask read", cpu_data_out, 8'hAA);
+        end
+    endtask
+
     task automatic test_memory_map_windows;
         reg [15:0] map0_first_addr;
         reg [15:0] map0_last_addr;
@@ -784,6 +855,7 @@ module ega_vram_tb;
         test_consecutive_writes();
         test_cpu_a16_remap();
         test_chain2_read_write();
+        test_odd_even_page_select();
         test_memory_map_windows();
 
         if (failures != 0) begin

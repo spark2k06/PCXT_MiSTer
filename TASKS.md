@@ -326,7 +326,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-106 - Add Odd/Even And Page Select Coverage
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-102.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
@@ -339,6 +339,15 @@ must be anchored to the behavior it proves.
   - Verify read and write paths use consistent addressing rules.
 - Acceptance:
   - Address remapping is covered for both low and high 64 KB banks.
+- Verification:
+  - `ega_vram_tb.sv` now has a dedicated `test_odd_even_page_select()` case.
+  - The test covers Graphics Controller odd/even remap through page select,
+    `cpu_a16` bank selection in memory map `00b`, and `extended_memory=0`
+    address masking.
+  - Each remap case verifies CPU write and CPU read use the same effective
+    plane address.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-107 - Expand CPU Write Mode Coverage
 
