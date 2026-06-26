@@ -1297,7 +1297,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-507 - Add Attribute, Palette, And Status Tests
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-501, EGA-502, EGA-503, EGA-504, EGA-505, EGA-506.
 - Files: EGA register/pixel testbenches under `rtl/KFPC-XT/TESTBENCH/`.
@@ -1307,6 +1307,19 @@ must be anchored to the behavior it proves.
     bits, status toggles, and flip-flop resets.
 - Acceptance:
   - Attribute/status regressions are caught before full PCXT boot tests.
+- Completed:
+  - `ega_registers_tb.sv` now covers Attribute Controller palette remapping
+    through the rendered color path, not just register readback.
+  - Added overscan checks for both 64-color and 16-color palette-width modes,
+    plus restoration of identity palette state before plane-enable tests.
+  - Existing coverage verifies plane enable, panning, overscan border output,
+    video enable blanking, selected status-port flip-flop resets, and status
+    toggle bits.
+  - Added deterministic top-level Input Status #1 checks for display-disable
+    bit `0` and vertical-retrace bit `3`.
+  - `git diff --check` passed.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ## EGA-600: Text Renderer
 

@@ -151,6 +151,7 @@ module ega_registers_tb;
     reg [3:0] attr_plane_index = 4'h0;
     reg        attr_pixel_valid = 1'b1;
     reg        attr_display_enable = 1'b1;
+    reg        attr_palette_64_mode = 1'b1;
     wire [7:0] attr_data_out;
     wire [3:0] attr_pixel_pan_out;
     wire [5:0] attr_color_out;
@@ -171,7 +172,7 @@ module ega_registers_tb;
         .pixel_valid(attr_pixel_valid),
         .display_enable(attr_display_enable),
         .blink_state(1'b0),
-        .palette_64_mode(1'b1),
+        .palette_64_mode(attr_palette_64_mode),
         .pixel_pan_out(attr_pixel_pan_out),
         .color_out(attr_color_out),
         .display_enable_out(attr_display_enable_out),
@@ -389,6 +390,7 @@ module ega_registers_tb;
             attr_plane_index = 4'h0;
             attr_pixel_valid = 1'b1;
             attr_display_enable = 1'b1;
+            attr_palette_64_mode = 1'b1;
             crtc_ncs = 1'b1;
             crtc_rw = 1'b1;
             crtc_rs = 1'b0;
@@ -681,6 +683,19 @@ module ega_registers_tb;
         expect8("ATTR pixel panning register", read_value, 8'h07);
         expect8("ATTR pixel pan output", {4'h0, attr_pixel_pan_out}, 8'h07);
 
+        begin_test("attribute palette remap and overscan width");
+        attr_write_reg(5'h02, 8'h2A);
+        attr_write_reg(5'h11, 8'h35);
+        attr_write_reg(5'h12, 8'h0F);
+        attr_palette_64_mode = 1'b1;
+        expect_attr_output("ATTR palette remaps plane index", 4'h2, 1'b1, 1'b1, 6'h2A, 1'b1);
+        expect_attr_output("ATTR 64-color overscan", 4'h2, 1'b1, 1'b0, 6'h35, 1'b0);
+        attr_palette_64_mode = 1'b0;
+        expect_attr_output("ATTR 16-color overscan truncates", 4'h2, 1'b1, 1'b0, 6'h05, 1'b0);
+        attr_palette_64_mode = 1'b1;
+        attr_write_reg(5'h02, 8'h02);
+        attr_display_enable = 1'b1;
+
         begin_test("attribute plane enable masks graphics color index");
         attr_write_reg(5'h10, 8'h01);
         expect_attr_plane_enable("ATTR plane enable mask 0001", 4'hF, 4'h1, 6'h01);
@@ -917,6 +932,16 @@ module ega_registers_tb;
         top_io_read(16'h03BA, status_a);
         top_io_read(16'h03BA, status_b);
         expect_true("selected status read toggles bits 5:4", ((status_a ^ status_b) & 8'h30) == 8'h30);
+        force top_dut.ega_status_not_displaying_crtc = 1'b1;
+        force top_dut.ega_status_vretrace_crtc = 1'b1;
+        top_io_read(16'h03BA, status_a);
+        expect8("selected status exposes blanking and retrace bits", status_a & 8'h09, 8'h09);
+        force top_dut.ega_status_not_displaying_crtc = 1'b0;
+        force top_dut.ega_status_vretrace_crtc = 1'b0;
+        top_io_read(16'h03BA, status_a);
+        expect8("selected status clears blanking and retrace bits", status_a & 8'h09, 8'h00);
+        release top_dut.ega_status_not_displaying_crtc;
+        release top_dut.ega_status_vretrace_crtc;
 
         if (failures == 0) begin
             $display("PASS: ega_registers_tb");
