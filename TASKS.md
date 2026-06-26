@@ -508,7 +508,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-204 - Verify Misc Output Register Semantics
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-201.
 - Files: `rtl/video/ega_top.v`, `rtl/video/ega_vgaport.v`,
@@ -521,6 +521,15 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Misc Output can be read back and its exported effects are visible to memory
     decode and port selection tests.
+- Verification:
+  - Added `EGA_MISC_OUTPUT_AUDIT.md` mapping Misc Output storage, readback, and
+    exported effects in `ega_top.v`, `ega_vgaport.v`, and `Peripherals.sv`.
+  - The audit verifies bit `0` color/mono port selection, bit `5` page-select
+    propagation to VRAM remap, and bit `7` palette-width propagation.
+  - DAC ports are documented as stubs that return `00h` and do not override the
+    base EGA palette path.
+  - Bit `2` clock select and `3C2h` switch-sense reads are recorded as remaining
+    gaps beyond storage/readback.
 
 ### EGA-205 - Verify Sequencer Register Behavior
 
