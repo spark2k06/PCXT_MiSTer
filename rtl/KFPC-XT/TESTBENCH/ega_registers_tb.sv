@@ -437,6 +437,17 @@ module ega_registers_tb;
         end
     endtask
 
+    task automatic attr_write_reg(
+        input [4:0] index,
+        input [7:0] data
+    );
+        begin
+            attr_status_read();
+            io_write(16'h03C0, {2'b01, index});
+            io_write(16'h03C0, data);
+        end
+    endtask
+
     task automatic crtc_write(input rs, input [7:0] data);
         begin
             @(negedge clk);
@@ -500,6 +511,20 @@ module ega_registers_tb;
             top_io_read(status_port, ignored);
             top_io_write(16'h03C0, {2'b01, index});
             top_io_read(16'h03C1, data);
+        end
+    endtask
+
+    task automatic expect_attr_plane_enable(
+        input [8*80-1:0] label,
+        input [3:0] plane_index_value,
+        input [3:0] plane_enable_value,
+        input [5:0] expected_color
+    );
+        begin
+            attr_write_reg(5'h12, {4'h0, plane_enable_value});
+            attr_plane_index = plane_index_value;
+            @(posedge clk);
+            #1 expect8(label, {2'b00, attr_color_out}, {2'b00, expected_color});
         end
     endtask
 
@@ -621,6 +646,17 @@ module ega_registers_tb;
         select_and_read_attr(5'h13, read_value);
         expect8("ATTR pixel panning register", read_value, 8'h07);
         expect8("ATTR pixel pan output", {4'h0, attr_pixel_pan_out}, 8'h07);
+
+        begin_test("attribute plane enable masks graphics color index");
+        attr_write_reg(5'h10, 8'h01);
+        expect_attr_plane_enable("ATTR plane enable mask 0001", 4'hF, 4'h1, 6'h01);
+        expect_attr_plane_enable("ATTR plane enable mask 0010", 4'hF, 4'h2, 6'h02);
+        expect_attr_plane_enable("ATTR plane enable mask 0100", 4'hF, 4'h4, 6'h04);
+        expect_attr_plane_enable("ATTR plane enable mask 1000", 4'hF, 4'h8, 6'h08);
+        expect_attr_plane_enable("ATTR plane enable mask 0101", 4'hF, 4'h5, 6'h05);
+        expect_attr_plane_enable("ATTR plane enable mask 1010", 4'hF, 4'hA, 6'h0A);
+        expect_attr_plane_enable("ATTR plane enable mask 0000", 4'hF, 4'h0, 6'h00);
+        expect_attr_plane_enable("ATTR plane enable preserves source zeroes", 4'hA, 4'hF, 6'h0A);
 
         begin_test("CRTC EGA write protection");
         crtc_write(1'b0, 8'h01);

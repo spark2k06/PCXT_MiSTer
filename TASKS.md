@@ -1005,7 +1005,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-406 - Apply Attribute Plane Enable In Graphics
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-401, EGA-203.
 - Files: `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_pixel.v`.
@@ -1016,6 +1016,16 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Plane-enable tests produce expected colors for all single-plane and
     multi-plane masks.
+- Completed:
+  - Confirmed `ega_attrib_ctrl.v` already applies Attribute Controller register
+    `12h[3:0]` to the graphics color index before palette lookup.
+  - Confirmed the mask is integrated with the x86Box graphics blink formula
+    implemented for EGA-407.
+  - Added `ega_registers_tb.sv` coverage for all single-plane masks, combined
+    masks, zero mask, and source-zero preservation through the default palette.
+  - `git diff --check` passed.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-407 - Implement Graphics Blink Handling If Reference Requires It
 
