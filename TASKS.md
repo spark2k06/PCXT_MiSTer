@@ -1683,7 +1683,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-704 - Validate Menu And Feature-Gate Integration
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-701.
 - Files: `PCXT.sv`, `files.qip`.
@@ -1693,6 +1693,19 @@ must be anchored to the behavior it proves.
   - Ensure disabled EGA does not drive bus, memory, or video outputs.
 - Acceptance:
   - Builds with EGA enabled and disabled have expected behavior.
+- Completed:
+  - Added `EGA_FEATURE_GATE_AUDIT.md` documenting the `ENABLE_EGA` macro,
+    menu-controlled `status[53]` gate, EGA memory select, CPU read-data mux,
+    readiness, and RGB output gating.
+  - Verified statically that `ENABLE_EGA=0` hides the menu entry and forces
+    `ega_enabled` low while keeping A000 UMB behavior unblocked.
+  - Verified statically that runtime-disabled EGA cannot select VRAM, drive CPU
+    read data, stall CPU readiness, or suppress CGA/Tandy/HGC memory windows.
+  - Quartus Analysis & Elaboration passed for the default `ENABLE_EGA=1` build
+    with 0 errors and 249 warnings.
+  - Quartus Analysis & Elaboration passed with
+    `--verilog_macro="ENABLE_EGA=0"` with 0 errors and 249 warnings.
+  - Generated Quartus artifacts were removed after verification.
 
 ### EGA-705 - Run Platform Smoke Tests
 
