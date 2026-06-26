@@ -664,6 +664,22 @@ module ega_registers_tb;
         expect_crtc_scanout("CRTC scanline substitutes MA13 and MA14",
                             16'h0234, 5'd3, 8'h00, 8'h80);
 
+        begin_test("CRTC row advance and maximum scan line");
+        crtc_write(1'b0, 8'h13);
+        crtc_write(1'b1, 8'h14);
+        crtc_write(1'b0, 8'h09);
+        crtc_write(1'b1, 8'h07);
+        expect16("CRTC row advance is offset << 1 in independent-plane RAM",
+                 crtc_dut.ega_row_advance, 16'h0028);
+        expect8("CRTC max scan line output uses low five bits",
+                {3'b000, crtc_v_maxscan}, 8'h07);
+        crtc_write(1'b0, 8'h09);
+        crtc_write(1'b1, 8'h87);
+        expect16("CRTC line-doubling row advance is offset << 2",
+                 crtc_dut.ega_row_advance, 16'h0050);
+        expect8("CRTC max scan line ignores line-double bit",
+                {3'b000, crtc_v_maxscan}, 8'h07);
+
         begin_test("top-level misc output and color CRTC ports");
         top_io_read(16'h03CC, read_value);
         expect8("Misc Output reset", read_value, 8'h63);

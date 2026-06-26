@@ -392,7 +392,8 @@ wire row_addr_save = hcc == R1_h_displayed && (CRTC_TYPE ? line_last : line_last
 reg  [15:0] row_addr;   // saved pointer
 reg  [15:0] row_addr_r; // current pointer
 reg  [15:0] start_addr_latch;
-wire [15:0] ega_row_advance = {7'd0, R19_offset_e, 1'b0};
+wire [15:0] ega_row_advance = R9_v_max_line[7] ? {6'd0, R19_offset_e, 2'b00} :
+                                                   {7'd0, R19_offset_e, 1'b0};
 wire        ega_ma_mode = CRTC_TYPE && |R19_offset_e;
 always @(posedge CLOCK) begin
 	if(~nRESET) begin

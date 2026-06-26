@@ -736,7 +736,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-304 - Validate Row Advance And Maximum Scan Line Behavior
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-303.
 - Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
@@ -748,6 +748,16 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Tests prove graphics modes do not accidentally apply text row stepping, and
     text modes preserve glyph scanline sequencing.
+- Verification:
+  - `UM6845R.v` now uses `13h << 1` as the independent-plane row advance and
+    doubles that to `13h << 2` when CRTC `09h[7]` line-doubling is set.
+  - `V_MAXSCAN_REG` continues to expose only `09h[4:0]`; the line-doubling bit
+    is stored for row advance without polluting the max-scan-line output.
+  - `ega_registers_tb.sv` includes hierarchical checks for normal row advance,
+    line-doubled row advance, and max-scan-line masking.
+  - Quartus Analysis & Elaboration passed: 0 errors, 255 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-305 - Implement Start Address Frame Latching
 

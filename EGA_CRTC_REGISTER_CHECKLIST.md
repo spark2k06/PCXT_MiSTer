@@ -39,7 +39,7 @@ Sources:
 | `06h` | Vertical Displayed Low | `R6_v_displayed`. | Stored and protected. Used by non-extended fallback path. | EGA display end must compose from `12h` plus `07h[1]` and `07h[6]`; EGA-302. |
 | `07h` | Overflow | `R7_v_sync_pos`. | Stored with partial protection: when `11h[7]` is set, only bit 4 can change. Active formulas use bits 0, 1, 2, 3, 4, 5, 6, and 7. | Formula composition is covered by EGA-302; split side effects remain EGA-306. |
 | `08h` | Preset Row Scan / Interlace | `{R8_skew, R8_interlace}`. | Stored. Interlace participates in generic field/line logic. | Verify whether EGA interlace odd/even start-address adjustment is needed in EGA-305. |
-| `09h` | Maximum Scan Line | `R9_v_max_line`; low five bits are exported as `V_MAXSCAN_REG`. | Full byte is stored. Low five bits drive scanline row length and bit `6` participates in split target composition. | Bit `7` line-doubling semantics still need EGA-304. Split side effects remain EGA-306. |
+| `09h` | Maximum Scan Line | `R9_v_max_line`; low five bits are exported as `V_MAXSCAN_REG`. | Full byte is stored. Low five bits drive scanline row length, bit `6` participates in split target composition, and bit `7` doubles row advance. | Split side effects remain EGA-306. |
 | `0Ah` | Cursor Start | `{R10_cursor_mode, R10_cursor_start}`. | Stored/readable. Generic cursor line logic uses `R10_cursor_start`. | Text cursor blink/disable behavior belongs to later text-render tasks; keep visible in EGA-301 traceability. |
 | `0Bh` | Cursor End | `R11_cursor_end[4:0]`. | Stored/readable. Generic cursor line logic uses low five bits. | Bits `6:5` blink-delay semantics are not implemented; defer to text cursor task after CRTC address work. |
 | `0Ch` | Start Address High | `R12_start_addr_h`; also writes `start_addr_latch[15:8]`. | Stored/readable. Writes update the latch immediately. | Visible fetch-base reload must be frame-latched across all EGA address modes; EGA-305. |
@@ -49,7 +49,7 @@ Sources:
 | `10h` | Vertical Retrace Start Low | `R16_v_sync_pos_e`; exported as `crtc_r10_debug`. | Stored/readable and used in EGA vertical sync start formula with overflow bit `07h[7]`. | Covered by EGA-302. |
 | `11h` | Vertical Retrace End / Protect | `R17_v_sync_end_e`; exported as `crtc_r11_debug`. | Stored/readable. Bit `7` protects indexes `00h..06h` and partially protects `07h`. Bits `3:0` close the EGA status retrace window. | Implemented protection is covered by EGA-207/EGA-208; retrace-window timing still needs EGA-302 validation. |
 | `12h` | Vertical Display End Low | `R18_v_display_end_e`. | Stored/readable and used in EGA display-end formula with overflow bit `07h[6]`. | Covered by EGA-302. |
-| `13h` | Offset | `R19_offset_e`; row advance is `R19_offset_e << 1`. | Stored/readable. Nonzero value enables the EGA row-address path. | Row advance representation appears aligned for independent planes but needs tests; EGA-304. |
+| `13h` | Offset | `R19_offset_e`; row advance is `R19_offset_e << 1`, or `R19_offset_e << 2` when `09h[7]` is set. | Stored/readable. Nonzero value enables the EGA row-address path. | Covered by EGA-304. |
 | `14h` | Underline Location / Address Mode | `R20_underline_loc_e`; exported as `crtc_r14_debug`. | Stored/readable. Bit `6` selects dword display-address remap. | Underline is later text-render work. |
 | `15h` | Vertical Blank Start | `R21_v_blank_start_e`; exported as `crtc_r15_debug`. | Stored/readable. Used for EGA vertical blank start if extended timing is active. | Needs blanking/status coverage in EGA-302/EGA-307. |
 | `16h` | Vertical Blank End | `R22_v_blank_end_e`; exported as `crtc_r16_debug`. | Stored/readable. Used for EGA vertical blank end if nonzero. | Needs blanking/status coverage in EGA-302/EGA-307. |
@@ -100,7 +100,8 @@ Current RTL:
 - Emits `MA_FULL = ega_display_addr`, where EGA mode uses the remapped
   independent-plane VRAM address and non-EGA mode preserves `row_addr_r`.
 - In EGA row-address mode, increments `row_addr_r` by one CRTC character and
-  advances saved row address by `13h << 1` at row boundaries.
+  advances saved row address by `13h << 1` at row boundaries, or `13h << 2`
+  when CRTC `09h[7]` line-doubling is set.
 - Applies `14h`/`17h` remap modes to `row_addr_r << 2`, converts the resulting
   x86Box interleaved byte address back to the independent-plane VRAM address
   exported as `MA_FULL`, and applies row-scanline MA13/MA14 substitution.
@@ -156,8 +157,7 @@ Missing behavior is assigned to EGA-307.
   representative cases, and retrace-window validation.
 - EGA-303: scanout address remap controlled by CRTC `14h` and `17h`, separate
   from CPU VRAM remap.
-- EGA-304: row advance, maximum scan line, dropped `09h[7]` line-doubling state,
-  and text/graphics row stepping.
+- EGA-304: row advance, maximum scan line, and text/graphics row stepping.
 - EGA-305: start-address and cursor-address frame latching.
 - EGA-306: split/line compare, including `07h[4]`, `09h[6]`, and reset effects.
 - EGA-307: CRTC `17h[7]` reset/display-disable blanking behavior.
