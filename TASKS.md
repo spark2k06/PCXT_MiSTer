@@ -193,7 +193,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-005 - Create A Traceability Checklist
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-001.
 - Files: `TASKS.md`, optional future documentation.
@@ -204,6 +204,13 @@ must be anchored to the behavior it proves.
   - Update the mapping as tasks are completed or split.
 - Acceptance:
   - The remaining backlog can be filtered by unimplemented `SPEC.md` behavior.
+- Verification:
+  - Added `EGA_TRACEABILITY.md` mapping SPEC sections to RTL owners, evidence
+    documents, x86Box reference anchors, and remaining task IDs.
+  - The checklist records open blockers for missing HDL simulation, game-image
+    provenance, and future text-renderer ownership.
+  - Maintenance rules define how future completed tasks, task splits, and
+    intentional deviations should update the traceability record.
 
 ## EGA-100: CPU VRAM And Memory Decode
 
