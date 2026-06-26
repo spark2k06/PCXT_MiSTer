@@ -1,0 +1,1289 @@
+# PCXT MiSTer EGA Task Backlog
+
+This file turns `SPEC.md` and `PLAN.md` into an implementation backlog for
+porting x86Box IBM EGA behavior into the PCXT MiSTer core. It is intentionally
+task-oriented: every item has a stable ID, dependencies, likely files, reference
+material, and acceptance checks.
+
+The technical source of truth remains `SPEC.md`, with x86Box behavior in
+`x86_src/video/vid_ega.c` and `x86_src/video/vid_ega_render.c`. The sequencing
+source of truth remains `PLAN.md`.
+
+## Status Legend
+
+- `[ ]`: not started.
+- `[~]`: in progress.
+- `[x]`: complete.
+- `[!]`: blocked by an explicit dependency or open question.
+
+## Priority Legend
+
+- `P0`: required before meaningful game debugging can continue.
+- `P1`: required for full base IBM EGA compatibility.
+- `P2`: quality, documentation, or late stabilization work.
+
+## Global Definition Of Done
+
+A task is complete only when all relevant checks below are true:
+
+- The implemented behavior is traceable to a `SPEC.md` section and, where
+  practical, to the matching x86Box behavior.
+- Deterministic tests cover the changed behavior or the task records why a
+  hardware-only smoke test is the only practical proof.
+- Existing CGA, HGC, Tandy, and non-EGA paths are not unintentionally gated or
+  regressed.
+- Temporary debug registers, probes, and one-off instrumentation are removed or
+  guarded before the task is marked complete.
+- Any intentional deviation from base IBM EGA is recorded in `SPEC.md` or a
+  follow-up documentation task.
+
+## Milestone Gates
+
+### M0: Baseline And Test Harness
+
+- `ega_vram_tb.sv` builds and reports clear pass/fail diagnostics.
+- Current EGA RTL/module boundaries are mapped against `SPEC.md`.
+- The first smoke-test assets and expected results are recorded.
+
+### M1: CPU-Visible EGA Compatibility
+
+- CPU VRAM read/write modes, latches, plane masks, chain-2, odd/even, A16, page
+  select, and GC memory map modes pass deterministic tests.
+- `Peripherals.sv` decodes all EGA memory windows selected by GC register
+  `06h[3:2]`.
+- Register read/write behavior is probe-compatible enough for EGA BIOS and
+  mode-setting software.
+
+### M2: Correct CRTC And Graphics Scanout
+
+- CRTC timing, row address, start address, line compare, split screen, and
+  scanout remapping match the reference behavior covered in `SPEC.md`.
+- Planar graphics modes render from shifted plane data, not stale or panned
+  fetch wires.
+- CGA-compatible 2bpp EGA graphics mode is implemented.
+
+### M3: Attribute, Palette, Status, And Text
+
+- Attribute Controller palette, plane enable, panning, overscan, blink, and
+  status side effects are verified.
+- Text rendering supports character/attribute fetches, font plane access,
+  Character Map Select, cursor, mono attributes, and 9th-dot line graphics.
+
+### M4: Integrated Release Candidate
+
+- Quartus build completes.
+- EGA BIOS and representative modes `03h`, `0Dh`, `0Eh`, `10h`, and text/graphics
+  transitions pass smoke tests.
+- Known problematic EGA games are re-tested and any remaining issues are
+  reduced to documented follow-up tasks.
+
+## Dependency Summary
+
+```text
+EGA-000..099 baseline
+  -> EGA-100..199 CPU VRAM and memory decode
+      -> EGA-200..299 register and I/O semantics
+          -> EGA-300..399 CRTC timing and address generation
+              -> EGA-400..499 graphics scanout
+              -> EGA-500..599 attribute, palette, border, and status
+                  -> EGA-600..699 text rendering
+                      -> EGA-700..799 integration and BIOS compatibility
+                          -> EGA-800..899 verification expansion
+                              -> EGA-900..999 stabilization
+```
+
+Some test infrastructure tasks in `EGA-800..899` can start early, but each test
+must be anchored to the behavior it proves.
+
+## EGA-000: Baseline And Harness
+
+### EGA-001 - Map Existing EGA RTL Against The Specification
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: none.
+- Files: `rtl/video/ega_top.v`, `rtl/video/ega_vram.v`,
+  `rtl/video/ega_pixel.v`, `rtl/video/ega_sequencer.v`,
+  `rtl/video/ega_gfx_ctrl.v`, `rtl/video/ega_attrib_ctrl.v`,
+  `rtl/video/UM6845R.v`, `rtl/KFPC-XT/HDL/Peripherals.sv`.
+- Source: `SPEC.md` sections 2, 10, 11; `PLAN.md` phase 0.
+- Work:
+  - Create a short implementation map from each major EGA behavior to the
+    current RTL module responsible for it.
+  - Mark behaviors that are missing, partial, or implemented in a module where
+    later refactoring may be required.
+  - Record any module boundary decisions that affect later tasks.
+- Acceptance:
+  - Every `SPEC.md` section from 3 through 10 has at least one owning RTL module
+    or a named missing-module task.
+  - No implementation task starts without a known target module or a deliberate
+    new-module decision.
+
+### EGA-002 - Establish Repeatable Local Build And Simulation Commands
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: none.
+- Files: `files.qip`, `rtl/KFPC-XT/TESTBENCH/*`, project scripts or notes.
+- Source: `PLAN.md` sections 4, 5, 20.
+- Work:
+  - Identify the commands used to run the existing EGA testbench and any full
+    project synthesis or lint flow available in the repository.
+  - Record the exact commands in a local notes section or in the relevant test
+    task descriptions.
+  - Confirm that the commands fail clearly when a test assertion fails.
+- Acceptance:
+  - The EGA VRAM testbench can be run repeatedly from a clean terminal.
+  - The final command output identifies pass/fail status without manual waveform
+    inspection.
+
+### EGA-003 - Improve EGA Testbench Diagnostics
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-002.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`.
+- Source: `PLAN.md` phase 0 and phase 1.
+- Work:
+  - Make each failing case report case name, address, write mode, read mode,
+    memory map, plane mask, expected value, and actual value where relevant.
+  - Ensure failures increment a single visible counter and terminate with a
+    non-success result.
+  - Group related cases so future failures point to the broken feature.
+- Acceptance:
+  - At least one intentionally broken local assertion produces a useful failure
+    line during development.
+  - Normal passing runs end with one clear pass message.
+
+### EGA-004 - Define The Initial Hardware/Emulator Smoke Set
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: none.
+- Files: `games/`, `egabios.asm`, `egabios.rom`, notes in `TASKS.md` or future
+  documentation.
+- Source: `SPEC.md` section 12.4; `PLAN.md` phase 0.
+- Work:
+  - Select the minimum smoke set for BIOS boot, DOS text, EGA mode `0Dh`, EGA
+    mode `0Eh`, EGA mode `10h`, and at least one known glitching game.
+  - Record expected visual properties for each case, not just whether the screen
+    shows something.
+  - Include one CGA/HGC/Tandy non-regression smoke case.
+- Acceptance:
+  - Every release-candidate run has a known smoke checklist.
+  - Visual failures can be classified as CPU memory, register, scanout, palette,
+    text, or integration issues.
+
+### EGA-005 - Create A Traceability Checklist
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-001.
+- Files: `TASKS.md`, optional future documentation.
+- Source: `SPEC.md` all sections; `PLAN.md` section 16.
+- Work:
+  - Keep a table or notes mapping task IDs to `SPEC.md` sections and x86Box
+    reference behavior.
+  - Update the mapping as tasks are completed or split.
+- Acceptance:
+  - The remaining backlog can be filtered by unimplemented `SPEC.md` behavior.
+
+## EGA-100: CPU VRAM And Memory Decode
+
+### EGA-101 - Update VRAM Testbench For `cpu_a16`
+
+- Status: `[x]`
+- Priority: `P0`
+- Depends on: EGA-002, EGA-003.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
+  `rtl/video/ega_vram.v`.
+- Source: `SPEC.md` sections 5.1, 5.2, 11.11; `PLAN.md` section 21.
+- Work:
+  - Drive the current `cpu_a16` input explicitly in every CPU-side read/write
+    helper.
+  - Add named cases for A16 low and high behavior.
+  - Confirm existing tests do not accidentally rely on an uninitialized A16.
+- Acceptance:
+  - `ega_vram_tb.sv` builds with no unconnected `cpu_a16` warnings.
+  - Existing tests pass with deterministic `cpu_a16` values.
+- Verification:
+  - `cpu_a16` is now driven by the CPU transaction helpers from 17-bit test
+    addresses, and a named low/high A16 remap case covers both values.
+  - Project Analysis & Elaboration was run through the documented Quartus flow.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
+
+### EGA-102 - Add CPU Address Remap Reference Helpers
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-101.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`.
+- Source: `SPEC.md` section 5.2; x86Box memory access behavior.
+- Work:
+  - Add reference functions for odd/even, chain-2, extended memory, page select,
+    and memory-map-driven CPU addressing.
+  - Keep the helper functions pure and independent of DUT internals.
+  - Use the helpers in all new CPU VRAM tests.
+- Acceptance:
+  - Test expected values are calculated through reference helpers rather than
+    duplicated ad hoc logic.
+
+### EGA-103 - Cover GC Memory Map Selection In Tests
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-102.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
+  `rtl/video/ega_vram.v`, `rtl/KFPC-XT/HDL/Peripherals.sv`.
+- Source: `SPEC.md` sections 3, 5.2, 11.1; `PLAN.md` phase 1.
+- Work:
+  - Add cases for GC register `06h[3:2]` selecting `A0000h-BFFFFh`,
+    `A0000h-AFFFFh`, `B0000h-B7FFFh`, and `B8000h-BFFFFh`.
+  - Verify accepted and rejected CPU addresses for each map.
+  - Include boundary addresses at the first and last byte of each window.
+- Acceptance:
+  - Each memory map has pass/fail tests for inside-window and outside-window
+    addresses.
+  - The tests expose the current `A0000h-AFFFFh` only limitation before the RTL
+    fix is applied.
+
+### EGA-104 - Implement Full EGA Memory Decode In `Peripherals.sv`
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-103.
+- Files: `rtl/KFPC-XT/HDL/Peripherals.sv`, `rtl/video/ega_top.v`,
+  `rtl/video/ega_gfx_ctrl.v`.
+- Source: `SPEC.md` sections 3, 5.2, 10.2, 11.1.
+- Work:
+  - Export the effective GC memory map selection from the EGA core to the PCXT
+    peripheral decode path.
+  - Decode all four EGA CPU aperture selections.
+  - Preserve existing CGA/HGC/Tandy decode behavior when EGA is disabled or not
+    selected.
+  - Keep bus ready behavior stable for non-selected addresses.
+- Acceptance:
+  - CPU memory accesses are routed to EGA only inside the selected GC aperture.
+  - CGA/HGC/Tandy smoke tests still reach their expected video memory paths.
+
+### EGA-105 - Add Chain-2 Read/Write Coverage
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-102.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
+  `rtl/video/ega_vram.v`.
+- Source: `SPEC.md` sections 5.2, 5.5; `PLAN.md` phase 1.
+- Work:
+  - Test chain-2 writes selecting planes from CPU address bit 0.
+  - Test chain-2 reads selecting the matching plane.
+  - Combine chain-2 with map mask, odd/even disabled, and A16/page-select cases.
+- Acceptance:
+  - Chain-2 behavior is proven independently from normal planar writes.
+
+### EGA-106 - Add Odd/Even And Page Select Coverage
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-102.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
+  `rtl/video/ega_vram.v`.
+- Source: `SPEC.md` sections 5.2, 5.5.
+- Work:
+  - Test odd/even CPU addressing with even and odd CPU addresses.
+  - Test interaction with `cpu_a16`, Misc Output page select, and extended
+    memory.
+  - Verify read and write paths use consistent addressing rules.
+- Acceptance:
+  - Address remapping is covered for both low and high 64 KB banks.
+
+### EGA-107 - Expand CPU Write Mode Coverage
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-102.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
+  `rtl/video/ega_vram.v`, `rtl/video/ega_gfx_ctrl.v`.
+- Source: `SPEC.md` sections 5.5, 5.6.
+- Work:
+  - Test write modes `0`, `1`, `2`, and `3`.
+  - Cover rotate count, set/reset, enable set/reset, logical operation, bit
+    mask, map mask, and latches.
+  - Include cases where only selected bits in selected planes change.
+- Acceptance:
+  - Every documented write mode has at least one test that would fail if latch,
+    mask, or ALU behavior were bypassed.
+
+### EGA-108 - Expand CPU Read Mode Coverage
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-102.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
+  `rtl/video/ega_vram.v`, `rtl/video/ega_gfx_ctrl.v`.
+- Source: `SPEC.md` section 5.4.
+- Work:
+  - Test read mode `0` with each read plane selection.
+  - Test read mode `1` using color compare and color don't care.
+  - Verify every CPU read updates latches before returning data.
+- Acceptance:
+  - Read mode tests detect stale latch data and incorrect compare masks.
+
+### EGA-109 - Fix VRAM Core Mismatches Exposed By Tests
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-105, EGA-106, EGA-107, EGA-108.
+- Files: `rtl/video/ega_vram.v`.
+- Source: `SPEC.md` section 5.
+- Work:
+  - Correct only the mismatches exposed by deterministic VRAM tests.
+  - Keep CPU and CRT ports independent unless a later contention task requires
+    a deliberate shared arbitration change.
+  - Avoid changing register semantics in the VRAM task unless needed to drive
+    an already tested VRAM input.
+- Acceptance:
+  - All `ega_vram_tb.sv` CPU VRAM cases pass.
+  - No unrelated scanout or register behavior is changed in this task.
+
+### EGA-110 - Decide And Document `cpu_access_en` Behavior
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-109.
+- Files: `rtl/KFPC-XT/HDL/ega_vram_bram_frontend.sv`,
+  `rtl/video/ega_vram.v`.
+- Source: `SPEC.md` sections 9, 10.4, 11.12.
+- Work:
+  - Decide whether `cpu_access_en` remains a timing hint, becomes functional
+    arbitration, or is removed from the functional path.
+  - Preserve stable bus ready behavior for the PCXT integration.
+  - Record any intentional difference from x86Box cycle-cost behavior.
+- Acceptance:
+  - CPU memory tests pass with the chosen approach.
+  - The implementation no longer has an ambiguous unused contention signal.
+
+## EGA-200: Register And I/O Semantics
+
+### EGA-201 - Audit EGA I/O Decode
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-104.
+- Files: `rtl/video/ega_top.v`, `rtl/KFPC-XT/HDL/Peripherals.sv`.
+- Source: `SPEC.md` section 3; `PLAN.md` phase 2.
+- Work:
+  - Verify decode for sequencer, graphics controller, attribute controller,
+    CRTC, Misc Output, Feature Control, Input Status, and DAC stub ports.
+  - Check that reads and writes use the correct bus direction and select
+    signals.
+  - Identify any register reads currently suppressed by display-selection state.
+- Acceptance:
+  - Every port range in `SPEC.md` section 3 is assigned to implemented,
+    stubbed, or intentionally ignored behavior.
+
+### EGA-202 - Implement Color/Mono CRTC And Status Port Selection
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-201.
+- Files: `rtl/video/ega_top.v`, `rtl/video/UM6845R.v`.
+- Source: `SPEC.md` sections 3.1, 4.1, 9.2, 11.7.
+- Work:
+  - Use Misc Output bit `0` to select color `3D4h/3D5h/3DAh` versus mono
+    `3B4h/3B5h/3BAh` CRTC/status ports.
+  - Keep status-read side effects active on the selected status port
+    independently of active display muxing.
+  - Verify inactive status and CRTC ports do not incorrectly drive the bus.
+- Acceptance:
+  - Register tests can switch between color and mono port sets.
+  - Attribute flip-flop reset works from the active status port.
+
+### EGA-203 - Complete Attribute Controller Flip-Flop Semantics
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-201.
+- Files: `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` sections 3.2, 4.4, 11.7.
+- Work:
+  - Verify the `3C0h` index/data flip-flop toggles on writes.
+  - Reset the flip-flop on Input Status #1 reads.
+  - Preserve index bit `5` as video enable state according to base EGA behavior.
+  - Ensure `3C1h` reads return the selected Attribute Controller register.
+- Acceptance:
+  - A test sequence can write two attribute registers, reset the flip-flop with
+    a status read, and then write another register correctly.
+
+### EGA-204 - Verify Misc Output Register Semantics
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-201.
+- Files: `rtl/video/ega_top.v`, `rtl/video/ega_vgaport.v`,
+  `rtl/KFPC-XT/HDL/Peripherals.sv`.
+- Source: `SPEC.md` sections 4.1, 8, 10.
+- Work:
+  - Verify reset value, readback, clock select, enable RAM, page select,
+    color/mono select, and palette width bit behavior.
+  - Ensure DAC stubs do not override base EGA palette behavior.
+- Acceptance:
+  - Misc Output can be read back and its exported effects are visible to memory
+    decode and port selection tests.
+
+### EGA-205 - Verify Sequencer Register Behavior
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-201.
+- Files: `rtl/video/ega_sequencer.v`, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` section 4.2.
+- Work:
+  - Verify reset, clocking mode, map mask, character map select, and memory mode
+    registers.
+  - Confirm odd/even disable, chain-2, extended memory, and dot-clock effects
+    reach downstream modules.
+- Acceptance:
+  - Sequencer register readback and exported control signals match programmed
+    values after reset and writes.
+
+### EGA-206 - Verify Graphics Controller Register Behavior
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-201.
+- Files: `rtl/video/ega_gfx_ctrl.v`, `rtl/video/ega_top.v`,
+  `rtl/video/ega_vram.v`.
+- Source: `SPEC.md` section 4.3.
+- Work:
+  - Verify set/reset, enable set/reset, color compare, data rotate, read map
+    select, mode, misc, color don't care, and bit mask registers.
+  - Confirm mode-derived control signals drive VRAM and scanout tasks.
+- Acceptance:
+  - Register tests cover readback and at least one functional downstream effect
+    for critical GC registers.
+
+### EGA-207 - Implement CRTC Write Protection
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-201.
+- Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` sections 4.5, 11.6; x86Box CRTC behavior.
+- Work:
+  - When CRTC register `11h[7]` is set, protect registers `00h..06h`.
+  - Apply partial protection for register `07h` according to IBM EGA behavior
+    described in `SPEC.md`.
+  - Verify protected writes do not alter timing-critical state.
+- Acceptance:
+  - Tests can prove protected writes are ignored and unprotected writes still
+    update the expected registers.
+
+### EGA-208 - Add Register-Oriented Testbench Coverage
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-202, EGA-203, EGA-204, EGA-205, EGA-206, EGA-207.
+- Files: new or existing EGA register testbench under
+  `rtl/KFPC-XT/TESTBENCH/`.
+- Source: `SPEC.md` sections 3, 4, 9.2; `PLAN.md` phase 8.
+- Work:
+  - Build a deterministic register testbench that drives EGA I/O operations
+    without requiring a full PCXT boot.
+  - Cover index/data ports, selected reads, reset values, write protection, and
+    status-read side effects.
+- Acceptance:
+  - Register tests fail on incorrect attribute flip-flop, CRTC protection, or
+    color/mono port selection behavior.
+
+## EGA-300: CRTC Timing And Display Address Core
+
+### EGA-301 - Build A CRTC Register Behavior Checklist
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-208.
+- Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` sections 4.5, 6, 9.
+- Work:
+  - List every CRTC register used by timing, address generation, cursor, start
+    address, line compare, overflow, and mode control.
+  - Mark whether the current `UM6845R.v` implements the EGA-specific bits or
+    only generic 6845 behavior.
+- Acceptance:
+  - Missing EGA-specific CRTC behaviors have task IDs before scanout changes
+    start.
+
+### EGA-302 - Verify Overflow And Vertical Timing Formulas
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-301.
+- Files: `rtl/video/UM6845R.v`.
+- Source: `SPEC.md` sections 4.5, 9.1.
+- Work:
+  - Verify vertical total, display end, sync start, line compare, and max scan
+    line composition from low registers plus overflow bits.
+  - Add tests for values that cross 8-bit boundaries.
+- Acceptance:
+  - CRTC vertical counters and display-enable transitions match the reference
+    cases.
+
+### EGA-303 - Implement Or Correct Scanout Address Remapping
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-301, EGA-302.
+- Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`,
+  `rtl/KFPC-XT/HDL/ega_vram_bram_frontend.sv`.
+- Source: `SPEC.md` sections 6.1, 6.2, 11.4;
+  `x86_src/video/vid_ega_render.c`.
+- Work:
+  - Implement the render-address remap controlled by CRTC `14h[6]`,
+    `17h[6]`, `17h[5]`, `17h[1:0]`, and scanline bits.
+  - Keep CPU-side VRAM remapping independent from display-side remapping.
+  - Verify remap behavior mode by mode before changing pixel output.
+- Acceptance:
+  - Address tests can distinguish all documented scanout remap modes.
+  - Existing CPU VRAM tests remain unchanged and passing.
+
+### EGA-304 - Validate Row Advance And Maximum Scan Line Behavior
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-303.
+- Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` sections 6.2, 7.
+- Work:
+  - Verify scanline row counter increments, resets, and address advances at the
+    correct character-row boundaries.
+  - Cover single-scanline graphics and multi-scanline text rows.
+- Acceptance:
+  - Tests prove graphics modes do not accidentally apply text row stepping, and
+    text modes preserve glyph scanline sequencing.
+
+### EGA-305 - Implement Start Address Frame Latching
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-303.
+- Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` section 6.3.
+- Work:
+  - Latch CRTC start address at the frame boundary used by the EGA renderer.
+  - Avoid mid-frame tearing behavior unless it is required by the reference.
+- Acceptance:
+  - Tests or smoke cases show stable page flips at frame boundaries.
+
+### EGA-306 - Verify Split Screen And Line Compare
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-303, EGA-305.
+- Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` section 6.4.
+- Work:
+  - Verify line compare resets display address generation at the programmed
+    scanline.
+  - Include overflow bits in the line compare value.
+  - Confirm horizontal panning and start-address behavior across the split.
+- Acceptance:
+  - A deterministic test can detect wrong split-screen restart line or address.
+
+### EGA-307 - Verify CRTC Reset And Display Disable Paths
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-302.
+- Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` sections 4.2, 9.
+- Work:
+  - Verify sequencer reset and display disable effects on counters, fetches,
+    and output blanking.
+  - Ensure disabled display does not corrupt CPU VRAM contents.
+- Acceptance:
+  - Display-disable tests show blank output while register and CPU memory access
+    remain functional.
+
+### EGA-308 - Add CRTC Address Testbench Coverage
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-303, EGA-304, EGA-305, EGA-306.
+- Files: new or existing EGA CRTC/address testbench under
+  `rtl/KFPC-XT/TESTBENCH/`.
+- Source: `SPEC.md` sections 6, 9; `PLAN.md` phase 8.
+- Work:
+  - Drive programmed CRTC modes and sample generated fetch addresses,
+    row-address values, hblank/vblank, and display-enable transitions.
+  - Compare against reference helper functions derived from `SPEC.md`.
+- Acceptance:
+  - CRTC/address tests fail on wrong scanout remap, row advance, start address,
+    or line compare behavior.
+
+## EGA-400: Graphics Scanout
+
+### EGA-401 - Correct Planar Graphics Pixel Shifting
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-303, EGA-308.
+- Files: `rtl/video/ega_pixel.v`.
+- Source: `SPEC.md` sections 7.1, 7.4, 11.3;
+  `x86_src/video/vid_ega_render.c`.
+- Work:
+  - Ensure loaded plane bytes are shifted one bit per dot.
+  - Use panning only to select delayed/offset pixels, not to replace the shifter
+    with static fetch wires.
+  - Preserve low-resolution repeat behavior where each source bit becomes two
+    output dots.
+- Acceptance:
+  - A test pattern with alternating plane bits produces the expected per-dot
+    color sequence in high and low resolution.
+
+### EGA-402 - Implement Graphics Horizontal Panning Behavior
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-401, EGA-203.
+- Files: `rtl/video/ega_pixel.v`, `rtl/video/ega_attrib_ctrl.v`,
+  `rtl/video/ega_top.v`.
+- Source: `SPEC.md` sections 4.4, 7.4, 11.7.
+- Work:
+  - Apply Attribute Controller horizontal pixel panning in graphics modes.
+  - Match the x86Box cached panning behavior where software-visible timing
+    depends on status/display transitions.
+- Acceptance:
+  - Panning tests shift the visible image by the programmed amount without
+    changing fetched VRAM bytes.
+
+### EGA-403 - Implement Complete Graphics Mode Selection
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-401.
+- Files: `rtl/video/ega_pixel.v`, `rtl/video/ega_top.v`,
+  `rtl/video/ega_gfx_ctrl.v`, `rtl/video/ega_sequencer.v`.
+- Source: `SPEC.md` sections 7.1, 7.4.
+- Work:
+  - Select between planar 4bpp graphics, CGA-compatible 2bpp graphics, and text
+    handoff based on GC and Sequencer mode bits.
+  - Keep mode selection explicit and easy to probe in simulation.
+- Acceptance:
+  - Mode-selection tests route graphics and text configurations to the correct
+    render path.
+
+### EGA-404 - Implement CGA-Compatible 2bpp EGA Graphics
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-403.
+- Files: `rtl/video/ega_pixel.v`, `rtl/video/ega_attrib_ctrl.v`.
+- Source: `SPEC.md` sections 7.4, 11.8;
+  `x86_src/video/vid_ega_render.c`.
+- Work:
+  - Implement GC Mode bit `5` conversion from packed CGA-style bits into EGA
+    color indexes.
+  - Verify interaction with palette, intensity, and plane enable.
+- Acceptance:
+  - A known 2bpp pattern produces the same color-index sequence as the reference
+    model.
+
+### EGA-405 - Verify Sequencer Odd/Even Effects On Graphics Fetch
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-303, EGA-401.
+- Files: `rtl/video/ega_sequencer.v`, `rtl/video/ega_top.v`,
+  `rtl/KFPC-XT/HDL/ega_vram_bram_frontend.sv`.
+- Source: `SPEC.md` sections 4.2, 6, 7.4.
+- Work:
+  - Confirm graphics fetch addressing honors sequencer memory-mode effects
+    where the reference applies them.
+  - Separate CPU odd/even behavior from display fetch behavior.
+- Acceptance:
+  - Tests prove odd/even CPU modes do not unintentionally corrupt graphics
+    scanout addressing.
+
+### EGA-406 - Apply Attribute Plane Enable In Graphics
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-401, EGA-203.
+- Files: `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_pixel.v`.
+- Source: `SPEC.md` sections 4.4, 7.4.
+- Work:
+  - Mask incoming plane bits according to Attribute Controller plane enable.
+  - Verify disabled planes contribute zero to the palette index.
+- Acceptance:
+  - Plane-enable tests produce expected colors for all single-plane and
+    multi-plane masks.
+
+### EGA-407 - Implement Graphics Blink Handling If Reference Requires It
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-501, EGA-506.
+- Files: `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_pixel.v`.
+- Source: `SPEC.md` sections 4.4, 7.4, 9.3.
+- Work:
+  - Check x86Box graphics blink behavior for base IBM EGA.
+  - Implement or explicitly document the non-use of blink in graphics output.
+- Acceptance:
+  - Blink behavior is tested or documented as intentionally not affecting the
+    selected graphics path.
+
+### EGA-408 - Ensure Active Display And Blanking Gate Pixels Correctly
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-401, EGA-307.
+- Files: `rtl/video/ega_top.v`, `rtl/video/ega_attrib_ctrl.v`,
+  `rtl/video/ega_pixel.v`.
+- Source: `SPEC.md` sections 7.2, 9.
+- Work:
+  - Gate visible pixels with display-enable and blanking signals.
+  - Preserve overscan/border output where the display is inactive but border is
+    visible.
+- Acceptance:
+  - Tests or captured frames distinguish active pixels, overscan, hblank, and
+    vblank.
+
+### EGA-409 - Add Graphics Pixel Testbench Coverage
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-401, EGA-402, EGA-404, EGA-406, EGA-408.
+- Files: new or existing EGA pixel testbench under
+  `rtl/KFPC-XT/TESTBENCH/`.
+- Source: `SPEC.md` sections 7.1, 7.4, 8.
+- Work:
+  - Feed known plane bytes, mode bits, panning values, plane masks, and palette
+    registers into the render path.
+  - Compare output color indexes cycle by cycle.
+- Acceptance:
+  - Pixel tests fail on static-plane output, incorrect low-resolution repeat,
+    wrong panning, or broken 2bpp conversion.
+
+## EGA-500: Attribute, Palette, Border, And Status
+
+### EGA-501 - Implement Base EGA Palette Indirection
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-203, EGA-204.
+- Files: `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_vgaport.v`.
+- Source: `SPEC.md` sections 4.4, 8.
+- Work:
+  - Map 4-bit pixel indexes through the 16 Attribute Controller palette
+    registers.
+  - Convert the resulting 6-bit EGA color to RGB using base EGA rules.
+  - Respect Misc Output palette width behavior for base EGA.
+- Acceptance:
+  - Palette tests can remap a plane color index to a different RGB output.
+
+### EGA-502 - Verify 16-Color And 64-Color RGB Mapping
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-501.
+- Files: `rtl/video/ega_vgaport.v`, `rtl/video/ega_attrib_ctrl.v`.
+- Source: `SPEC.md` section 8.
+- Work:
+  - Build expected RGB tables for the implemented base EGA modes.
+  - Confirm DAC stub ports do not alter base EGA color output.
+- Acceptance:
+  - Every palette entry used by standard 16-color modes maps to expected RGB.
+
+### EGA-503 - Implement Overscan And Border Color
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-501, EGA-408.
+- Files: `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` sections 4.4, 8, 9.
+- Work:
+  - Use Attribute Controller overscan register for border color.
+  - Ensure blanking remains black or sync-safe while border remains visible in
+    the intended region.
+- Acceptance:
+  - Border smoke tests can change overscan color without changing active pixels.
+
+### EGA-504 - Implement Input Status #1 Bits And Side Effects
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-202, EGA-203.
+- Files: `rtl/video/ega_top.v`, `rtl/video/ega_attrib_ctrl.v`.
+- Source: `SPEC.md` sections 3.2, 9.2, 11.5.
+- Work:
+  - Return display-enable and vertical-retrace bits as currently timed by the
+    CRTC.
+  - Toggle bits `4` and `5` on IBM EGA status reads as x86Box does.
+  - Reset the Attribute Controller flip-flop on each selected status read.
+- Acceptance:
+  - Consecutive status reads show the expected `0x30` toggle behavior.
+  - Attribute writes after status reads land in the intended index/data phase.
+
+### EGA-505 - Remove Incorrect Display-Select Gating From Register Visibility
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-201, EGA-504.
+- Files: `rtl/video/ega_top.v`, `rtl/KFPC-XT/HDL/Peripherals.sv`.
+- Source: `SPEC.md` sections 3, 9.2, 10.1, 11.7;
+  `PLAN.md` section 21.
+- Work:
+  - Audit reads that are currently visible only when `ega_display_sel` is true.
+  - Make CPU-visible EGA hardware respond according to enable and port decode,
+    not current display-mux state.
+  - Preserve CGA fallback behavior where EGA is disabled.
+- Acceptance:
+  - EGA register probes work before the first active EGA frame is selected.
+
+### EGA-506 - Implement A Shared Blink State Generator
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-504.
+- Files: `rtl/video/ega_top.v`, `rtl/video/ega_attrib_ctrl.v`,
+  future text renderer.
+- Source: `SPEC.md` sections 4.4, 7.3, 9.3.
+- Work:
+  - Generate blink state from frame or vertical timing in a way suitable for
+    text and any graphics behavior that requires it.
+  - Keep blink deterministic enough for simulation tests.
+- Acceptance:
+  - Blink state toggles at a stable cadence tied to video timing and can be
+    observed by text/attribute tests.
+
+### EGA-507 - Add Attribute, Palette, And Status Tests
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-501, EGA-502, EGA-503, EGA-504, EGA-505, EGA-506.
+- Files: EGA register/pixel testbenches under `rtl/KFPC-XT/TESTBENCH/`.
+- Source: `SPEC.md` sections 4.4, 8, 9.2.
+- Work:
+  - Test palette remap, plane enable, panning, overscan, video enable, status
+    bits, status toggles, and flip-flop resets.
+- Acceptance:
+  - Attribute/status regressions are caught before full PCXT boot tests.
+
+## EGA-600: Text Renderer
+
+### EGA-601 - Choose Text Renderer Architecture
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-303, EGA-501.
+- Files: `rtl/video/ega_top.v`, `rtl/video/ega_pixel.v`,
+  possible new `rtl/video/ega_text*.v`.
+- Source: `SPEC.md` sections 7.1, 7.3, 11.2; `PLAN.md` phase 6.
+- Work:
+  - Decide whether to extend `ega_pixel.v` or add a dedicated text renderer.
+  - Define fetch timing for character byte, attribute byte, and font byte.
+  - Define how the text path shares palette, blink, panning, and blanking logic
+    with graphics.
+- Acceptance:
+  - Architecture decision identifies module boundaries and required VRAM
+    frontend changes before implementation begins.
+
+### EGA-602 - Extend VRAM Frontend For Text Fetches
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-601.
+- Files: `rtl/KFPC-XT/HDL/ega_vram_bram_frontend.sv`,
+  `rtl/video/ega_vram.v`, text renderer module.
+- Source: `SPEC.md` sections 5.1, 7.3, 11.2.
+- Work:
+  - Provide the text renderer with character/attribute bytes from display
+    memory and font bytes from the selected font plane.
+  - Preserve CPU-side VRAM behavior while scanout reads text data.
+  - Account for registered BRAM latency.
+- Acceptance:
+  - A text fetch test returns the expected character, attribute, and glyph row
+    for a programmed address.
+
+### EGA-603 - Implement Character And Attribute Fetch Pipeline
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-602.
+- Files: text renderer module, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` section 7.3;
+  `x86_src/video/vid_ega_render.c`.
+- Work:
+  - Fetch two-byte text cells using CRTC address generation.
+  - Align fetched character and attribute data with the pixel clock.
+  - Support 40-column and 80-column text widths derived from programmed timing.
+- Acceptance:
+  - A programmed text row produces the expected sequence of text cells.
+
+### EGA-604 - Implement Font Plane And Character Map Select
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-603, EGA-205.
+- Files: text renderer module, `rtl/video/ega_sequencer.v`,
+  `rtl/KFPC-XT/HDL/ega_vram_bram_frontend.sv`.
+- Source: `SPEC.md` sections 4.2, 7.3, 11.9.
+- Work:
+  - Use Sequencer Character Map Select to choose font blocks.
+  - Fetch glyph rows from the correct plane and scanline row.
+  - Support software-loaded fonts in VRAM.
+- Acceptance:
+  - Changing Character Map Select changes displayed glyphs without changing text
+    cell character bytes.
+
+### EGA-605 - Implement Text Pixel Generation
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-604, EGA-501, EGA-506.
+- Files: text renderer module, `rtl/video/ega_attrib_ctrl.v`.
+- Source: `SPEC.md` section 7.3.
+- Work:
+  - Convert glyph bits plus attribute byte into foreground/background color
+    indexes.
+  - Apply blink/intensity behavior according to Attribute Controller mode.
+  - Apply palette indirection consistently with graphics output.
+- Acceptance:
+  - Text tests cover foreground, background, intensity, and blink attributes.
+
+### EGA-606 - Implement 9th-Dot Line Graphics Behavior
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-605.
+- Files: text renderer module, `rtl/video/ega_attrib_ctrl.v`.
+- Source: `SPEC.md` sections 4.4, 7.3, 11.7.
+- Work:
+  - For 9-dot text modes, repeat the 8th glyph column for line graphics
+    characters when enabled.
+  - Blank or handle the 9th column correctly for non-line-graphics characters.
+- Acceptance:
+  - Box-drawing characters join correctly in 80-column text mode.
+
+### EGA-607 - Implement Cursor Rendering
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-603, EGA-605.
+- Files: `rtl/video/UM6845R.v`, text renderer module.
+- Source: `SPEC.md` sections 4.5, 7.3.
+- Work:
+  - Use CRTC cursor start/end and cursor address registers.
+  - Apply cursor visibility and scanline range to the active text cell.
+- Acceptance:
+  - Cursor tests show the cursor at the programmed cell and scanline range.
+
+### EGA-608 - Implement Mono Text Attributes And Underline
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-605, EGA-202.
+- Files: text renderer module, `rtl/video/ega_attrib_ctrl.v`.
+- Source: `SPEC.md` sections 7.3, 11.7.
+- Work:
+  - Match x86Box mono attribute handling for base EGA text.
+  - Implement underline behavior where required by the selected text mode.
+- Acceptance:
+  - Mono text smoke cases render attributes and underline consistently with the
+    reference.
+
+### EGA-609 - Implement Text Horizontal Panning
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-603, EGA-203.
+- Files: text renderer module, `rtl/video/ega_attrib_ctrl.v`.
+- Source: `SPEC.md` sections 4.4, 7.3.
+- Work:
+  - Apply Attribute Controller horizontal panning to text pixels.
+  - Verify behavior across the left edge and line compare split.
+- Acceptance:
+  - Text panning shifts glyph pixels without corrupting character fetch order.
+
+### EGA-610 - Add Text Renderer Testbench Coverage
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-603, EGA-604, EGA-605, EGA-606, EGA-607, EGA-608, EGA-609.
+- Files: new or existing EGA text testbench under `rtl/KFPC-XT/TESTBENCH/`.
+- Source: `SPEC.md` section 7.3; `PLAN.md` phase 8.
+- Work:
+  - Test character/attribute fetch, glyph row fetch, palette, blink, cursor,
+    9th-dot line graphics, Character Map Select, and mono attributes.
+- Acceptance:
+  - Text tests fail if the renderer treats text memory as planar graphics.
+
+## EGA-700: PCXT Integration And BIOS Compatibility
+
+### EGA-701 - Audit Video Output Selection And EGA Activation
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-505, EGA-408.
+- Files: `rtl/KFPC-XT/HDL/Peripherals.sv`, `rtl/KFPC-XT/HDL/Chipset.sv`,
+  `PCXT.sv`, `rtl/video/ega_top.v`.
+- Source: `SPEC.md` section 10; `PLAN.md` phase 7.
+- Work:
+  - Verify how EGA becomes the active RGB path and when CGA remains active.
+  - Ensure register programming can occur before EGA display selection.
+  - Remove or guard heuristics that delay EGA activation based only on recent
+    writes if they mask real hardware behavior.
+- Acceptance:
+  - EGA BIOS can program registers and memory before the first selected frame.
+
+### EGA-702 - Preserve CGA/HGC/Tandy Coexistence
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-104, EGA-701.
+- Files: `rtl/KFPC-XT/HDL/Peripherals.sv`, `rtl/video/cga.v`,
+  `rtl/video/hgc.v`, `PCXT.sv`.
+- Source: `SPEC.md` sections 10.1, 10.2.
+- Work:
+  - Re-test video memory decode and output muxing with EGA disabled.
+  - Re-test CGA/Tandy A000/B800/HGC regions where they overlap EGA-capable
+    address ranges.
+- Acceptance:
+  - Non-EGA modes still boot and display after EGA decode changes.
+
+### EGA-703 - Verify EGA BIOS ROM Loading And Protection
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-701.
+- Files: `PCXT.sv`, `egabios.asm`, `egabios.rom`, BIOS loading logic.
+- Source: `SPEC.md` section 10.5; `PLAN.md` phase 7.
+- Work:
+  - Confirm the EGA BIOS image loads at the expected address and is protected
+    consistently with current PCXT BIOS behavior.
+  - Keep BIOS changes minimal unless hardware behavior requires a compatibility
+    shim.
+- Acceptance:
+  - EGA BIOS smoke test reaches expected mode-setting behavior without manual
+    pokes.
+
+### EGA-704 - Validate Menu And Feature-Gate Integration
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-701.
+- Files: `PCXT.sv`, `files.qip`.
+- Source: `SPEC.md` sections 10.1, 10.5.
+- Work:
+  - Verify `ENABLE_EGA` and menu-controlled EGA gate behavior.
+  - Ensure disabled EGA does not drive bus, memory, or video outputs.
+- Acceptance:
+  - Builds with EGA enabled and disabled have expected behavior.
+
+### EGA-705 - Run Platform Smoke Tests
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-409, EGA-507, EGA-610, EGA-703.
+- Files: smoke-test notes, `games/`, generated screenshots or logs if used.
+- Source: `SPEC.md` section 12.4; `PLAN.md` phase 7.
+- Work:
+  - Run BIOS boot, DOS text, mode `03h`, mode `0Dh`, mode `0Eh`, mode `10h`,
+    known glitching EGA games, and CGA/HGC/Tandy non-regression cases.
+  - Record observed failures with a suspected owning subsystem.
+- Acceptance:
+  - Every smoke case is classified pass/fail with enough detail for a follow-up
+    task.
+
+## EGA-800: Verification Expansion
+
+### EGA-801 - Add Pure Reference Models For Tests
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-001.
+- Files: testbench helper package or shared include under
+  `rtl/KFPC-XT/TESTBENCH/`.
+- Source: `SPEC.md` sections 5, 6, 7, 8, 9.
+- Work:
+  - Implement reference functions for CPU address remap, VRAM writes, VRAM
+    reads, CRTC scanout address, pixel assembly, and palette mapping.
+  - Keep helpers independent from DUT signal names.
+- Acceptance:
+  - New testbenches share reference helpers instead of duplicating formulas.
+
+### EGA-802 - Add `ega_registers_tb`
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-208.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_registers_tb.sv` or equivalent.
+- Source: `SPEC.md` sections 3, 4, 9.2.
+- Work:
+  - Cover register reset, readback, indexed writes, protected writes, flip-flop,
+    status reads, color/mono ports, and DAC stubs.
+- Acceptance:
+  - Register behavior can be tested without launching the full chipset.
+
+### EGA-803 - Add `ega_crtc_addr_tb`
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-308.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_crtc_addr_tb.sv` or equivalent.
+- Source: `SPEC.md` sections 6, 9.
+- Work:
+  - Cover timing counters, display enable, hblank/vblank, start address, row
+    advance, line compare, and scanout remap.
+- Acceptance:
+  - Scanout address changes can be verified before visual testing.
+
+### EGA-804 - Add `ega_pixel_tb`
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-409.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_pixel_tb.sv` or equivalent.
+- Source: `SPEC.md` sections 7.4, 8.
+- Work:
+  - Cover planar graphics, low-resolution repeat, panning, plane enable, 2bpp
+    mode, palette, and blanking.
+- Acceptance:
+  - Pixel output regressions are cycle-deterministic.
+
+### EGA-805 - Add `ega_text_tb`
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-610.
+- Files: `rtl/KFPC-XT/TESTBENCH/ega_text_tb.sv` or equivalent.
+- Source: `SPEC.md` section 7.3.
+- Work:
+  - Cover text fetches, font plane, Character Map Select, attributes, blink,
+    cursor, panning, mono attributes, and 9th-dot line graphics.
+- Acceptance:
+  - Text renderer behavior is testable without full system boot.
+
+### EGA-806 - Add Integrated EGA Smoke Test Flow
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-705.
+- Files: `rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv`, scripts or notes as available.
+- Source: `SPEC.md` section 12.4; `PLAN.md` phase 8.
+- Work:
+  - Exercise enough of the PCXT chipset to program EGA registers and VRAM, then
+    sample video output.
+  - Use small deterministic programs or direct bus transactions as appropriate.
+- Acceptance:
+  - Integrated smoke catches wiring mistakes that unit tests cannot see.
+
+### EGA-807 - Maintain A Game-Oriented Regression Matrix
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-004, EGA-705.
+- Files: `TASKS.md` or future regression notes.
+- Source: `SPEC.md` section 12.4.
+- Work:
+  - Record title, mode, expected behavior, observed behavior, and suspected
+    subsystem for each known problematic game.
+  - Keep results separated from deterministic unit-test status.
+- Acceptance:
+  - Game glitches become reproducible issues rather than anecdotal failures.
+
+## EGA-900: Stabilization And Documentation
+
+### EGA-901 - Remove Or Gate Temporary Debug Logic
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-705.
+- Files: `rtl/video/ega_top.v`, any modified EGA RTL.
+- Source: `PLAN.md` phase 9.
+- Work:
+  - Remove debug-only last-read/last-write state unless it is deliberately kept
+    behind synthesis-safe debug guards.
+  - Ensure debug logic does not drive compatibility behavior.
+- Acceptance:
+  - Release-candidate RTL contains no accidental debug-dependent behavior.
+
+### EGA-902 - Document Hardware Formulas And x86Box Mappings
+
+- Status: `[ ]`
+- Priority: `P2`
+- Depends on: EGA-303, EGA-401, EGA-601.
+- Files: comments in EGA RTL, `SPEC.md` if behavior needs clarification.
+- Source: `SPEC.md`; `x86_src/video/vid_ega.c`;
+  `x86_src/video/vid_ega_render.c`.
+- Work:
+  - Add short comments only around non-obvious register formulas, remap logic,
+    timing latches, or text fetch sequencing.
+  - Avoid comments that restate signal names or assignments.
+- Acceptance:
+  - Future maintainers can trace complex formulas back to the spec/reference.
+
+### EGA-903 - Record Intentional Deviations From IBM EGA
+
+- Status: `[ ]`
+- Priority: `P1`
+- Depends on: EGA-705.
+- Files: `SPEC.md`, future release notes.
+- Source: `SPEC.md` section 14; `PLAN.md` phase 9.
+- Work:
+  - Document any behavior intentionally not implemented, such as non-base EGA
+    clone behavior or exact cycle stealing if not required.
+  - Separate non-goals from unresolved bugs.
+- Acceptance:
+  - Remaining limitations are explicit and not hidden in implementation details.
+
+### EGA-904 - Run Full Verification Before Release Candidate
+
+- Status: `[ ]`
+- Priority: `P0`
+- Depends on: EGA-802, EGA-803, EGA-804, EGA-805, EGA-806, EGA-901.
+- Files: all modified RTL and testbenches.
+- Source: `PLAN.md` sections 4, 20.
+- Work:
+  - Run all deterministic EGA tests.
+  - Run full project build or synthesis flow.
+  - Run platform smoke tests from EGA-705.
+  - Re-run non-EGA video smoke tests.
+- Acceptance:
+  - Release-candidate status is backed by commands, logs, and smoke results.
+
+### EGA-905 - Split Remaining Failures Into Follow-Up Tasks
+
+- Status: `[ ]`
+- Priority: `P2`
+- Depends on: EGA-904.
+- Files: `TASKS.md`, issue tracker if used.
+- Source: all unresolved test/smoke results.
+- Work:
+  - Convert each remaining failure into a task with owner subsystem,
+    reproduction steps, expected behavior, and acceptance check.
+  - Close or archive tasks made obsolete by implementation changes.
+- Acceptance:
+  - The backlog remains actionable after the first release-candidate pass.
+
+## First Execution Slice
+
+Start with this slice before broad RTL changes:
+
+1. EGA-002 - Establish repeatable local build and simulation commands.
+2. EGA-003 - Improve EGA testbench diagnostics.
+3. EGA-101 - Update VRAM testbench for `cpu_a16`.
+4. EGA-102 - Add CPU address remap reference helpers.
+5. EGA-103 - Cover GC memory map selection in tests.
+6. EGA-105 - Add chain-2 read/write coverage.
+7. EGA-106 - Add odd/even and page select coverage.
+8. EGA-107 - Expand CPU write mode coverage.
+9. EGA-108 - Expand CPU read mode coverage.
+10. EGA-109 - Fix VRAM core mismatches exposed by tests.
+11. EGA-104 - Implement full EGA memory decode in `Peripherals.sv`.
+12. EGA-208 - Add register-oriented testbench coverage.
+
+This slice focuses first on CPU-visible behavior, because bad memory and
+register semantics make later graphics glitches difficult to diagnose.

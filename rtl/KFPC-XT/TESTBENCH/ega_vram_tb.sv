@@ -8,6 +8,7 @@ module ega_vram_tb;
     reg         clk = 1'b0;
     reg         clk_vram = 1'b0;
     reg  [15:0] cpu_addr = 16'h0000;
+    reg         cpu_a16 = 1'b0;
     reg  [7:0]  cpu_data_in = 8'h00;
     wire [7:0]  cpu_data_out;
     reg         cpu_we = 1'b0;
@@ -55,6 +56,7 @@ module ega_vram_tb;
         .clk(clk),
         .clk_vram(clk_vram),
         .cpu_addr(cpu_addr),
+        .cpu_a16(cpu_a16),
         .cpu_data_in(cpu_data_in),
         .cpu_data_out(cpu_data_out),
         .cpu_we(cpu_we),
@@ -213,6 +215,7 @@ module ega_vram_tb;
     task automatic reset_inputs;
         begin
             cpu_addr = 16'h0000;
+            cpu_a16 = 1'b0;
             cpu_data_in = 8'h00;
             cpu_we = 1'b0;
             cpu_re = 1'b0;
@@ -249,10 +252,11 @@ module ega_vram_tb;
         end
     endtask
 
-    task automatic cpu_read_tx(input [15:0] addr);
+    task automatic cpu_read_tx(input [16:0] addr);
         begin
             @(negedge clk);
-            cpu_addr = addr;
+            cpu_addr = addr[15:0];
+            cpu_a16 = addr[16];
             cpu_re = 1'b1;
             cpu_we = 1'b0;
             cpu_mem_select = 1'b1;
@@ -265,12 +269,13 @@ module ega_vram_tb;
     endtask
 
     task automatic cpu_write_tx(
-        input [15:0] addr,
+        input [16:0] addr,
         input [7:0] data
     );
         begin
             @(negedge clk);
-            cpu_addr = addr;
+            cpu_addr = addr[15:0];
+            cpu_a16 = addr[16];
             cpu_data_in = data;
             cpu_re = 1'b0;
             cpu_we = 1'b1;
@@ -419,6 +424,42 @@ module ega_vram_tb;
         end
     endtask
 
+    task automatic test_cpu_a16_remap;
+        begin
+            $display("TEST: CPU A16 selects remapped low/high A000 aperture bytes");
+            plane_write_mask = 4'hF;
+            odd_even_mode = 1'b0;
+            chain2_write = 1'b0;
+            chain2_read = 1'b0;
+            extended_memory = 1'b1;
+            mem_map_sel = 2'b00;
+            page_select = 1'b0;
+            write_mode = 2'b00;
+            read_mode = 2'b00;
+            read_plane_sel = 2'b00;
+            bit_mask = 8'hFF;
+            rop_select = 2'b00;
+            rotate_count = 3'd0;
+            set_reset = 8'h00;
+            enable_set_reset = 4'h0;
+
+            set_planes(16'h0040, 8'h00, 8'h00, 8'h00, 8'h00);
+            set_planes(16'h0041, 8'h00, 8'h00, 8'h00, 8'h00);
+
+            cpu_write_tx(17'h00040, 8'hA5);
+            cpu_write_tx(17'h10040, 8'h5A);
+
+            expect_eq8("cpu a16=0 write maps to even remap byte", dut.plane0[16'h0040], 8'hA5);
+            expect_eq8("cpu a16=1 write maps to odd remap byte", dut.plane0[16'h0041], 8'h5A);
+
+            cpu_read_tx(17'h00040);
+            expect_eq8("cpu a16=0 read plane0", cpu_data_out, 8'hA5);
+
+            cpu_read_tx(17'h10040);
+            expect_eq8("cpu a16=1 read plane0", cpu_data_out, 8'h5A);
+        end
+    endtask
+
     initial begin
         reset_inputs();
         repeat (4) @(posedge clk);
@@ -427,6 +468,7 @@ module ega_vram_tb;
         test_write_modes_0_and_2();
         test_read_mode1();
         test_consecutive_writes();
+        test_cpu_a16_remap();
 
         if (failures != 0) begin
             $display("ega_vram_tb FAILED with %0d mismatches", failures);
