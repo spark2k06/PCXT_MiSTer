@@ -1749,7 +1749,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-802 - Add `ega_registers_tb`
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-208.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_registers_tb.sv` or equivalent.
@@ -1759,10 +1759,19 @@ must be anchored to the behavior it proves.
     status reads, color/mono ports, and DAC stubs.
 - Acceptance:
   - Register behavior can be tested without launching the full chipset.
+- Completed:
+  - Added `EGA_TESTBENCH_INVENTORY.md` documenting existing
+    `ega_registers_tb.sv` coverage.
+  - Verified statically that the register testbench covers Sequencer, Graphics
+    Controller, Attribute Controller, CRTC protection/timing/address behavior,
+    Misc Output, color/mono ports, selected status side effects, and status
+    toggles.
+  - Standalone HDL simulation was not run because no simulator listed in
+    `TEST_TOOLS.md` is installed in this environment.
 
 ### EGA-803 - Add `ega_crtc_addr_tb`
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-308.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_crtc_addr_tb.sv` or equivalent.
@@ -1772,10 +1781,21 @@ must be anchored to the behavior it proves.
     advance, line compare, and scanout remap.
 - Acceptance:
   - Scanout address changes can be verified before visual testing.
+- Completed:
+  - Added `EGA_TESTBENCH_INVENTORY.md` documenting that equivalent CRTC address
+    coverage lives in `ega_registers_tb.sv`.
+  - Verified statically that the existing coverage checks scanout remapping,
+    overflow fields, row advance, maximum scan line, start-address frame
+    latching, split-screen reset, sampled fetch address, display enable,
+    hblank, and vblank behavior.
+  - No separate `ega_crtc_addr_tb.sv` file is required by the current task
+    wording because an equivalent testbench exists.
+  - Standalone HDL simulation was not run because no simulator listed in
+    `TEST_TOOLS.md` is installed in this environment.
 
 ### EGA-804 - Add `ega_pixel_tb`
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-409.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_pixel_tb.sv` or equivalent.
@@ -1785,10 +1805,19 @@ must be anchored to the behavior it proves.
     mode, palette, and blanking.
 - Acceptance:
   - Pixel output regressions are cycle-deterministic.
+- Completed:
+  - Added `EGA_TESTBENCH_INVENTORY.md` documenting existing `ega_pixel_tb.sv`
+    coverage.
+  - Verified statically that the pixel testbench covers planar pixel assembly,
+    low-resolution repeat, horizontal panning, text/graphics/CGA-compatible
+    mode selection, 2bpp routing, display blanking, Attribute Controller
+    palette remap, and plane-enable effects.
+  - Standalone HDL simulation was not run because no simulator listed in
+    `TEST_TOOLS.md` is installed in this environment.
 
 ### EGA-805 - Add `ega_text_tb`
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-610.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_text_tb.sv` or equivalent.
@@ -1798,6 +1827,15 @@ must be anchored to the behavior it proves.
     cursor, panning, mono attributes, and 9th-dot line graphics.
 - Acceptance:
   - Text renderer behavior is testable without full system boot.
+- Completed:
+  - Added `EGA_TESTBENCH_INVENTORY.md` documenting existing `ega_text_tb.sv`
+    coverage.
+  - Verified statically that the text testbench covers 80/40-column fetch
+    cadence, font-bank selection, foreground/background attributes, background
+    intensity, blink, cursor, mono attributes, underline, horizontal panning,
+    and 9-dot line graphics.
+  - Standalone HDL simulation was not run because no simulator listed in
+    `TEST_TOOLS.md` is installed in this environment.
 
 ### EGA-806 - Add Integrated EGA Smoke Test Flow
 
