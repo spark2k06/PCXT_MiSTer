@@ -1386,7 +1386,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-603 - Implement Character And Attribute Fetch Pipeline
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-602.
 - Files: text renderer module, `rtl/video/ega_top.v`.
@@ -1398,6 +1398,21 @@ must be anchored to the behavior it proves.
   - Support 40-column and 80-column text widths derived from programmed timing.
 - Acceptance:
   - A programmed text row produces the expected sequence of text cells.
+- Completed:
+  - Added dedicated `rtl/video/ega_text.v` character/attribute cell pipeline.
+  - Text fetches are driven by the sequencer/CRTC fetch tick
+    (`ega_ce_crt_fetch`), so 40/80-column cadence remains derived from
+    programmed timing.
+  - `rtl/video/ega_top.v` now selects graphics vs. text plane index before the
+    Attribute Controller and suppresses graphics VRAM fetches in text mode.
+  - `rtl/KFPC-XT/HDL/Peripherals.sv` wires the text cell/font fetch channel from
+    `ega_top.v` into `ega_vram_bram_frontend.sv`.
+  - Added `rtl/KFPC-XT/TESTBENCH/ega_text_tb.sv` for deterministic text cell
+    fetch cadence coverage.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 249 warnings.
+  - HDL simulation could not be run because no standalone simulator is installed;
+    see `TEST_TOOLS.md`.
 
 ### EGA-604 - Implement Font Plane And Character Map Select
 

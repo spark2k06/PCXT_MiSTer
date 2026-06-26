@@ -31,6 +31,13 @@ module ega_top(
     input [7:0] ega_plane2_data,
     input [7:0] ega_plane3_data,
     input ega_fetch_data_valid,
+    output [15:0] ega_text_cell_addr,
+    output [15:0] ega_text_font_addr,
+    output ega_text_fetch_en,
+    input [7:0] ega_text_char,
+    input [7:0] ega_text_attr,
+    input [7:0] ega_text_glyph,
+    input ega_text_data_valid,
     input cpu_mem_select,
     input cpu_mem_write,
     output reg ega_cfg_toggle,
@@ -253,8 +260,12 @@ module ega_top(
     wire [5:0] ega_color_raw;
     wire ega_display_enable_raw;
     wire ega_attr_video_enable;
-    wire [3:0] ega_plane_index;
-    wire ega_pixel_valid;
+    wire [3:0] ega_graphics_plane_index;
+    wire ega_graphics_pixel_valid;
+    wire [3:0] ega_text_plane_index;
+    wire ega_text_pixel_valid;
+    wire [3:0] ega_plane_index = ega_graphics_mode ? ega_graphics_plane_index : ega_text_plane_index;
+    wire ega_pixel_valid = ega_graphics_mode ? ega_graphics_pixel_valid : ega_text_pixel_valid;
     wire [1:0] ega_render_mode_debug_unused;
     wire [3:0] ega_h_pixel_pan; //NEW
     wire ega_hres_mode_int = ~ega_dot_clock_div2;
@@ -405,10 +416,29 @@ module ega_top(
         .dot_clock_div2(ega_dot_clock_div2),
         .display_enable(ega_display_enable),
         .render_mode(ega_render_mode),
-        .plane_index(ega_plane_index),
+        .plane_index(ega_graphics_plane_index),
         .h_pixel_pan(ega_h_pixel_pan),  //NEW
-        .pixel_valid(ega_pixel_valid),
+        .pixel_valid(ega_graphics_pixel_valid),
         .render_mode_debug(ega_render_mode_debug_unused)
+    );
+
+    ega_text ega_text_inst (
+        .clk(clk),
+        .reset(reset),
+        .ce_pix(ce_pix),
+        .fetch_tick(ega_ce_crt_fetch),
+        .display_enable(ega_display_enable),
+        .crtc_addr(ega_fetch_addr),
+        .scanline(ega_row_addr),
+        .text_char_in(ega_text_char),
+        .text_attr_in(ega_text_attr),
+        .text_glyph_in(ega_text_glyph),
+        .text_data_valid(ega_text_data_valid),
+        .text_cell_addr(ega_text_cell_addr),
+        .text_font_addr(ega_text_font_addr),
+        .text_fetch_en(ega_text_fetch_en),
+        .plane_index(ega_text_plane_index),
+        .pixel_valid(ega_text_pixel_valid)
     );
 
     ega_attrib_ctrl ega_attr (
@@ -595,7 +625,7 @@ module ega_top(
     // latch immediately, but the visible fetch base only changes for the
     // next frame after vertical blank has completed.
     assign ega_fetch_addr = ega_crtc_addr_full;
-    assign ega_fetch_en = ega_display_sel ? (ega_ce_crt_fetch & ega_display_enable) : 1'b0;
+    assign ega_fetch_en = ega_display_sel ? (ega_graphics_mode & ega_ce_crt_fetch & ega_display_enable) : 1'b0;
     assign ega_plane_write_mask_out = ega_plane_write_mask;
     assign ega_odd_even_mode_out = ega_odd_even_mode;
     assign ega_cpu_access_slot_out = ega_ce_cpu_access_unused;

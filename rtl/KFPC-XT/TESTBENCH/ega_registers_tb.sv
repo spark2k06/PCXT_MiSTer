@@ -261,6 +261,9 @@ module ega_registers_tb;
     wire [18:0] top_ram_a;
     wire [15:0] top_ega_fetch_addr;
     wire        top_ega_fetch_en;
+    wire [15:0] top_ega_text_cell_addr;
+    wire [15:0] top_ega_text_font_addr;
+    wire        top_ega_text_fetch_en;
     wire [3:0] top_ega_plane_write_mask;
     wire       top_ega_odd_even_mode;
     wire       top_ega_cpu_access_slot;
@@ -326,6 +329,13 @@ module ega_registers_tb;
         .ega_plane2_data(8'h00),
         .ega_plane3_data(8'h00),
         .ega_fetch_data_valid(1'b0),
+        .ega_text_cell_addr(top_ega_text_cell_addr),
+        .ega_text_font_addr(top_ega_text_font_addr),
+        .ega_text_fetch_en(top_ega_text_fetch_en),
+        .ega_text_char(8'h00),
+        .ega_text_attr(8'h00),
+        .ega_text_glyph(8'h00),
+        .ega_text_data_valid(1'b0),
         .cpu_mem_select(1'b0),
         .cpu_mem_write(1'b0),
         .ega_cfg_toggle(),
