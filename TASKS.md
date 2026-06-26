@@ -139,7 +139,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-003 - Improve EGA Testbench Diagnostics
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-002.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`.
@@ -154,6 +154,14 @@ must be anchored to the behavior it proves.
   - At least one intentionally broken local assertion produces a useful failure
     line during development.
   - Normal passing runs end with one clear pass message.
+- Verification:
+  - `ega_vram_tb.sv` now tracks the active test case and prints expected value,
+    actual value, CPU address/A16, access strobes, read/write modes, memory map,
+    page select, plane mask, odd/even mode, and chain-2 state on every mismatch.
+  - The existing single `failures` counter and final pass/fail messages remain
+    in place.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-004 - Define The Initial Hardware/Emulator Smoke Set
 

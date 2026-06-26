@@ -51,6 +51,7 @@ module ega_vram_tb;
     wire [7:0]  debug_new_plane3;
 
     integer failures = 0;
+    reg [8*64-1:0] current_test = "initialization";
 
     ega_vram dut (
         .clk(clk),
@@ -207,8 +208,33 @@ module ega_vram_tb;
         begin
             if (actual !== expected) begin
                 failures = failures + 1;
-                $display("FAIL %0s expected=%02h actual=%02h", label, expected, actual);
+                $display(
+                    "FAIL test=%0s check=%0s expected=%02h actual=%02h cpu_addr=%05h cpu_re=%0b cpu_we=%0b mem_sel=%0b rd_mode=%0d wr_mode=%0d mem_map=%0d page=%0b mask=%04b odd_even=%0b chain2_rd=%0b chain2_wr=%0b",
+                    current_test,
+                    label,
+                    expected,
+                    actual,
+                    {cpu_a16, cpu_addr},
+                    cpu_re,
+                    cpu_we,
+                    cpu_mem_select,
+                    read_mode,
+                    write_mode,
+                    mem_map_sel,
+                    page_select,
+                    plane_write_mask,
+                    odd_even_mode,
+                    chain2_read,
+                    chain2_write
+                );
             end
+        end
+    endtask
+
+    task automatic begin_test(input [8*64-1:0] label);
+        begin
+            current_test = label;
+            $display("TEST: %0s", current_test);
         end
     endtask
 
@@ -290,7 +316,7 @@ module ega_vram_tb;
 
     task automatic test_latches_and_write_mode1;
         begin
-            $display("TEST: latches and write mode 1");
+            begin_test("latches and write mode 1");
             set_planes(14'h0001, 8'h12, 8'h34, 8'h56, 8'h78);
             set_planes(14'h0002, 8'hAA, 8'hBB, 8'hCC, 8'hDD);
             set_planes(14'h0003, 8'h11, 8'h22, 8'h33, 8'h44);
@@ -338,7 +364,7 @@ module ega_vram_tb;
         reg [7:0] expected2;
         reg [7:0] expected3;
         begin
-            $display("TEST: write modes 0 and 2");
+            begin_test("write modes 0 and 2");
 
             set_planes(14'h0010, 8'h3C, 8'hC3, 8'h5A, 8'hA5);
             plane_write_mask = 4'hF;
@@ -383,7 +409,7 @@ module ega_vram_tb;
     task automatic test_read_mode1;
         reg [7:0] expected;
         begin
-            $display("TEST: read mode 1");
+            begin_test("read mode 1");
             set_planes(14'h0020, 8'hF0, 8'hCC, 8'hAA, 8'h81);
             read_mode = 2'b01;
             color_compare = 8'h05;
@@ -400,7 +426,7 @@ module ega_vram_tb;
 
     task automatic test_consecutive_writes;
         begin
-            $display("TEST: consecutive writes keep address/data aligned");
+            begin_test("consecutive writes keep address/data aligned");
             plane_write_mask = 4'hF;
             write_mode = 2'b00;
             bit_mask = 8'hFF;
@@ -426,7 +452,7 @@ module ega_vram_tb;
 
     task automatic test_cpu_a16_remap;
         begin
-            $display("TEST: CPU A16 selects remapped low/high A000 aperture bytes");
+            begin_test("CPU A16 selects remapped low/high A000 aperture bytes");
             plane_write_mask = 4'hF;
             odd_even_mode = 1'b0;
             chain2_write = 1'b0;
