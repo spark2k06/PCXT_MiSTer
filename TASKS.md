@@ -1932,7 +1932,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-903 - Record Intentional Deviations From IBM EGA
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-705.
 - Files: `SPEC.md`, future release notes.
@@ -1943,6 +1943,16 @@ must be anchored to the behavior it proves.
   - Separate non-goals from unresolved bugs.
 - Acceptance:
   - Remaining limitations are explicit and not hidden in implementation details.
+- Completed:
+  - Added `EGA_INTENTIONAL_DEVIATIONS.md` documenting confirmed non-goals for
+    the first PCXT EGA port: Compaq EGA, SuperEGA, ATI EGA Wonder, JEGA/JVGA,
+    VGA RAMDAC palette behavior, and exact analog overscan geometry.
+  - Documented deliberate MiSTer/PCXT integration choices for the video output
+    path, base IBM Color Select handling, and the ungated BRAM CPU-access-slot
+    timing hint.
+  - Separated intentional deviations from unresolved smoke-test topics so
+    EGA-705 results still become bugs or follow-up tasks instead of hidden
+    limitations.
 
 ### EGA-904 - Run Full Verification Before Release Candidate
 
