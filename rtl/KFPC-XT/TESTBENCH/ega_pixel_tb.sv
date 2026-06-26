@@ -9,6 +9,7 @@ module ega_pixel_tb;
     reg  [7:0] plane3_data = 8'h00;
     reg        fetch_en = 1'b0;
     reg        dot_clock_div2 = 1'b0;
+    reg        display_enable = 1'b1;
     reg  [3:0] h_pixel_pan = 4'd0;
     wire [3:0] plane_index;
     wire       pixel_valid;
@@ -24,6 +25,7 @@ module ega_pixel_tb;
         .plane3_data(plane3_data),
         .fetch_en(fetch_en),
         .dot_clock_div2(dot_clock_div2),
+        .display_enable(display_enable),
         .h_pixel_pan(h_pixel_pan),
         .plane_index(plane_index),
         .pixel_valid(pixel_valid)
@@ -47,6 +49,17 @@ module ega_pixel_tb;
         end
     endfunction
 
+    function automatic [7:0] panned_byte;
+        input [7:0] previous_byte;
+        input [7:0] current_byte;
+        input [3:0] pan;
+        reg [15:0] shifted;
+        begin
+            shifted = {previous_byte, current_byte} << pan;
+            panned_byte = (pan == 4'd0) ? current_byte : shifted[15:8];
+        end
+    endfunction
+
     task automatic expect_pixel;
         input [3:0] expected;
         input integer sample;
@@ -60,6 +73,17 @@ module ega_pixel_tb;
                     expected
                 );
                 errors = errors + 1;
+            end
+        end
+    endtask
+
+    task automatic drain_pixels;
+        input integer count;
+        integer i;
+        begin
+            for (i = 0; i < count; i = i + 1) begin
+                @(posedge clk);
+                #1;
             end
         end
     endtask
@@ -131,12 +155,70 @@ module ega_pixel_tb;
         end
     endtask
 
+    task automatic check_panned_shift;
+        reg [7:0] prev0;
+        reg [7:0] prev1;
+        reg [7:0] prev2;
+        reg [7:0] prev3;
+        reg [7:0] curr0;
+        reg [7:0] curr1;
+        reg [7:0] curr2;
+        reg [7:0] curr3;
+        reg [7:0] pan0;
+        reg [7:0] pan1;
+        reg [7:0] pan2;
+        reg [7:0] pan3;
+        integer i;
+        begin
+            prev0 = 8'b11110000;
+            prev1 = 8'b00111100;
+            prev2 = 8'b10101010;
+            prev3 = 8'b01010101;
+            curr0 = 8'b00001111;
+            curr1 = 8'b11000011;
+            curr2 = 8'b01010101;
+            curr3 = 8'b10101010;
+
+            dot_clock_div2 = 1'b0;
+            h_pixel_pan = 4'd3;
+            display_enable = 1'b0;
+            @(posedge clk);
+            #1;
+            display_enable = 1'b1;
+
+            load_planes(prev0, prev1, prev2, prev3);
+            drain_pixels(7);
+
+            pan0 = panned_byte(prev0, curr0, 4'd3);
+            pan1 = panned_byte(prev1, curr1, 4'd3);
+            pan2 = panned_byte(prev2, curr2, 4'd3);
+            pan3 = panned_byte(prev3, curr3, 4'd3);
+
+            load_planes(curr0, curr1, curr2, curr3);
+            expect_pixel(planar_pixel(pan0, pan1, pan2, pan3, 0), 0);
+
+            for (i = 1; i < 8; i = i + 1) begin
+                @(posedge clk);
+                #1;
+                expect_pixel(planar_pixel(pan0, pan1, pan2, pan3, i), i);
+            end
+
+            display_enable = 1'b0;
+            h_pixel_pan = 4'd0;
+            @(posedge clk);
+            #1;
+            display_enable = 1'b1;
+        end
+    endtask
+
     initial begin
         repeat (2) @(posedge clk);
 
         check_high_res_shift();
         repeat (2) @(posedge clk);
         check_low_res_repeat();
+        repeat (2) @(posedge clk);
+        check_panned_shift();
 
         if (errors == 0) begin
             $display("PASS ega_pixel_tb");

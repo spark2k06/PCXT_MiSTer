@@ -396,6 +396,7 @@ module ega_top(
         .plane3_data(ega_plane3_data),
         .fetch_en(ega_fetch_data_valid),
         .dot_clock_div2(ega_dot_clock_div2),
+        .display_enable(ega_display_enable),
         .plane_index(ega_plane_index),
         .h_pixel_pan(ega_h_pixel_pan),  //NEW
         .pixel_valid(ega_pixel_valid)

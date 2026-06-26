@@ -892,7 +892,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-402 - Implement Graphics Horizontal Panning Behavior
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-401, EGA-203.
 - Files: `rtl/video/ega_pixel.v`, `rtl/video/ega_attrib_ctrl.v`,
@@ -905,6 +905,19 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Panning tests shift the visible image by the programmed amount without
     changing fetched VRAM bytes.
+- Completed:
+  - `ega_pixel.v` now caches the sanitized Attribute Controller panning value
+    when display becomes active, matching the visible-transition behavior
+    needed for stable scanout.
+  - Pan value `0` is an identity load of the current byte, while non-zero
+    values select a shifted `{previous,current}` fetch window.
+  - Values `8..15` are treated as zero panning for the base EGA path.
+  - `ega_pixel_tb.sv` now covers a two-byte panning window and verifies that
+    the visible sequence shifts without changing the fetched plane bytes.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 251 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-403 - Implement Complete Graphics Mode Selection
 
