@@ -364,6 +364,17 @@ module ega_vram_tb;
         end
     endtask
 
+    task automatic crt_read_tx(input [15:0] addr);
+        begin
+            @(negedge clk_vram);
+            crt_addr = addr;
+            crt_re = 1'b1;
+            @(posedge clk_vram);
+            @(negedge clk_vram);
+            crt_re = 1'b0;
+        end
+    endtask
+
     task automatic cpu_read_tx(input [16:0] addr);
         begin
             @(negedge clk);
@@ -874,6 +885,52 @@ module ega_vram_tb;
         end
     endtask
 
+    task automatic test_crt_fetch_ignores_cpu_odd_even;
+        reg [15:0] visible_addr;
+        reg [15:0] remapped_cpu_addr;
+        begin
+            begin_test("CRT fetch ignores CPU odd/even remap");
+            plane_write_mask = 4'hF;
+            odd_even_mode = 1'b1;
+            chain2_write = 1'b1;
+            chain2_read = 1'b1;
+            extended_memory = 1'b1;
+            mem_map_sel = 2'b00;
+            page_select = 1'b0;
+            write_mode = 2'b00;
+            read_mode = 2'b00;
+            read_plane_sel = 2'b00;
+            bit_mask = 8'hFF;
+            rop_select = 2'b00;
+            rotate_count = 3'd0;
+            set_reset = 8'h00;
+            enable_set_reset = 4'h0;
+
+            visible_addr = 16'h0120;
+            remapped_cpu_addr = expected_cpu_plane_addr(
+                {1'b1, visible_addr},
+                odd_even_mode,
+                extended_memory,
+                mem_map_sel,
+                page_select
+            );
+
+            expect_eq8("cpu odd/even would remap address", remapped_cpu_addr[7:0], 8'h21);
+            set_planes(visible_addr, 8'h10, 8'h20, 8'h30, 8'h40);
+            set_planes(remapped_cpu_addr, 8'hA1, 8'hB2, 8'hC3, 8'hD4);
+
+            crt_read_tx(visible_addr);
+
+            expect_eq8("crt plane0 uses visible addr", crt_plane0, 8'h10);
+            expect_eq8("crt plane1 uses visible addr", crt_plane1, 8'h20);
+            expect_eq8("crt plane2 uses visible addr", crt_plane2, 8'h30);
+            expect_eq8("crt plane3 uses visible addr", crt_plane3, 8'h40);
+
+            cpu_read_tx({1'b1, visible_addr});
+            expect_eq8("cpu plane0 still uses odd/even remap", cpu_data_out, 8'hA1);
+        end
+    endtask
+
     task automatic test_memory_map_windows;
         reg [15:0] map0_first_addr;
         reg [15:0] map0_last_addr;
@@ -963,6 +1020,7 @@ module ega_vram_tb;
         test_cpu_a16_remap();
         test_chain2_read_write();
         test_odd_even_page_select();
+        test_crt_fetch_ignores_cpu_odd_even();
         test_memory_map_windows();
 
         if (failures != 0) begin

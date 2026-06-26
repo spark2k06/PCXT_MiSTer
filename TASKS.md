@@ -977,7 +977,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-405 - Verify Sequencer Odd/Even Effects On Graphics Fetch
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-303, EGA-401.
 - Files: `rtl/video/ega_sequencer.v`, `rtl/video/ega_top.v`,
@@ -990,6 +990,18 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Tests prove odd/even CPU modes do not unintentionally corrupt graphics
     scanout addressing.
+- Completed:
+  - Confirmed `ega_top.v` exports `ega_fetch_addr` from the CRTC address path,
+    not from CPU remapped addressing.
+  - Confirmed `ega_vram.v` applies odd/even, chain-2, memory map, and page
+    selection only to the CPU port; the CRTC port reads all four planes from
+    raw `crt_addr`.
+  - Added `ega_vram_tb.sv` coverage proving that active CPU odd/even and
+    chain-2 modes do not remap CRTC fetches, while CPU reads of the same offset
+    still use the odd/even remapped address.
+  - `git diff --check` passed.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-406 - Apply Attribute Plane Enable In Graphics
 
