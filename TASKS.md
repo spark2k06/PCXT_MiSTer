@@ -936,7 +936,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-502 - Verify 16-Color And 64-Color RGB Mapping
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-501.
 - Files: `rtl/video/ega_vgaport.v`, `rtl/video/ega_attrib_ctrl.v`.
@@ -946,6 +946,16 @@ must be anchored to the behavior it proves.
   - Confirm DAC stub ports do not alter base EGA color output.
 - Acceptance:
   - Every palette entry used by standard 16-color modes maps to expected RGB.
+- Verification:
+  - Added `EGA_RGB_MAPPING_AUDIT.md` with expected RGB6 values for standard
+    16-color EGA codes, including the IBM brown exception.
+  - The audit records representative 64-color spot checks covering primary and
+    secondary RGB bits.
+  - The audit confirms `3C7h..3C9h` DAC stub reads do not feed base EGA RGB
+    output, which remains driven by Attribute Controller palette state and Misc
+    Output bit `7`.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-503 - Implement Overscan And Border Color
 
