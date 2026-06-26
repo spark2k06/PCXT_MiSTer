@@ -437,7 +437,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-201 - Audit EGA I/O Decode
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-104.
 - Files: `rtl/video/ega_top.v`, `rtl/KFPC-XT/HDL/Peripherals.sv`.
@@ -451,6 +451,12 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Every port range in `SPEC.md` section 3 is assigned to implemented,
     stubbed, or intentionally ignored behavior.
+- Verification:
+  - Added `EGA_IO_DECODE_AUDIT.md` mapping every `SPEC.md` section 3 port to
+    current RTL behavior.
+  - The audit identifies implemented paths, DAC stubs, missing switch-sense and
+    Feature Control behavior, fixed color CRTC/status decode, and readback
+    gating by `ega_display_sel`.
 
 ### EGA-202 - Implement Color/Mono CRTC And Status Port Selection
 
