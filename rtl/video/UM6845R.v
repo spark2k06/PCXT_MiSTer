@@ -97,7 +97,7 @@ assign RA = line | (field & interlace[0]);
 assign HC = hcc;
 assign VC = row[6:0];
 assign H_DISP_REG = R1_h_displayed;
-assign V_MAXSCAN_REG = R9_v_max_line;
+assign V_MAXSCAN_REG = R9_v_max_line[4:0];
 assign hsync_width = R3_h_sync_width;
 // Match 86Box more closely: Input Status #1 bit 3 tracks the retrace window
 // opened at VSYNC start and closed a few scanlines later, not the whole
@@ -133,7 +133,7 @@ reg [7:0] R6_v_displayed = V_DISP;
 reg [7:0] R7_v_sync_pos = V_SYNCPOS;//CGA sync
 reg [1:0] R8_skew;
 reg [1:0] R8_interlace = 2'd2;
-reg [4:0] R9_v_max_line = V_MAXSCAN;
+reg [7:0] R9_v_max_line = {3'b000, V_MAXSCAN};
 reg [1:0] R10_cursor_mode = 2'd0;
 reg [4:0] R10_cursor_start = C_START;
 reg [4:0] R11_cursor_end = C_END;
@@ -163,14 +163,9 @@ wire ega_v_blank_start_valid = ega_ext_timing && |R21_v_blank_start_e;
 wire ega_v_blank_end_valid = ega_ext_timing && |R22_v_blank_end_e;
 wire ega_crtc_semantics = CRTC_TYPE && |EGA_RESET_R19;
 
-//ADD SPLIT SCREEN EGA FUNCTION
-//wire [9:0] eff_v_total = ega_ext_timing ? ({R7_v_sync_pos[5], R7_v_sync_pos[0], R6_v_displayed} + 10'd2) : {3'd0, R4_v_total};
-//wire [9:0] eff_v_displayed = ega_ext_timing ? ({R7_v_sync_pos[6], R7_v_sync_pos[1], R18_v_display_end_e} + 10'd1) : {3'd0, R6_v_displayed[6:0]};
-//wire [9:0] eff_v_sync_pos = ega_ext_timing ? ({R7_v_sync_pos[7], R7_v_sync_pos[2], R16_v_sync_pos_e} + 10'd1) : {3'd0, R7_v_sync_pos[6:0]};
-//wire [9:0] eff_v_blank_start = ega_v_blank_start_valid ? {2'd0, R21_v_blank_start_e} : eff_v_displayed;
-wire [9:0] eff_v_total = ega_ext_timing ? ({1'b0, R7_v_sync_pos[0], R6_v_displayed} + 10'd2) : {3'd0, R4_v_total};
-wire [9:0] eff_v_displayed = ega_ext_timing ? ({1'b0, R7_v_sync_pos[1], R18_v_display_end_e} + 10'd1) : {3'd0, R6_v_displayed[6:0]};
-wire [9:0] eff_v_sync_pos = ega_ext_timing ? ({1'b0, R7_v_sync_pos[2], R16_v_sync_pos_e} + 10'd1) : {3'd0, R7_v_sync_pos[6:0]};
+wire [9:0] eff_v_total = ega_ext_timing ? ({R7_v_sync_pos[5], R7_v_sync_pos[0], R6_v_displayed} + 10'd2) : {3'd0, R4_v_total};
+wire [9:0] eff_v_displayed = ega_ext_timing ? ({R7_v_sync_pos[6], R7_v_sync_pos[1], R18_v_display_end_e} + 10'd1) : {3'd0, R6_v_displayed[6:0]};
+wire [9:0] eff_v_sync_pos = ega_ext_timing ? ({R7_v_sync_pos[7], R7_v_sync_pos[2], R16_v_sync_pos_e} + 10'd1) : {3'd0, R7_v_sync_pos[6:0]};
 wire [9:0] eff_v_blank_start = ega_v_blank_start_valid ? {1'b0, R7_v_sync_pos[3], R21_v_blank_start_e} : eff_v_displayed;
 
 wire [9:0] eff_v_blank_end = ega_v_blank_end_valid ? {2'd0, R22_v_blank_end_e} : 10'd0;
@@ -233,7 +228,7 @@ always @(posedge CLOCK) begin
 			//bit 0 = bit 8 of the Vertical total.
 		R8_skew <= 2'd0;
 		R8_interlace <= 2'd2;
-		R9_v_max_line <= V_MAXSCAN;
+		R9_v_max_line <= {3'b000, V_MAXSCAN};
 		R10_cursor_mode <= 2'd0;
 		R10_cursor_start <= C_START;
 		R11_cursor_end <= C_END;
@@ -266,7 +261,7 @@ always @(posedge CLOCK) begin
 					? {R7_v_sync_pos[7:5], DI[4], R7_v_sync_pos[3:0]}
 					: DI; //R7_v_overflow <= DI;
 				08: {R8_skew, R8_interlace} <= {DI[5:4],DI[1:0]};
-				09: R9_v_max_line <= DI[4:0];
+				09: R9_v_max_line <= DI;
 				10: {R10_cursor_mode,R10_cursor_start} <= DI[6:0];
 				11: R11_cursor_end <= DI[4:0];
 				12: begin R12_start_addr_h <= DI[7:0]; if (CRTC_TYPE) start_addr_latch[15:8] <= DI; end
@@ -297,7 +292,7 @@ wire       hcc_last  = (hcc == eff_h_total[7:0]) && (CRTC_TYPE || R0_h_total); /
 wire [7:0] hcc_next  = hcc_last ? 8'h00 : hcc + 1'd1;
 
 reg  [4:0] line;
-wire [4:0] line_max  = (in_adj ? (|R5_v_total_adj ? R5_v_total_adj-1'd1 : 5'd0) : R9_v_max_line) & ~interlace;
+wire [4:0] line_max  = (in_adj ? (|R5_v_total_adj ? R5_v_total_adj-1'd1 : 5'd0) : R9_v_max_line[4:0]) & ~interlace;
 reg        line_last_r;
 wire       line_last = (line == line_max) || !line_max;
 wire [4:0] line_next = ((CRTC_TYPE ? line_last : line_last_r) ? 5'd0 : line + 1'd1 + interlace) & ~interlace;
@@ -316,9 +311,9 @@ wire       frame_adj_CRTC1 = row_last && ~in_adj && R5_v_total_adj;
 wire       frame_adj = CRTC_TYPE ? frame_adj_CRTC1 : frame_adj_CRTC0;
 wire       frame_new = row_new & row_frame_last;
 
-wire [8:0] line_compare_target = {R7_v_sync_pos[4], R24_line_compare_e};
-reg [8:0] frame_scanline_cnt;
-wire line_compare_match = (frame_scanline_cnt == line_compare_target);//!vsync_raw;
+wire [10:0] line_compare_target = {1'b0, R9_v_max_line[6], R7_v_sync_pos[4], R24_line_compare_e} + 11'd1;
+reg [9:0] frame_scanline_cnt;
+wire line_compare_match = ({1'b0, frame_scanline_cnt} == line_compare_target);//!vsync_raw;
 
 // counters
 reg  field;
@@ -358,7 +353,7 @@ always @(posedge CLOCK) begin
             // Hold the counter at 0 during the entire vertical blanking/retrace phase
             frame_scanline_cnt <= 10'd0;
         end else if (line_new) begin
-			frame_scanline_cnt <= frame_scanline_cnt + 9'd1; // Tracks line drawing boundaries
+			frame_scanline_cnt <= frame_scanline_cnt + 10'd1; // Tracks line drawing boundaries
 		end
 	end
 end

@@ -680,7 +680,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-302 - Verify Overflow And Vertical Timing Formulas
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-301.
 - Files: `rtl/video/UM6845R.v`.
@@ -692,6 +692,18 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - CRTC vertical counters and display-enable transitions match the reference
     cases.
+- Verification:
+  - `UM6845R.v` now stores the full CRTC `09h` byte, uses `07h[5]`,
+    `07h[6]`, and `07h[7]` in the active EGA vertical total, display end, and
+    vertical retrace start formulas, and composes split target from `09h[6]`,
+    `07h[4]`, and `18h` plus one.
+  - `ega_registers_tb.sv` includes hierarchical CRTC checks for overflow cases
+    crossing 8-bit boundaries.
+  - `EGA_CRTC_REGISTER_CHECKLIST.md` was updated with the post-fix formula
+    state and the remaining split side effects assigned to EGA-306.
+  - Quartus Analysis & Elaboration passed: 0 errors, 255 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-303 - Implement Or Correct Scanout Address Remapping
 

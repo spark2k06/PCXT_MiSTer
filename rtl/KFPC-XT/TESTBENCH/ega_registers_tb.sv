@@ -47,6 +47,20 @@ module ega_registers_tb;
         end
     endtask
 
+    task automatic expect16(
+        input [8*80-1:0] label,
+        input [15:0] actual,
+        input [15:0] expected
+    );
+        begin
+            if (actual !== expected) begin
+                $display("FAIL [%0s] %0s: expected %04x got %04x",
+                         current_test, label, expected, actual);
+                failures = failures + 1;
+            end
+        end
+    endtask
+
     task automatic expect_true(
         input [8*80-1:0] label,
         input condition
@@ -555,6 +569,28 @@ module ega_registers_tb;
         crtc_write(1'b0, 8'h01);
         crtc_write(1'b1, 8'h34);
         expect8("CRTC unprotected register 01h", crtc_h_displayed, 8'h34);
+
+        begin_test("CRTC overflow timing formulas");
+        crtc_write(1'b0, 8'h06);
+        crtc_write(1'b1, 8'hAA);
+        crtc_write(1'b0, 8'h12);
+        crtc_write(1'b1, 8'h55);
+        crtc_write(1'b0, 8'h10);
+        crtc_write(1'b1, 8'h33);
+        crtc_write(1'b0, 8'h18);
+        crtc_write(1'b1, 8'hFE);
+        crtc_write(1'b0, 8'h09);
+        crtc_write(1'b1, 8'h40);
+        crtc_write(1'b0, 8'h07);
+        crtc_write(1'b1, 8'hF7);
+        expect16("CRTC vtotal uses overflow bits 07h[5,0]",
+                 {6'd0, crtc_dut.eff_v_total}, 16'h03AC);
+        expect16("CRTC display end uses overflow bits 07h[6,1]",
+                 {6'd0, crtc_dut.eff_v_displayed}, 16'h0356);
+        expect16("CRTC vsync start uses overflow bits 07h[7,2]",
+                 {6'd0, crtc_dut.eff_v_sync_pos}, 16'h0334);
+        expect16("CRTC split uses 09h[6], 07h[4], 18h plus one",
+                 {5'd0, crtc_dut.line_compare_target}, 16'h03FF);
 
         begin_test("top-level misc output and color CRTC ports");
         top_io_read(16'h03CC, read_value);

@@ -21,8 +21,8 @@ Sources:
 - The module provides broad readback for indexes `0Ah..18h`; indexes `00h..09h`
   mostly read as `00h`, except CRTC status behavior when reading the address
   register path.
-- EGA extended vertical timing exists, but the active formulas currently omit
-  several x86Box overflow bits documented in `SPEC.md`.
+- EGA extended vertical timing now composes the documented x86Box overflow bits
+  for vertical total, display end, vertical retrace start, and split target.
 - EGA display address generation has a partial row-address mode controlled by
   nonzero offset register `13h`, but it does not yet implement the full x86Box
   render remap controlled by CRTC `14h` and `17h`.
@@ -38,24 +38,24 @@ Sources:
 | `04h` | Vertical Total Low | `R4_v_total[6:0]`. | Stored and protected. Used only by non-extended fallback path. | EGA vertical total must compose from `06h` plus `07h[0]` and `07h[5]`; EGA-302. |
 | `05h` | Vertical Total Adjust | `R5_v_total_adj[4:0]`. | Stored and protected. Used by frame adjustment logic. | Needs frame-adjust regression coverage in EGA-302. |
 | `06h` | Vertical Displayed Low | `R6_v_displayed`. | Stored and protected. Used by non-extended fallback path. | EGA display end must compose from `12h` plus `07h[1]` and `07h[6]`; EGA-302. |
-| `07h` | Overflow | `R7_v_sync_pos`. | Stored with partial protection: when `11h[7]` is set, only bit 4 can change. Active formulas use bits 0, 1, 2, 3, and 4. | Active formulas miss x86Box bit 5, 6, and 7 overflow composition; EGA-302/EGA-306. |
+| `07h` | Overflow | `R7_v_sync_pos`. | Stored with partial protection: when `11h[7]` is set, only bit 4 can change. Active formulas use bits 0, 1, 2, 3, 4, 5, 6, and 7. | Formula composition is covered by EGA-302; split side effects remain EGA-306. |
 | `08h` | Preset Row Scan / Interlace | `{R8_skew, R8_interlace}`. | Stored. Interlace participates in generic field/line logic. | Verify whether EGA interlace odd/even start-address adjustment is needed in EGA-305. |
-| `09h` | Maximum Scan Line | `R9_v_max_line[4:0]`; exported as `V_MAXSCAN_REG`. | Only low five bits are stored. Drives scanline row length. | Bit `6` is split bit 9 and bit `7` is line-doubling in x86Box; both are currently dropped. EGA-302/EGA-306/EGA-304. |
+| `09h` | Maximum Scan Line | `R9_v_max_line`; low five bits are exported as `V_MAXSCAN_REG`. | Full byte is stored. Low five bits drive scanline row length and bit `6` participates in split target composition. | Bit `7` line-doubling semantics still need EGA-304. Split side effects remain EGA-306. |
 | `0Ah` | Cursor Start | `{R10_cursor_mode, R10_cursor_start}`. | Stored/readable. Generic cursor line logic uses `R10_cursor_start`. | Text cursor blink/disable behavior belongs to later text-render tasks; keep visible in EGA-301 traceability. |
 | `0Bh` | Cursor End | `R11_cursor_end[4:0]`. | Stored/readable. Generic cursor line logic uses low five bits. | Bits `6:5` blink-delay semantics are not implemented; defer to text cursor task after CRTC address work. |
 | `0Ch` | Start Address High | `R12_start_addr_h`; also writes `start_addr_latch[15:8]`. | Stored/readable. Writes update the latch immediately. | Visible fetch-base reload must be frame-latched across all EGA address modes; EGA-305. |
 | `0Dh` | Start Address Low | `R13_start_addr_l`; also writes `start_addr_latch[7:0]`. | Stored/readable. Writes update the latch immediately. | Same frame-latching verification as `0Ch`; EGA-305. |
 | `0Eh` | Cursor Location High | `R14_cursor_h[5:0]`. | Stored/readable. Generic `CURSOR` compares `MA` against `{R14_cursor_h, R15_cursor_l}`. | Full EGA text cursor render behavior is outside Phase 3, but cursor address reload should be checked with EGA-305. |
 | `0Fh` | Cursor Location Low | `R15_cursor_l`. | Stored/readable. Used by generic cursor compare. | Same as `0Eh`. |
-| `10h` | Vertical Retrace Start Low | `R16_v_sync_pos_e`; exported as `crtc_r10_debug`. | Stored/readable and used in EGA vertical sync start formula. | Formula currently omits `07h[7]` as bit 9; EGA-302. |
+| `10h` | Vertical Retrace Start Low | `R16_v_sync_pos_e`; exported as `crtc_r10_debug`. | Stored/readable and used in EGA vertical sync start formula with overflow bit `07h[7]`. | Covered by EGA-302. |
 | `11h` | Vertical Retrace End / Protect | `R17_v_sync_end_e`; exported as `crtc_r11_debug`. | Stored/readable. Bit `7` protects indexes `00h..06h` and partially protects `07h`. Bits `3:0` close the EGA status retrace window. | Implemented protection is covered by EGA-207/EGA-208; retrace-window timing still needs EGA-302 validation. |
-| `12h` | Vertical Display End Low | `R18_v_display_end_e`. | Stored/readable and used in EGA display-end formula. | Formula currently omits `07h[6]` as bit 9; EGA-302. |
+| `12h` | Vertical Display End Low | `R18_v_display_end_e`. | Stored/readable and used in EGA display-end formula with overflow bit `07h[6]`. | Covered by EGA-302. |
 | `13h` | Offset | `R19_offset_e`; row advance is `R19_offset_e << 1`. | Stored/readable. Nonzero value enables the EGA row-address path. | Row advance representation appears aligned for independent planes but needs tests; EGA-304. |
 | `14h` | Underline Location / Address Mode | `R20_underline_loc_e`; exported as `crtc_r14_debug`. | Stored/readable. Not used for EGA scanout remap or underline rendering. | Bit `6` dword display-address mode is missing; EGA-303. Underline is later text-render work. |
 | `15h` | Vertical Blank Start | `R21_v_blank_start_e`; exported as `crtc_r15_debug`. | Stored/readable. Used for EGA vertical blank start if extended timing is active. | Needs blanking/status coverage in EGA-302/EGA-307. |
 | `16h` | Vertical Blank End | `R22_v_blank_end_e`; exported as `crtc_r16_debug`. | Stored/readable. Used for EGA vertical blank end if nonzero. | Needs blanking/status coverage in EGA-302/EGA-307. |
 | `17h` | Mode Control | `R23_mode_control_e`; exported as `crtc_r17_debug`. | Stored/readable. Currently not used for display-address remap or CRTC reset/display-disable blanking. | Bits `0`, `1`, `5`, `6`, and `7` are missing from scanout behavior; EGA-303/EGA-307. |
-| `18h` | Line Compare | `R24_line_compare_e`; readback defaults to `FFh` on reset. | Stored/readable. Current split target uses `{07h[4], 18h}` only. | Split must include `09h[6]` and x86Box `+1` behavior, and must reset address/scanline deterministically; EGA-306. |
+| `18h` | Line Compare | `R24_line_compare_e`; readback defaults to `FFh` on reset. | Stored/readable. Current split target uses `{09h[6], 07h[4], 18h} + 1`. | Split must still reset address/scanline deterministically; EGA-306. |
 
 ## Derived Behavior Checklist
 
@@ -77,12 +77,13 @@ Expected x86Box formulas from `SPEC.md`:
 
 Current active RTL formulas:
 
-- `eff_v_total = {1'b0, 07h[0], 06h} + 2`
-- `eff_v_displayed = {1'b0, 07h[1], 12h} + 1`
-- `eff_v_sync_pos = {1'b0, 07h[2], 10h} + 1`
-- `line_compare_target = {07h[4], 18h}`
+- `eff_v_total = {07h[5], 07h[0], 06h} + 2`
+- `eff_v_displayed = {07h[6], 07h[1], 12h} + 1`
+- `eff_v_sync_pos = {07h[7], 07h[2], 10h} + 1`
+- `line_compare_target = {09h[6], 07h[4], 18h} + 1`
 
-Missing behavior is assigned to EGA-302 and EGA-306.
+Formula coverage is assigned to EGA-302; split address/scanline side effects
+remain assigned to EGA-306.
 
 ### Display Address Remap
 
@@ -128,8 +129,6 @@ Current RTL:
 
 Missing behavior:
 
-- Include `09h[6]` as split bit 9.
-- Apply x86Box `+1` target convention.
 - Reset scanline state consistently with display address.
 - Verify behavior when split occurs outside or at the visible range.
 
