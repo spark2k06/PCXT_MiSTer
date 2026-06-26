@@ -1481,7 +1481,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-606 - Implement 9th-Dot Line Graphics Behavior
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-605.
 - Files: text renderer module, `rtl/video/ega_attrib_ctrl.v`.
@@ -1492,6 +1492,24 @@ must be anchored to the behavior it proves.
   - Blank or handle the 9th column correctly for non-line-graphics characters.
 - Acceptance:
   - Box-drawing characters join correctly in 80-column text mode.
+- Completed:
+  - `ega_sequencer.v` now exports Sequencer Clocking Mode bit `0` as
+    `char_9dot`.
+  - `ega_attrib_ctrl.v` now exports Attribute Mode Control bit `2` as
+    `line_graphics_enable`.
+  - `ega_top.v` adds a text CRTC/fetch tick for 9-dot character timing while
+    preserving the existing graphics fetch cadence.
+  - `ega_text.v` extends the glyph shifter to 9 bits and copies the 8th glyph
+    column into the 9th dot only for characters `C0h..DFh` when line graphics
+    are enabled.
+  - Non-line characters, and line characters when line graphics are disabled,
+    use the background color in the 9th column.
+  - `ega_text_tb.sv` adds deterministic checks for 9-dot line graphics repeat,
+    normal-character 9th-column blanking, and disabled line-graphics blanking.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 249 warnings.
+  - HDL simulation could not be run because no standalone simulator is installed;
+    see `TEST_TOOLS.md`.
 
 ### EGA-607 - Implement Cursor Rendering
 

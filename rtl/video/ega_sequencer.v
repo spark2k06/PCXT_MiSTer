@@ -21,6 +21,7 @@ module ega_sequencer (
     output reg         ce_crt_fetch,
     output reg         ce_cpu_access,
     output reg         dot_clock_div2,
+    output reg         char_9dot,
     output reg  [1:0]  char_map_a,
     output reg  [1:0]  char_map_b,
     output reg  [7:0]  map_mask_debug,
@@ -116,6 +117,7 @@ module ega_sequencer (
         ce_crt_fetch = fetch_pulse_q;
         ce_cpu_access = ~fetch_pulse_q;
         dot_clock_div2 = clocking_mode_reg[3];
+        char_9dot = ~clocking_mode_reg[0];
         char_map_a = char_map_reg[1:0];
         char_map_b = char_map_reg[3:2];
         map_mask_debug = map_mask_reg;

@@ -13,8 +13,10 @@ module ega_text (
     input  wire        fetch_tick,
     input  wire        display_enable,
     input  wire        dot_clock_div2,
+    input  wire        char_9dot,
     input  wire        blink_enable,
     input  wire        blink_state,
+    input  wire        line_graphics_enable,
     input  wire [15:0] crtc_addr,
     input  wire [4:0]  scanline,
     input  wire [1:0]  char_map_a,
@@ -32,12 +34,14 @@ module ega_text (
 
     reg [7:0] char_latch = 8'h00;
     reg [7:0] attr_latch = 8'h00;
-    reg [7:0] glyph_shift = 8'h00;
+    reg [8:0] glyph_shift = 9'h000;
     reg       dot_repeat = 1'b0;
 
     wire       start_cell = display_enable && fetch_tick;
     wire [1:0] font_bank = attr_latch[3] ? char_map_b : char_map_a;
-    wire       glyph_pixel = glyph_shift[7];
+    wire       glyph_pixel = glyph_shift[8];
+    wire       line_graphics_char = (text_char_in[7:5] == 3'b110);
+    wire       ninth_dot = char_9dot && line_graphics_enable && line_graphics_char && text_glyph_in[0];
     wire [3:0] foreground_index = attr_latch[3:0];
     wire [3:0] background_index = blink_enable ? {1'b0, attr_latch[6:4]} : attr_latch[7:4];
     wire [3:0] visible_foreground_index =
@@ -47,7 +51,7 @@ module ega_text (
         if (reset) begin
             char_latch <= 8'h00;
             attr_latch <= 8'h00;
-            glyph_shift <= 8'h00;
+            glyph_shift <= 9'h000;
             dot_repeat <= 1'b0;
             text_cell_addr <= 16'h0000;
             text_font_addr <= 16'h0000;
@@ -60,13 +64,13 @@ module ega_text (
             if (text_data_valid) begin
                 char_latch <= text_char_in;
                 attr_latch <= text_attr_in;
-                glyph_shift <= text_glyph_in;
+                glyph_shift <= {text_glyph_in, ninth_dot};
                 dot_repeat <= 1'b0;
             end
 
             if (ce_pix) begin
                 if (!display_enable) begin
-                    glyph_shift <= 8'h00;
+                    glyph_shift <= 9'h000;
                     dot_repeat <= 1'b0;
                     plane_index <= 4'h0;
                     pixel_valid <= 1'b0;
@@ -86,10 +90,10 @@ module ega_text (
                         if (dot_clock_div2) begin
                             dot_repeat <= ~dot_repeat;
                             if (dot_repeat)
-                                glyph_shift <= {glyph_shift[6:0], 1'b0};
+                                glyph_shift <= {glyph_shift[7:0], 1'b0};
                         end else begin
                             dot_repeat <= 1'b0;
-                            glyph_shift <= {glyph_shift[6:0], 1'b0};
+                            glyph_shift <= {glyph_shift[7:0], 1'b0};
                         end
                     end
                 end

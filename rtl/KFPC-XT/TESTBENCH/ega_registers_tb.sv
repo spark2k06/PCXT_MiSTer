@@ -85,6 +85,7 @@ module ega_registers_tb;
     wire       seq_ce_crt_fetch;
     wire       seq_ce_cpu_access;
     wire       seq_dot_clock_div2;
+    wire       seq_char_9dot;
     wire [1:0] seq_char_map_a;
     wire [1:0] seq_char_map_b;
     wire [7:0] seq_map_mask_debug;
@@ -105,6 +106,7 @@ module ega_registers_tb;
         .ce_crt_fetch(seq_ce_crt_fetch),
         .ce_cpu_access(seq_ce_cpu_access),
         .dot_clock_div2(seq_dot_clock_div2),
+        .char_9dot(seq_char_9dot),
         .char_map_a(seq_char_map_a),
         .char_map_b(seq_char_map_b),
         .map_mask_debug(seq_map_mask_debug),
@@ -158,6 +160,7 @@ module ega_registers_tb;
     reg        attr_text_mode = 1'b0;
     reg        attr_palette_64_mode = 1'b1;
     wire       attr_blink_enable;
+    wire       attr_line_graphics_enable;
     wire [7:0] attr_data_out;
     wire [3:0] attr_pixel_pan_out;
     wire [5:0] attr_color_out;
@@ -181,6 +184,7 @@ module ega_registers_tb;
         .blink_state(1'b0),
         .palette_64_mode(attr_palette_64_mode),
         .blink_enable_out(attr_blink_enable),
+        .line_graphics_enable_out(attr_line_graphics_enable),
         .pixel_pan_out(attr_pixel_pan_out),
         .color_out(attr_color_out),
         .display_enable_out(attr_display_enable_out),
@@ -702,6 +706,7 @@ module ega_registers_tb;
         select_and_read_attr(5'h10, read_value);
         expect8("ATTR mode control register", read_value, 8'h09);
         expect1("ATTR blink enable output", attr_blink_enable, 1'b1);
+        expect1("ATTR line graphics output", attr_line_graphics_enable, 1'b0);
         attr_status_read();
         io_write(16'h03C0, 8'h33);
         io_write(16'h03C0, 8'h07);

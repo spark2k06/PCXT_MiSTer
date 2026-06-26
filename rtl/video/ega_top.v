@@ -235,6 +235,7 @@ module ega_top(
     wire [7:0] ega_seq_memory_mode_debug;
     wire [1:0] ega_char_map_a;
     wire [1:0] ega_char_map_b;
+    wire ega_char_9dot;
     wire [3:0] ega_plane_write_mask;
     wire ega_chain2_write;
     wire ega_extended_memory;
@@ -272,6 +273,14 @@ module ega_top(
     wire [3:0] ega_h_pixel_pan; //NEW
     wire ega_hres_mode_int = ~ega_dot_clock_div2;
     wire ega_attr_blink_enable;
+    wire ega_attr_line_graphics_enable;
+    reg [4:0] ega_text_fetch_phase = 5'd0;
+    reg       ega_text_fetch_tick = 1'b0;
+    wire [4:0] ega_text_fetch_phase_last =
+        ega_dot_clock_div2 ? (ega_char_9dot ? 5'd17 : 5'd15) :
+                             (ega_char_9dot ? 5'd8  : 5'd7);
+    wire ega_crtc_fetch_tick = (!ega_graphics_mode && ega_char_9dot) ? ega_text_fetch_tick :
+                                                                    ega_ce_crt_fetch;
     wire [1:0] ega_render_mode = !ega_graphics_mode ? 2'd0 :
                                   ega_cga_2bpp_mode ? 2'd2 : 2'd1;
     wire ega_display_enable = ega_display_enable_crtc;
@@ -295,13 +304,13 @@ module ega_top(
     reg        ega_vblank_crtc_q = 1'b0;
     reg [6:0]  ega_blink_counter = 7'h00;
     wire       ega_status_read = ega_status_cs & ~bus_ior_l;
-    wire       ega_blink_advance = ega_ce_crt_fetch & ega_vert_blank_active_crtc & ~ega_vblank_crtc_q;
+    wire       ega_blink_advance = ega_crtc_fetch_tick & ega_vert_blank_active_crtc & ~ega_vblank_crtc_q;
     wire       ega_blink_state = ega_blink_counter[4];
     wire [7:0] ega_status_reg = {2'b00, ega_status_toggle, ega_status_vretrace_active, 2'b00, ega_blanking_active};
 
     UM6845R ega_crtc (
         .CLOCK(clk),
-        .CLKEN(ega_ce_crt_fetch),
+        .CLKEN(ega_crtc_fetch_tick),
         .nRESET(~reset),
         .CRTC_TYPE(1'b1),
         .ENABLE(1'b1),
@@ -378,6 +387,7 @@ module ega_top(
         .ce_crt_fetch(ega_ce_crt_fetch),
         .ce_cpu_access(ega_ce_cpu_access_unused),
         .dot_clock_div2(ega_dot_clock_div2),
+        .char_9dot(ega_char_9dot),
         .char_map_a(ega_char_map_a),
         .char_map_b(ega_char_map_b),
         .map_mask_debug(ega_seq_map_mask_debug),
@@ -431,11 +441,13 @@ module ega_top(
         .clk(clk),
         .reset(reset),
         .ce_pix(ce_pix),
-        .fetch_tick(ega_ce_crt_fetch),
+        .fetch_tick(ega_crtc_fetch_tick),
         .display_enable(ega_display_enable),
         .dot_clock_div2(ega_dot_clock_div2),
+        .char_9dot(ega_char_9dot),
         .blink_enable(ega_attr_blink_enable),
         .blink_state(ega_blink_state),
+        .line_graphics_enable(ega_attr_line_graphics_enable),
         .crtc_addr(ega_fetch_addr),
         .scanline(ega_row_addr),
         .char_map_a(ega_char_map_a),
@@ -467,6 +479,7 @@ module ega_top(
         .text_mode(~ega_graphics_mode),
         .blink_state(ega_blink_state),
         .blink_enable_out(ega_attr_blink_enable),
+        .line_graphics_enable_out(ega_attr_line_graphics_enable),
         .pixel_pan_out(ega_h_pixel_pan),  //NEW
         .palette_64_mode(ega_misc_output_reg[7]),
         .color_out(ega_color_raw),
@@ -560,10 +573,22 @@ module ega_top(
             ega_video_active <= 1'b0;
             ega_video_pending <= 1'b0;
             ega_write_seen_since_vblank <= 1'b0;
+            ega_text_fetch_phase <= 5'd0;
+            ega_text_fetch_tick <= 1'b0;
         end else begin
+            ega_text_fetch_tick <= 1'b0;
+            if (ce_pix) begin
+                if (ega_text_fetch_phase == ega_text_fetch_phase_last) begin
+                    ega_text_fetch_phase <= 5'd0;
+                    ega_text_fetch_tick <= 1'b1;
+                end else begin
+                    ega_text_fetch_phase <= ega_text_fetch_phase + 5'd1;
+                end
+            end
+
             cga_vblank_q <= cga_vblank;
             ega_status_read_q <= ega_status_read;
-            ega_vblank_crtc_q <= ega_ce_crt_fetch ? ega_vert_blank_active_crtc : ega_vblank_crtc_q;
+            ega_vblank_crtc_q <= ega_crtc_fetch_tick ? ega_vert_blank_active_crtc : ega_vblank_crtc_q;
             cpu_mem_write_evt_d <= cpu_mem_write_evt;
             if (ega_misc_write_cs && ega_io_we)
                 ega_misc_output_reg <= bus_d;
@@ -588,6 +613,8 @@ module ega_top(
                 ega_status_toggle <= 2'b00;
                 ega_vblank_crtc_q <= 1'b0;
                 ega_blink_counter <= 7'h00;
+                ega_text_fetch_phase <= 5'd0;
+                ega_text_fetch_tick <= 1'b0;
             end
             else if (ega_io_we && ega_debug_io_range) begin
                 ega_last_wr_addr <= ega_io_addr;

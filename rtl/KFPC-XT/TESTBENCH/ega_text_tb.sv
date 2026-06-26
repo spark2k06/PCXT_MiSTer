@@ -11,8 +11,10 @@ module ega_text_tb;
     reg fetch_tick = 1'b0;
     reg display_enable = 1'b0;
     reg dot_clock_div2 = 1'b0;
+    reg char_9dot = 1'b0;
     reg blink_enable = 1'b0;
     reg blink_state = 1'b0;
+    reg line_graphics_enable = 1'b0;
     reg [15:0] crtc_addr = 16'h0000;
     reg [4:0] scanline = 5'd0;
     reg [1:0] char_map_a = 2'b00;
@@ -38,8 +40,10 @@ module ega_text_tb;
         .fetch_tick(fetch_tick),
         .display_enable(display_enable),
         .dot_clock_div2(dot_clock_div2),
+        .char_9dot(char_9dot),
         .blink_enable(blink_enable),
         .blink_state(blink_state),
+        .line_graphics_enable(line_graphics_enable),
         .crtc_addr(crtc_addr),
         .scanline(scanline),
         .char_map_a(char_map_a),
@@ -112,8 +116,10 @@ module ega_text_tb;
             fetch_tick = 1'b0;
             display_enable = 1'b0;
             dot_clock_div2 = 1'b0;
+            char_9dot = 1'b0;
             blink_enable = 1'b0;
             blink_state = 1'b0;
+            line_graphics_enable = 1'b0;
             crtc_addr = 16'h0000;
             scanline = 5'd0;
             char_map_a = 2'b00;
@@ -244,6 +250,36 @@ module ega_text_tb;
         provide_cell(8'h45, 8'h9A, 8'h80);
         step_pixel();
         expect4("blink active uses background", plane_index, 4'h1);
+
+        reset_dut();
+
+        begin_test("9-dot line graphics repeats eighth column");
+        display_enable = 1'b1;
+        char_9dot = 1'b1;
+        line_graphics_enable = 1'b1;
+        provide_cell(8'hC4, 8'h0E, 8'h01);
+        repeat (9) step_pixel();
+        expect4("line graphics ninth dot repeats foreground", plane_index, 4'hE);
+
+        reset_dut();
+
+        begin_test("9-dot non-line character blanks ninth column");
+        display_enable = 1'b1;
+        char_9dot = 1'b1;
+        line_graphics_enable = 1'b1;
+        provide_cell(8'h41, 8'h1E, 8'h01);
+        repeat (9) step_pixel();
+        expect4("normal character ninth dot uses background", plane_index, 4'h1);
+
+        reset_dut();
+
+        begin_test("9-dot line graphics disabled blanks ninth column");
+        display_enable = 1'b1;
+        char_9dot = 1'b1;
+        line_graphics_enable = 1'b0;
+        provide_cell(8'hC4, 8'h2F, 8'h01);
+        repeat (9) step_pixel();
+        expect4("disabled line graphics ninth dot uses background", plane_index, 4'h2);
 
         if (failures == 0) begin
             $display("PASS: ega_text_tb");

@@ -63,6 +63,7 @@ module ega_pixel_tb;
         .blink_state(1'b0),
         .palette_64_mode(1'b1),
         .blink_enable_out(),
+        .line_graphics_enable_out(),
         .pixel_pan_out(attr_pixel_pan_unused),
         .color_out(attr_color_out),
         .display_enable_out(attr_display_enable_out),
