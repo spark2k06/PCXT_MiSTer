@@ -269,7 +269,10 @@ module ega_top(
     reg [7:0]  ega_last_crtc_data = 8'h00;
     reg [7:0]  ega_prev_crtc_index = 8'h00;
     reg [7:0]  ega_prev_crtc_data = 8'h00;
-    wire [7:0] ega_status_reg = {4'b0000, ega_status_vretrace_active, 2'b00, ega_blanking_active};
+    reg        ega_status_read_q = 1'b0;
+    reg [1:0]  ega_status_toggle = 2'b00;
+    wire       ega_status_read = ega_status_cs & ~bus_ior_l;
+    wire [7:0] ega_status_reg = {2'b00, ega_status_toggle, ega_status_vretrace_active, 2'b00, ega_blanking_active};
 
     UM6845R ega_crtc (
         .CLOCK(clk),
@@ -401,7 +404,7 @@ module ega_top(
         .io_data_out(ega_attr_data_out),
         .io_we(ega_io_we),
         .io_re(ega_io_re),
-        .status_re(ega_status_cs & ~bus_ior_l),
+        .status_re(ega_status_read),
         .plane_index(ega_plane_index),
         .pixel_valid(ega_pixel_valid),
         .display_enable(ega_display_enable),
@@ -490,17 +493,22 @@ module ega_top(
             ega_last_crtc_data <= 8'h00;
             ega_prev_crtc_index <= 8'h00;
             ega_prev_crtc_data <= 8'h00;
+            ega_status_read_q <= 1'b0;
+            ega_status_toggle <= 2'b00;
             ega_misc_output_reg <= 8'h63;
             ega_video_active <= 1'b0;
             ega_video_pending <= 1'b0;
             ega_write_seen_since_vblank <= 1'b0;
         end else begin
             cga_vblank_q <= cga_vblank;
+            ega_status_read_q <= ega_status_read;
             cpu_mem_write_evt_d <= cpu_mem_write_evt;
             if (ega_misc_write_cs && ega_io_we)
                 ega_misc_output_reg <= bus_d;
             if (ega_cfg_we)
                 ega_cfg_toggle <= ~ega_cfg_toggle;
+            if (ega_status_read && !ega_status_read_q)
+                ega_status_toggle <= ~ega_status_toggle;
 
             if (!ega_enabled) begin
                 ega_last_wr_addr <= 16'h0000;
@@ -512,6 +520,8 @@ module ega_top(
                 ega_last_crtc_data <= 8'h00;
                 ega_prev_crtc_index <= 8'h00;
                 ega_prev_crtc_data <= 8'h00;
+                ega_status_read_q <= 1'b0;
+                ega_status_toggle <= 2'b00;
             end
             else if (ega_io_we && ega_debug_io_range) begin
                 ega_last_wr_addr <= ega_io_addr;

@@ -31,7 +31,7 @@ ports. The main gaps found by this audit are:
 | `3CEh` / `2CEh` | write | `ega_gfx_ctrl` decodes exact address as Graphics Controller index. | Implemented |
 | `3CFh` / `2CFh` | read/write | `ega_gfx_ctrl` decodes exact address as Graphics Controller data with readback. `ega_top` includes this in bus direction. | Implemented |
 | `3B4h/3B5h`, `3D4h/3D5h` | read/write | `ega_top` selects mono or color CRTC index/data ports from Misc Output bit `0`. Data reads are gated by `ega_display_sel`. | Partial |
-| `3BAh`, `3DAh` | read | `ega_top` selects mono or color status from Misc Output bit `0`. Status reads reset the Attribute Controller flip-flop, but bus drive is gated by `ega_display_sel`. | Partial |
+| `3BAh`, `3DAh` | read | `ega_top` selects mono or color status from Misc Output bit `0`. Status reads reset the Attribute Controller flip-flop and toggle bits `5:4`; bus drive is still gated by `ega_display_sel`. | Partial |
 | `3C7h` / `2C7h` | read | `ega_top` decodes DAC read-index address and returns `00h`. | Stubbed |
 | `3C8h` / `2C8h` | read/write | `ega_top` decodes DAC write-index address and returns `00h` on reads; writes have no state. | Stubbed |
 | `3C9h` / `2C9h` | read/write | `ega_top` decodes DAC data address and returns `00h` on reads; writes have no state. | Stubbed |

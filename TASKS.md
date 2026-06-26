@@ -973,7 +973,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-504 - Implement Input Status #1 Bits And Side Effects
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-202, EGA-203.
 - Files: `rtl/video/ega_top.v`, `rtl/video/ega_attrib_ctrl.v`.
@@ -986,6 +986,18 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Consecutive status reads show the expected `0x30` toggle behavior.
   - Attribute writes after status reads land in the intended index/data phase.
+- Verification:
+  - `ega_top.v` now exposes Input Status #1 bit `0` from CRTC
+    not-displaying, bit `3` from CRTC vertical retrace, and bits `5:4` from a
+    two-bit IBM EGA status toggle.
+  - The toggle advances once per selected color/mono status-read pulse using
+    `ega_status_read_q`, so a stretched I/O read does not advance multiple
+    times.
+  - The same selected status-read signal drives `ega_attrib_ctrl.status_re`,
+    preserving Attribute Controller index/data flip-flop reset semantics.
+  - Added `EGA_STATUS_AUDIT.md` and updated `EGA_IO_DECODE_AUDIT.md`; the
+    remaining display-select readback gate is left to EGA-505.
+  - Quartus Analysis & Elaboration passed with `0 errors, 258 warnings`.
 
 ### EGA-505 - Remove Incorrect Display-Select Gating From Register Visibility
 
