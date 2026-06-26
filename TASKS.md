@@ -1577,7 +1577,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-610 - Add Text Renderer Testbench Coverage
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-603, EGA-604, EGA-605, EGA-606, EGA-607, EGA-608, EGA-609.
 - Files: new or existing EGA text testbench under `rtl/KFPC-XT/TESTBENCH/`.
@@ -1668,6 +1668,18 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - EGA BIOS smoke test reaches expected mode-setting behavior without manual
     pokes.
+- Completed:
+  - Added `EGA_BIOS_LOADING_AUDIT.md` documenting the EGA BIOS download select,
+    `C0000h` address mapping, external bus write path, and RAM protection bit.
+  - Verified `egabios.rom` is 2048 bytes and starts with `55 AA 04`, matching a
+    four-block BIOS extension image as defined by `egabios.asm`.
+  - Verified statically that EGA BIOS downloads use `ioctl_index[5:0] == 3` and
+    map to `C0000h + ioctl_addr[15:0]`.
+  - Verified statically that `ega_bios_loaded` enables `bios_protect_flag[2]`,
+    protecting `C0000h-C3FFFh`, which covers the current `C0000h-C07FFh` image.
+  - `git diff --check` passed.
+  - End-to-end EGA BIOS smoke was not run in this environment; this task is a
+    loader/protection audit.
 
 ### EGA-704 - Validate Menu And Feature-Gate Integration
 
