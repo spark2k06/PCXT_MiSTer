@@ -565,7 +565,7 @@ module ega_vram_tb;
         begin
             begin_test("CPU A16 selects remapped low/high A000 aperture bytes");
             plane_write_mask = 4'hF;
-            odd_even_mode = 1'b0;
+            odd_even_mode = 1'b1;
             chain2_write = 1'b0;
             chain2_read = 1'b0;
             extended_memory = 1'b1;
@@ -602,6 +602,99 @@ module ega_vram_tb;
 
             cpu_read_tx(17'h10040);
             expect_eq8("cpu a16=1 read plane0", cpu_data_out, 8'h5A);
+        end
+    endtask
+
+    task automatic test_chain2_read_write;
+        reg [15:0] even_addr;
+        reg [15:0] odd_addr;
+        reg [15:0] masked_addr;
+        reg [15:0] a16_addr;
+        reg [15:0] page_addr;
+        begin
+            begin_test("chain-2 read/write plane selection");
+            plane_write_mask = 4'hF;
+            odd_even_mode = 1'b0;
+            chain2_write = 1'b1;
+            chain2_read = 1'b1;
+            extended_memory = 1'b1;
+            mem_map_sel = 2'b01;
+            page_select = 1'b0;
+            write_mode = 2'b00;
+            read_mode = 2'b00;
+            read_plane_sel = 2'b00;
+            bit_mask = 8'hFF;
+            rop_select = 2'b00;
+            rotate_count = 3'd0;
+            set_reset = 8'h00;
+            enable_set_reset = 4'h0;
+
+            even_addr = expected_cpu_plane_addr(17'h00050, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            odd_addr = expected_cpu_plane_addr(17'h00051, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            expect_eq8("chain2 even read plane", {6'b000000, expected_read_plane(17'h00050, read_plane_sel, chain2_read)}, 8'h00);
+            expect_eq8("chain2 odd read plane", {6'b000000, expected_read_plane(17'h00051, read_plane_sel, chain2_read)}, 8'h01);
+            expect_eq8("chain2 even write mask", {4'b0000, expected_write_mask(17'h00050, plane_write_mask, chain2_write)}, 8'h05);
+            expect_eq8("chain2 odd write mask", {4'b0000, expected_write_mask(17'h00051, plane_write_mask, chain2_write)}, 8'h0A);
+
+            set_planes(even_addr, 8'h10, 8'h20, 8'h30, 8'h40);
+            set_planes(odd_addr, 8'h11, 8'h21, 8'h31, 8'h41);
+            cpu_write_tx(17'h00050, 8'hA0);
+            cpu_write_tx(17'h00051, 8'hB1);
+            expect_eq8("chain2 even writes plane0", dut.plane0[even_addr], 8'hA0);
+            expect_eq8("chain2 even keeps plane1", dut.plane1[even_addr], 8'h20);
+            expect_eq8("chain2 even writes plane2", dut.plane2[even_addr], 8'hA0);
+            expect_eq8("chain2 even keeps plane3", dut.plane3[even_addr], 8'h40);
+            expect_eq8("chain2 odd keeps plane0", dut.plane0[odd_addr], 8'h11);
+            expect_eq8("chain2 odd writes plane1", dut.plane1[odd_addr], 8'hB1);
+            expect_eq8("chain2 odd keeps plane2", dut.plane2[odd_addr], 8'h31);
+            expect_eq8("chain2 odd writes plane3", dut.plane3[odd_addr], 8'hB1);
+
+            read_plane_sel = 2'b00;
+            cpu_read_tx(17'h00050);
+            expect_eq8("chain2 read even plane0", cpu_data_out, 8'hA0);
+            cpu_read_tx(17'h00051);
+            expect_eq8("chain2 read odd plane1", cpu_data_out, 8'hB1);
+            read_plane_sel = 2'b10;
+            cpu_read_tx(17'h00050);
+            expect_eq8("chain2 read even plane2", cpu_data_out, 8'hA0);
+            cpu_read_tx(17'h00051);
+            expect_eq8("chain2 read odd plane3", cpu_data_out, 8'hB1);
+
+            plane_write_mask = 4'b0111;
+            masked_addr = expected_cpu_plane_addr(17'h00053, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            expect_eq8("chain2 masked odd write mask", {4'b0000, expected_write_mask(17'h00053, plane_write_mask, chain2_write)}, 8'h02);
+            set_planes(masked_addr, 8'h12, 8'h22, 8'h32, 8'h42);
+            cpu_write_tx(17'h00053, 8'hC3);
+            expect_eq8("chain2 mask keeps plane0", dut.plane0[masked_addr], 8'h12);
+            expect_eq8("chain2 mask writes plane1", dut.plane1[masked_addr], 8'hC3);
+            expect_eq8("chain2 mask keeps plane2", dut.plane2[masked_addr], 8'h32);
+            expect_eq8("chain2 mask keeps plane3", dut.plane3[masked_addr], 8'h42);
+
+            plane_write_mask = 4'hF;
+            mem_map_sel = 2'b00;
+            odd_even_mode = 1'b1;
+            page_select = 1'b0;
+            read_plane_sel = 2'b00;
+            a16_addr = expected_cpu_plane_addr(17'h10060, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            set_planes(a16_addr, 8'h13, 8'h23, 8'h33, 8'h43);
+            cpu_write_tx(17'h10060, 8'hD4);
+            expect_eq8("chain2 a16 remap address", a16_addr[7:0], 8'h61);
+            expect_eq8("chain2 a16 writes plane0", dut.plane0[a16_addr], 8'hD4);
+            expect_eq8("chain2 a16 writes plane2", dut.plane2[a16_addr], 8'hD4);
+            cpu_read_tx(17'h10060);
+            expect_eq8("chain2 a16 read plane0", cpu_data_out, 8'hD4);
+
+            mem_map_sel = 2'b01;
+            odd_even_mode = 1'b1;
+            page_select = 1'b0;
+            page_addr = expected_cpu_plane_addr(17'h00070, odd_even_mode, extended_memory, mem_map_sel, page_select);
+            set_planes(page_addr, 8'h14, 8'h24, 8'h34, 8'h44);
+            cpu_write_tx(17'h00070, 8'hE5);
+            expect_eq8("chain2 page remap address", page_addr[7:0], 8'h71);
+            expect_eq8("chain2 page writes plane0", dut.plane0[page_addr], 8'hE5);
+            expect_eq8("chain2 page writes plane2", dut.plane2[page_addr], 8'hE5);
+            cpu_read_tx(17'h00070);
+            expect_eq8("chain2 page read plane0", cpu_data_out, 8'hE5);
         end
     endtask
 
@@ -690,6 +783,7 @@ module ega_vram_tb;
         test_read_mode1();
         test_consecutive_writes();
         test_cpu_a16_remap();
+        test_chain2_read_write();
         test_memory_map_windows();
 
         if (failures != 0) begin

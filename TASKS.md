@@ -303,7 +303,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-105 - Add Chain-2 Read/Write Coverage
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-102.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
@@ -315,6 +315,14 @@ must be anchored to the behavior it proves.
   - Combine chain-2 with map mask, odd/even disabled, and A16/page-select cases.
 - Acceptance:
   - Chain-2 behavior is proven independently from normal planar writes.
+- Verification:
+  - `ega_vram_tb.sv` now enables `chain2_write` and `chain2_read` in a
+    dedicated `test_chain2_read_write()` case.
+  - The test covers even and odd CPU addresses, effective read plane selection,
+    chain-2 write masks, map-mask interaction, A16-driven remap, and
+    page-select-driven remap.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-106 - Add Odd/Even And Page Select Coverage
 
