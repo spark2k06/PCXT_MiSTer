@@ -89,10 +89,12 @@ parameter EGA_RESET_R19 = 0;
 
 /* verilator lint_off WIDTH */
 
+wire [15:0] ega_display_addr;
+
 assign FIELD = ~field & interlace[0];
 
-assign MA = row_addr_r[13:0];
-assign MA_FULL = row_addr_r;
+assign MA = ega_display_addr[13:0];
+assign MA_FULL = ega_display_addr;
 assign RA = line | (field & interlace[0]);
 assign HC = hcc;
 assign VC = row[6:0];
@@ -314,6 +316,30 @@ wire       frame_new = row_new & row_frame_last;
 wire [10:0] line_compare_target = {1'b0, R9_v_max_line[6], R7_v_sync_pos[4], R24_line_compare_e} + 11'd1;
 reg [9:0] frame_scanline_cnt;
 wire line_compare_match = ({1'b0, frame_scanline_cnt} == line_compare_target);//!vsync_raw;
+
+// x86Box remaps interleaved byte addresses; this core fetches independent
+// planes, so convert row_addr_r to byte space and return out_addr[17:2].
+wire [19:0] ega_remap_in_addr = {2'b00, row_addr_r, 2'b00};
+wire [19:0] ega_remap_word_ma13_addr = ((ega_remap_in_addr << 1) & 20'h3FFF8) |
+                                       ((ega_remap_in_addr >> 13) & 20'h00004) |
+                                       (ega_remap_in_addr & 20'hC0000);
+wire [19:0] ega_remap_word_ma15_addr = ((ega_remap_in_addr << 1) & 20'h3FFF8) |
+                                       ((ega_remap_in_addr >> 15) & 20'h00004) |
+                                       (ega_remap_in_addr & 20'hC0000);
+wire [19:0] ega_remap_dword_addr = ((ega_remap_in_addr << 2) & 20'h3FFF0) |
+                                  ((ega_remap_in_addr >> 14) & 20'h0000C) |
+                                  (ega_remap_in_addr & 20'hC0000);
+wire [19:0] ega_remap_mode_addr = R20_underline_loc_e[6] ? ega_remap_dword_addr :
+                                  R23_mode_control_e[6] ? ega_remap_in_addr :
+                                  R23_mode_control_e[5] ? ega_remap_word_ma15_addr :
+                                                          ega_remap_word_ma13_addr;
+wire [19:0] ega_remap_row0_addr = R23_mode_control_e[0] ? ega_remap_mode_addr :
+                                  ((ega_remap_mode_addr & 20'hF7FFF) |
+                                   (line[0] ? 20'h08000 : 20'h00000));
+wire [19:0] ega_remap_row_addr = R23_mode_control_e[1] ? ega_remap_row0_addr :
+                                 ((ega_remap_row0_addr & 20'hEFFFF) |
+                                  (line[1] ? 20'h10000 : 20'h00000));
+assign ega_display_addr = CRTC_TYPE ? ega_remap_row_addr[17:2] : row_addr_r;
 
 // counters
 reg  field;

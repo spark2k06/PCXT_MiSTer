@@ -182,6 +182,8 @@ module ega_registers_tb;
     reg        crtc_rs = 1'b0;
     reg [7:0]  crtc_di = 8'h00;
     wire [7:0] crtc_do;
+    wire [13:0] crtc_ma;
+    wire [15:0] crtc_ma_full;
     wire [7:0] crtc_h_displayed;
     wire [4:0] crtc_v_maxscan;
     wire [7:0] crtc_r11_debug;
@@ -206,8 +208,8 @@ module ega_registers_tb;
         .DE(),
         .FIELD(),
         .CURSOR(),
-        .MA(),
-        .MA_FULL(),
+        .MA(crtc_ma),
+        .MA_FULL(crtc_ma_full),
         .RA(),
         .HC(),
         .VC(),
@@ -493,6 +495,64 @@ module ega_registers_tb;
         end
     endtask
 
+    function automatic [15:0] expected_scanout_addr(
+        input [15:0] raw_addr,
+        input [4:0]  scanline,
+        input [7:0]  crtc_14h,
+        input [7:0]  crtc_17h
+    );
+        reg [19:0] in_addr;
+        reg [19:0] out_addr;
+        begin
+            in_addr = {2'b00, raw_addr, 2'b00};
+
+            if (crtc_14h[6])
+                out_addr = ((in_addr << 2) & 20'h3FFF0) |
+                           ((in_addr >> 14) & 20'h0000C) |
+                           (in_addr & 20'hC0000);
+            else if (crtc_17h[6])
+                out_addr = in_addr;
+            else if (crtc_17h[5])
+                out_addr = ((in_addr << 1) & 20'h3FFF8) |
+                           ((in_addr >> 15) & 20'h00004) |
+                           (in_addr & 20'hC0000);
+            else
+                out_addr = ((in_addr << 1) & 20'h3FFF8) |
+                           ((in_addr >> 13) & 20'h00004) |
+                           (in_addr & 20'hC0000);
+
+            if (!crtc_17h[0])
+                out_addr = (out_addr & 20'hF7FFF) |
+                           (scanline[0] ? 20'h08000 : 20'h00000);
+            if (!crtc_17h[1])
+                out_addr = (out_addr & 20'hEFFFF) |
+                           (scanline[1] ? 20'h10000 : 20'h00000);
+
+            expected_scanout_addr = out_addr[17:2];
+        end
+    endfunction
+
+    task automatic expect_crtc_scanout(
+        input [8*80-1:0] label,
+        input [15:0] raw_addr,
+        input [4:0]  scanline,
+        input [7:0]  crtc_14h,
+        input [7:0]  crtc_17h
+    );
+        begin
+            crtc_write(1'b0, 8'h14);
+            crtc_write(1'b1, crtc_14h);
+            crtc_write(1'b0, 8'h17);
+            crtc_write(1'b1, crtc_17h);
+            force crtc_dut.row_addr_r = raw_addr;
+            force crtc_dut.line = scanline;
+            #1 expect16(label, crtc_ma_full,
+                        expected_scanout_addr(raw_addr, scanline, crtc_14h, crtc_17h));
+            release crtc_dut.row_addr_r;
+            release crtc_dut.line;
+        end
+    endtask
+
     initial begin
         reg [7:0] read_value;
         reg [7:0] status_a;
@@ -591,6 +651,18 @@ module ega_registers_tb;
                  {6'd0, crtc_dut.eff_v_sync_pos}, 16'h0334);
         expect16("CRTC split uses 09h[6], 07h[4], 18h plus one",
                  {5'd0, crtc_dut.line_compare_target}, 16'h03FF);
+
+        begin_test("CRTC scanout address remap");
+        expect_crtc_scanout("CRTC word mode using MA13",
+                            16'h9234, 5'd0, 8'h00, 8'h83);
+        expect_crtc_scanout("CRTC byte mode",
+                            16'h9234, 5'd0, 8'h00, 8'hC3);
+        expect_crtc_scanout("CRTC word mode using MA15",
+                            16'h9234, 5'd0, 8'h00, 8'hA3);
+        expect_crtc_scanout("CRTC dword mode",
+                            16'h9234, 5'd0, 8'h40, 8'h83);
+        expect_crtc_scanout("CRTC scanline substitutes MA13 and MA14",
+                            16'h0234, 5'd3, 8'h00, 8'h80);
 
         begin_test("top-level misc output and color CRTC ports");
         top_io_read(16'h03CC, read_value);

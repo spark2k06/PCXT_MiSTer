@@ -707,7 +707,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-303 - Implement Or Correct Scanout Address Remapping
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-301, EGA-302.
 - Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`,
@@ -722,6 +722,17 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Address tests can distinguish all documented scanout remap modes.
   - Existing CPU VRAM tests remain unchanged and passing.
+- Verification:
+  - `UM6845R.v` now remaps the EGA display fetch address using CRTC `14h[6]`
+    dword mode, `17h[6]` byte mode, `17h[5]` word mode using MA15, default
+    word mode using MA13, and `17h[1:0]` scanline substitution for MA14/MA13.
+  - The remap is applied only to the display-side `MA_FULL` output and leaves
+    CPU VRAM remapping unchanged.
+  - `ega_registers_tb.sv` includes reference-helper checks that distinguish all
+    remap modes and scanline substitution behavior.
+  - Quartus Analysis & Elaboration passed: 0 errors, 255 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-304 - Validate Row Advance And Maximum Scan Line Behavior
 

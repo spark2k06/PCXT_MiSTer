@@ -23,9 +23,8 @@ Sources:
   register path.
 - EGA extended vertical timing now composes the documented x86Box overflow bits
   for vertical total, display end, vertical retrace start, and split target.
-- EGA display address generation has a partial row-address mode controlled by
-  nonzero offset register `13h`, but it does not yet implement the full x86Box
-  render remap controlled by CRTC `14h` and `17h`.
+- EGA display address generation now applies the x86Box render remap controlled
+  by CRTC `14h` and `17h` before exporting the VRAM fetch address.
 
 ## Register Matrix
 
@@ -51,10 +50,10 @@ Sources:
 | `11h` | Vertical Retrace End / Protect | `R17_v_sync_end_e`; exported as `crtc_r11_debug`. | Stored/readable. Bit `7` protects indexes `00h..06h` and partially protects `07h`. Bits `3:0` close the EGA status retrace window. | Implemented protection is covered by EGA-207/EGA-208; retrace-window timing still needs EGA-302 validation. |
 | `12h` | Vertical Display End Low | `R18_v_display_end_e`. | Stored/readable and used in EGA display-end formula with overflow bit `07h[6]`. | Covered by EGA-302. |
 | `13h` | Offset | `R19_offset_e`; row advance is `R19_offset_e << 1`. | Stored/readable. Nonzero value enables the EGA row-address path. | Row advance representation appears aligned for independent planes but needs tests; EGA-304. |
-| `14h` | Underline Location / Address Mode | `R20_underline_loc_e`; exported as `crtc_r14_debug`. | Stored/readable. Not used for EGA scanout remap or underline rendering. | Bit `6` dword display-address mode is missing; EGA-303. Underline is later text-render work. |
+| `14h` | Underline Location / Address Mode | `R20_underline_loc_e`; exported as `crtc_r14_debug`. | Stored/readable. Bit `6` selects dword display-address remap. | Underline is later text-render work. |
 | `15h` | Vertical Blank Start | `R21_v_blank_start_e`; exported as `crtc_r15_debug`. | Stored/readable. Used for EGA vertical blank start if extended timing is active. | Needs blanking/status coverage in EGA-302/EGA-307. |
 | `16h` | Vertical Blank End | `R22_v_blank_end_e`; exported as `crtc_r16_debug`. | Stored/readable. Used for EGA vertical blank end if nonzero. | Needs blanking/status coverage in EGA-302/EGA-307. |
-| `17h` | Mode Control | `R23_mode_control_e`; exported as `crtc_r17_debug`. | Stored/readable. Currently not used for display-address remap or CRTC reset/display-disable blanking. | Bits `0`, `1`, `5`, `6`, and `7` are missing from scanout behavior; EGA-303/EGA-307. |
+| `17h` | Mode Control | `R23_mode_control_e`; exported as `crtc_r17_debug`. | Stored/readable. Bits `0`, `1`, `5`, and `6` control display-address remap and scanline substitution. | Bit `7` reset/display-disable blanking remains EGA-307. |
 | `18h` | Line Compare | `R24_line_compare_e`; readback defaults to `FFh` on reset. | Stored/readable. Current split target uses `{09h[6], 07h[4], 18h} + 1`. | Split must still reset address/scanline deterministically; EGA-306. |
 
 ## Derived Behavior Checklist
@@ -98,12 +97,15 @@ Expected x86Box remap inputs:
 
 Current RTL:
 
-- Emits `MA_FULL = row_addr_r`.
+- Emits `MA_FULL = ega_display_addr`, where EGA mode uses the remapped
+  independent-plane VRAM address and non-EGA mode preserves `row_addr_r`.
 - In EGA row-address mode, increments `row_addr_r` by one CRTC character and
   advances saved row address by `13h << 1` at row boundaries.
-- Does not apply the `14h`/`17h` remap modes or row-scanline MA substitution.
+- Applies `14h`/`17h` remap modes to `row_addr_r << 2`, converts the resulting
+  x86Box interleaved byte address back to the independent-plane VRAM address
+  exported as `MA_FULL`, and applies row-scanline MA13/MA14 substitution.
 
-Missing behavior is assigned to EGA-303.
+Covered by EGA-303.
 
 ### Start Address And Frame Latch
 
