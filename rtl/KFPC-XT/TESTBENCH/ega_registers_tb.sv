@@ -184,9 +184,17 @@ module ega_registers_tb;
     wire [7:0] crtc_do;
     wire [13:0] crtc_ma;
     wire [15:0] crtc_ma_full;
+    wire        crtc_hblank;
+    wire        crtc_vblank;
+    wire        crtc_de;
+    wire [4:0]  crtc_ra;
+    wire [7:0]  crtc_hc;
+    wire [6:0]  crtc_vc;
     wire [7:0] crtc_h_displayed;
     wire [4:0] crtc_v_maxscan;
     wire [7:0] crtc_r11_debug;
+    wire       crtc_status_not_displaying;
+    wire       crtc_vert_blank_active;
 
     UM6845R crtc_dut (
         .CLOCK(clk),
@@ -200,25 +208,25 @@ module ega_registers_tb;
         .RS(crtc_rs),
         .DI(crtc_di),
         .DO(crtc_do),
-        .hblank(),
-        .vblank(),
+        .hblank(crtc_hblank),
+        .vblank(crtc_vblank),
         .line_reset(),
         .VSYNC(),
         .HSYNC(),
-        .DE(),
+        .DE(crtc_de),
         .FIELD(),
         .CURSOR(),
         .MA(crtc_ma),
         .MA_FULL(crtc_ma_full),
-        .RA(),
-        .HC(),
-        .VC(),
+        .RA(crtc_ra),
+        .HC(crtc_hc),
+        .VC(crtc_vc),
         .H_DISP_REG(crtc_h_displayed),
         .V_MAXSCAN_REG(crtc_v_maxscan),
         .hsync_width(),
         .status_vretrace(),
-        .status_not_displaying(),
-        .vert_blank_active(),
+        .status_not_displaying(crtc_status_not_displaying),
+        .vert_blank_active(crtc_vert_blank_active),
         .scanline_mod16_debug(),
         .vslines_debug(),
         .crtc_r10_debug(),
@@ -740,6 +748,53 @@ module ega_registers_tb;
         end
         release crtc_dut.line_compare_match;
         release crtc_dut.hcc_last;
+
+        begin_test("CRTC sampled address and blanking outputs");
+        crtc_write(1'b0, 8'h14);
+        crtc_write(1'b1, 8'h00);
+        crtc_write(1'b0, 8'h17);
+        crtc_write(1'b1, 8'hC3);
+        crtc_dut.row_addr_r = 16'h002A;
+        crtc_dut.line = 5'd4;
+        crtc_dut.hcc = 8'd7;
+        crtc_dut.row = 10'd9;
+        crtc_dut.hde = 1'b1;
+        crtc_dut.vde = 1'b1;
+        crtc_dut.vde_r = 1'b1;
+        crtc_dut.ega_vert_blank_active_r = 1'b0;
+        #1 begin
+            expect16("CRTC sampled byte-mode fetch address",
+                     crtc_ma_full, expected_scanout_addr(16'h002A, 5'd4, 8'h00, 8'hC3));
+            expect8("CRTC sampled row address output",
+                    {3'b000, crtc_ra}, 8'h04);
+            expect8("CRTC sampled horizontal counter",
+                    crtc_hc, 8'h07);
+            expect8("CRTC sampled vertical counter",
+                    {1'b0, crtc_vc}, 8'h09);
+            expect1("CRTC display enable asserted in visible area",
+                    crtc_de, 1'b1);
+            expect1("CRTC hblank clear in visible area",
+                    crtc_hblank, 1'b0);
+            expect1("CRTC vblank clear in visible area",
+                    crtc_vblank, 1'b0);
+        end
+        crtc_dut.hde = 1'b0;
+        #1 begin
+            expect1("CRTC hblank follows horizontal display disable",
+                    crtc_hblank, 1'b1);
+            expect1("CRTC display enable clears during hblank",
+                    crtc_de, 1'b0);
+        end
+        crtc_dut.hde = 1'b1;
+        crtc_dut.ega_vert_blank_active_r = 1'b1;
+        #1 begin
+            expect1("CRTC vblank follows EGA vertical blank state",
+                    crtc_vblank, 1'b1);
+            expect1("CRTC not-displaying status follows EGA blanking",
+                    crtc_status_not_displaying, 1'b1);
+            expect1("CRTC vertical blank debug follows EGA blanking",
+                    crtc_vert_blank_active, 1'b1);
+        end
 
         begin_test("top-level misc output and color CRTC ports");
         top_io_read(16'h03CC, read_value);

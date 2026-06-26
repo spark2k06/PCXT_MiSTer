@@ -168,5 +168,6 @@ Missing behavior is assigned to EGA-307.
 - EGA-305: start-address and cursor-address frame latching.
 - EGA-306: split/line compare, including `07h[4]`, `09h[6]`, and reset effects.
 - EGA-307: CRTC `17h[7]` reset/display-disable blanking behavior.
-- EGA-308: deterministic CRTC/address testbench coverage after the behavior
-  above is implemented or explicitly matched.
+- EGA-308: deterministic CRTC/address testbench coverage for remap variants,
+  row advance, frame latching, split reset, sampled counters, blanking, and
+  display-enable outputs.

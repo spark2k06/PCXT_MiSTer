@@ -832,7 +832,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-308 - Add CRTC Address Testbench Coverage
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-303, EGA-304, EGA-305, EGA-306.
 - Files: new or existing EGA CRTC/address testbench under
@@ -845,6 +845,20 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - CRTC/address tests fail on wrong scanout remap, row advance, start address,
     or line compare behavior.
+- Verification:
+  - `ega_registers_tb.sv` now wires CRTC `hblank`, `vblank`, `DE`, `RA`,
+    `HC`, `VC`, status-not-displaying, and vertical-blank debug outputs.
+  - The CRTC coverage samples byte-mode fetch-address generation through the
+    public `MA_FULL` output and compares it with the x86Box-derived helper used
+    by the remap tests.
+  - The testbench checks sampled row/horizontal/vertical counters,
+    visible-area display enable, hblank assertion, EGA vblank assertion, and
+    not-displaying status.
+  - Existing CRTC sections in the same testbench cover remap variants,
+    row advance, frame-latched start address, cursor frame latch, and split
+    address/scanline reset.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ## EGA-400: Graphics Scanout
 
