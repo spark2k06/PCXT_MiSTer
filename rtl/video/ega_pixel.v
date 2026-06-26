@@ -16,10 +16,16 @@ module ega_pixel (
     input  wire        fetch_en,
     input  wire        dot_clock_div2,
     input  wire        display_enable,
+    input  wire [1:0]  render_mode,
     input  wire [3:0]  h_pixel_pan,    //NEW
     output reg  [3:0]  plane_index,
-    output reg         pixel_valid
+    output reg         pixel_valid,
+    output wire [1:0]  render_mode_debug
 );
+
+    localparam [1:0] RENDER_TEXT   = 2'd0;
+    localparam [1:0] RENDER_PLANAR = 2'd1;
+    localparam [1:0] RENDER_CGA2   = 2'd2;
 
     reg [7:0] shift_plane0 = 8'h00;
     reg [7:0] shift_plane1 = 8'h00;
@@ -55,9 +61,11 @@ module ega_pixel (
     wire [7:0] panned3 = (active_pan == 4'd0) ? load_plane3 : pan_shift3[15:8];
     wire [3:0] load_pixel = {panned3[7], panned2[7], panned1[7], panned0[7]};
     wire [3:0] shift_pixel = {shift_plane3[7], shift_plane2[7], shift_plane1[7], shift_plane0[7]};
+    wire       graphics_render = (render_mode == RENDER_PLANAR) || (render_mode == RENDER_CGA2);
+    assign render_mode_debug = render_mode;
 
     always @(posedge clk) begin
-        if (fetch_en) begin
+        if (fetch_en && graphics_render) begin
             fetch_plane0 <= plane0_data;
             fetch_plane1 <= plane1_data;
             fetch_plane2 <= plane2_data;
@@ -72,7 +80,14 @@ module ega_pixel (
             if (display_enable && !display_enable_q)
                 pan_cache <= sanitized_pan;
 
-            if (load_pending || fetch_en) begin
+            if (!graphics_render) begin
+                plane_index <= 4'h0;
+                pixel_valid <= 1'b0;
+                bits_remaining <= 4'd0;
+                repeat_phase <= 1'b0;
+                load_pending <= 1'b0;
+            end
+            else if (load_pending || fetch_en) begin
                 plane_index <= load_pixel;
                 pixel_valid <= 1'b1;
                 load_pending <= 1'b0;

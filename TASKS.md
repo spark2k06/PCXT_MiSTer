@@ -921,7 +921,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-403 - Implement Complete Graphics Mode Selection
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-401.
 - Files: `rtl/video/ega_pixel.v`, `rtl/video/ega_top.v`,
@@ -934,6 +934,19 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Mode-selection tests route graphics and text configurations to the correct
     render path.
+- Completed:
+  - `ega_gfx_ctrl.v` now exposes GC Misc graphics/text selection and GC Mode
+    bit 5 CGA-compatible graphics selection as explicit signals.
+  - `ega_top.v` computes an explicit render mode: text handoff, planar
+    graphics, or CGA-compatible graphics.
+  - `ega_pixel.v` suppresses planar pixel generation in text handoff mode while
+    preserving separate planar and CGA-compatible graphics paths for EGA-404.
+  - `ega_pixel_tb.sv` adds mode-selection coverage for text, planar graphics,
+    and CGA-compatible graphics routing.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 251 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-404 - Implement CGA-Compatible 2bpp EGA Graphics
 

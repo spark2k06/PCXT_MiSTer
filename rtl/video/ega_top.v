@@ -234,6 +234,8 @@ module ega_top(
     wire ega_dot_clock_div2;
     wire [7:0] ega_gfx_data_out;
     wire [7:0] ega_gfx_mode_debug;
+    wire ega_graphics_mode;
+    wire ega_cga_2bpp_mode;
     wire [1:0] ega_write_mode;
     wire [1:0] ega_read_mode;
     wire [1:0] ega_read_plane_sel;
@@ -253,8 +255,11 @@ module ega_top(
     wire ega_attr_video_enable;
     wire [3:0] ega_plane_index;
     wire ega_pixel_valid;
+    wire [1:0] ega_render_mode_debug_unused;
     wire [3:0] ega_h_pixel_pan; //NEW
     wire ega_hres_mode_int = ~ega_dot_clock_div2;
+    wire [1:0] ega_render_mode = !ega_graphics_mode ? 2'd0 :
+                                  ega_cga_2bpp_mode ? 2'd2 : 2'd1;
     wire ega_display_enable = ega_display_enable_crtc;
     wire ega_blanking_active = ega_status_not_displaying_crtc;
     wire ega_status_vretrace_active = ega_status_vretrace_crtc;
@@ -383,6 +388,8 @@ module ega_top(
         .rotate_count(ega_rotate_count),
         .odd_even_mode(ega_odd_even_mode),
         .chain2_read(ega_chain2_read),
+        .graphics_mode(ega_graphics_mode),
+        .cga_2bpp_mode(ega_cga_2bpp_mode),
         .mem_map_sel(ega_mem_map_sel),
         .mode_debug(ega_gfx_mode_debug)
     );
@@ -397,9 +404,11 @@ module ega_top(
         .fetch_en(ega_fetch_data_valid),
         .dot_clock_div2(ega_dot_clock_div2),
         .display_enable(ega_display_enable),
+        .render_mode(ega_render_mode),
         .plane_index(ega_plane_index),
         .h_pixel_pan(ega_h_pixel_pan),  //NEW
-        .pixel_valid(ega_pixel_valid)
+        .pixel_valid(ega_pixel_valid),
+        .render_mode_debug(ega_render_mode_debug_unused)
     );
 
     ega_attrib_ctrl ega_attr (
@@ -627,7 +636,7 @@ module ega_top(
     assign video = ega_display_sel ? ega_video_real : cga_video;
     assign dbl_video = ega_display_sel ? ega_dbl_color[3:0] : cga_dbl_video;
     assign comp_video = ega_display_sel ? ega_comp_video : cga_comp_video;
-    assign grph_mode = ega_display_sel ? 1'b1 : cga_grph_mode;
+    assign grph_mode = ega_display_sel ? ega_graphics_mode : cga_grph_mode;
     assign hres_mode = ega_display_sel ? ega_hres_mode_int : cga_hres_mode;
     assign tandy_color_16 = ega_display_sel ? 1'b0 : cga_tandy_color_16;
 

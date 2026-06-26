@@ -10,9 +10,11 @@ module ega_pixel_tb;
     reg        fetch_en = 1'b0;
     reg        dot_clock_div2 = 1'b0;
     reg        display_enable = 1'b1;
+    reg  [1:0] render_mode = 2'd1;
     reg  [3:0] h_pixel_pan = 4'd0;
     wire [3:0] plane_index;
     wire       pixel_valid;
+    wire [1:0] render_mode_debug;
 
     integer errors = 0;
 
@@ -26,9 +28,11 @@ module ega_pixel_tb;
         .fetch_en(fetch_en),
         .dot_clock_div2(dot_clock_div2),
         .display_enable(display_enable),
+        .render_mode(render_mode),
         .h_pixel_pan(h_pixel_pan),
         .plane_index(plane_index),
-        .pixel_valid(pixel_valid)
+        .pixel_valid(pixel_valid),
+        .render_mode_debug(render_mode_debug)
     );
 
     always #5 clk = ~clk;
@@ -70,6 +74,22 @@ module ega_pixel_tb;
                     sample,
                     pixel_valid,
                     plane_index,
+                    expected
+                );
+                errors = errors + 1;
+            end
+        end
+    endtask
+
+    task automatic expect_mode;
+        input [1:0] expected;
+        input [80*8-1:0] label;
+        begin
+            if (render_mode_debug !== expected) begin
+                $display(
+                    "FAIL %0s: render_mode=%0d expected=%0d",
+                    label,
+                    render_mode_debug,
                     expected
                 );
                 errors = errors + 1;
@@ -211,6 +231,40 @@ module ega_pixel_tb;
         end
     endtask
 
+    task automatic check_render_mode_selection;
+        begin
+            dot_clock_div2 = 1'b0;
+            h_pixel_pan = 4'd0;
+            display_enable = 1'b1;
+
+            render_mode = 2'd0;
+            load_planes(8'hff, 8'hff, 8'hff, 8'hff);
+            expect_mode(2'd0, "text handoff mode");
+            if (pixel_valid || plane_index !== 4'h0) begin
+                $display(
+                    "FAIL text handoff: valid=%0b pixel=%h expected blank",
+                    pixel_valid,
+                    plane_index
+                );
+                errors = errors + 1;
+            end
+
+            render_mode = 2'd1;
+            load_planes(8'h80, 8'h00, 8'h00, 8'h00);
+            expect_mode(2'd1, "planar graphics mode");
+            expect_pixel(4'h1, 0);
+            drain_pixels(7);
+
+            render_mode = 2'd2;
+            load_planes(8'h80, 8'h00, 8'h00, 8'h00);
+            expect_mode(2'd2, "cga-compatible graphics mode");
+            if (!pixel_valid) begin
+                $display("FAIL cga-compatible graphics mode did not route to graphics path");
+                errors = errors + 1;
+            end
+        end
+    endtask
+
     initial begin
         repeat (2) @(posedge clk);
 
@@ -219,6 +273,8 @@ module ega_pixel_tb;
         check_low_res_repeat();
         repeat (2) @(posedge clk);
         check_panned_shift();
+        repeat (2) @(posedge clk);
+        check_render_mode_selection();
 
         if (errors == 0) begin
             $display("PASS ega_pixel_tb");
