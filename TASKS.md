@@ -1001,7 +1001,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-505 - Remove Incorrect Display-Select Gating From Register Visibility
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-201, EGA-504.
 - Files: `rtl/video/ega_top.v`, `rtl/KFPC-XT/HDL/Peripherals.sv`.
@@ -1014,6 +1014,15 @@ must be anchored to the behavior it proves.
   - Preserve CGA fallback behavior where EGA is disabled.
 - Acceptance:
   - EGA register probes work before the first active EGA frame is selected.
+- Verification:
+  - Removed `ega_display_sel` from `ega_top.v` Input Status #1 and CRTC data
+    read bus-drive conditions; reads now depend on EGA enable, AEN, active
+    color/mono port decode, and `IOR`.
+  - Audited `rtl/KFPC-XT/HDL/Peripherals.sv`; `ega_display_sel_cga` only gates
+    display/video selection and `cga_hw`, not EGA register read visibility.
+  - Updated `EGA_IO_DECODE_AUDIT.md` and `EGA_STATUS_AUDIT.md` to reflect that
+    status and CRTC reads are visible before the display mux switches to EGA.
+  - Quartus Analysis & Elaboration passed with `0 errors, 258 warnings`.
 
 ### EGA-506 - Implement A Shared Blink State Generator
 

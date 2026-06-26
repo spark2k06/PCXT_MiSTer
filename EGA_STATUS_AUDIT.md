@@ -34,13 +34,12 @@ address/data flip-flop back to address phase.
 After EGA-202, `ega_status_cs` follows Misc Output bit `0`, so both color
 `3DAh` and mono `3BAh` status reads work according to the active EGA I/O range.
 
-## Remaining Visibility Gap
+## Register Visibility
 
-The current bus-drive path still gates Input Status #1 reads with
-`ega_display_sel`. That means the side effects occur for selected EGA status
-reads, but the CPU-visible read value may not be driven until the EGA display
-mux is active. This is intentionally left to EGA-505, which is scoped to remove
-incorrect display-selection gating from register visibility.
+Input Status #1 bus drive is selected by EGA enable, AEN, Misc Output bit `0`,
+and the active status port decode. It is not gated by `ega_display_sel`, so
+software probes can read the status register before the display mux has switched
+to EGA video.
 
 ## Deterministic Test Sequence For EGA-507
 

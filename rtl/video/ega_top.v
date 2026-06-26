@@ -451,7 +451,7 @@ module ega_top(
     );
 
     reg [7:0] ega_bus_out_mux;
-    wire ega_bus_dir_sel = (ega_status_cs & ~bus_ior_l & ega_display_sel)
+    wire ega_bus_dir_sel = (ega_status_cs & ~bus_ior_l)
                          | (ega_seq_data_cs & ~bus_ior_l)
                          | (ega_attr_read_cs & ~bus_ior_l)
                          | (ega_misc_read_cs & ~bus_ior_l)
@@ -459,10 +459,10 @@ module ega_top(
                          | (ega_dac_read_index_cs & ~bus_ior_l)
                          | (ega_dac_write_index_cs & ~bus_ior_l)
                          | (ega_dac_data_cs & ~bus_ior_l)
-                         | (ega_crtc_cs & ~bus_ior_l & bus_a[0] & ega_display_sel);
+                         | (ega_crtc_cs & ~bus_ior_l & bus_a[0]);
 
     always @(*) begin
-        if (ega_status_cs & ~bus_ior_l & ega_display_sel)
+        if (ega_status_cs & ~bus_ior_l)
             ega_bus_out_mux = ega_status_reg;
         else if (ega_seq_data_cs & ~bus_ior_l)
             ega_bus_out_mux = ega_seq_data_out;
@@ -474,7 +474,7 @@ module ega_top(
             ega_bus_out_mux = ega_gfx_data_out;
         else if ((ega_dac_read_index_cs | ega_dac_write_index_cs | ega_dac_data_cs) & ~bus_ior_l)
             ega_bus_out_mux = 8'h00;
-        else if (ega_crtc_cs & ~bus_ior_l & bus_a[0] & ega_display_sel)
+        else if (ega_crtc_cs & ~bus_ior_l & bus_a[0])
             ega_bus_out_mux = ega_crtc_data_out;
         else
             ega_bus_out_mux = cga_bus_out;
