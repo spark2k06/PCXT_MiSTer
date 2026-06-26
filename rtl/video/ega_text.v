@@ -16,10 +16,12 @@ module ega_text (
     input  wire        char_9dot,
     input  wire        blink_enable,
     input  wire        blink_state,
+    input  wire        mono_attributes,
     input  wire        line_graphics_enable,
     input  wire        cursor_active,
     input  wire [15:0] crtc_addr,
     input  wire [4:0]  scanline,
+    input  wire [4:0]  underline_scanline,
     input  wire [1:0]  char_map_a,
     input  wire [1:0]  char_map_b,
     input  wire [7:0]  text_char_in,
@@ -53,6 +55,41 @@ module ega_text (
                                                          visible_foreground_index;
     wire [3:0] active_background_index = cursor_active ? cursor_background_index :
                                                          background_index;
+    wire       mono_blink_active = !cursor_active && blink_enable && attr_latch[7] && blink_state;
+    wire       mono_underline = mono_attributes && (scanline == underline_scanline) &&
+                                (attr_latch[2:0] == 3'b001);
+    wire [3:0] mono_bit_index = mono_attr_index(attr_latch, mono_blink_active, glyph_pixel);
+    wire [3:0] mono_base_index = mono_underline ?
+                                 mono_attr_index(attr_latch, mono_blink_active, 1'b1) :
+                                 mono_bit_index;
+    wire [3:0] mono_cursor_xor_index = mono_attr_index(attr_latch, 1'b0, 1'b1);
+    wire [3:0] mono_active_index = cursor_active ? (mono_base_index ^ mono_cursor_xor_index) :
+                                                   mono_base_index;
+    wire [3:0] color_active_index = glyph_pixel ? active_foreground_index : active_background_index;
+
+    function [3:0] mono_attr_index;
+        input [7:0] attr;
+        input       blink;
+        input       foreground;
+        begin
+            if (!foreground) begin
+                if ((attr == 8'h70) || (attr == 8'hF0) ||
+                    (attr == 8'h78) || (attr == 8'hF8))
+                    mono_attr_index = 4'hF;
+                else
+                    mono_attr_index = 4'h0;
+            end else if ((attr == 8'h00) || (attr == 8'h08) ||
+                         (attr == 8'h80) || (attr == 8'h88)) begin
+                mono_attr_index = 4'h0;
+            end else if ((attr == 8'h70) || (attr == 8'hF0)) begin
+                mono_attr_index = blink ? 4'hF : 4'h0;
+            end else if ((attr == 8'h78) || (attr == 8'hF8)) begin
+                mono_attr_index = blink ? 4'hF : 4'h7;
+            end else begin
+                mono_attr_index = blink ? 4'h0 : (attr[3] ? 4'hF : 4'h7);
+            end
+        end
+    endfunction
 
     always @(posedge clk or posedge reset) begin
         if (reset) begin
@@ -90,7 +127,7 @@ module ega_text (
                         text_fetch_en <= 1'b1;
                     end
 
-                    plane_index <= glyph_pixel ? active_foreground_index : active_background_index;
+                    plane_index <= mono_attributes ? mono_active_index : color_active_index;
                     pixel_valid <= 1'b1;
 
                     if (!text_data_valid) begin

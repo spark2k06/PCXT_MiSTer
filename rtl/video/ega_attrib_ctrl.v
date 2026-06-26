@@ -23,6 +23,7 @@ module ega_attrib_ctrl (
     input  wire        blink_state,
     input  wire        palette_64_mode,
     output wire        blink_enable_out,
+    output wire        mono_attributes_out,
     output wire        line_graphics_enable_out,
     output wire [3:0]  pixel_pan_out, //NEW
     output reg  [5:0]  color_out,
@@ -52,6 +53,7 @@ module ega_attrib_ctrl (
     wire attr_write_pulse = (io_we && attr_addr_cs) && !attr_write_q;
     wire status_re_pulse = status_re && !status_re_q;
     wire       attr_blink_enable = mode_control_reg[3];
+    wire       attr_mono_attributes = mode_control_reg[1];
     wire       attr_line_graphics_enable = mode_control_reg[2];
     wire [3:0] graphics_blink_mask = attr_blink_enable ? 4'h8 : 4'h0;
     wire [3:0] graphics_blink_value = (attr_blink_enable && blink_state) ? 4'h8 : 4'h0;
@@ -66,6 +68,7 @@ module ega_attrib_ctrl (
     wire [5:0] pixel_color_code = raw_palette[palette_index_effective][5:0];
     wire [5:0] border_color_code = palette_64_mode ? overscan_reg[5:0] : {2'b00, overscan_reg[3:0]};
     assign blink_enable_out = attr_blink_enable;
+    assign mono_attributes_out = attr_mono_attributes;
     assign line_graphics_enable_out = attr_line_graphics_enable;
     assign pixel_pan_out = pixel_panning_reg[3:0];    //NEW
 

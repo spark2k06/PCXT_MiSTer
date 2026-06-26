@@ -1416,7 +1416,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-604 - Implement Font Plane And Character Map Select
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-603, EGA-205.
 - Files: text renderer module, `rtl/video/ega_sequencer.v`,
@@ -1545,6 +1545,14 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Mono text smoke cases render attributes and underline consistently with the
     reference.
+- Completed:
+  - `ega_attrib_ctrl.v` now exposes Attribute Controller Mode Control bit `1` as the mono-attribute enable for text rendering.
+  - `ega_top.v` routes mono-attribute enable and the CRTC underline location register into `ega_text.v`.
+  - `ega_text.v` implements the x86Box EGA MDA attribute table behavior as 4-bit EGA palette indexes, including special `00h/08h/70h/78h/80h/88h/F0h/F8h` cases, mono blink, mono cursor XOR, and underline when `(attr & 7) == 1` on the programmed underline scanline.
+  - `ega_text_tb.sv` adds smoke coverage for mono special attributes, mono blink, and underline overriding a clear glyph pixel.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 249 warnings.
+  - Standalone HDL simulation was not run because no simulator listed in `TEST_TOOLS.md` is installed in this environment.
 
 ### EGA-609 - Implement Text Horizontal Panning
 

@@ -14,10 +14,12 @@ module ega_text_tb;
     reg char_9dot = 1'b0;
     reg blink_enable = 1'b0;
     reg blink_state = 1'b0;
+    reg mono_attributes = 1'b0;
     reg line_graphics_enable = 1'b0;
     reg cursor_active = 1'b0;
     reg [15:0] crtc_addr = 16'h0000;
     reg [4:0] scanline = 5'd0;
+    reg [4:0] underline_scanline = 5'd0;
     reg [1:0] char_map_a = 2'b00;
     reg [1:0] char_map_b = 2'b00;
     reg [7:0] text_char_in = 8'h00;
@@ -44,10 +46,12 @@ module ega_text_tb;
         .char_9dot(char_9dot),
         .blink_enable(blink_enable),
         .blink_state(blink_state),
+        .mono_attributes(mono_attributes),
         .line_graphics_enable(line_graphics_enable),
         .cursor_active(cursor_active),
         .crtc_addr(crtc_addr),
         .scanline(scanline),
+        .underline_scanline(underline_scanline),
         .char_map_a(char_map_a),
         .char_map_b(char_map_b),
         .text_char_in(text_char_in),
@@ -121,10 +125,12 @@ module ega_text_tb;
             char_9dot = 1'b0;
             blink_enable = 1'b0;
             blink_state = 1'b0;
+            mono_attributes = 1'b0;
             line_graphics_enable = 1'b0;
             cursor_active = 1'b0;
             crtc_addr = 16'h0000;
             scanline = 5'd0;
+            underline_scanline = 5'd0;
             char_map_a = 2'b00;
             char_map_b = 2'b00;
             text_char_in = 8'h00;
@@ -294,6 +300,34 @@ module ega_text_tb;
         expect4("cursor set glyph bit uses original background", plane_index, 4'h1);
         step_pixel();
         expect4("cursor clear glyph bit uses original foreground", plane_index, 4'hE);
+
+        reset_dut();
+
+        begin_test("mono text attributes use MDA color table");
+        display_enable = 1'b1;
+        mono_attributes = 1'b1;
+        provide_cell(8'h47, 8'h08, 8'h80);
+        step_pixel();
+        expect4("mono attr 08 foreground is black", plane_index, 4'h0);
+        provide_cell(8'h47, 8'h78, 8'h00);
+        step_pixel();
+        expect4("mono attr 78 background is bright white", plane_index, 4'hF);
+        blink_enable = 1'b1;
+        blink_state = 1'b1;
+        provide_cell(8'h47, 8'h87, 8'h80);
+        step_pixel();
+        expect4("mono blink hides foreground", plane_index, 4'h0);
+
+        reset_dut();
+
+        begin_test("mono underline forces foreground on underline scanline");
+        display_enable = 1'b1;
+        mono_attributes = 1'b1;
+        scanline = 5'd12;
+        underline_scanline = 5'd12;
+        provide_cell(8'h48, 8'h01, 8'h00);
+        step_pixel();
+        expect4("mono underline draws foreground over clear glyph", plane_index, 4'h7);
 
         if (failures == 0) begin
             $display("PASS: ega_text_tb");

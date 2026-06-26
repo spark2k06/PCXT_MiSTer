@@ -273,6 +273,7 @@ module ega_top(
     wire [3:0] ega_h_pixel_pan; //NEW
     wire ega_hres_mode_int = ~ega_dot_clock_div2;
     wire ega_attr_blink_enable;
+    wire ega_attr_mono_attributes;
     wire ega_attr_line_graphics_enable;
     wire ega_cursor_active;
     reg [4:0] ega_text_fetch_phase = 5'd0;
@@ -448,10 +449,12 @@ module ega_top(
         .char_9dot(ega_char_9dot),
         .blink_enable(ega_attr_blink_enable),
         .blink_state(ega_blink_state),
+        .mono_attributes(ega_attr_mono_attributes),
         .line_graphics_enable(ega_attr_line_graphics_enable),
         .cursor_active(ega_cursor_active),
         .crtc_addr(ega_fetch_addr),
         .scanline(ega_row_addr),
+        .underline_scanline(ega_crtc_r14_debug[4:0]),
         .char_map_a(ega_char_map_a),
         .char_map_b(ega_char_map_b),
         .text_char_in(ega_text_char),
@@ -481,6 +484,7 @@ module ega_top(
         .text_mode(~ega_graphics_mode),
         .blink_state(ega_blink_state),
         .blink_enable_out(ega_attr_blink_enable),
+        .mono_attributes_out(ega_attr_mono_attributes),
         .line_graphics_enable_out(ega_attr_line_graphics_enable),
         .pixel_pan_out(ega_h_pixel_pan),  //NEW
         .palette_64_mode(ega_misc_output_reg[7]),
