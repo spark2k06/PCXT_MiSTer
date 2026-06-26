@@ -484,7 +484,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-203 - Complete Attribute Controller Flip-Flop Semantics
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-201.
 - Files: `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_top.v`.
@@ -497,6 +497,14 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - A test sequence can write two attribute registers, reset the flip-flop with
     a status read, and then write another register correctly.
+- Verification:
+  - Added `EGA_ATTR_CTRL_AUDIT.md` mapping the current RTL to the required
+    Attribute Controller index/data flip-flop behavior.
+  - The audit records the exact deterministic register sequence EGA-208 should
+    encode as an executable testbench.
+  - `ega_top.v` already feeds `ega_attrib_ctrl.status_re` from the active
+    status-port decode, so status reads reset the flip-flop independently of
+    display-output selection.
 
 ### EGA-204 - Verify Misc Output Register Semantics
 
