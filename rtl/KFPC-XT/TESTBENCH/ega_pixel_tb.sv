@@ -324,6 +324,34 @@ module ega_pixel_tb;
         end
     endtask
 
+    task automatic check_display_disable_gating;
+        begin
+            render_mode = 2'd1;
+            dot_clock_div2 = 1'b0;
+            h_pixel_pan = 4'd0;
+            display_enable = 1'b1;
+
+            load_planes(8'hFF, 8'h00, 8'h00, 8'h00);
+            expect_pixel(4'h1, 0);
+
+            display_enable = 1'b0;
+            @(posedge clk);
+            #1;
+            if (pixel_valid || plane_index !== 4'h0) begin
+                $display(
+                    "FAIL display disable gating: valid=%0b pixel=%h expected blank",
+                    pixel_valid,
+                    plane_index
+                );
+                errors = errors + 1;
+            end
+
+            display_enable = 1'b1;
+            load_planes(8'h80, 8'h00, 8'h00, 8'h00);
+            expect_pixel(4'h1, 0);
+        end
+    endtask
+
     initial begin
         repeat (2) @(posedge clk);
 
@@ -336,6 +364,8 @@ module ega_pixel_tb;
         check_render_mode_selection();
         repeat (2) @(posedge clk);
         check_cga2bpp_conversion();
+        repeat (2) @(posedge clk);
+        check_display_disable_gating();
 
         if (errors == 0) begin
             $display("PASS ega_pixel_tb");

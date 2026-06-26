@@ -149,6 +149,8 @@ module ega_registers_tb;
 
     reg        attr_status_re = 1'b0;
     reg [3:0] attr_plane_index = 4'h0;
+    reg        attr_pixel_valid = 1'b1;
+    reg        attr_display_enable = 1'b1;
     wire [7:0] attr_data_out;
     wire [3:0] attr_pixel_pan_out;
     wire [5:0] attr_color_out;
@@ -166,8 +168,8 @@ module ega_registers_tb;
         .io_re(io_re),
         .status_re(attr_status_re),
         .plane_index(attr_plane_index),
-        .pixel_valid(1'b1),
-        .display_enable(1'b1),
+        .pixel_valid(attr_pixel_valid),
+        .display_enable(attr_display_enable),
         .blink_state(1'b0),
         .palette_64_mode(1'b1),
         .pixel_pan_out(attr_pixel_pan_out),
@@ -384,6 +386,9 @@ module ega_registers_tb;
             io_we = 1'b0;
             io_re = 1'b0;
             attr_status_re = 1'b0;
+            attr_plane_index = 4'h0;
+            attr_pixel_valid = 1'b1;
+            attr_display_enable = 1'b1;
             crtc_ncs = 1'b1;
             crtc_rw = 1'b1;
             crtc_rs = 1'b0;
@@ -445,6 +450,16 @@ module ega_registers_tb;
             attr_status_read();
             io_write(16'h03C0, {2'b01, index});
             io_write(16'h03C0, data);
+        end
+    endtask
+
+    task automatic attr_select_index(
+        input [4:0] index,
+        input       video_enable
+    );
+        begin
+            attr_status_read();
+            io_write(16'h03C0, {2'b00, video_enable, index});
         end
     endtask
 
@@ -525,6 +540,25 @@ module ega_registers_tb;
             attr_plane_index = plane_index_value;
             @(posedge clk);
             #1 expect8(label, {2'b00, attr_color_out}, {2'b00, expected_color});
+        end
+    endtask
+
+    task automatic expect_attr_output(
+        input [8*80-1:0] label,
+        input [3:0] plane_index_value,
+        input       pixel_valid_value,
+        input       display_enable_value,
+        input [5:0] expected_color,
+        input       expected_display_enable
+    );
+        begin
+            attr_plane_index = plane_index_value;
+            attr_pixel_valid = pixel_valid_value;
+            attr_display_enable = display_enable_value;
+            @(posedge clk);
+            #1;
+            expect8({label, " color"}, {2'b00, attr_color_out}, {2'b00, expected_color});
+            expect1({label, " display enable"}, attr_display_enable_out, expected_display_enable);
         end
     endtask
 
@@ -657,6 +691,19 @@ module ega_registers_tb;
         expect_attr_plane_enable("ATTR plane enable mask 1010", 4'hF, 4'hA, 6'h0A);
         expect_attr_plane_enable("ATTR plane enable mask 0000", 4'hF, 4'h0, 6'h00);
         expect_attr_plane_enable("ATTR plane enable preserves source zeroes", 4'hA, 4'hF, 6'h0A);
+
+        begin_test("attribute active display and border gating");
+        attr_write_reg(5'h10, 8'h01);
+        attr_write_reg(5'h11, 8'h2A);
+        attr_write_reg(5'h12, 8'h0F);
+        expect_attr_output("ATTR active valid pixel", 4'h6, 1'b1, 1'b1, 6'h06, 1'b1);
+        expect_attr_output("ATTR active invalid pixel blanks", 4'h9, 1'b0, 1'b1, 6'h00, 1'b1);
+        expect_attr_output("ATTR display disable selects overscan", 4'h9, 1'b1, 1'b0, 6'h2A, 1'b0);
+        attr_select_index(5'h10, 1'b0);
+        expect_attr_output("ATTR video disabled blanks active area", 4'h7, 1'b1, 1'b1, 6'h00, 1'b0);
+        attr_write_reg(5'h10, 8'h01);
+        attr_pixel_valid = 1'b1;
+        attr_display_enable = 1'b1;
 
         begin_test("CRTC EGA write protection");
         crtc_write(1'b0, 8'h01);

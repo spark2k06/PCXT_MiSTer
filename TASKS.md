@@ -1053,7 +1053,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-408 - Ensure Active Display And Blanking Gate Pixels Correctly
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-401, EGA-307.
 - Files: `rtl/video/ega_top.v`, `rtl/video/ega_attrib_ctrl.v`,
@@ -1066,6 +1066,21 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Tests or captured frames distinguish active pixels, overscan, hblank, and
     vblank.
+- Completed:
+  - `ega_pixel.v` now clears `plane_index`, `pixel_valid`, pending loads, and
+    active shift state while `display_enable` is low.
+  - `ega_attrib_ctrl.v` now blanks active-display cycles where no valid pixel
+    is available, instead of holding the previous active color.
+  - Overscan/border color remains selected when `display_enable` is low.
+  - `ega_pixel_tb.sv` covers display-disable gating and recovery on the next
+    active fetch.
+  - `ega_registers_tb.sv` covers active valid pixels, invalid active pixels,
+    overscan during display-disable, and Attribute Controller video-enable
+    blanking.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 251 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-409 - Add Graphics Pixel Testbench Coverage
 

@@ -93,7 +93,14 @@ module ega_pixel (
             if (display_enable && !display_enable_q)
                 pan_cache <= sanitized_pan;
 
-            if (!graphics_render) begin
+            if (!display_enable) begin
+                plane_index <= 4'h0;
+                pixel_valid <= 1'b0;
+                bits_remaining <= 4'd0;
+                repeat_phase <= 1'b0;
+                load_pending <= 1'b0;
+            end
+            else if (!graphics_render) begin
                 plane_index <= 4'h0;
                 pixel_valid <= 1'b0;
                 bits_remaining <= 4'd0;

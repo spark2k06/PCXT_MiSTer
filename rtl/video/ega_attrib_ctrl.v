@@ -114,6 +114,8 @@ module ega_attrib_ctrl (
                 if (display_enable && video_enable_reg) begin
                     if (pixel_valid)
                         color_out <= pixel_color_code;
+                    else
+                        color_out <= 6'h00;
                 end
                 else if (!display_enable) begin
                     color_out <= border_color_code;
