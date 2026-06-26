@@ -515,6 +515,52 @@ module ega_vram_tb;
         end
     endtask
 
+    task automatic test_write_mode3_and_map_mask;
+        reg [7:0] expected0;
+        reg [7:0] expected2;
+        begin
+            begin_test("write mode 3 and map mask");
+            odd_even_mode = 1'b0;
+            chain2_write = 1'b0;
+            chain2_read = 1'b0;
+            extended_memory = 1'b1;
+            mem_map_sel = 2'b01;
+            page_select = 1'b0;
+            read_mode = 2'b00;
+            read_plane_sel = 2'b00;
+            set_reset = 8'h00;
+            enable_set_reset = 4'h0;
+
+            set_planes(14'h0012, 8'h18, 8'h28, 8'h38, 8'h48);
+            plane_write_mask = 4'b0101;
+            write_mode = 2'b00;
+            bit_mask = 8'hF0;
+            rop_select = 2'b01;
+            rotate_count = 3'd1;
+            expected0 = expected_mode0_byte(8'h18, 8'h3C, set_reset[0], enable_set_reset[0], bit_mask, rop_select, rotate_count);
+            expected2 = expected_mode0_byte(8'h38, 8'h3C, set_reset[2], enable_set_reset[2], bit_mask, rop_select, rotate_count);
+            cpu_write_tx(16'h0012, 8'h3C);
+            expect_eq8("write mode0 masked plane0", dut.plane0[14'h0012], expected0);
+            expect_eq8("write mode0 mask keeps plane1", dut.plane1[14'h0012], 8'h28);
+            expect_eq8("write mode0 masked plane2", dut.plane2[14'h0012], expected2);
+            expect_eq8("write mode0 mask keeps plane3", dut.plane3[14'h0012], 8'h48);
+
+            set_planes(14'h0013, 8'h19, 8'h29, 8'h39, 8'h49);
+            plane_write_mask = 4'hF;
+            write_mode = 2'b11;
+            bit_mask = 8'hFF;
+            rop_select = 2'b11;
+            rotate_count = 3'd4;
+            set_reset = 8'h0F;
+            enable_set_reset = 4'hF;
+            cpu_write_tx(16'h0013, 8'hA5);
+            expect_eq8("write mode3 keeps plane0", dut.plane0[14'h0013], 8'h19);
+            expect_eq8("write mode3 keeps plane1", dut.plane1[14'h0013], 8'h29);
+            expect_eq8("write mode3 keeps plane2", dut.plane2[14'h0013], 8'h39);
+            expect_eq8("write mode3 keeps plane3", dut.plane3[14'h0013], 8'h49);
+        end
+    endtask
+
     task automatic test_read_mode1;
         reg [7:0] expected;
         begin
@@ -851,6 +897,7 @@ module ega_vram_tb;
 
         test_latches_and_write_mode1();
         test_write_modes_0_and_2();
+        test_write_mode3_and_map_mask();
         test_read_mode1();
         test_consecutive_writes();
         test_cpu_a16_remap();

@@ -351,7 +351,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-107 - Expand CPU Write Mode Coverage
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-102.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
@@ -365,6 +365,15 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Every documented write mode has at least one test that would fail if latch,
     mask, or ALU behavior were bypassed.
+- Verification:
+  - `ega_vram_tb.sv` already covered write modes `0`, `1`, and `2`; it now adds
+    `test_write_mode3_and_map_mask()`.
+  - The new test covers map-mask plane commits in write mode `0` and verifies
+    base-EGA write mode `3` preserves all planes, matching `SPEC.md`.
+  - Existing write mode tests cover latches, rotate count, set/reset,
+    enable-set/reset, logical operations, and bit mask.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-108 - Expand CPU Read Mode Coverage
 
