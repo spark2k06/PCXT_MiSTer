@@ -377,7 +377,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-108 - Expand CPU Read Mode Coverage
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-102.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
@@ -389,6 +389,15 @@ must be anchored to the behavior it proves.
   - Verify every CPU read updates latches before returning data.
 - Acceptance:
   - Read mode tests detect stale latch data and incorrect compare masks.
+- Verification:
+  - `ega_vram_tb.sv` now includes `test_read_mode0_plane_select()` for all four
+    read-plane selections.
+  - Read mode `0` now verifies latch refresh across repeated reads and across a
+    second address with different plane data.
+  - Read mode `1` now includes an additional color-compare/color-don't-care
+    mask case and latch checks.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-109 - Fix VRAM Core Mismatches Exposed By Tests
 

@@ -565,6 +565,12 @@ module ega_vram_tb;
         reg [7:0] expected;
         begin
             begin_test("read mode 1");
+            odd_even_mode = 1'b0;
+            chain2_write = 1'b0;
+            chain2_read = 1'b0;
+            extended_memory = 1'b1;
+            mem_map_sel = 2'b01;
+            page_select = 1'b0;
             set_planes(14'h0020, 8'hF0, 8'hCC, 8'hAA, 8'h81);
             read_mode = 2'b01;
             color_compare = 8'h05;
@@ -576,6 +582,59 @@ module ega_vram_tb;
             expect_eq8("read mode1 result", cpu_data_out, expected);
             expect_eq8("read mode1 latch plane0", latch_plane0, 8'hF0);
             expect_eq8("read mode1 latch plane3", latch_plane3, 8'h81);
+
+            set_planes(14'h0021, 8'h0F, 8'h33, 8'h55, 8'h7E);
+            color_compare = 8'h0A;
+            color_dont_care = 8'h05;
+            expected = expected_read_mode1(8'h0F, 8'h33, 8'h55, 8'h7E, color_compare, color_dont_care);
+            cpu_read_tx(16'h0021);
+            expect_eq8("read mode1 masked compare", cpu_data_out, expected);
+            expect_eq8("read mode1 masked latch0", latch_plane0, 8'h0F);
+            expect_eq8("read mode1 masked latch3", latch_plane3, 8'h7E);
+        end
+    endtask
+
+    task automatic test_read_mode0_plane_select;
+        begin
+            begin_test("read mode 0 plane select and latches");
+            odd_even_mode = 1'b0;
+            chain2_write = 1'b0;
+            chain2_read = 1'b0;
+            extended_memory = 1'b1;
+            mem_map_sel = 2'b01;
+            page_select = 1'b0;
+            read_mode = 2'b00;
+
+            set_planes(14'h0024, 8'h12, 8'h34, 8'h56, 8'h78);
+            read_plane_sel = 2'b00;
+            cpu_read_tx(16'h0024);
+            expect_eq8("read mode0 plane0", cpu_data_out, 8'h12);
+            expect_eq8("read mode0 latch0 p0", latch_plane0, 8'h12);
+            expect_eq8("read mode0 latch0 p3", latch_plane3, 8'h78);
+
+            read_plane_sel = 2'b01;
+            cpu_read_tx(16'h0024);
+            expect_eq8("read mode0 plane1", cpu_data_out, 8'h34);
+            expect_eq8("read mode0 latch1 p1", latch_plane1, 8'h34);
+
+            read_plane_sel = 2'b10;
+            cpu_read_tx(16'h0024);
+            expect_eq8("read mode0 plane2", cpu_data_out, 8'h56);
+            expect_eq8("read mode0 latch2 p2", latch_plane2, 8'h56);
+
+            read_plane_sel = 2'b11;
+            cpu_read_tx(16'h0024);
+            expect_eq8("read mode0 plane3", cpu_data_out, 8'h78);
+            expect_eq8("read mode0 latch3 p3", latch_plane3, 8'h78);
+
+            set_planes(14'h0025, 8'h9A, 8'hBC, 8'hDE, 8'hF0);
+            read_plane_sel = 2'b10;
+            cpu_read_tx(16'h0025);
+            expect_eq8("read mode0 second plane2", cpu_data_out, 8'hDE);
+            expect_eq8("read mode0 second latch0", latch_plane0, 8'h9A);
+            expect_eq8("read mode0 second latch1", latch_plane1, 8'hBC);
+            expect_eq8("read mode0 second latch2", latch_plane2, 8'hDE);
+            expect_eq8("read mode0 second latch3", latch_plane3, 8'hF0);
         end
     endtask
 
@@ -899,6 +958,7 @@ module ega_vram_tb;
         test_write_modes_0_and_2();
         test_write_mode3_and_map_mask();
         test_read_mode1();
+        test_read_mode0_plane_select();
         test_consecutive_writes();
         test_cpu_a16_remap();
         test_chain2_read_write();
