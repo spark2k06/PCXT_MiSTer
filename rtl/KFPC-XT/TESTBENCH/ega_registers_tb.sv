@@ -155,7 +155,9 @@ module ega_registers_tb;
     reg [3:0] attr_plane_index = 4'h0;
     reg        attr_pixel_valid = 1'b1;
     reg        attr_display_enable = 1'b1;
+    reg        attr_text_mode = 1'b0;
     reg        attr_palette_64_mode = 1'b1;
+    wire       attr_blink_enable;
     wire [7:0] attr_data_out;
     wire [3:0] attr_pixel_pan_out;
     wire [5:0] attr_color_out;
@@ -175,8 +177,10 @@ module ega_registers_tb;
         .plane_index(attr_plane_index),
         .pixel_valid(attr_pixel_valid),
         .display_enable(attr_display_enable),
+        .text_mode(attr_text_mode),
         .blink_state(1'b0),
         .palette_64_mode(attr_palette_64_mode),
+        .blink_enable_out(attr_blink_enable),
         .pixel_pan_out(attr_pixel_pan_out),
         .color_out(attr_color_out),
         .display_enable_out(attr_display_enable_out),
@@ -404,6 +408,7 @@ module ega_registers_tb;
             attr_plane_index = 4'h0;
             attr_pixel_valid = 1'b1;
             attr_display_enable = 1'b1;
+            attr_text_mode = 1'b0;
             attr_palette_64_mode = 1'b1;
             crtc_ncs = 1'b1;
             crtc_rw = 1'b1;
@@ -696,6 +701,7 @@ module ega_registers_tb;
         io_write(16'h03C0, 8'h09);
         select_and_read_attr(5'h10, read_value);
         expect8("ATTR mode control register", read_value, 8'h09);
+        expect1("ATTR blink enable output", attr_blink_enable, 1'b1);
         attr_status_read();
         io_write(16'h03C0, 8'h33);
         io_write(16'h03C0, 8'h07);

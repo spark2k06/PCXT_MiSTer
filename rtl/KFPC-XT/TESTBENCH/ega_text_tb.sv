@@ -10,6 +10,9 @@ module ega_text_tb;
     reg ce_pix = 1'b1;
     reg fetch_tick = 1'b0;
     reg display_enable = 1'b0;
+    reg dot_clock_div2 = 1'b0;
+    reg blink_enable = 1'b0;
+    reg blink_state = 1'b0;
     reg [15:0] crtc_addr = 16'h0000;
     reg [4:0] scanline = 5'd0;
     reg [1:0] char_map_a = 2'b00;
@@ -34,6 +37,9 @@ module ega_text_tb;
         .ce_pix(ce_pix),
         .fetch_tick(fetch_tick),
         .display_enable(display_enable),
+        .dot_clock_div2(dot_clock_div2),
+        .blink_enable(blink_enable),
+        .blink_state(blink_state),
         .crtc_addr(crtc_addr),
         .scanline(scanline),
         .char_map_a(char_map_a),
@@ -86,11 +92,28 @@ module ega_text_tb;
         end
     endtask
 
+    task automatic expect4(
+        input [8*80-1:0] label,
+        input [3:0] actual,
+        input [3:0] expected
+    );
+        begin
+            if (actual !== expected) begin
+                $display("FAIL [%0s] %0s: expected %01x got %01x",
+                         current_test, label, expected, actual);
+                failures = failures + 1;
+            end
+        end
+    endtask
+
     task automatic reset_dut;
         begin
             reset = 1'b1;
             fetch_tick = 1'b0;
             display_enable = 1'b0;
+            dot_clock_div2 = 1'b0;
+            blink_enable = 1'b0;
+            blink_state = 1'b0;
             crtc_addr = 16'h0000;
             scanline = 5'd0;
             char_map_a = 2'b00;
@@ -140,6 +163,13 @@ module ega_text_tb;
         end
     endtask
 
+    task automatic step_pixel;
+        begin
+            @(posedge clk);
+            @(negedge clk);
+        end
+    endtask
+
     initial begin
         reset_dut();
 
@@ -181,6 +211,39 @@ module ega_text_tb;
         provide_cell(8'h42, 8'h08, 8'h80);
         pulse_fetch(16'h0301);
         expect16("charset B font address", text_font_addr, 16'h4843);
+
+        reset_dut();
+
+        begin_test("text glyph foreground and background colors");
+        display_enable = 1'b1;
+        provide_cell(8'h43, 8'h1E, 8'h80);
+        step_pixel();
+        expect4("set glyph bit selects foreground", plane_index, 4'hE);
+        step_pixel();
+        expect4("clear glyph bit selects background", plane_index, 4'h1);
+
+        reset_dut();
+
+        begin_test("text background intensity when blink disabled");
+        display_enable = 1'b1;
+        blink_enable = 1'b0;
+        provide_cell(8'h44, 8'h9A, 8'h00);
+        step_pixel();
+        expect4("attribute bit 7 is background intensity", plane_index, 4'h9);
+
+        reset_dut();
+
+        begin_test("text blink hides foreground and masks background intensity");
+        display_enable = 1'b1;
+        blink_enable = 1'b1;
+        blink_state = 1'b0;
+        provide_cell(8'h45, 8'h9A, 8'h80);
+        step_pixel();
+        expect4("blink inactive keeps foreground", plane_index, 4'hA);
+        blink_state = 1'b1;
+        provide_cell(8'h45, 8'h9A, 8'h80);
+        step_pixel();
+        expect4("blink active uses background", plane_index, 4'h1);
 
         if (failures == 0) begin
             $display("PASS: ega_text_tb");

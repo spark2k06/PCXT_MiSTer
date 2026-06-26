@@ -12,6 +12,9 @@ module ega_text (
     input  wire        ce_pix,
     input  wire        fetch_tick,
     input  wire        display_enable,
+    input  wire        dot_clock_div2,
+    input  wire        blink_enable,
+    input  wire        blink_state,
     input  wire [15:0] crtc_addr,
     input  wire [4:0]  scanline,
     input  wire [1:0]  char_map_a,
@@ -29,17 +32,23 @@ module ega_text (
 
     reg [7:0] char_latch = 8'h00;
     reg [7:0] attr_latch = 8'h00;
-    reg [7:0] glyph_latch = 8'h00;
+    reg [7:0] glyph_shift = 8'h00;
+    reg       dot_repeat = 1'b0;
 
     wire       start_cell = display_enable && fetch_tick;
-    wire       glyph_pixel_seed = glyph_latch[7];
     wire [1:0] font_bank = attr_latch[3] ? char_map_b : char_map_a;
+    wire       glyph_pixel = glyph_shift[7];
+    wire [3:0] foreground_index = attr_latch[3:0];
+    wire [3:0] background_index = blink_enable ? {1'b0, attr_latch[6:4]} : attr_latch[7:4];
+    wire [3:0] visible_foreground_index =
+        (blink_enable && attr_latch[7] && blink_state) ? background_index : foreground_index;
 
     always @(posedge clk or posedge reset) begin
         if (reset) begin
             char_latch <= 8'h00;
             attr_latch <= 8'h00;
-            glyph_latch <= 8'h00;
+            glyph_shift <= 8'h00;
+            dot_repeat <= 1'b0;
             text_cell_addr <= 16'h0000;
             text_font_addr <= 16'h0000;
             text_fetch_en <= 1'b0;
@@ -51,11 +60,14 @@ module ega_text (
             if (text_data_valid) begin
                 char_latch <= text_char_in;
                 attr_latch <= text_attr_in;
-                glyph_latch <= text_glyph_in;
+                glyph_shift <= text_glyph_in;
+                dot_repeat <= 1'b0;
             end
 
             if (ce_pix) begin
                 if (!display_enable) begin
+                    glyph_shift <= 8'h00;
+                    dot_repeat <= 1'b0;
                     plane_index <= 4'h0;
                     pixel_valid <= 1'b0;
                 end else begin
@@ -67,11 +79,19 @@ module ega_text (
                         text_fetch_en <= 1'b1;
                     end
 
-                    // EGA-603 establishes the character/attribute cell
-                    // pipeline. Full glyph and attribute color generation are
-                    // implemented by the following text renderer tasks.
-                    plane_index <= glyph_pixel_seed ? attr_latch[3:0] : attr_latch[7:4];
+                    plane_index <= glyph_pixel ? visible_foreground_index : background_index;
                     pixel_valid <= 1'b1;
+
+                    if (!text_data_valid) begin
+                        if (dot_clock_div2) begin
+                            dot_repeat <= ~dot_repeat;
+                            if (dot_repeat)
+                                glyph_shift <= {glyph_shift[6:0], 1'b0};
+                        end else begin
+                            dot_repeat <= 1'b0;
+                            glyph_shift <= {glyph_shift[6:0], 1'b0};
+                        end
+                    end
                 end
             end
         end

@@ -1447,7 +1447,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-605 - Implement Text Pixel Generation
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-604, EGA-501, EGA-506.
 - Files: text renderer module, `rtl/video/ega_attrib_ctrl.v`.
@@ -1459,6 +1459,25 @@ must be anchored to the behavior it proves.
   - Apply palette indirection consistently with graphics output.
 - Acceptance:
   - Text tests cover foreground, background, intensity, and blink attributes.
+- Completed:
+  - `ega_text.v` now shifts glyph row bits into text pixels and selects
+    foreground/background attribute indexes per pixel.
+  - Text background intensity uses `attr[7]` when Attribute Controller blink is
+    disabled; when blink is enabled, `attr[7]` becomes blink and background uses
+    `attr[6:4]`.
+  - Active blink state hides foreground pixels by selecting the background index,
+    matching the x86Box text render path.
+  - `ega_attrib_ctrl.v` now exposes blink enable and treats text-mode color
+    indexes as already-resolved text attributes while preserving graphics blink
+    remap for graphics modes.
+  - `ega_top.v` wires Attribute Controller blink state/enable into `ega_text.v`
+    and passes text/graphics mode into the Attribute Controller.
+  - `ega_text_tb.sv` covers foreground, background, intensity, and blink cases.
+  - `ega_registers_tb.sv` covers the Attribute Controller blink enable output.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 249 warnings.
+  - HDL simulation could not be run because no standalone simulator is installed;
+    see `TEST_TOOLS.md`.
 
 ### EGA-606 - Implement 9th-Dot Line Graphics Behavior
 

@@ -271,6 +271,7 @@ module ega_top(
     wire [1:0] ega_render_mode_debug_unused;
     wire [3:0] ega_h_pixel_pan; //NEW
     wire ega_hres_mode_int = ~ega_dot_clock_div2;
+    wire ega_attr_blink_enable;
     wire [1:0] ega_render_mode = !ega_graphics_mode ? 2'd0 :
                                   ega_cga_2bpp_mode ? 2'd2 : 2'd1;
     wire ega_display_enable = ega_display_enable_crtc;
@@ -432,6 +433,9 @@ module ega_top(
         .ce_pix(ce_pix),
         .fetch_tick(ega_ce_crt_fetch),
         .display_enable(ega_display_enable),
+        .dot_clock_div2(ega_dot_clock_div2),
+        .blink_enable(ega_attr_blink_enable),
+        .blink_state(ega_blink_state),
         .crtc_addr(ega_fetch_addr),
         .scanline(ega_row_addr),
         .char_map_a(ega_char_map_a),
@@ -460,7 +464,9 @@ module ega_top(
         .plane_index(ega_plane_index),
         .pixel_valid(ega_pixel_valid),
         .display_enable(ega_display_enable),
+        .text_mode(~ega_graphics_mode),
         .blink_state(ega_blink_state),
+        .blink_enable_out(ega_attr_blink_enable),
         .pixel_pan_out(ega_h_pixel_pan),  //NEW
         .palette_64_mode(ega_misc_output_reg[7]),
         .color_out(ega_color_raw),
