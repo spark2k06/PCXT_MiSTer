@@ -12,6 +12,8 @@ module ega_text_tb;
     reg display_enable = 1'b0;
     reg [15:0] crtc_addr = 16'h0000;
     reg [4:0] scanline = 5'd0;
+    reg [1:0] char_map_a = 2'b00;
+    reg [1:0] char_map_b = 2'b00;
     reg [7:0] text_char_in = 8'h00;
     reg [7:0] text_attr_in = 8'h00;
     reg [7:0] text_glyph_in = 8'h00;
@@ -34,6 +36,8 @@ module ega_text_tb;
         .display_enable(display_enable),
         .crtc_addr(crtc_addr),
         .scanline(scanline),
+        .char_map_a(char_map_a),
+        .char_map_b(char_map_b),
         .text_char_in(text_char_in),
         .text_attr_in(text_attr_in),
         .text_glyph_in(text_glyph_in),
@@ -89,6 +93,8 @@ module ega_text_tb;
             display_enable = 1'b0;
             crtc_addr = 16'h0000;
             scanline = 5'd0;
+            char_map_a = 2'b00;
+            char_map_b = 2'b00;
             text_char_in = 8'h00;
             text_attr_in = 8'h00;
             text_glyph_in = 8'h00;
@@ -161,6 +167,20 @@ module ega_text_tb;
         pulse_fetch(16'h0201);
         expect1("second 40-column cell fetch", text_fetch_en, 1'b1);
         expect16("second 40-column cell address", text_cell_addr, 16'h0201);
+
+        reset_dut();
+
+        begin_test("character map select chooses A and B font banks");
+        display_enable = 1'b1;
+        scanline = 5'd3;
+        char_map_a = 2'b10;
+        char_map_b = 2'b01;
+        provide_cell(8'h41, 8'h07, 8'h80);
+        pulse_fetch(16'h0300);
+        expect16("charset A font address", text_font_addr, 16'h8823);
+        provide_cell(8'h42, 8'h08, 8'h80);
+        pulse_fetch(16'h0301);
+        expect16("charset B font address", text_font_addr, 16'h4843);
 
         if (failures == 0) begin
             $display("PASS: ega_text_tb");

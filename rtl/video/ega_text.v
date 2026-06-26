@@ -14,6 +14,8 @@ module ega_text (
     input  wire        display_enable,
     input  wire [15:0] crtc_addr,
     input  wire [4:0]  scanline,
+    input  wire [1:0]  char_map_a,
+    input  wire [1:0]  char_map_b,
     input  wire [7:0]  text_char_in,
     input  wire [7:0]  text_attr_in,
     input  wire [7:0]  text_glyph_in,
@@ -31,6 +33,7 @@ module ega_text (
 
     wire       start_cell = display_enable && fetch_tick;
     wire       glyph_pixel_seed = glyph_latch[7];
+    wire [1:0] font_bank = attr_latch[3] ? char_map_b : char_map_a;
 
     always @(posedge clk or posedge reset) begin
         if (reset) begin
@@ -58,7 +61,9 @@ module ega_text (
                 end else begin
                     if (start_cell) begin
                         text_cell_addr <= crtc_addr;
-                        text_font_addr <= {3'b000, char_latch, 5'b00000} + {11'd0, scanline};
+                        text_font_addr <= {font_bank, 14'b00000000000000} +
+                                          {3'b000, char_latch, 5'b00000} +
+                                          {11'd0, scanline};
                         text_fetch_en <= 1'b1;
                     end
 

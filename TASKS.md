@@ -121,7 +121,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-002 - Establish Repeatable Local Build And Simulation Commands
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: none.
 - Files: `files.qip`, `rtl/KFPC-XT/TESTBENCH/*`, project scripts or notes.
@@ -1429,6 +1429,21 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Changing Character Map Select changes displayed glyphs without changing text
     cell character bytes.
+- Completed:
+  - `ega_sequencer.v` now exports decoded Character Map Select banks A and B
+    from Sequencer register `03h`.
+  - `ega_text.v` selects charset A or B using `attr[3]`, matching the x86Box EGA
+    path, and computes the plane-2 font address as
+    `bank * 4000h + chr * 20h + scanline` for the independent-plane VRAM layout.
+  - `ega_top.v` wires the sequencer charset outputs into the text renderer.
+  - `ega_registers_tb.sv` covers Character Map Select readback and decoded bank
+    outputs.
+  - `ega_text_tb.sv` covers charset A/B font address selection without changing
+    text cell memory addresses.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 249 warnings.
+  - HDL simulation could not be run because no standalone simulator is installed;
+    see `TEST_TOOLS.md`.
 
 ### EGA-605 - Implement Text Pixel Generation
 

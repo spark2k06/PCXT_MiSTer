@@ -233,6 +233,8 @@ module ega_top(
     wire [7:0] ega_seq_data_out;
     wire [7:0] ega_seq_map_mask_debug;
     wire [7:0] ega_seq_memory_mode_debug;
+    wire [1:0] ega_char_map_a;
+    wire [1:0] ega_char_map_b;
     wire [3:0] ega_plane_write_mask;
     wire ega_chain2_write;
     wire ega_extended_memory;
@@ -375,6 +377,8 @@ module ega_top(
         .ce_crt_fetch(ega_ce_crt_fetch),
         .ce_cpu_access(ega_ce_cpu_access_unused),
         .dot_clock_div2(ega_dot_clock_div2),
+        .char_map_a(ega_char_map_a),
+        .char_map_b(ega_char_map_b),
         .map_mask_debug(ega_seq_map_mask_debug),
         .memory_mode_debug(ega_seq_memory_mode_debug)
     );
@@ -430,6 +434,8 @@ module ega_top(
         .display_enable(ega_display_enable),
         .crtc_addr(ega_fetch_addr),
         .scanline(ega_row_addr),
+        .char_map_a(ega_char_map_a),
+        .char_map_b(ega_char_map_b),
         .text_char_in(ega_text_char),
         .text_attr_in(ega_text_attr),
         .text_glyph_in(ega_text_glyph),

@@ -85,6 +85,8 @@ module ega_registers_tb;
     wire       seq_ce_crt_fetch;
     wire       seq_ce_cpu_access;
     wire       seq_dot_clock_div2;
+    wire [1:0] seq_char_map_a;
+    wire [1:0] seq_char_map_b;
     wire [7:0] seq_map_mask_debug;
     wire [7:0] seq_memory_mode_debug;
 
@@ -103,6 +105,8 @@ module ega_registers_tb;
         .ce_crt_fetch(seq_ce_crt_fetch),
         .ce_cpu_access(seq_ce_cpu_access),
         .dot_clock_div2(seq_dot_clock_div2),
+        .char_map_a(seq_char_map_a),
+        .char_map_b(seq_char_map_b),
         .map_mask_debug(seq_map_mask_debug),
         .memory_mode_debug(seq_memory_mode_debug)
     );
@@ -653,6 +657,12 @@ module ega_registers_tb;
         io_read(16'h03C5, read_value);
         expect8("SEQ map mask write", read_value, 8'h05);
         expect8("SEQ plane mask output", {4'h0, seq_plane_write_mask}, 8'h05);
+        io_write(16'h03C4, 8'h03);
+        io_write(16'h03C5, 8'h0D);
+        io_read(16'h03C5, read_value);
+        expect8("SEQ character map select readback", read_value, 8'h0D);
+        expect8("SEQ character map outputs",
+                {4'h0, seq_char_map_b, seq_char_map_a}, 8'h0D);
         io_write(16'h03C4, 8'h04);
         io_write(16'h03C5, 8'h02);
         expect1("SEQ chain-2 write follows memory mode bit 2", seq_chain2_write, 1'b1);
