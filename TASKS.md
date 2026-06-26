@@ -1026,7 +1026,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-506 - Implement A Shared Blink State Generator
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-504.
 - Files: `rtl/video/ega_top.v`, `rtl/video/ega_attrib_ctrl.v`,
@@ -1039,6 +1039,17 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Blink state toggles at a stable cadence tied to video timing and can be
     observed by text/attribute tests.
+- Verification:
+  - `ega_top.v` now implements a 7-bit blink counter that advances once per
+    CRTC vertical blank entry and exposes `counter[4]` as the shared blink
+    state, matching the x86Box `ega->blink & 0x10` consumer convention.
+  - Reset and `!ega_enabled` clear the counter and edge detector for
+    deterministic tests.
+  - `Peripherals.sv` wires `ega_blink_counter` and `ega_blink_state` internally
+    for future graphics/text consumers.
+  - Added `EGA_BLINK_AUDIT.md` with x86Box anchors and deterministic test
+    targets.
+  - Quartus Analysis & Elaboration passed with `0 errors, 258 warnings`.
 
 ### EGA-507 - Add Attribute, Palette, And Status Tests
 

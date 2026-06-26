@@ -1393,6 +1393,8 @@ end
     wire [3:0]  ega_enable_set_reset_cfg;
     wire [1:0]  ega_rop_select_cfg;
     wire [2:0]  ega_rotate_count_cfg;
+    wire [6:0]  ega_blink_counter;
+    wire        ega_blink_state;
     wire        VGA_VBlank_border_raw;
     wire        std_hsyncwidth_raw;
     wire        tandy_color_16_raw;
@@ -1479,6 +1481,8 @@ end
         .ega_enable_set_reset_out   (ega_enable_set_reset_cfg),
         .ega_rop_select_out         (ega_rop_select_cfg),
         .ega_rotate_count_out       (ega_rotate_count_cfg),
+        .ega_blink_counter_out      (ega_blink_counter),
+        .ega_blink_state_out        (ega_blink_state),
         .hsync                      (hsync_cga_raw),
         .dbl_hsync                  (hsync_cga_sd),
         .hblank                     (HBLANK_CGA),

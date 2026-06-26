@@ -52,6 +52,8 @@ module ega_top(
     output [3:0] ega_enable_set_reset_out,
     output [1:0] ega_rop_select_out,
     output [2:0] ega_rotate_count_out,
+    output [6:0] ega_blink_counter_out,
+    output ega_blink_state_out,
     output hsync,
     output hblank,
     output dbl_hsync,
@@ -271,7 +273,11 @@ module ega_top(
     reg [7:0]  ega_prev_crtc_data = 8'h00;
     reg        ega_status_read_q = 1'b0;
     reg [1:0]  ega_status_toggle = 2'b00;
+    reg        ega_vblank_crtc_q = 1'b0;
+    reg [6:0]  ega_blink_counter = 7'h00;
     wire       ega_status_read = ega_status_cs & ~bus_ior_l;
+    wire       ega_blink_advance = ega_ce_crt_fetch & ega_vert_blank_active_crtc & ~ega_vblank_crtc_q;
+    wire       ega_blink_state = ega_blink_counter[4];
     wire [7:0] ega_status_reg = {2'b00, ega_status_toggle, ega_status_vretrace_active, 2'b00, ega_blanking_active};
 
     UM6845R ega_crtc (
@@ -495,6 +501,8 @@ module ega_top(
             ega_prev_crtc_data <= 8'h00;
             ega_status_read_q <= 1'b0;
             ega_status_toggle <= 2'b00;
+            ega_vblank_crtc_q <= 1'b0;
+            ega_blink_counter <= 7'h00;
             ega_misc_output_reg <= 8'h63;
             ega_video_active <= 1'b0;
             ega_video_pending <= 1'b0;
@@ -502,6 +510,7 @@ module ega_top(
         end else begin
             cga_vblank_q <= cga_vblank;
             ega_status_read_q <= ega_status_read;
+            ega_vblank_crtc_q <= ega_ce_crt_fetch ? ega_vert_blank_active_crtc : ega_vblank_crtc_q;
             cpu_mem_write_evt_d <= cpu_mem_write_evt;
             if (ega_misc_write_cs && ega_io_we)
                 ega_misc_output_reg <= bus_d;
@@ -509,6 +518,8 @@ module ega_top(
                 ega_cfg_toggle <= ~ega_cfg_toggle;
             if (ega_status_read && !ega_status_read_q)
                 ega_status_toggle <= ~ega_status_toggle;
+            if (ega_blink_advance)
+                ega_blink_counter <= ega_blink_counter + 7'd1;
 
             if (!ega_enabled) begin
                 ega_last_wr_addr <= 16'h0000;
@@ -522,6 +533,8 @@ module ega_top(
                 ega_prev_crtc_data <= 8'h00;
                 ega_status_read_q <= 1'b0;
                 ega_status_toggle <= 2'b00;
+                ega_vblank_crtc_q <= 1'b0;
+                ega_blink_counter <= 7'h00;
             end
             else if (ega_io_we && ega_debug_io_range) begin
                 ega_last_wr_addr <= ega_io_addr;
@@ -590,6 +603,8 @@ module ega_top(
     assign ega_enable_set_reset_out = ega_enable_set_reset;
     assign ega_rop_select_out = ega_rop_select;
     assign ega_rotate_count_out = ega_rotate_count;
+    assign ega_blink_counter_out = ega_blink_counter;
+    assign ega_blink_state_out = ega_blink_state;
     assign ega_rgb_active = ega_display_sel;
     assign ega_display_sel_out = ega_display_sel;
 
