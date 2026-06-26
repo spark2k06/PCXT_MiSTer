@@ -165,7 +165,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-004 - Define The Initial Hardware/Emulator Smoke Set
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: none.
 - Files: `games/`, `egabios.asm`, `egabios.rom`, notes in `TASKS.md` or future
@@ -181,6 +181,15 @@ must be anchored to the behavior it proves.
   - Every release-candidate run has a known smoke checklist.
   - Visual failures can be classified as CPU memory, register, scanout, palette,
     text, or integration issues.
+- Verification:
+  - Added `EGA_SMOKE_CHECKLIST.md` with the minimum BIOS, DOS text, EGA mode
+    `0Dh`, `0Eh`, `10h`, known EGA game, and CGA/HGC/Tandy non-regression
+    smoke cases.
+  - The checklist records expected visual properties for each case, not only
+    whether output appears.
+  - The checklist defines primary failure classes for CPU memory, register,
+    CRTC, scanout, palette, text, and integration failures, plus run-log
+    requirements for reproducible evidence.
 
 ### EGA-005 - Create A Traceability Checklist
 
