@@ -22,6 +22,9 @@ module ega_vram_bram_frontend (
     input  logic         cfg_toggle,
     input  logic [3:0]   plane_write_mask,
     input  logic         odd_even_mode,
+    // Timing hint exported by the sequencer. The BRAM frontend intentionally
+    // does not gate CPU transfers with it because CPU and CRT fetches use
+    // independent ports and PCXT bus ready timing must remain stable.
     input  logic         cpu_access_en,
     input  logic         chain2_write,
     input  logic         chain2_read,

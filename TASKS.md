@@ -445,7 +445,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-110 - Decide And Document `cpu_access_en` Behavior
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-109.
 - Files: `rtl/KFPC-XT/HDL/ega_vram_bram_frontend.sv`,
@@ -459,6 +459,18 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - CPU memory tests pass with the chosen approach.
   - The implementation no longer has an ambiguous unused contention signal.
+- Completed:
+  - `cpu_access_en` remains a sequencer timing hint only; it is not functional
+    CPU/CRT arbitration in the BRAM frontend.
+  - `ega_vram_bram_frontend.sv` now documents that CPU and CRT fetches use
+    independent ports and that CPU bus ready timing must not be gated by the
+    fetch-slot hint.
+  - This intentionally differs from cycle-cost contention models: the PCXT
+    integration preserves deterministic CPU ready behavior instead of adding
+    x86Box-style display contention waits.
+  - `git diff --check` passed.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ## EGA-200: Register And I/O Semantics
 
