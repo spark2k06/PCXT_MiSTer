@@ -574,7 +574,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-206 - Verify Graphics Controller Register Behavior
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-201.
 - Files: `rtl/video/ega_gfx_ctrl.v`, `rtl/video/ega_top.v`,
