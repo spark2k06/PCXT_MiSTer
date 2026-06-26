@@ -912,7 +912,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-501 - Implement Base EGA Palette Indirection
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-203, EGA-204.
 - Files: `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_vgaport.v`.
@@ -924,6 +924,15 @@ must be anchored to the behavior it proves.
   - Respect Misc Output palette width behavior for base EGA.
 - Acceptance:
   - Palette tests can remap a plane color index to a different RGB output.
+- Verification:
+  - Added `EGA_PALETTE_AUDIT.md` documenting the existing Attribute Controller
+    palette lookup from 4-bit plane index to 6-bit EGA color.
+  - The audit traces Misc Output bit `7` through overscan palette width and
+    `ega_vgaport` 16-color/64-color RGB conversion.
+  - The audit records the EGA-507 deterministic test sequence for palette
+    remap, brown fix, overscan width, Color Select readback, and Plane Enable.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-502 - Verify 16-Color And 64-Color RGB Mapping
 
