@@ -118,6 +118,8 @@ module ega_attrib_ctrl (
                         color_out <= 6'h00;
                 end
                 else if (!display_enable) begin
+                    // Border/overscan RGB. Top-level hblank/vblank/de signals
+                    // carry the sync-safe blanking state to the video mixer.
                     color_out <= border_color_code;
                 end
                 else begin

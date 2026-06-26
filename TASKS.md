@@ -1189,7 +1189,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-503 - Implement Overscan And Border Color
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-501, EGA-408.
 - Files: `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_top.v`.
@@ -1200,6 +1200,20 @@ must be anchored to the behavior it proves.
     the intended region.
 - Acceptance:
   - Border smoke tests can change overscan color without changing active pixels.
+- Completed:
+  - `ega_attrib_ctrl.v` uses Attribute Controller register `11h` as the
+    overscan/border color whenever CRTC display enable is inactive.
+  - Active pixels continue to use the palette-mapped plane index, while invalid
+    active pixels and Attribute Controller video-disable state still output
+    black.
+  - Sync-safe blanking remains represented by the top-level hblank/vblank/de
+    outputs; the overscan RGB path does not change those timing signals.
+  - `ega_registers_tb.sv` already includes an Attribute Controller border
+    smoke sequence that changes overscan color and checks active pixels are
+    unaffected.
+  - `git diff --check` passed.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-504 - Implement Input Status #1 Bits And Side Effects
 
