@@ -19,6 +19,7 @@ module ega_attrib_ctrl (
     input  wire [3:0]  plane_index,
     input  wire        pixel_valid,
     input  wire        display_enable,
+    input  wire        blink_state,
     input  wire        palette_64_mode,
     output wire [3:0]  pixel_pan_out, //NEW
     output reg  [5:0]  color_out,
@@ -47,10 +48,16 @@ module ega_attrib_ctrl (
     wire attr_read_cs = (io_addr == ATTR_READ_PORT0) || (io_addr == ATTR_READ_PORT1);
     wire attr_write_pulse = (io_we && attr_addr_cs) && !attr_write_q;
     wire status_re_pulse = status_re && !status_re_q;
-    wire [3:0] masked_plane_index = plane_index & plane_enable_reg[3:0];
+    wire       attr_blink_enable = mode_control_reg[3];
+    wire [3:0] graphics_blink_mask = attr_blink_enable ? 4'h8 : 4'h0;
+    wire [3:0] graphics_blink_value = (attr_blink_enable && blink_state) ? 4'h8 : 4'h0;
+    wire [3:0] graphics_blink_index =
+        ((plane_index & plane_enable_reg[3:0] & ~graphics_blink_mask) |
+         ((plane_index | ~plane_enable_reg[3:0]) & graphics_blink_mask & graphics_blink_value)) ^
+        graphics_blink_mask;
     // Match 86Box IBM EGA behavior: Color Select (0x14) is latched/readable,
     // but does not alter the effective 6-bit EGA palette on the base IBM card.
-    wire [5:0] pixel_color_code = raw_palette[masked_plane_index][5:0];
+    wire [5:0] pixel_color_code = raw_palette[graphics_blink_index][5:0];
     wire [5:0] border_color_code = palette_64_mode ? overscan_reg[5:0] : {2'b00, overscan_reg[3:0]};
     assign pixel_pan_out = pixel_panning_reg[3:0];    //NEW
 

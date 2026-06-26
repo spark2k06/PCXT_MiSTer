@@ -864,7 +864,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-407 - Implement Graphics Blink Handling If Reference Requires It
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-501, EGA-506.
 - Files: `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_pixel.v`.
@@ -875,6 +875,16 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Blink behavior is tested or documented as intentionally not affecting the
     selected graphics path.
+- Verification:
+  - Checked x86Box `x86_src/video/vid_ega_render.c`; base EGA graphics applies
+    blink when Attribute Mode Control bit `3` is set, using `ega->blink & 0x10`
+    and Attribute Controller register `12h[3:0]` as `plane_mask`.
+  - `ega_attrib_ctrl.v` now consumes the shared `ega_blink_state` and applies
+    the x86Box graphics blink formula before palette lookup.
+  - `ega_top.v` wires the shared blink state into the Attribute Controller.
+  - Updated `EGA_BLINK_AUDIT.md` with the implemented graphics formula and
+    remaining text/cursor consumers.
+  - Quartus Analysis & Elaboration passed with `0 errors, 258 warnings`.
 
 ### EGA-408 - Ensure Active Display And Blanking Gate Pixels Correctly
 

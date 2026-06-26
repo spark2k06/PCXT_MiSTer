@@ -414,6 +414,7 @@ module ega_top(
         .plane_index(ega_plane_index),
         .pixel_valid(ega_pixel_valid),
         .display_enable(ega_display_enable),
+        .blink_state(ega_blink_state),
         .pixel_pan_out(ega_h_pixel_pan),  //NEW
         .palette_64_mode(ega_misc_output_reg[7]),
         .color_out(ega_color_raw),

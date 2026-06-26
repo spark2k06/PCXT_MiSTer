@@ -25,16 +25,30 @@ output that text, graphics blink, and cursor logic can share.
 
 `rtl/KFPC-XT/HDL/Peripherals.sv` wires the two outputs internally as
 `ega_blink_counter` and `ega_blink_state`, making the state available to future
-graphics and text render paths without changing current pixel behavior.
+graphics and text render paths.
+
+`rtl/video/ega_attrib_ctrl.v` consumes `ega_blink_state` for graphics pixels.
+When Attribute Mode Control bit `3` is set, it applies the x86Box graphics
+blink formula from `x86_src/video/vid_ega_render.c` before Attribute Controller
+palette indirection:
+
+```text
+blinkmask = attrblink ? 8 : 0
+blinkval = attrblink && blinked ? 8 : 0
+color = ((color & plane_mask & ~blinkmask) |
+         ((color | ~plane_mask) & blinkmask & blinkval)) ^ blinkmask
+```
+
+`plane_mask` maps to Attribute Controller register `12h[3:0]`, already stored
+as `plane_enable_reg`.
 
 ## Remaining Consumers
 
-The generator is intentionally separate from blink application. Follow-up tasks
-must consume `ega_blink_state` in the places that already depend on Attribute
-Mode Control bit `3`:
+Graphics blink is implemented. Follow-up tasks must still consume
+`ega_blink_state` in the remaining places that depend on Attribute Mode Control
+bit `3` or CRTC cursor blink timing:
 
 - Text foreground/background blink.
-- Graphics blink behavior.
 - Cursor blink delay behavior.
 
 ## Deterministic Test Targets
