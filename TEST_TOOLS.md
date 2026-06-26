@@ -264,6 +264,39 @@ usual ModelSim/Questa command-line compiler/run tools used for SystemVerilog
 testbench workflows. Treat `quartus_sim` as a Quartus simulation front-end, not
 as a confirmed replacement for `vlog`/`vsim` for the current testbenches.
 
+### Integrated EGA Smoke Testbench
+
+`rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv` now includes an optional integrated EGA
+smoke flow guarded by `EGA_CHIPSET_SMOKE`. The default legacy chipset sequence
+is unchanged unless that macro is defined.
+
+The smoke flow:
+
+- Enables the EGA gate at the `CHIPSET` boundary.
+- Programs a minimal graphics-mode register set through chipset I/O cycles.
+- Writes a planar pattern through A0000h memory cycles.
+- Waits for EGA display selection, EGA fetch activity, and non-zero VGA RGB.
+- Fails the simulation with `$fatal(1)` if any integrated check fails.
+
+The file was syntax-checked with Quartus Analyze Current File after generating
+`build_id.v`:
+
+```powershell
+quartus_sh -t sys\build_id.tcl compile PCXT PCXT
+quartus_map PCXT --analyze_file=rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv
+quartus_map PCXT --verilog_macro="EGA_CHIPSET_SMOKE=1" --analyze_file=rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv
+```
+
+Verified result:
+
+```text
+Info: Quartus Prime Analyze Current File was successful. 0 errors, 3 warnings
+```
+
+Running the smoke still requires a standalone HDL simulator. Once available,
+compile `Chipset_tb.sv` with `EGA_CHIPSET_SMOKE` defined in addition to the
+project RTL sources.
+
 ### Current EGA Testbench Status
 
 `rtl/video/ega_vram.v` has a `cpu_a16` input:

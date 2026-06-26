@@ -1839,7 +1839,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-806 - Add Integrated EGA Smoke Test Flow
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-705.
 - Files: `rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv`, scripts or notes as available.
@@ -1850,6 +1850,23 @@ must be anchored to the behavior it proves.
   - Use small deterministic programs or direct bus transactions as appropriate.
 - Acceptance:
   - Integrated smoke catches wiring mistakes that unit tests cannot see.
+- Completed:
+  - Updated `Chipset_tb.sv` to match the current `CHIPSET` port interface so
+    the wildcard instantiation is explicit and analyzable.
+  - Added optional `EGA_CHIPSET_SMOKE` flow that enables EGA at the chipset
+    boundary, programs EGA registers through I/O cycles, writes A0000h VRAM
+    through memory cycles, and checks EGA display selection, fetch activity,
+    non-zero RGB, and CPU readiness.
+  - The legacy chipset test sequence remains unchanged unless
+    `EGA_CHIPSET_SMOKE` is defined.
+  - Documented the flow in `TEST_TOOLS.md`.
+  - `quartus_map PCXT --analyze_file=rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv`
+    passed with 0 errors and 3 warnings after generating `build_id.v`.
+  - `quartus_map PCXT --verilog_macro="EGA_CHIPSET_SMOKE=1"
+    --analyze_file=rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv` also passed with 0
+    errors and 3 warnings, parsing the new optional EGA smoke block.
+  - Standalone HDL simulation was not run because no simulator listed in
+    `TEST_TOOLS.md` is installed in this environment.
 
 ### EGA-807 - Maintain A Game-Oriented Regression Matrix
 
