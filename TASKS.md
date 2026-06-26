@@ -274,7 +274,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-104 - Implement Full EGA Memory Decode In `Peripherals.sv`
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-103.
 - Files: `rtl/KFPC-XT/HDL/Peripherals.sv`, `rtl/video/ega_top.v`,
@@ -290,6 +290,16 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - CPU memory accesses are routed to EGA only inside the selected GC aperture.
   - CGA/HGC/Tandy smoke tests still reach their expected video memory paths.
+- Verification:
+  - `Peripherals.sv` now decodes EGA CPU memory access through the exported
+    `ega_mem_map_sel_cfg` value from the Graphics Controller misc register.
+  - The decode covers `A0000h-BFFFFh`, `A0000h-AFFFFh`, `B0000h-B7FFFh`, and
+    `B8000h-BFFFFh`.
+  - CGA, HGC, and Tandy memory selects are gated only while the current CPU
+    address is inside the active EGA aperture, preserving their existing decode
+    outside the selected EGA window.
+  - Full Quartus Analysis & Elaboration must pass before commit; standalone
+    CGA/HGC/Tandy runtime smoke tests are not available in this workspace.
 
 ### EGA-105 - Add Chain-2 Read/Write Coverage
 

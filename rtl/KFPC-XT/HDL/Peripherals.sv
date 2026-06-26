@@ -189,6 +189,22 @@ module PERIPHERALS #(
     wire hgc_enable = `ENABLE_HGC ? enable_hgc : 1'b0;
     wire hgc_grph_mode;
     wire hgc_grph_page;
+    wire [1:0] ega_mem_map_sel_cfg;
+
+    function automatic logic ega_memory_window_select(
+        input logic [19:0] addr,
+        input logic [1:0]  mem_map_sel
+    );
+        begin
+            case (mem_map_sel)
+                2'b00:  ega_memory_window_select = (addr[19:17] == 3'b101);   // A0000 - BFFFF
+                2'b01:  ega_memory_window_select = (addr[19:16] == 4'hA);     // A0000 - AFFFF
+                2'b10:  ega_memory_window_select = (addr[19:15] == 5'b10110); // B0000 - B7FFF
+                2'b11:  ega_memory_window_select = (addr[19:15] == 5'b10111); // B8000 - BFFFF
+                default: ega_memory_window_select = 1'b0;
+            endcase
+        end
+    endfunction
 
     assign tandy_16_gfx = `ENABLE_CGA ? (tandy_video_en & grph_mode & hres_mode) : 1'b0;
 
@@ -245,10 +261,10 @@ module PERIPHERALS #(
     wire    opl_388_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)) : 1'b0; // 0x388 .. 0x389 (Adlib)
     wire    opl_228_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)) : 1'b0; // 0x228 .. 0x229 (Sound Blaster FM)
     wire    cms_220_chip_select     = `ENABLE_CMS ? (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)) : 1'b0; // 0x220 .. 0x22F (C/MS Audio)
-    wire    video_mem_select        = `ENABLE_TANDY_VIDEO ? (tandy_video_en && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])) : 1'b0; // 128KB
-    wire    ega_mem_select          = `ENABLE_EGA ? (~iorq && ~address_enable_n && ega_enabled && enable_cga && (address[19:16] == 4'hA)) : 1'b0; // A0000 - AFFFF (64KB)
-    wire    cga_mem_select          = `ENABLE_CGA ? (~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)) : 1'b0; // B8000 - BFFFF (16 KB / 32 KB)
-    wire    hgc_mem_select          = `ENABLE_HGC ? (~iorq && ~address_enable_n && hgc_enable & (address[19:15] == {5'b1011, hgc_grph_page})) : 1'b0; // B0000 - BFFFF (32KB / 64 KB)
+    wire    ega_mem_select          = `ENABLE_EGA ? (~iorq && ~address_enable_n && ega_enabled && enable_cga && ega_memory_window_select(address, ega_mem_map_sel_cfg)) : 1'b0;
+    wire    video_mem_select        = `ENABLE_TANDY_VIDEO ? (tandy_video_en && ~iorq && ~address_enable_n && ~ega_mem_select && (address[19:17] == nmi_mask_register_data[3:1])) : 1'b0; // 128KB
+    wire    cga_mem_select          = `ENABLE_CGA ? (~iorq && ~address_enable_n && enable_cga && ~ega_mem_select && (address[19:15] == 5'b10111)) : 1'b0; // B8000 - BFFFF (16 KB / 32 KB)
+    wire    hgc_mem_select          = `ENABLE_HGC ? (~iorq && ~address_enable_n && hgc_enable && ~ega_mem_select && (address[19:15] == {5'b1011, hgc_grph_page})) : 1'b0; // B0000 - BFFFF (32KB / 64 KB)
     wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
     wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
     wire    lpt_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h0378 >> 1)); // 0x378 ... 0x379
@@ -1366,7 +1382,6 @@ end
     wire        ega_chain2_write_cfg;
     wire        ega_chain2_read_cfg;
     wire        ega_extended_memory_cfg;
-    wire [1:0]  ega_mem_map_sel_cfg;
     wire        ega_page_select_cfg;
     wire [1:0]  ega_write_mode_cfg;
     wire [1:0]  ega_read_mode_cfg;
