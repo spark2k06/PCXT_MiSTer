@@ -1352,7 +1352,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-602 - Extend VRAM Frontend For Text Fetches
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-601.
 - Files: `rtl/KFPC-XT/HDL/ega_vram_bram_frontend.sv`,
@@ -1366,6 +1366,23 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - A text fetch test returns the expected character, attribute, and glyph row
     for a programmed address.
+- Completed:
+  - `ega_vram.v` now has a text fetch channel that reads character bytes from
+    plane 0 at the text cell address, attribute bytes from plane 1 at the text
+    cell address, and glyph bytes from plane 2 at an independent font address.
+  - Graphics CRT fetches keep using the existing shared visible address when
+    `text_re` is inactive.
+  - `ega_vram_bram_frontend.sv` exposes registered `text_char`, `text_attr`,
+    `text_glyph`, and `text_data_valid` outputs for the future text renderer.
+  - `Peripherals.sv` ties the new text channel inactive until EGA-603 consumes
+    it from `ega_top.v`/`ega_text.v`.
+  - `ega_vram_tb.sv` includes a deterministic text fetch case for cell and font
+    addresses, plus a regression that graphics CRT plane 2 still uses the
+    visible address.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 249 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-603 - Implement Character And Attribute Fetch Pipeline
 

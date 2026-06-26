@@ -19,6 +19,14 @@ module ega_vram_bram_frontend (
     output logic [7:0]   video_plane3,
     output logic         video_data_valid,
 
+    input  logic [15:0]  text_cell_addr,
+    input  logic [15:0]  text_font_addr,
+    input  logic         text_fetch_en,
+    output logic [7:0]   text_char,
+    output logic [7:0]   text_attr,
+    output logic [7:0]   text_glyph,
+    output logic         text_data_valid,
+
     input  logic         cfg_toggle,
     input  logic [3:0]   plane_write_mask,
     input  logic         odd_even_mode,
@@ -80,6 +88,7 @@ module ega_vram_bram_frontend (
     logic [7:0] core_video_plane2;
     logic [7:0] core_video_plane3;
     logic       video_read_en_q;
+    logic       text_fetch_en_q;
 
     logic core_cpu_select;
 
@@ -93,6 +102,9 @@ module ega_vram_bram_frontend (
     assign video_plane1 = core_video_plane1;
     assign video_plane2 = core_video_plane2;
     assign video_plane3 = core_video_plane3;
+    assign text_char = core_video_plane0;
+    assign text_attr = core_video_plane1;
+    assign text_glyph = core_video_plane2;
 
     ega_vram u_ega_vram (
         .clk                (clock),
@@ -123,6 +135,9 @@ module ega_vram_bram_frontend (
         .rotate_count       (cfg_rotate_count),
         .crt_addr           (video_addr),
         .crt_re             (video_read_en),
+        .text_cell_addr     (text_cell_addr),
+        .text_font_addr     (text_font_addr),
+        .text_re            (text_fetch_en),
         .crt_plane0         (core_video_plane0),
         .crt_plane1         (core_video_plane1),
         .crt_plane2         (core_video_plane2),
@@ -282,9 +297,13 @@ module ega_vram_bram_frontend (
         if (reset) begin
             video_read_en_q <= 1'b0;
             video_data_valid <= 1'b0;
+            text_fetch_en_q <= 1'b0;
+            text_data_valid <= 1'b0;
         end else begin
             video_read_en_q <= video_read_en;
             video_data_valid <= video_read_en_q;
+            text_fetch_en_q <= text_fetch_en;
+            text_data_valid <= text_fetch_en_q;
         end
     end
 

@@ -50,6 +50,9 @@ module ega_vram (
     input  wire [2:0]  rotate_count,
     input  wire [15:0] crt_addr,
     input  wire        crt_re,
+    input  wire [15:0] text_cell_addr,
+    input  wire [15:0] text_font_addr,
+    input  wire        text_re,
     output wire [7:0]  crt_plane0,
     output wire [7:0]  crt_plane1,
     output wire [7:0]  crt_plane2,
@@ -129,6 +132,11 @@ module ega_vram (
     wire [15:0] cpu_addr_q_remapped = remap_cpu_addr(cpu_addr_q, cpu_a16_q, odd_even_mode_q, extended_memory_q, mem_map_sel_q, page_select_q, 1'b0);
     wire [EGA_PLANE_ADDR_WIDTH-1:0] cpu_plane_addr = cpu_addr_remapped[EGA_PLANE_ADDR_WIDTH-1:0];
     wire [EGA_PLANE_ADDR_WIDTH-1:0] cpu_plane_addr_qw = cpu_addr_q_remapped[EGA_PLANE_ADDR_WIDTH-1:0];
+    wire [EGA_PLANE_ADDR_WIDTH-1:0] crt_plane0_addr = text_re ? text_cell_addr[EGA_PLANE_ADDR_WIDTH-1:0] : crt_addr[EGA_PLANE_ADDR_WIDTH-1:0];
+    wire [EGA_PLANE_ADDR_WIDTH-1:0] crt_plane1_addr = text_re ? text_cell_addr[EGA_PLANE_ADDR_WIDTH-1:0] : crt_addr[EGA_PLANE_ADDR_WIDTH-1:0];
+    wire [EGA_PLANE_ADDR_WIDTH-1:0] crt_plane2_addr = text_re ? text_font_addr[EGA_PLANE_ADDR_WIDTH-1:0] : crt_addr[EGA_PLANE_ADDR_WIDTH-1:0];
+    wire [EGA_PLANE_ADDR_WIDTH-1:0] crt_plane3_addr = crt_addr[EGA_PLANE_ADDR_WIDTH-1:0];
+    wire crt_read_en = crt_re | text_re;
     wire [1:0] effective_read_plane = chain2_read_q ? {read_plane_sel_q[1], cpu_addr_q[0]} : read_plane_sel_q;
     wire [3:0] effective_plane_write_mask = chain2_write_q ? (plane_write_mask_q & (4'b0101 << cpu_addr_q[0])) : plane_write_mask_q;
 
@@ -363,7 +371,7 @@ module ega_vram (
         .aclr0          (1'b0),
         .aclr1          (1'b0),
         .address_a      (plane0_cpu_addr),
-        .address_b      (crt_addr),
+        .address_b      (crt_plane0_addr),
         .addressstall_a (1'b0),
         .addressstall_b (1'b0),
         .byteena_a      (1'b1),
@@ -373,7 +381,7 @@ module ega_vram (
         .wren_a         (write_plane0_commit),
         .wren_b         (1'b0),
         .rden_a         (cpu_access & ~write_plane0_commit),
-        .rden_b         (crt_re),
+        .rden_b         (crt_read_en),
         .q_a            (cpu_plane0_q),
         .q_b            (crt_plane0_s),
         .eccstatus      ()
@@ -418,7 +426,7 @@ module ega_vram (
         .aclr0          (1'b0),
         .aclr1          (1'b0),
         .address_a      (plane1_cpu_addr),
-        .address_b      (crt_addr),
+        .address_b      (crt_plane1_addr),
         .addressstall_a (1'b0),
         .addressstall_b (1'b0),
         .byteena_a      (1'b1),
@@ -428,7 +436,7 @@ module ega_vram (
         .wren_a         (write_plane1_commit),
         .wren_b         (1'b0),
         .rden_a         (cpu_access & ~write_plane1_commit),
-        .rden_b         (crt_re),
+        .rden_b         (crt_read_en),
         .q_a            (cpu_plane1_q),
         .q_b            (crt_plane1_s),
         .eccstatus      ()
@@ -473,7 +481,7 @@ module ega_vram (
         .aclr0          (1'b0),
         .aclr1          (1'b0),
         .address_a      (plane2_cpu_addr),
-        .address_b      (crt_addr),
+        .address_b      (crt_plane2_addr),
         .addressstall_a (1'b0),
         .addressstall_b (1'b0),
         .byteena_a      (1'b1),
@@ -483,7 +491,7 @@ module ega_vram (
         .wren_a         (write_plane2_commit),
         .wren_b         (1'b0),
         .rden_a         (cpu_access & ~write_plane2_commit),
-        .rden_b         (crt_re),
+        .rden_b         (crt_read_en),
         .q_a            (cpu_plane2_q),
         .q_b            (crt_plane2_s),
         .eccstatus      ()
@@ -528,7 +536,7 @@ module ega_vram (
         .aclr0          (1'b0),
         .aclr1          (1'b0),
         .address_a      (plane3_cpu_addr),
-        .address_b      (crt_addr),
+        .address_b      (crt_plane3_addr),
         .addressstall_a (1'b0),
         .addressstall_b (1'b0),
         .byteena_a      (1'b1),
@@ -538,7 +546,7 @@ module ega_vram (
         .wren_a         (write_plane3_commit),
         .wren_b         (1'b0),
         .rden_a         (cpu_access & ~write_plane3_commit),
-        .rden_b         (crt_re),
+        .rden_b         (crt_read_en),
         .q_a            (cpu_plane3_q),
         .q_b            (crt_plane3_s),
         .eccstatus      ()
@@ -647,20 +655,20 @@ module ega_vram (
 
 `ifndef ALTERA_RESERVED_QIS
     always @(posedge clk_vram) begin
-        if (crt_re)
-            crt_plane0_r <= plane0[crt_addr];
+        if (crt_read_en)
+            crt_plane0_r <= plane0[crt_plane0_addr];
     end
     always @(posedge clk_vram) begin
-        if (crt_re)
-            crt_plane1_r <= plane1[crt_addr];
+        if (crt_read_en)
+            crt_plane1_r <= plane1[crt_plane1_addr];
     end
     always @(posedge clk_vram) begin
-        if (crt_re)
-            crt_plane2_r <= plane2[crt_addr];
+        if (crt_read_en)
+            crt_plane2_r <= plane2[crt_plane2_addr];
     end
     always @(posedge clk_vram) begin
-        if (crt_re)
-            crt_plane3_r <= plane3[crt_addr];
+        if (crt_read_en)
+            crt_plane3_r <= plane3[crt_plane3_addr];
     end
 `endif
 

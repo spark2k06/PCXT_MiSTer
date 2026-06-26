@@ -33,6 +33,9 @@ module ega_vram_tb;
     reg  [2:0]  rotate_count = 3'b000;
     reg  [15:0] crt_addr = 16'h0000;
     reg         crt_re = 1'b0;
+    reg  [15:0] text_cell_addr = 16'h0000;
+    reg  [15:0] text_font_addr = 16'h0000;
+    reg         text_re = 1'b0;
     wire [7:0]  crt_plane0;
     wire [7:0]  crt_plane1;
     wire [7:0]  crt_plane2;
@@ -82,6 +85,9 @@ module ega_vram_tb;
         .rotate_count(rotate_count),
         .crt_addr(crt_addr),
         .crt_re(crt_re),
+        .text_cell_addr(text_cell_addr),
+        .text_font_addr(text_font_addr),
+        .text_re(text_re),
         .crt_plane0(crt_plane0),
         .crt_plane1(crt_plane1),
         .crt_plane2(crt_plane2),
@@ -367,6 +373,9 @@ module ega_vram_tb;
             rotate_count = 3'b000;
             crt_addr = 16'h0000;
             crt_re = 1'b0;
+            text_cell_addr = 16'h0000;
+            text_font_addr = 16'h0000;
+            text_re = 1'b0;
         end
     endtask
 
@@ -393,6 +402,18 @@ module ega_vram_tb;
             @(posedge clk_vram);
             @(negedge clk_vram);
             crt_re = 1'b0;
+        end
+    endtask
+
+    task automatic text_read_tx(input [15:0] cell_addr, input [15:0] font_addr);
+        begin
+            @(negedge clk_vram);
+            text_cell_addr = cell_addr;
+            text_font_addr = font_addr;
+            text_re = 1'b1;
+            @(posedge clk_vram);
+            @(negedge clk_vram);
+            text_re = 1'b0;
         end
     endtask
 
@@ -958,6 +979,31 @@ module ega_vram_tb;
         end
     endtask
 
+    task automatic test_text_fetch_channel;
+        reg [15:0] cell_addr;
+        reg [15:0] font_addr;
+        begin
+            begin_test("Text fetch channel returns cell and font bytes");
+            cell_addr = 16'h0220;
+            font_addr = 16'h1847;
+
+            set_planes(cell_addr, 8'h41, 8'h1E, 8'h99, 8'h55);
+            set_planes(font_addr, 8'h00, 8'h00, 8'hA5, 8'h00);
+            set_planes(16'h0333, 8'h00, 8'h00, 8'h00, 8'h77);
+            crt_addr = 16'h0333;
+
+            text_read_tx(cell_addr, font_addr);
+
+            expect_eq8("text char from plane0 cell address", crt_plane0, 8'h41);
+            expect_eq8("text attr from plane1 cell address", crt_plane1, 8'h1E);
+            expect_eq8("text glyph from plane2 font address", crt_plane2, 8'hA5);
+            expect_eq8("text fetch leaves plane3 on CRT address", crt_plane3, 8'h77);
+
+            crt_read_tx(cell_addr);
+            expect_eq8("graphics CRT plane2 still uses visible address", crt_plane2, 8'h99);
+        end
+    endtask
+
     task automatic test_memory_map_windows;
         reg [15:0] map0_first_addr;
         reg [15:0] map0_last_addr;
@@ -1048,6 +1094,7 @@ module ega_vram_tb;
         test_chain2_read_write();
         test_odd_even_page_select();
         test_crt_fetch_ignores_cpu_odd_even();
+        test_text_fetch_channel();
         test_memory_map_windows();
 
         if (failures != 0) begin

@@ -1375,6 +1375,10 @@ end
     wire [7:0]  EGA_PLANE2_DOUT;
     wire [7:0]  EGA_PLANE3_DOUT;
     wire        EGA_FETCH_DATA_VALID;
+    wire [7:0]  EGA_TEXT_CHAR_UNUSED;
+    wire [7:0]  EGA_TEXT_ATTR_UNUSED;
+    wire [7:0]  EGA_TEXT_GLYPH_UNUSED;
+    wire        EGA_TEXT_DATA_VALID_UNUSED;
     wire        ega_cfg_toggle;
     wire [3:0]  ega_plane_write_mask_cfg;
     wire        ega_odd_even_mode_cfg;
@@ -1630,6 +1634,13 @@ end
         .video_plane2               (EGA_PLANE2_DOUT),
         .video_plane3               (EGA_PLANE3_DOUT),
         .video_data_valid           (EGA_FETCH_DATA_VALID),
+        .text_cell_addr             (16'h0000),
+        .text_font_addr             (16'h0000),
+        .text_fetch_en              (1'b0),
+        .text_char                  (EGA_TEXT_CHAR_UNUSED),
+        .text_attr                  (EGA_TEXT_ATTR_UNUSED),
+        .text_glyph                 (EGA_TEXT_GLYPH_UNUSED),
+        .text_data_valid            (EGA_TEXT_DATA_VALID_UNUSED),
         .cfg_toggle                 (ega_cfg_toggle),
         .plane_write_mask           (ega_plane_write_mask_cfg),
         .odd_even_mode              (ega_odd_even_mode_cfg),
