@@ -40,7 +40,8 @@ module ega_pixel (
     wire [7:0] panned1 = ({fetch_plane1, load_plane1} << h_pixel_pan) >> 8;
     wire [7:0] panned2 = ({fetch_plane2, load_plane2} << h_pixel_pan) >> 8;
     wire [7:0] panned3 = ({fetch_plane3, load_plane3} << h_pixel_pan) >> 8;
-
+    wire [3:0] load_pixel = {panned3[7], panned2[7], panned1[7], panned0[7]};
+    wire [3:0] shift_pixel = {shift_plane3[7], shift_plane2[7], shift_plane1[7], shift_plane0[7]};
 
     always @(posedge clk) begin
         if (fetch_en) begin
@@ -55,7 +56,7 @@ module ega_pixel (
 
         if (ce_pix) begin
             if (load_pending || fetch_en) begin
-                plane_index <= {load_plane3[7], load_plane2[7], load_plane1[7], load_plane0[7]};
+                plane_index <= load_pixel;
                 pixel_valid <= 1'b1;
                 load_pending <= 1'b0;
 
@@ -77,7 +78,7 @@ module ega_pixel (
                 end
             end
             else if (bits_remaining != 4'd0) begin
-                plane_index <= {panned3[7], panned2[7], panned1[7], panned0[7]};
+                plane_index <= shift_pixel;
                 pixel_valid <= 1'b1;
 
                 if (dot_clock_div2 && !repeat_phase) begin

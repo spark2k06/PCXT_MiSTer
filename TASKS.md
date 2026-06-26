@@ -864,7 +864,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-401 - Correct Planar Graphics Pixel Shifting
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-303, EGA-308.
 - Files: `rtl/video/ega_pixel.v`.
@@ -879,6 +879,16 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - A test pattern with alternating plane bits produces the expected per-dot
     color sequence in high and low resolution.
+- Completed:
+  - `ega_pixel.v` now loads the panned plane bytes into the shifter and drives
+    subsequent dots from the shifted register state instead of static fetch
+    wires.
+  - Added `ega_pixel_tb.sv` coverage for high-resolution one-bit-per-dot
+    output and low-resolution two-dots-per-source-bit repeat behavior.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 255 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-402 - Implement Graphics Horizontal Panning Behavior
 
