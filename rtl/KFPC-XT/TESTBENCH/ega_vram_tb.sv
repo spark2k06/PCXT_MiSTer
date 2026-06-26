@@ -171,6 +171,27 @@ module ega_vram_tb;
         end
     endfunction
 
+    function automatic [7:0] expected_mode3_byte(
+        input [7:0] old_byte,
+        input [7:0] host_byte,
+        input       plane_set_reset,
+        input [7:0] mask_byte,
+        input [1:0] rop,
+        input [2:0] rotate_count_sel
+    );
+        reg [7:0] rotated_host_byte;
+        reg [7:0] effective_mask;
+        reg [7:0] src_byte;
+        reg [7:0] alu_byte;
+        begin
+            rotated_host_byte = rotate_right8(host_byte, rotate_count_sel);
+            effective_mask = rotated_host_byte & mask_byte;
+            src_byte = {8{plane_set_reset}};
+            alu_byte = apply_rop(old_byte, src_byte, rop);
+            expected_mode3_byte = (alu_byte & effective_mask) | (old_byte & ~effective_mask);
+        end
+    endfunction
+
     function automatic [7:0] expected_read_mode1(
         input [7:0] plane0_byte,
         input [7:0] plane1_byte,
@@ -528,7 +549,9 @@ module ega_vram_tb;
 
     task automatic test_write_mode3_and_map_mask;
         reg [7:0] expected0;
+        reg [7:0] expected1;
         reg [7:0] expected2;
+        reg [7:0] expected3;
         begin
             begin_test("write mode 3 and map mask");
             odd_even_mode = 1'b0;
@@ -564,11 +587,15 @@ module ega_vram_tb;
             rotate_count = 3'd4;
             set_reset = 8'h0F;
             enable_set_reset = 4'hF;
+            expected0 = expected_mode3_byte(8'h19, 8'hA5, set_reset[0], bit_mask, rop_select, rotate_count);
+            expected1 = expected_mode3_byte(8'h29, 8'hA5, set_reset[1], bit_mask, rop_select, rotate_count);
+            expected2 = expected_mode3_byte(8'h39, 8'hA5, set_reset[2], bit_mask, rop_select, rotate_count);
+            expected3 = expected_mode3_byte(8'h49, 8'hA5, set_reset[3], bit_mask, rop_select, rotate_count);
             cpu_write_tx(16'h0013, 8'hA5);
-            expect_eq8("write mode3 keeps plane0", dut.plane0[14'h0013], 8'h19);
-            expect_eq8("write mode3 keeps plane1", dut.plane1[14'h0013], 8'h29);
-            expect_eq8("write mode3 keeps plane2", dut.plane2[14'h0013], 8'h39);
-            expect_eq8("write mode3 keeps plane3", dut.plane3[14'h0013], 8'h49);
+            expect_eq8("write mode3 plane0", dut.plane0[14'h0013], expected0);
+            expect_eq8("write mode3 plane1", dut.plane1[14'h0013], expected1);
+            expect_eq8("write mode3 plane2", dut.plane2[14'h0013], expected2);
+            expect_eq8("write mode3 plane3", dut.plane3[14'h0013], expected3);
         end
     endtask
 

@@ -417,7 +417,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-109 - Fix VRAM Core Mismatches Exposed By Tests
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-105, EGA-106, EGA-107, EGA-108.
 - Files: `rtl/video/ega_vram.v`.
@@ -431,6 +431,17 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - All `ega_vram_tb.sv` CPU VRAM cases pass.
   - No unrelated scanout or register behavior is changed in this task.
+- Completed:
+  - `ega_vram.v` now implements write mode `3` using rotated host data as the
+    effective bit mask and per-plane Set/Reset as the source byte.
+  - The write mode `3` path now applies the selected ROP and merges the result
+    through `(rotated_host & bit_mask)`, matching `SPEC.md` section 5.
+  - `ega_vram_tb.sv` now computes write mode `3` expected bytes instead of
+    accepting the previous incorrect no-op behavior.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 249 warnings.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-110 - Decide And Document `cpu_access_en` Behavior
 

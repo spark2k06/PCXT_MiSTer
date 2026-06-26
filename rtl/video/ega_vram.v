@@ -265,10 +265,14 @@ module ega_vram (
         input [1:0] write_mode_sel;
         input [2:0] rotate_count_sel;
         reg   [7:0] rotated_host_byte;
+        reg   [7:0] effective_mask;
         reg   [7:0] src_byte;
         reg   [7:0] alu_byte;
         begin
             rotated_host_byte = rotate_right8(host_byte, rotate_count_sel);
+            effective_mask = mask_byte;
+            src_byte = 8'h00;
+            alu_byte = old_byte;
             case (write_mode_sel)
                 2'b00: begin
                     src_byte = plane_enable_set_reset ? {8{plane_set_reset}} : rotated_host_byte;
@@ -279,6 +283,12 @@ module ega_vram (
                     src_byte = {8{plane_host_bit}};
                     alu_byte = apply_rop(old_byte, src_byte, rop);
                     compute_write_byte = (alu_byte & mask_byte) | (old_byte & ~mask_byte);
+                end
+                2'b11: begin
+                    effective_mask = rotated_host_byte & mask_byte;
+                    src_byte = {8{plane_set_reset}};
+                    alu_byte = apply_rop(old_byte, src_byte, rop);
+                    compute_write_byte = (alu_byte & effective_mask) | (old_byte & ~effective_mask);
                 end
                 default: begin
                     compute_write_byte = old_byte;
