@@ -17,6 +17,7 @@ module ega_text (
     input  wire        blink_enable,
     input  wire        blink_state,
     input  wire        line_graphics_enable,
+    input  wire        cursor_active,
     input  wire [15:0] crtc_addr,
     input  wire [4:0]  scanline,
     input  wire [1:0]  char_map_a,
@@ -46,6 +47,12 @@ module ega_text (
     wire [3:0] background_index = blink_enable ? {1'b0, attr_latch[6:4]} : attr_latch[7:4];
     wire [3:0] visible_foreground_index =
         (blink_enable && attr_latch[7] && blink_state) ? background_index : foreground_index;
+    wire [3:0] cursor_foreground_index = attr_latch[7:4];
+    wire [3:0] cursor_background_index = attr_latch[3:0];
+    wire [3:0] active_foreground_index = cursor_active ? cursor_foreground_index :
+                                                         visible_foreground_index;
+    wire [3:0] active_background_index = cursor_active ? cursor_background_index :
+                                                         background_index;
 
     always @(posedge clk or posedge reset) begin
         if (reset) begin
@@ -83,7 +90,7 @@ module ega_text (
                         text_fetch_en <= 1'b1;
                     end
 
-                    plane_index <= glyph_pixel ? visible_foreground_index : background_index;
+                    plane_index <= glyph_pixel ? active_foreground_index : active_background_index;
                     pixel_valid <= 1'b1;
 
                     if (!text_data_valid) begin

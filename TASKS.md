@@ -840,7 +840,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-307 - Verify CRTC Reset And Display Disable Paths
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-302.
 - Files: `rtl/video/UM6845R.v`, `rtl/video/ega_top.v`.
@@ -1523,6 +1523,14 @@ must be anchored to the behavior it proves.
   - Apply cursor visibility and scanline range to the active text cell.
 - Acceptance:
   - Cursor tests show the cursor at the programmed cell and scanline range.
+- Completed:
+  - `UM6845R.v` now gates the cursor output with CRTC cursor disable state while preserving the existing cursor address and scanline-range compare.
+  - `ega_top.v` routes the CRTC `CURSOR` output into the text renderer.
+  - `ega_text.v` renders an active cursor by swapping foreground/background palette indexes for the current text cell, matching x86Box color text cursor behavior.
+  - `ega_text_tb.sv` covers cursor foreground/background swapping for set and clear glyph pixels.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 249 warnings.
+  - Standalone HDL simulation was not run because no simulator listed in `TEST_TOOLS.md` is installed in this environment.
 
 ### EGA-608 - Implement Mono Text Attributes And Underline
 

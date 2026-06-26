@@ -15,6 +15,7 @@ module ega_text_tb;
     reg blink_enable = 1'b0;
     reg blink_state = 1'b0;
     reg line_graphics_enable = 1'b0;
+    reg cursor_active = 1'b0;
     reg [15:0] crtc_addr = 16'h0000;
     reg [4:0] scanline = 5'd0;
     reg [1:0] char_map_a = 2'b00;
@@ -44,6 +45,7 @@ module ega_text_tb;
         .blink_enable(blink_enable),
         .blink_state(blink_state),
         .line_graphics_enable(line_graphics_enable),
+        .cursor_active(cursor_active),
         .crtc_addr(crtc_addr),
         .scanline(scanline),
         .char_map_a(char_map_a),
@@ -120,6 +122,7 @@ module ega_text_tb;
             blink_enable = 1'b0;
             blink_state = 1'b0;
             line_graphics_enable = 1'b0;
+            cursor_active = 1'b0;
             crtc_addr = 16'h0000;
             scanline = 5'd0;
             char_map_a = 2'b00;
@@ -280,6 +283,17 @@ module ega_text_tb;
         provide_cell(8'hC4, 8'h2F, 8'h01);
         repeat (9) step_pixel();
         expect4("disabled line graphics ninth dot uses background", plane_index, 4'h2);
+
+        reset_dut();
+
+        begin_test("text cursor swaps foreground and background");
+        display_enable = 1'b1;
+        cursor_active = 1'b1;
+        provide_cell(8'h46, 8'h1E, 8'h80);
+        step_pixel();
+        expect4("cursor set glyph bit uses original background", plane_index, 4'h1);
+        step_pixel();
+        expect4("cursor clear glyph bit uses original foreground", plane_index, 4'hE);
 
         if (failures == 0) begin
             $display("PASS: ega_text_tb");

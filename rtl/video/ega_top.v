@@ -274,6 +274,7 @@ module ega_top(
     wire ega_hres_mode_int = ~ega_dot_clock_div2;
     wire ega_attr_blink_enable;
     wire ega_attr_line_graphics_enable;
+    wire ega_cursor_active;
     reg [4:0] ega_text_fetch_phase = 5'd0;
     reg       ega_text_fetch_tick = 1'b0;
     wire [4:0] ega_text_fetch_phase_last =
@@ -338,7 +339,7 @@ module ega_top(
         .crtc_r17_debug(ega_crtc_r17_debug),
         .crtc_r15_debug(ega_crtc_r15_debug),
         .crtc_r16_debug(ega_crtc_r16_debug),
-        .CURSOR(),
+        .CURSOR(ega_cursor_active),
         .MA(ega_crtc_addr),
         .MA_FULL(ega_crtc_addr_full),
         .RA(ega_row_addr),
@@ -448,6 +449,7 @@ module ega_top(
         .blink_enable(ega_attr_blink_enable),
         .blink_state(ega_blink_state),
         .line_graphics_enable(ega_attr_line_graphics_enable),
+        .cursor_active(ega_cursor_active),
         .crtc_addr(ega_fetch_addr),
         .scanline(ega_row_addr),
         .char_map_a(ega_char_map_a),
