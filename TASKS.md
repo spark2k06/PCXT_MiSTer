@@ -99,7 +99,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-001 - Map Existing EGA RTL Against The Specification
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: none.
 - Files: `rtl/video/ega_top.v`, `rtl/video/ega_vram.v`,
@@ -571,6 +571,16 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Register tests cover readback and at least one functional downstream effect
     for critical GC registers.
+- Verification:
+  - Added `EGA_GFX_CTRL_AUDIT.md` mapping Graphics Controller registers
+    `00h..08h`, reset values, data-port readback, and exported control signals.
+  - The audit traces downstream VRAM effects for write/read modes, set/reset,
+    compare masks, bit mask, ROP/rotate, odd/even remap, chain-2 read, and
+    memory-map selection.
+  - The document records the deterministic sequence EGA-208 should encode in an
+    executable register testbench.
+  - Graphics Controller Misc bit `0` and Mode bit `5` storage/readback are
+    verified, with scanout/render consumption left to EGA-403 and EGA-404.
 
 ### EGA-207 - Implement CRTC Write Protection
 
