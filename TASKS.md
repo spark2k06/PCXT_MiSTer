@@ -246,7 +246,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-103 - Cover GC Memory Map Selection In Tests
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-102.
 - Files: `rtl/KFPC-XT/TESTBENCH/ega_vram_tb.sv`,
@@ -262,6 +262,15 @@ must be anchored to the behavior it proves.
     addresses.
   - The tests expose the current `A0000h-AFFFFh` only limitation before the RTL
     fix is applied.
+- Verification:
+  - `ega_vram_tb.sv` now has reference helpers for EGA absolute CPU aperture
+    selection and offset conversion.
+  - The testbench covers the first and last accepted address for all four GC
+    memory maps and drives `cpu_mem_select` low for outside-window write
+    attempts.
+  - The actual PCXT peripheral decode fix remains scoped to `EGA-104`.
+  - HDL simulation could not be run on this machine because no standalone HDL
+    simulator is installed; see `TEST_TOOLS.md`.
 
 ### EGA-104 - Implement Full EGA Memory Decode In `Peripherals.sv`
 

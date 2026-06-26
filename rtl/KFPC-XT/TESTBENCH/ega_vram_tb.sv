@@ -265,6 +265,27 @@ module ega_vram_tb;
         end
     endfunction
 
+    function automatic [16:0] ega_abs_to_offset(input [19:0] abs_addr);
+        begin
+            ega_abs_to_offset = (abs_addr - 20'hA0000) & 17'h1FFFF;
+        end
+    endfunction
+
+    function automatic expected_cpu_window_select(
+        input [19:0] abs_addr,
+        input [1:0]  map_sel
+    );
+        begin
+            case (map_sel)
+                2'b00: expected_cpu_window_select = (abs_addr >= 20'hA0000) && (abs_addr <= 20'hBFFFF);
+                2'b01: expected_cpu_window_select = (abs_addr >= 20'hA0000) && (abs_addr <= 20'hAFFFF);
+                2'b10: expected_cpu_window_select = (abs_addr >= 20'hB0000) && (abs_addr <= 20'hB7FFF);
+                2'b11: expected_cpu_window_select = (abs_addr >= 20'hB8000) && (abs_addr <= 20'hBFFFF);
+                default: expected_cpu_window_select = 1'b0;
+            endcase
+        end
+    endfunction
+
     task automatic expect_eq8(
         input [8*48-1:0] label,
         input [7:0] actual,
@@ -364,18 +385,41 @@ module ega_vram_tb;
         input [7:0] data
     );
         begin
+            cpu_write_select_tx(addr, data, 1'b1);
+        end
+    endtask
+
+    task automatic cpu_write_select_tx(
+        input [16:0] addr,
+        input [7:0] data,
+        input        mem_select
+    );
+        begin
             @(negedge clk);
             cpu_addr = addr[15:0];
             cpu_a16 = addr[16];
             cpu_data_in = data;
             cpu_re = 1'b0;
             cpu_we = 1'b1;
-            cpu_mem_select = 1'b1;
+            cpu_mem_select = mem_select;
             @(posedge clk);
             @(posedge clk);
             @(negedge clk);
             cpu_we = 1'b0;
             cpu_mem_select = 1'b0;
+        end
+    endtask
+
+    task automatic cpu_write_abs_tx(
+        input [19:0] abs_addr,
+        input [7:0]  data
+    );
+        begin
+            cpu_write_select_tx(
+                ega_abs_to_offset(abs_addr),
+                data,
+                expected_cpu_window_select(abs_addr, mem_map_sel)
+            );
         end
     endtask
 
@@ -561,6 +605,82 @@ module ega_vram_tb;
         end
     endtask
 
+    task automatic test_memory_map_windows;
+        reg [15:0] map0_first_addr;
+        reg [15:0] map0_last_addr;
+        reg [15:0] map1_first_addr;
+        reg [15:0] map1_last_addr;
+        reg [15:0] map2_first_addr;
+        reg [15:0] map2_last_addr;
+        reg [15:0] map3_first_addr;
+        reg [15:0] map3_last_addr;
+        begin
+            begin_test("GC memory map window selection");
+            plane_write_mask = 4'hF;
+            odd_even_mode = 1'b0;
+            chain2_write = 1'b0;
+            chain2_read = 1'b0;
+            extended_memory = 1'b1;
+            page_select = 1'b0;
+            write_mode = 2'b00;
+            read_mode = 2'b00;
+            read_plane_sel = 2'b00;
+            bit_mask = 8'hFF;
+            rop_select = 2'b00;
+            rotate_count = 3'd0;
+            set_reset = 8'h00;
+            enable_set_reset = 4'h0;
+
+            mem_map_sel = 2'b00;
+            map0_first_addr = expected_cpu_plane_addr(ega_abs_to_offset(20'hA0000), odd_even_mode, extended_memory, mem_map_sel, page_select);
+            map0_last_addr = expected_cpu_plane_addr(ega_abs_to_offset(20'hBFFFF), odd_even_mode, extended_memory, mem_map_sel, page_select);
+            set_planes(map0_first_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            set_planes(map0_last_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            cpu_write_abs_tx(20'hA0000, 8'h10);
+            cpu_write_abs_tx(20'hBFFFF, 8'h11);
+            cpu_write_abs_tx(20'hC0000, 8'hEE);
+            expect_eq8("map0 accepts A0000h", dut.plane0[map0_first_addr], 8'h10);
+            expect_eq8("map0 accepts BFFFFh", dut.plane0[map0_last_addr], 8'h11);
+            expect_eq8("map0 ignores C0000h", dut.plane0[map0_first_addr], 8'h10);
+
+            mem_map_sel = 2'b01;
+            map1_first_addr = expected_cpu_plane_addr(ega_abs_to_offset(20'hA0000), odd_even_mode, extended_memory, mem_map_sel, page_select);
+            map1_last_addr = expected_cpu_plane_addr(ega_abs_to_offset(20'hAFFFF), odd_even_mode, extended_memory, mem_map_sel, page_select);
+            set_planes(map1_first_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            set_planes(map1_last_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            cpu_write_abs_tx(20'hA0000, 8'h20);
+            cpu_write_abs_tx(20'hAFFFF, 8'h21);
+            cpu_write_abs_tx(20'hB0000, 8'hEE);
+            expect_eq8("map1 accepts A0000h", dut.plane0[map1_first_addr], 8'h20);
+            expect_eq8("map1 accepts AFFFFh", dut.plane0[map1_last_addr], 8'h21);
+            expect_eq8("map1 ignores B0000h", dut.plane0[map1_first_addr], 8'h20);
+
+            mem_map_sel = 2'b10;
+            map2_first_addr = expected_cpu_plane_addr(ega_abs_to_offset(20'hB0000), odd_even_mode, extended_memory, mem_map_sel, page_select);
+            map2_last_addr = expected_cpu_plane_addr(ega_abs_to_offset(20'hB7FFF), odd_even_mode, extended_memory, mem_map_sel, page_select);
+            set_planes(map2_first_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            set_planes(map2_last_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            cpu_write_abs_tx(20'hB0000, 8'h30);
+            cpu_write_abs_tx(20'hB7FFF, 8'h31);
+            cpu_write_abs_tx(20'hAFFFF, 8'hEE);
+            expect_eq8("map2 accepts B0000h", dut.plane0[map2_first_addr], 8'h30);
+            expect_eq8("map2 accepts B7FFFh", dut.plane0[map2_last_addr], 8'h31);
+            expect_eq8("map2 ignores AFFFFh", dut.plane0[map2_last_addr], 8'h31);
+
+            mem_map_sel = 2'b11;
+            map3_first_addr = expected_cpu_plane_addr(ega_abs_to_offset(20'hB8000), odd_even_mode, extended_memory, mem_map_sel, page_select);
+            map3_last_addr = expected_cpu_plane_addr(ega_abs_to_offset(20'hBFFFF), odd_even_mode, extended_memory, mem_map_sel, page_select);
+            set_planes(map3_first_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            set_planes(map3_last_addr, 8'h00, 8'h00, 8'h00, 8'h00);
+            cpu_write_abs_tx(20'hB8000, 8'h40);
+            cpu_write_abs_tx(20'hBFFFF, 8'h41);
+            cpu_write_abs_tx(20'hB7FFF, 8'hEE);
+            expect_eq8("map3 accepts B8000h", dut.plane0[map3_first_addr], 8'h40);
+            expect_eq8("map3 accepts BFFFFh", dut.plane0[map3_last_addr], 8'h41);
+            expect_eq8("map3 ignores B7FFFh", dut.plane0[map3_last_addr], 8'h41);
+        end
+    endtask
+
     initial begin
         reset_inputs();
         repeat (4) @(posedge clk);
@@ -570,6 +690,7 @@ module ega_vram_tb;
         test_read_mode1();
         test_consecutive_writes();
         test_cpu_a16_remap();
+        test_memory_map_windows();
 
         if (failures != 0) begin
             $display("ega_vram_tb FAILED with %0d mismatches", failures);
