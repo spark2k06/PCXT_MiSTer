@@ -460,7 +460,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-202 - Implement Color/Mono CRTC And Status Port Selection
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-201.
 - Files: `rtl/video/ega_top.v`, `rtl/video/UM6845R.v`.
@@ -474,6 +474,13 @@ must be anchored to the behavior it proves.
 - Acceptance:
   - Register tests can switch between color and mono port sets.
   - Attribute flip-flop reset works from the active status port.
+- Verification:
+  - `ega_top.v` now selects `3D4h/3D5h` plus `3DAh` when Misc Output bit `0`
+    is set and `3B4h/3B5h` plus `3BAh` when it is clear.
+  - The active status decode still feeds `ega_attrib_ctrl.status_re`, so the
+    Attribute Controller flip-flop reset follows the selected status port.
+  - `EGA_IO_DECODE_AUDIT.md` was updated to reflect dynamic color/mono decode.
+  - Full Quartus Analysis & Elaboration must pass before commit.
 
 ### EGA-203 - Complete Attribute Controller Flip-Flop Semantics
 

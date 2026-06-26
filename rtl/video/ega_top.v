@@ -168,8 +168,14 @@ module ega_top(
     wire [15:0] ega_io_addr = {1'b0, bus_a};
     wire ega_io_we = ~bus_iow_l & ~bus_aen & ega_enabled;
     wire ega_io_re = ~bus_ior_l & ~bus_aen & ega_enabled;
-    wire ega_crtc_cs = (bus_a[14:3] == IO_BASE_ADDR[14:3]) & ~bus_aen & ega_enabled;
-    wire ega_status_cs = (bus_a == (IO_BASE_ADDR[14:0] + 15'h000A)) & ~bus_aen & ega_enabled;
+    reg [7:0] ega_misc_output_reg = 8'h63;
+    wire ega_color_io_select = ega_misc_output_reg[0];
+    wire ega_color_crtc_cs = (bus_a[14:1] == (15'h03D4 >> 1));
+    wire ega_mono_crtc_cs = (bus_a[14:1] == (15'h03B4 >> 1));
+    wire ega_color_status_cs = (bus_a == 15'h03DA);
+    wire ega_mono_status_cs = (bus_a == 15'h03BA);
+    wire ega_crtc_cs = (ega_color_io_select ? ega_color_crtc_cs : ega_mono_crtc_cs) & ~bus_aen & ega_enabled;
+    wire ega_status_cs = (ega_color_io_select ? ega_color_status_cs : ega_mono_status_cs) & ~bus_aen & ega_enabled;
     wire ega_seq_data_cs = ((bus_a == 15'h03C5) || (bus_a == 15'h02C5)) & ~bus_aen & ega_enabled;
     wire ega_attr_read_cs = ((bus_a == 15'h03C1) || (bus_a == 15'h02C1)) & ~bus_aen & ega_enabled;
     wire ega_misc_write_cs = ((bus_a == 15'h03C2) || (bus_a == 15'h02C2)) & ~bus_aen & ega_enabled;
@@ -263,7 +269,6 @@ module ega_top(
     reg [7:0]  ega_last_crtc_data = 8'h00;
     reg [7:0]  ega_prev_crtc_index = 8'h00;
     reg [7:0]  ega_prev_crtc_data = 8'h00;
-    reg [7:0]  ega_misc_output_reg = 8'h63;
     wire [7:0] ega_status_reg = {4'b0000, ega_status_vretrace_active, 2'b00, ega_blanking_active};
 
     UM6845R ega_crtc (
