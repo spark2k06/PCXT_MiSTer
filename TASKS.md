@@ -1883,7 +1883,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-902 - Document Hardware Formulas And x86Box Mappings
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P2`
 - Depends on: EGA-303, EGA-401, EGA-601.
 - Files: comments in EGA RTL, `SPEC.md` if behavior needs clarification.
@@ -1895,6 +1895,15 @@ must be anchored to the behavior it proves.
   - Avoid comments that restate signal names or assignments.
 - Acceptance:
   - Future maintainers can trace complex formulas back to the spec/reference.
+- Completed:
+  - Added short RTL comments in `ega_vram.v` for x86Box-style CPU address
+    remapping, EGA write-mode helper behavior, and read mode 1 pixel compare.
+  - Added short RTL comments in `ega_pixel.v` for CGA-compatible 2bpp remapping
+    and Attribute Controller horizontal panning across byte boundaries.
+  - Added short RTL comments in `ega_text.v` for MDA-style mono attributes and
+    text/font plane addressing.
+  - No logic changes were made.
+  - `git diff --check` passed.
 
 ### EGA-903 - Record Intentional Deviations From IBM EGA
 

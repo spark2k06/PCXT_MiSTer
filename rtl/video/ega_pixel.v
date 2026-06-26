@@ -17,7 +17,7 @@ module ega_pixel (
     input  wire        dot_clock_div2,
     input  wire        display_enable,
     input  wire [1:0]  render_mode,
-    input  wire [3:0]  h_pixel_pan,    //NEW
+    input  wire [3:0]  h_pixel_pan,
     output reg  [3:0]  plane_index,
     output reg         pixel_valid,
     output wire [1:0]  render_mode_debug
@@ -41,6 +41,8 @@ module ega_pixel (
     reg       display_enable_q = 1'b0;
     reg [3:0] pan_cache = 4'd0;
 
+    // EGA CGA-compatible graphics fetches pack adjacent 2bpp pixels across
+    // planes; this mirrors x86Box's EGA render path before palette lookup.
     function [3:0] egaremap2bpp;
         input [7:0] value;
         begin
@@ -59,7 +61,8 @@ module ega_pixel (
     wire [7:0] load_plane3 = fetch_en ? input_plane3 : fetch_plane3;
     wire [3:0] sanitized_pan = h_pixel_pan[3] ? 4'd0 : h_pixel_pan;
     wire [3:0] active_pan = (display_enable && !display_enable_q) ? sanitized_pan : pan_cache;
-    //NEW pixel panning
+    // Attribute Controller horizontal panning is sampled at active-display
+    // entry and shifts pixels across the previous/current byte boundary.
     wire [15:0] pan_window0 = {fetch_plane0, load_plane0};
     wire [15:0] pan_window1 = {fetch_plane1, load_plane1};
     wire [15:0] pan_window2 = {fetch_plane2, load_plane2};
@@ -113,7 +116,7 @@ module ega_pixel (
                 load_pending <= 1'b0;
 
                 if (dot_clock_div2) begin
-                    shift_plane0 <= panned0; //load_plane
+                    shift_plane0 <= panned0;
                     shift_plane1 <= panned1;
                     shift_plane2 <= panned2;
                     shift_plane3 <= panned3;
@@ -121,7 +124,7 @@ module ega_pixel (
                     repeat_phase <= 1'b1;
                 end
                 else begin
-                    shift_plane0 <= {panned0[6:0], 1'b0}; //load_plane
+                    shift_plane0 <= {panned0[6:0], 1'b0};
                     shift_plane1 <= {panned1[6:0], 1'b0};
                     shift_plane2 <= {panned2[6:0], 1'b0};
                     shift_plane3 <= {panned3[6:0], 1'b0};

@@ -178,6 +178,8 @@ module ega_vram (
     assign crt_plane3 = crt_plane3_r;
 `endif
 
+    // CPU aperture remapping follows x86Box vid_ega.c ega_remap_cpu_addr:
+    // odd/even, 64K, and A000-BFFF map modes all feed the A0 mux.
     function [15:0] remap_cpu_addr;
         input [15:0] inaddr;
         input        inaddr_a16;
@@ -262,6 +264,8 @@ module ega_vram (
         end
     endfunction
 
+    // Implements EGA write modes 0, 2, and 3 after latch capture. Mode 1 is
+    // handled outside this helper because it writes the latched byte unchanged.
     function [7:0] compute_write_byte;
         input [7:0] old_byte;
         input [7:0] host_byte;
@@ -305,6 +309,8 @@ module ega_vram (
         end
     endfunction
 
+    // Read mode 1 compares each assembled planar pixel against Color Compare,
+    // masked by Color Don't Care, and returns one match bit per pixel.
     function [7:0] read_mode1_byte;
         input [7:0] plane0_byte;
         input [7:0] plane1_byte;

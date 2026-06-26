@@ -93,6 +93,8 @@ module ega_text (
         end
     endfunction
 
+    // The mono table follows x86Box's MDA-style EGA attribute handling:
+    // selected attributes force black/white pairs before cursor XOR.
     function [3:0] mono_attr_index;
         input [7:0] attr;
         input       blink;
@@ -161,6 +163,8 @@ module ega_text (
 
                     if (start_cell) begin
                         text_cell_addr <= crtc_addr;
+                        // Text mode stores character bytes in plane 0/1 and
+                        // font rows in plane 2; bank select occupies bits 15:14.
                         text_font_addr <= {font_bank, 14'b00000000000000} +
                                           {3'b000, char_latch, 5'b00000} +
                                           {11'd0, scanline};
