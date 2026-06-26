@@ -14,6 +14,7 @@ module ega_text (
     input  wire        display_enable,
     input  wire        dot_clock_div2,
     input  wire        char_9dot,
+    input  wire [3:0]  h_pixel_pan,
     input  wire        blink_enable,
     input  wire        blink_state,
     input  wire        mono_attributes,
@@ -39,6 +40,9 @@ module ega_text (
     reg [7:0] attr_latch = 8'h00;
     reg [8:0] glyph_shift = 9'h000;
     reg       dot_repeat = 1'b0;
+    reg       display_enable_q = 1'b0;
+    reg [3:0] pan_cache = 4'd0;
+    reg [31:0] pan_history = 32'h00000000;
 
     wire       start_cell = display_enable && fetch_tick;
     wire [1:0] font_bank = attr_latch[3] ? char_map_b : char_map_a;
@@ -66,6 +70,28 @@ module ega_text (
     wire [3:0] mono_active_index = cursor_active ? (mono_base_index ^ mono_cursor_xor_index) :
                                                    mono_base_index;
     wire [3:0] color_active_index = glyph_pixel ? active_foreground_index : active_background_index;
+    wire [3:0] unpanned_index = mono_attributes ? mono_active_index : color_active_index;
+    wire [3:0] sanitized_pan = h_pixel_pan[3] ? 4'd0 : h_pixel_pan;
+    wire [3:0] active_pan = (display_enable && !display_enable_q) ? sanitized_pan : pan_cache;
+    wire [3:0] panned_index = (active_pan == 4'd0) ? unpanned_index :
+                              pan_history_pixel(pan_history, active_pan - 4'd1);
+
+    function [3:0] pan_history_pixel;
+        input [31:0] history;
+        input [3:0]  index;
+        begin
+            case (index[2:0])
+                3'd0: pan_history_pixel = history[3:0];
+                3'd1: pan_history_pixel = history[7:4];
+                3'd2: pan_history_pixel = history[11:8];
+                3'd3: pan_history_pixel = history[15:12];
+                3'd4: pan_history_pixel = history[19:16];
+                3'd5: pan_history_pixel = history[23:20];
+                3'd6: pan_history_pixel = history[27:24];
+                3'd7: pan_history_pixel = history[31:28];
+            endcase
+        end
+    endfunction
 
     function [3:0] mono_attr_index;
         input [7:0] attr;
@@ -97,6 +123,9 @@ module ega_text (
             attr_latch <= 8'h00;
             glyph_shift <= 9'h000;
             dot_repeat <= 1'b0;
+            display_enable_q <= 1'b0;
+            pan_cache <= 4'd0;
+            pan_history <= 32'h00000000;
             text_cell_addr <= 16'h0000;
             text_font_addr <= 16'h0000;
             text_fetch_en <= 1'b0;
@@ -113,12 +142,23 @@ module ega_text (
             end
 
             if (ce_pix) begin
+                display_enable_q <= display_enable;
+
                 if (!display_enable) begin
                     glyph_shift <= 9'h000;
                     dot_repeat <= 1'b0;
+                    pan_cache <= 4'd0;
+                    pan_history <= 32'h00000000;
                     plane_index <= 4'h0;
                     pixel_valid <= 1'b0;
                 end else begin
+                    if (!display_enable_q) begin
+                        pan_cache <= sanitized_pan;
+                        pan_history <= {28'h0000000, unpanned_index};
+                    end else begin
+                        pan_history <= {pan_history[27:0], unpanned_index};
+                    end
+
                     if (start_cell) begin
                         text_cell_addr <= crtc_addr;
                         text_font_addr <= {font_bank, 14'b00000000000000} +
@@ -127,7 +167,7 @@ module ega_text (
                         text_fetch_en <= 1'b1;
                     end
 
-                    plane_index <= mono_attributes ? mono_active_index : color_active_index;
+                    plane_index <= panned_index;
                     pixel_valid <= 1'b1;
 
                     if (!text_data_valid) begin

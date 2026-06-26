@@ -447,6 +447,7 @@ module ega_top(
         .display_enable(ega_display_enable),
         .dot_clock_div2(ega_dot_clock_div2),
         .char_9dot(ega_char_9dot),
+        .h_pixel_pan(ega_h_pixel_pan),
         .blink_enable(ega_attr_blink_enable),
         .blink_state(ega_blink_state),
         .mono_attributes(ega_attr_mono_attributes),

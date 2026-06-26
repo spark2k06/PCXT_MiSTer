@@ -1513,7 +1513,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-607 - Implement Cursor Rendering
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-603, EGA-605.
 - Files: `rtl/video/UM6845R.v`, text renderer module.
@@ -1566,6 +1566,14 @@ must be anchored to the behavior it proves.
   - Verify behavior across the left edge and line compare split.
 - Acceptance:
   - Text panning shifts glyph pixels without corrupting character fetch order.
+- Completed:
+  - `ega_top.v` now routes Attribute Controller horizontal pixel panning into the text renderer.
+  - `ega_text.v` caches the sanitized panning value at display activation and applies it through a pixel-index delay line, so visible text pixels shift without changing character fetch cadence or CRTC text addresses.
+  - Values `8..15` are treated as zero panning, matching the existing base-EGA graphics panning behavior.
+  - `ega_text_tb.sv` adds smoke coverage for panned text pixels at the left edge and verifies panning does not alter cell fetch addresses across a split-style address reset.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 249 warnings.
+  - Standalone HDL simulation was not run because no simulator listed in `TEST_TOOLS.md` is installed in this environment.
 
 ### EGA-610 - Add Text Renderer Testbench Coverage
 

@@ -12,6 +12,7 @@ module ega_text_tb;
     reg display_enable = 1'b0;
     reg dot_clock_div2 = 1'b0;
     reg char_9dot = 1'b0;
+    reg [3:0] h_pixel_pan = 4'd0;
     reg blink_enable = 1'b0;
     reg blink_state = 1'b0;
     reg mono_attributes = 1'b0;
@@ -44,6 +45,7 @@ module ega_text_tb;
         .display_enable(display_enable),
         .dot_clock_div2(dot_clock_div2),
         .char_9dot(char_9dot),
+        .h_pixel_pan(h_pixel_pan),
         .blink_enable(blink_enable),
         .blink_state(blink_state),
         .mono_attributes(mono_attributes),
@@ -123,6 +125,7 @@ module ega_text_tb;
             display_enable = 1'b0;
             dot_clock_div2 = 1'b0;
             char_9dot = 1'b0;
+            h_pixel_pan = 4'd0;
             blink_enable = 1'b0;
             blink_state = 1'b0;
             mono_attributes = 1'b0;
@@ -328,6 +331,35 @@ module ega_text_tb;
         provide_cell(8'h48, 8'h01, 8'h00);
         step_pixel();
         expect4("mono underline draws foreground over clear glyph", plane_index, 4'h7);
+
+        reset_dut();
+
+        begin_test("text horizontal panning delays visible pixels");
+        display_enable = 1'b1;
+        h_pixel_pan = 4'd2;
+        provide_cell(8'h49, 8'h1E, 8'hC0);
+        step_pixel();
+        expect4("first panned pixel comes from left history", plane_index, 4'h0);
+        step_pixel();
+        expect4("second panned pixel comes from left history", plane_index, 4'h0);
+        step_pixel();
+        expect4("third panned pixel is first glyph foreground", plane_index, 4'hE);
+        step_pixel();
+        expect4("fourth panned pixel is second glyph foreground", plane_index, 4'hE);
+
+        reset_dut();
+
+        begin_test("text panning does not change cell fetch addresses");
+        display_enable = 1'b1;
+        h_pixel_pan = 4'd3;
+        pulse_fetch(16'h0555);
+        expect1("panned first cell fetch", text_fetch_en, 1'b1);
+        expect16("panned first cell address", text_cell_addr, 16'h0555);
+        provide_cell(8'h4A, 8'h2F, 8'hF0);
+        wait_pixels(7);
+        pulse_fetch(16'h0000);
+        expect1("panned split cell fetch", text_fetch_en, 1'b1);
+        expect16("panned split cell address", text_cell_addr, 16'h0000);
 
         if (failures == 0) begin
             $display("PASS: ega_text_tb");
