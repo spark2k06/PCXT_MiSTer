@@ -1534,7 +1534,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-608 - Implement Mono Text Attributes And Underline
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-605, EGA-202.
 - Files: text renderer module, `rtl/video/ega_attrib_ctrl.v`.
@@ -1587,6 +1587,13 @@ must be anchored to the behavior it proves.
     9th-dot line graphics, Character Map Select, and mono attributes.
 - Acceptance:
   - Text tests fail if the renderer treats text memory as planar graphics.
+- Completed:
+  - Existing `ega_text_tb.sv` now covers 80-column and 40-column text cell fetch cadence, including explicit `text_cell_addr` checks that would fail if text were treated as planar graphics bytes.
+  - The testbench covers Character Map Select font-bank addressing, glyph foreground/background selection, background intensity, blink, cursor foreground/background behavior, 9-dot line graphics, mono attributes, underline, and horizontal panning.
+  - Split-style address reset coverage verifies panning does not alter cell fetch addresses when the CRTC address changes.
+  - `git diff --check` passed.
+  - Quartus Analysis & Elaboration passed with 0 errors and 249 warnings in the preceding text renderer tasks.
+  - Standalone HDL simulation was not run because no simulator listed in `TEST_TOOLS.md` is installed in this environment.
 
 ## EGA-700: PCXT Integration And BIOS Compatibility
 
