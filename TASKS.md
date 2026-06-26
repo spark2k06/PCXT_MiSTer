@@ -1627,7 +1627,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-702 - Preserve CGA/HGC/Tandy Coexistence
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: EGA-104, EGA-701.
 - Files: `rtl/KFPC-XT/HDL/Peripherals.sv`, `rtl/video/cga.v`,
@@ -1655,7 +1655,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-703 - Verify EGA BIOS ROM Loading And Protection
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-701.
 - Files: `PCXT.sv`, `egabios.asm`, `egabios.rom`, BIOS loading logic.
