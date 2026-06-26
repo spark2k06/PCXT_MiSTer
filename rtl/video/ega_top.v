@@ -194,7 +194,6 @@ module ega_top(
     wire ega_dac_write_index_cs = ((bus_a == 15'h03C8) || (bus_a == 15'h02C8)) & ~bus_aen & ega_enabled;
     wire ega_dac_data_cs = ((bus_a == 15'h03C9) || (bus_a == 15'h02C9)) & ~bus_aen & ega_enabled;
     wire ega_cfg_we = ega_enabled && ega_io_we && ((ega_io_addr == 16'h03C5) || (ega_io_addr == 16'h02C5) || (ega_io_addr == 16'h03CF) || (ega_io_addr == 16'h02CF));
-    wire ega_debug_io_range = (ega_io_addr >= 16'h02C0) && (ega_io_addr <= 16'h03DA);
 
     reg ega_video_active = 1'b0;
     reg ega_video_pending = 1'b0;
@@ -292,15 +291,6 @@ module ega_top(
     reg cpu_mem_write_evt_d = 1'b0;
     wire cpu_mem_write_evt = cpu_mem_select & cpu_mem_write;
     wire cpu_mem_write_stretched = cpu_mem_write_evt | cpu_mem_write_evt_d;
-    reg [15:0] ega_last_wr_addr = 16'h0000;
-    reg [7:0]  ega_last_wr_data = 8'h00;
-    reg [15:0] ega_last_rd_addr = 16'h0000;
-    reg [7:0]  ega_last_rd_data = 8'h00;
-    reg [4:0]  ega_crtc_index_shadow = 5'd0;
-    reg [7:0]  ega_last_crtc_index = 8'h00;
-    reg [7:0]  ega_last_crtc_data = 8'h00;
-    reg [7:0]  ega_prev_crtc_index = 8'h00;
-    reg [7:0]  ega_prev_crtc_data = 8'h00;
     reg        ega_status_read_q = 1'b0;
     reg [1:0]  ega_status_toggle = 2'b00;
     reg        ega_vblank_crtc_q = 1'b0;
@@ -563,15 +553,6 @@ module ega_top(
         if (reset) begin
             cga_vblank_q <= 1'b0;
             ega_cfg_toggle <= 1'b0;
-            ega_last_wr_addr <= 16'h0000;
-            ega_last_wr_data <= 8'h00;
-            ega_last_rd_addr <= 16'h0000;
-            ega_last_rd_data <= 8'h00;
-            ega_crtc_index_shadow <= 5'd0;
-            ega_last_crtc_index <= 8'h00;
-            ega_last_crtc_data <= 8'h00;
-            ega_prev_crtc_index <= 8'h00;
-            ega_prev_crtc_data <= 8'h00;
             ega_status_read_q <= 1'b0;
             ega_status_toggle <= 2'b00;
             ega_vblank_crtc_q <= 1'b0;
@@ -607,41 +588,12 @@ module ega_top(
                 ega_blink_counter <= ega_blink_counter + 7'd1;
 
             if (!ega_enabled) begin
-                ega_last_wr_addr <= 16'h0000;
-                ega_last_wr_data <= 8'h00;
-                ega_last_rd_addr <= 16'h0000;
-                ega_last_rd_data <= 8'h00;
-                ega_crtc_index_shadow <= 5'd0;
-                ega_last_crtc_index <= 8'h00;
-                ega_last_crtc_data <= 8'h00;
-                ega_prev_crtc_index <= 8'h00;
-                ega_prev_crtc_data <= 8'h00;
                 ega_status_read_q <= 1'b0;
                 ega_status_toggle <= 2'b00;
                 ega_vblank_crtc_q <= 1'b0;
                 ega_blink_counter <= 7'h00;
                 ega_text_fetch_phase <= 5'd0;
                 ega_text_fetch_tick <= 1'b0;
-            end
-            else if (ega_io_we && ega_debug_io_range) begin
-                ega_last_wr_addr <= ega_io_addr;
-                ega_last_wr_data <= bus_d;
-            end
-
-            if (ega_io_we && ega_crtc_cs) begin
-                if (!bus_a[0]) begin
-                    ega_crtc_index_shadow <= bus_d[4:0];
-                end else begin
-                    ega_prev_crtc_index <= ega_last_crtc_index;
-                    ega_prev_crtc_data <= ega_last_crtc_data;
-                    ega_last_crtc_index <= {3'b000, ega_crtc_index_shadow};
-                    ega_last_crtc_data <= bus_d;
-                end
-            end
-
-            if (ega_io_re && ega_debug_io_range) begin
-                ega_last_rd_addr <= ega_io_addr;
-                ega_last_rd_data <= ega_bus_out_mux;
             end
 
             if (!ega_enabled) begin

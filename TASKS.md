@@ -1869,7 +1869,7 @@ must be anchored to the behavior it proves.
 
 ### EGA-901 - Remove Or Gate Temporary Debug Logic
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: EGA-705.
 - Files: `rtl/video/ega_top.v`, any modified EGA RTL.
@@ -1880,6 +1880,14 @@ must be anchored to the behavior it proves.
   - Ensure debug logic does not drive compatibility behavior.
 - Acceptance:
   - Release-candidate RTL contains no accidental debug-dependent behavior.
+- Completed:
+  - Removed unused `ega_top.v` debug-only last-read, last-write, and previous
+    CRTC write tracking state that Quartus reported as assigned but never read.
+  - Removed the associated EGA debug I/O range capture path.
+  - Kept stable diagnostic/configuration wires that are consumed by the RTL or
+    testbenches.
+  - Quartus Analysis & Elaboration passed with 0 errors and 243 warnings.
+  - EGA-705 platform smoke remains a separate visual validation task.
 
 ### EGA-902 - Document Hardware Formulas And x86Box Mappings
 
