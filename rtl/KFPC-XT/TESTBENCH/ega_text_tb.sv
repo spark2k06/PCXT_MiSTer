@@ -298,11 +298,16 @@ module ega_text_tb;
         begin_test("text cursor swaps foreground and background");
         display_enable = 1'b1;
         cursor_active = 1'b1;
+        blink_state = 1'b1;
         provide_cell(8'h46, 8'h1E, 8'h80);
         step_pixel();
         expect4("cursor set glyph bit uses original background", plane_index, 4'h1);
         step_pixel();
         expect4("cursor clear glyph bit uses original foreground", plane_index, 4'hE);
+        blink_state = 1'b0;
+        provide_cell(8'h46, 8'h1E, 8'h80);
+        step_pixel();
+        expect4("cursor blink off leaves set glyph foreground", plane_index, 4'hE);
 
         reset_dut();
 

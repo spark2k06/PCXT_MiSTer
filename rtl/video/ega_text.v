@@ -53,13 +53,14 @@ module ega_text (
     wire [3:0] background_index = blink_enable ? {1'b0, attr_latch[6:4]} : attr_latch[7:4];
     wire [3:0] visible_foreground_index =
         (blink_enable && attr_latch[7] && blink_state) ? background_index : foreground_index;
+    wire       cursor_visible = cursor_active && blink_state;
     wire [3:0] cursor_foreground_index = attr_latch[7:4];
     wire [3:0] cursor_background_index = attr_latch[3:0];
-    wire [3:0] active_foreground_index = cursor_active ? cursor_foreground_index :
+    wire [3:0] active_foreground_index = cursor_visible ? cursor_foreground_index :
                                                          visible_foreground_index;
-    wire [3:0] active_background_index = cursor_active ? cursor_background_index :
+    wire [3:0] active_background_index = cursor_visible ? cursor_background_index :
                                                          background_index;
-    wire       mono_blink_active = !cursor_active && blink_enable && attr_latch[7] && blink_state;
+    wire       mono_blink_active = !cursor_visible && blink_enable && attr_latch[7] && blink_state;
     wire       mono_underline = mono_attributes && (scanline == underline_scanline) &&
                                 (attr_latch[2:0] == 3'b001);
     wire [3:0] mono_bit_index = mono_attr_index(attr_latch, mono_blink_active, glyph_pixel);
@@ -67,7 +68,7 @@ module ega_text (
                                  mono_attr_index(attr_latch, mono_blink_active, 1'b1) :
                                  mono_bit_index;
     wire [3:0] mono_cursor_xor_index = mono_attr_index(attr_latch, 1'b0, 1'b1);
-    wire [3:0] mono_active_index = cursor_active ? (mono_base_index ^ mono_cursor_xor_index) :
+    wire [3:0] mono_active_index = cursor_visible ? (mono_base_index ^ mono_cursor_xor_index) :
                                                    mono_base_index;
     wire [3:0] color_active_index = glyph_pixel ? active_foreground_index : active_background_index;
     wire [3:0] unpanned_index = mono_attributes ? mono_active_index : color_active_index;
