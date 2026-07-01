@@ -493,9 +493,9 @@ must be anchored to the behavior it proves.
 - Verification:
   - Added `EGA_IO_DECODE_AUDIT.md` mapping every `SPEC.md` section 3 port to
     current RTL behavior.
-  - The audit identifies implemented paths, DAC stubs, missing switch-sense and
-    Feature Control behavior, fixed color CRTC/status decode, and readback
-    gating by `ega_display_sel`.
+  - The audit identifies implemented paths, DAC stubs, implemented
+    switch-sense reads, missing Feature Control behavior, fixed color
+    CRTC/status decode, and readback gating by `ega_display_sel`.
 
 ### EGA-202 - Implement Color/Mono CRTC And Status Port Selection
 
@@ -567,8 +567,9 @@ must be anchored to the behavior it proves.
     propagation to VRAM remap, and bit `7` palette-width propagation.
   - DAC ports are documented as stubs that return `00h` and do not override the
     base EGA palette path.
-  - Bit `2` clock select and `3C2h` switch-sense reads are recorded as remaining
-    gaps beyond storage/readback.
+  - `3C2h` switch-sense reads return the selected bit from a color EGA switch
+    pattern. Bit `2` clock select timing remains a gap beyond storage/readback
+    and switch-sense selection.
 
 ### EGA-205 - Verify Sequencer Register Behavior
 

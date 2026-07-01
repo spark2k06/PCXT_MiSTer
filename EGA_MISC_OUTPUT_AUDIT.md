@@ -9,6 +9,8 @@ This audit covers EGA-204 against `SPEC.md` sections 4.1, 8, and 10, using
 `ega_top.v` stores Misc Output in `ega_misc_output_reg`, reset to `63h`.
 
 - Writes to `3C2h` / `2C2h` update the register through `ega_misc_write_cs`.
+- Reads from `3C2h` / `2C2h` return switch-sense bit `4`, selected by Misc
+  Output bits `3:2`, for the color EGA switch pattern.
 - Reads from `3CCh` / `2CCh` return `ega_misc_output_reg` through
   `ega_misc_read_cs`.
 - The readback path is included in `ega_bus_dir_sel`, so Misc Output readback
@@ -21,7 +23,7 @@ This audit covers EGA-204 against `SPEC.md` sections 4.1, 8, and 10, using
 | `0` | Color/mono I/O select | Drives `ega_color_io_select`, selecting `3D4h/3D5h/3DAh` or `3B4h/3B5h/3BAh`. |
 | `1` | RAM enable on some adapters | Stored/readable. Base IBM mapping remains active, matching the current practical core behavior. |
 | `2` | Clock select | Stored/readable. No current downstream timing consumer was found. |
-| `3` | Switch-sense select | Stored/readable. `3C2h` switch-sense reads are not implemented. |
+| `3` | Switch-sense select | Stored/readable. Along with bit `2`, selects the returned `3C2h` switch-sense bit. |
 | `5` | CPU odd/even page select | Exported as `ega_page_select_out` and consumed by `ega_vram_bram_frontend` as `page_select`. |
 | `7` | 16-color versus 64-color palette width | Feeds `ega_attrib_ctrl.palette_64_mode` and `ega_vgaport.palette_64_mode`. |
 
@@ -56,10 +58,8 @@ The base EGA palette path is not overridden by DAC state:
 ## Remaining Gaps
 
 - Misc Output bit `2` clock-select timing behavior is not implemented beyond
-  storage/readback.
-- `3C2h` / `2C2h` switch-sense reads are not implemented; this was also noted
-  in `EGA_IO_DECODE_AUDIT.md`.
+  storage/readback and switch-sense selection.
 
-These gaps should be handled by timing and switch-sense tasks if software
-compatibility requires them. They do not block the current memory decode,
-page-select, color/mono port selection, or palette-width behavior.
+This gap should be handled by a timing task if software compatibility requires
+it. It does not block the current memory decode, page-select, color/mono port
+selection, switch-sense, or palette-width behavior.

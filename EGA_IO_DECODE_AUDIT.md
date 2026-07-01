@@ -11,7 +11,6 @@ The core has explicit decode for the main Attribute Controller, Sequencer,
 Graphics Controller, Misc Output write/readback, CRTC/status, and DAC-stub
 ports. The main gaps found by this audit are:
 
-- `3C2h` / `2C2h` read switch-sense behavior is not implemented.
 - Feature Control ports are not implemented.
 - DAC ports are intentionally stubbed and return `00h` on reads.
 
@@ -22,7 +21,7 @@ ports. The main gaps found by this audit are:
 | `3C0h` / `2C0h` | write | `ega_attrib_ctrl` decodes exact address and toggles index/data phase on write pulses. | Implemented |
 | `3C1h` / `2C1h` | read | `ega_attrib_ctrl` decodes exact address and returns the selected Attribute Controller register. | Implemented |
 | `3C2h` / `2C2h` | write | `ega_top` decodes exact address as `ega_misc_write_cs` and latches `ega_misc_output_reg`. | Implemented |
-| `3C2h` / `2C2h` | read | No switch-sense read path is present. `ega_misc_read_cs` covers `3CCh` / `2CCh`, not `3C2h` / `2C2h`. | Missing |
+| `3C2h` / `2C2h` | read | `ega_top` returns EGA switch-sense bit `4` from a color EGA switch pattern selected by Misc Output bits `3:2`. | Implemented |
 | `3C4h` / `2C4h` | write | `ega_sequencer` decodes exact address as Sequencer index. | Implemented |
 | `3C5h` / `2C5h` | read/write | `ega_sequencer` decodes exact address as Sequencer data with readback. `ega_top` includes this in bus direction. | Implemented |
 | `3CCh` / `2CCh` | read | `ega_top` decodes exact address as Misc Output readback. | Implemented |
@@ -39,7 +38,8 @@ ports. The main gaps found by this audit are:
 
 `ega_top` drives `bus_dir` for implemented readback paths through
 `ega_bus_dir_sel`. Sequencer, Attribute Controller, Misc Output readback,
-Graphics Controller, and DAC-stub reads are visible whenever selected.
+switch-sense, Graphics Controller, and DAC-stub reads are visible whenever
+selected.
 
 CRTC data and Input Status #1 reads are not gated by `ega_display_sel`; they
 remain visible through the selected EGA I/O aperture even when the display mux
@@ -49,6 +49,5 @@ has not yet switched to EGA.
 
 - EGA-203 should use the active status port read to reset the Attribute
   Controller flip-flop.
-- EGA-204 should decide whether `3C2h` switch-sense reads are required or
-  intentionally stubbed.
+- EGA-204 implements `3C2h` switch-sense reads for a color EGA switch pattern.
 - EGA-505 removed display-selection gating from register read visibility.

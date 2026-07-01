@@ -188,6 +188,7 @@ module ega_top(
     wire ega_seq_data_cs = ((bus_a == 15'h03C5) || (bus_a == 15'h02C5)) & ~bus_aen & ega_enabled;
     wire ega_attr_read_cs = ((bus_a == 15'h03C1) || (bus_a == 15'h02C1)) & ~bus_aen & ega_enabled;
     wire ega_misc_write_cs = ((bus_a == 15'h03C2) || (bus_a == 15'h02C2)) & ~bus_aen & ega_enabled;
+    wire ega_switch_sense_cs = ((bus_a == 15'h03C2) || (bus_a == 15'h02C2)) & ~bus_aen & ega_enabled;
     wire ega_misc_read_cs = ((bus_a == 15'h03CC) || (bus_a == 15'h02CC)) & ~bus_aen & ega_enabled;
     wire ega_gfx_data_cs = ((bus_a == 15'h03CF) || (bus_a == 15'h02CF)) & ~bus_aen & ega_enabled;
     wire ega_dac_read_index_cs = ((bus_a == 15'h03C7) || (bus_a == 15'h02C7)) & ~bus_aen & ega_enabled;
@@ -519,10 +520,22 @@ module ega_top(
         .blue(ega_blue)
     );
 
+    // IBM EGA switch-sense readback for a color display switch pattern (1001b).
+    reg [7:0] ega_switch_sense_reg;
+    always @(*) begin
+        case (ega_misc_output_reg[3:2])
+            2'b00: ega_switch_sense_reg = 8'h10;
+            2'b01: ega_switch_sense_reg = 8'h00;
+            2'b10: ega_switch_sense_reg = 8'h00;
+            2'b11: ega_switch_sense_reg = 8'h10;
+        endcase
+    end
+
     reg [7:0] ega_bus_out_mux;
     wire ega_bus_dir_sel = (ega_status_cs & ~bus_ior_l)
                          | (ega_seq_data_cs & ~bus_ior_l)
                          | (ega_attr_read_cs & ~bus_ior_l)
+                         | (ega_switch_sense_cs & ~bus_ior_l)
                          | (ega_misc_read_cs & ~bus_ior_l)
                          | (ega_gfx_data_cs & ~bus_ior_l)
                          | (ega_dac_read_index_cs & ~bus_ior_l)
@@ -537,6 +550,8 @@ module ega_top(
             ega_bus_out_mux = ega_seq_data_out;
         else if (ega_attr_read_cs & ~bus_ior_l)
             ega_bus_out_mux = ega_attr_data_out;
+        else if (ega_switch_sense_cs & ~bus_ior_l)
+            ega_bus_out_mux = ega_switch_sense_reg;
         else if (ega_misc_read_cs & ~bus_ior_l)
             ega_bus_out_mux = ega_misc_output_reg;
         else if (ega_gfx_data_cs & ~bus_ior_l)
