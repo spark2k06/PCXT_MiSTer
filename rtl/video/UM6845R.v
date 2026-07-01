@@ -305,7 +305,9 @@ reg        row_last_r;
 wire       row_last  = (row == eff_v_total) || (!CRTC_TYPE && !R4_v_total);
 wire       row_frame_last = ((CRTC_TYPE ? row_last : row_last_r) | in_adj) & ~frame_adj;
 wire [9:0] row_next  = row_frame_last ? 10'd0 : row + 1'd1;
-wire       row_new   = line_new & (CRTC_TYPE ? line_last : line_last_r);
+// EGA vertical timing registers count scanlines. Keep Maximum Scan Line for
+// glyph row/address stepping, but do not multiply vtotal/vsync/dispend by it.
+wire       row_new   = line_new & (CRTC_TYPE ? 1'b1 : line_last_r);
 
 reg        frame_adj_r;
 wire       frame_adj_CRTC0 = (hcc == 2) ? frame_adj_r & |R5_v_total_adj : frame_adj_r;
@@ -372,6 +374,7 @@ always @(posedge CLOCK) begin
 			else if(frame_new) begin
 				in_adj <= 0;
 				row <= 0;
+				if(CRTC_TYPE) line <= 5'd0;
 				field <= ~field & R8_interlace[0];
 			end
 		end
