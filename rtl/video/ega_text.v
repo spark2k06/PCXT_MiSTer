@@ -36,24 +36,29 @@ module ega_text (
     output reg         pixel_valid
 );
 
-    reg [7:0] char_latch = 8'h00;
     reg [7:0] attr_latch = 8'h00;
+    reg [7:0] char_pending = 8'h00;
+    reg [7:0] attr_pending = 8'h00;
     reg [8:0] glyph_shift = 9'h000;
     reg       dot_repeat = 1'b0;
+    reg       cursor_latch = 1'b0;
+    reg       cursor_pending = 1'b0;
     reg       display_enable_q = 1'b0;
     reg [3:0] pan_cache = 4'd0;
     reg [31:0] pan_history = 32'h00000000;
+    reg [1:0] fetch_state = 2'd0;
 
     wire       start_cell = display_enable && fetch_tick;
-    wire [1:0] font_bank = attr_latch[3] ? char_map_b : char_map_a;
+    wire [1:0] pending_font_bank = text_attr_in[3] ? char_map_b : char_map_a;
     wire       glyph_pixel = glyph_shift[8];
-    wire       line_graphics_char = (text_char_in[7:5] == 3'b110);
-    wire       ninth_dot = char_9dot && line_graphics_enable && line_graphics_char && text_glyph_in[0];
+    wire       pending_line_graphics_char = (char_pending[7:5] == 3'b110);
+    wire       pending_ninth_dot = char_9dot && line_graphics_enable &&
+                                   pending_line_graphics_char && text_glyph_in[0];
     wire [3:0] foreground_index = attr_latch[3:0];
     wire [3:0] background_index = blink_enable ? {1'b0, attr_latch[6:4]} : attr_latch[7:4];
     wire [3:0] visible_foreground_index =
         (blink_enable && attr_latch[7] && blink_state) ? background_index : foreground_index;
-    wire       cursor_visible = cursor_active && blink_state;
+    wire       cursor_visible = cursor_latch && blink_state;
     wire [3:0] cursor_foreground_index = attr_latch[7:4];
     wire [3:0] cursor_background_index = attr_latch[3:0];
     wire [3:0] active_foreground_index = cursor_visible ? cursor_foreground_index :
@@ -122,13 +127,17 @@ module ega_text (
 
     always @(posedge clk or posedge reset) begin
         if (reset) begin
-            char_latch <= 8'h00;
             attr_latch <= 8'h00;
+            char_pending <= 8'h00;
+            attr_pending <= 8'h00;
             glyph_shift <= 9'h000;
             dot_repeat <= 1'b0;
+            cursor_latch <= 1'b0;
+            cursor_pending <= 1'b0;
             display_enable_q <= 1'b0;
             pan_cache <= 4'd0;
             pan_history <= 32'h00000000;
+            fetch_state <= 2'd0;
             text_cell_addr <= 16'h0000;
             text_font_addr <= 16'h0000;
             text_fetch_en <= 1'b0;
@@ -138,10 +147,21 @@ module ega_text (
             text_fetch_en <= 1'b0;
 
             if (text_data_valid) begin
-                char_latch <= text_char_in;
-                attr_latch <= text_attr_in;
-                glyph_shift <= {text_glyph_in, ninth_dot};
-                dot_repeat <= 1'b0;
+                if (fetch_state == 2'd1) begin
+                    char_pending <= text_char_in;
+                    attr_pending <= text_attr_in;
+                    text_font_addr <= {pending_font_bank, 14'b00000000000000} +
+                                      {3'b000, text_char_in, 5'b00000} +
+                                      {11'd0, scanline};
+                    text_fetch_en <= 1'b1;
+                    fetch_state <= 2'd2;
+                end else if (fetch_state == 2'd2) begin
+                    attr_latch <= attr_pending;
+                    glyph_shift <= {text_glyph_in, pending_ninth_dot};
+                    cursor_latch <= cursor_pending;
+                    dot_repeat <= 1'b0;
+                    fetch_state <= 2'd0;
+                end
             end
 
             if (ce_pix) begin
@@ -150,6 +170,9 @@ module ega_text (
                 if (!display_enable) begin
                     glyph_shift <= 9'h000;
                     dot_repeat <= 1'b0;
+                    cursor_latch <= 1'b0;
+                    cursor_pending <= 1'b0;
+                    fetch_state <= 2'd0;
                     pan_cache <= 4'd0;
                     pan_history <= 32'h00000000;
                     plane_index <= 4'h0;
@@ -162,20 +185,18 @@ module ega_text (
                         pan_history <= {pan_history[27:0], unpanned_index};
                     end
 
-                    if (start_cell) begin
+                    if (start_cell && ((fetch_state == 2'd0) ||
+                        ((fetch_state == 2'd2) && text_data_valid))) begin
                         text_cell_addr <= crtc_addr;
-                        // Text mode stores character bytes in plane 0/1 and
-                        // font rows in plane 2; bank select occupies bits 15:14.
-                        text_font_addr <= {font_bank, 14'b00000000000000} +
-                                          {3'b000, char_latch, 5'b00000} +
-                                          {11'd0, scanline};
                         text_fetch_en <= 1'b1;
+                        cursor_pending <= cursor_active;
+                        fetch_state <= 2'd1;
                     end
 
                     plane_index <= panned_index;
                     pixel_valid <= 1'b1;
 
-                    if (!text_data_valid) begin
+                    if (!(text_data_valid && (fetch_state == 2'd2))) begin
                         if (dot_clock_div2) begin
                             dot_repeat <= ~dot_repeat;
                             if (dot_repeat)

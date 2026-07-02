@@ -162,6 +162,29 @@ module ega_text_tb;
         end
     endtask
 
+    task automatic complete_cell_fetch(
+        input [7:0] chr,
+        input [7:0] attr,
+        input [7:0] glyph
+    );
+        begin
+            provide_cell(chr, attr, 8'h00);
+            provide_cell(8'h00, 8'h00, glyph);
+        end
+    endtask
+
+    task automatic load_cell(
+        input [15:0] addr,
+        input [7:0] chr,
+        input [7:0] attr,
+        input [7:0] glyph
+    );
+        begin
+            pulse_fetch(addr);
+            complete_cell_fetch(chr, attr, glyph);
+        end
+    endtask
+
     task automatic wait_pixels(input integer count);
         integer i;
         begin
@@ -197,7 +220,7 @@ module ega_text_tb;
         pulse_fetch(16'h0123);
         expect1("first cell fetch", text_fetch_en, 1'b1);
         expect16("first cell address", text_cell_addr, 16'h0123);
-        provide_cell(8'h41, 8'h1E, 8'hA5);
+        complete_cell_fetch(8'h41, 8'h1E, 8'hA5);
         wait_pixels(7);
         pulse_fetch(16'h0124);
         expect1("second 80-column cell fetch", text_fetch_en, 1'b1);
@@ -210,7 +233,7 @@ module ega_text_tb;
         pulse_fetch(16'h0200);
         expect1("first 40-column cell fetch", text_fetch_en, 1'b1);
         expect16("first 40-column cell address", text_cell_addr, 16'h0200);
-        provide_cell(8'h42, 8'h2F, 8'h5A);
+        complete_cell_fetch(8'h42, 8'h2F, 8'h5A);
         wait_pixels(15);
         pulse_fetch(16'h0201);
         expect1("second 40-column cell fetch", text_fetch_en, 1'b1);
@@ -223,18 +246,20 @@ module ega_text_tb;
         scanline = 5'd3;
         char_map_a = 2'b10;
         char_map_b = 2'b01;
-        provide_cell(8'h41, 8'h07, 8'h80);
         pulse_fetch(16'h0300);
+        provide_cell(8'h41, 8'h07, 8'h00);
         expect16("charset A font address", text_font_addr, 16'h8823);
-        provide_cell(8'h42, 8'h08, 8'h80);
+        provide_cell(8'h00, 8'h00, 8'h80);
         pulse_fetch(16'h0301);
+        provide_cell(8'h42, 8'h08, 8'h00);
         expect16("charset B font address", text_font_addr, 16'h4843);
+        provide_cell(8'h00, 8'h00, 8'h80);
 
         reset_dut();
 
         begin_test("text glyph foreground and background colors");
         display_enable = 1'b1;
-        provide_cell(8'h43, 8'h1E, 8'h80);
+        load_cell(16'h0400, 8'h43, 8'h1E, 8'h80);
         step_pixel();
         expect4("set glyph bit selects foreground", plane_index, 4'hE);
         step_pixel();
@@ -245,7 +270,7 @@ module ega_text_tb;
         begin_test("text background intensity when blink disabled");
         display_enable = 1'b1;
         blink_enable = 1'b0;
-        provide_cell(8'h44, 8'h9A, 8'h00);
+        load_cell(16'h0401, 8'h44, 8'h9A, 8'h00);
         step_pixel();
         expect4("attribute bit 7 is background intensity", plane_index, 4'h9);
 
@@ -255,11 +280,11 @@ module ega_text_tb;
         display_enable = 1'b1;
         blink_enable = 1'b1;
         blink_state = 1'b0;
-        provide_cell(8'h45, 8'h9A, 8'h80);
+        load_cell(16'h0402, 8'h45, 8'h9A, 8'h80);
         step_pixel();
         expect4("blink inactive keeps foreground", plane_index, 4'hA);
         blink_state = 1'b1;
-        provide_cell(8'h45, 8'h9A, 8'h80);
+        load_cell(16'h0403, 8'h45, 8'h9A, 8'h80);
         step_pixel();
         expect4("blink active uses background", plane_index, 4'h1);
 
@@ -269,7 +294,7 @@ module ega_text_tb;
         display_enable = 1'b1;
         char_9dot = 1'b1;
         line_graphics_enable = 1'b1;
-        provide_cell(8'hC4, 8'h0E, 8'h01);
+        load_cell(16'h0404, 8'hC4, 8'h0E, 8'h01);
         repeat (9) step_pixel();
         expect4("line graphics ninth dot repeats foreground", plane_index, 4'hE);
 
@@ -279,7 +304,7 @@ module ega_text_tb;
         display_enable = 1'b1;
         char_9dot = 1'b1;
         line_graphics_enable = 1'b1;
-        provide_cell(8'h41, 8'h1E, 8'h01);
+        load_cell(16'h0405, 8'h41, 8'h1E, 8'h01);
         repeat (9) step_pixel();
         expect4("normal character ninth dot uses background", plane_index, 4'h1);
 
@@ -289,7 +314,7 @@ module ega_text_tb;
         display_enable = 1'b1;
         char_9dot = 1'b1;
         line_graphics_enable = 1'b0;
-        provide_cell(8'hC4, 8'h2F, 8'h01);
+        load_cell(16'h0406, 8'hC4, 8'h2F, 8'h01);
         repeat (9) step_pixel();
         expect4("disabled line graphics ninth dot uses background", plane_index, 4'h2);
 
@@ -299,13 +324,13 @@ module ega_text_tb;
         display_enable = 1'b1;
         cursor_active = 1'b1;
         blink_state = 1'b1;
-        provide_cell(8'h46, 8'h1E, 8'h80);
+        load_cell(16'h0407, 8'h46, 8'h1E, 8'h80);
         step_pixel();
         expect4("cursor set glyph bit uses original background", plane_index, 4'h1);
         step_pixel();
         expect4("cursor clear glyph bit uses original foreground", plane_index, 4'hE);
         blink_state = 1'b0;
-        provide_cell(8'h46, 8'h1E, 8'h80);
+        load_cell(16'h0408, 8'h46, 8'h1E, 8'h80);
         step_pixel();
         expect4("cursor blink off leaves set glyph foreground", plane_index, 4'hE);
 
@@ -314,15 +339,15 @@ module ega_text_tb;
         begin_test("mono text attributes use MDA color table");
         display_enable = 1'b1;
         mono_attributes = 1'b1;
-        provide_cell(8'h47, 8'h08, 8'h80);
+        load_cell(16'h0409, 8'h47, 8'h08, 8'h80);
         step_pixel();
         expect4("mono attr 08 foreground is black", plane_index, 4'h0);
-        provide_cell(8'h47, 8'h78, 8'h00);
+        load_cell(16'h040A, 8'h47, 8'h78, 8'h00);
         step_pixel();
         expect4("mono attr 78 background is bright white", plane_index, 4'hF);
         blink_enable = 1'b1;
         blink_state = 1'b1;
-        provide_cell(8'h47, 8'h87, 8'h80);
+        load_cell(16'h040B, 8'h47, 8'h87, 8'h80);
         step_pixel();
         expect4("mono blink hides foreground", plane_index, 4'h0);
 
@@ -333,7 +358,7 @@ module ega_text_tb;
         mono_attributes = 1'b1;
         scanline = 5'd12;
         underline_scanline = 5'd12;
-        provide_cell(8'h48, 8'h01, 8'h00);
+        load_cell(16'h040C, 8'h48, 8'h01, 8'h00);
         step_pixel();
         expect4("mono underline draws foreground over clear glyph", plane_index, 4'h7);
 
@@ -342,7 +367,7 @@ module ega_text_tb;
         begin_test("text horizontal panning delays visible pixels");
         display_enable = 1'b1;
         h_pixel_pan = 4'd2;
-        provide_cell(8'h49, 8'h1E, 8'hC0);
+        load_cell(16'h040D, 8'h49, 8'h1E, 8'hC0);
         step_pixel();
         expect4("first panned pixel comes from left history", plane_index, 4'h0);
         step_pixel();
@@ -360,7 +385,7 @@ module ega_text_tb;
         pulse_fetch(16'h0555);
         expect1("panned first cell fetch", text_fetch_en, 1'b1);
         expect16("panned first cell address", text_cell_addr, 16'h0555);
-        provide_cell(8'h4A, 8'h2F, 8'hF0);
+        complete_cell_fetch(8'h4A, 8'h2F, 8'hF0);
         wait_pixels(7);
         pulse_fetch(16'h0000);
         expect1("panned split cell fetch", text_fetch_en, 1'b1);
