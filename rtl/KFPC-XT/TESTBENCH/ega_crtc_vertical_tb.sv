@@ -18,6 +18,8 @@ module ega_crtc_vertical_tb;
     integer start_line = 0;
     integer row_delta = 0;
     integer line_delta = 0;
+    wire cursor;
+    wire [15:0] ma_full;
 
     always #5 clk = ~clk;
 
@@ -40,9 +42,9 @@ module ega_crtc_vertical_tb;
         .HSYNC(),
         .DE(),
         .FIELD(),
-        .CURSOR(),
+        .CURSOR(cursor),
         .MA(),
-        .MA_FULL(),
+        .MA_FULL(ma_full),
         .RA(),
         .HC(),
         .VC(),
@@ -151,6 +153,25 @@ module ega_crtc_vertical_tb;
         if (line_delta < 0)
             line_delta = line_delta + 9;
         expect_eq("EGA glyph scanline wraps after maximum scan line", line_delta, 0);
+
+        force dut.row_addr_r = 16'h0123;
+        force dut.cursor_addr_frame = 14'h0123;
+        force dut.line = 5'd0;
+        force dut.hde = 1'b1;
+        force dut.vde = 1'b1;
+        force dut.cursor_line = 1'b1;
+        #1 begin
+            expect_eq("EGA cursor scanout address is remapped", ma_full, 16'h0246);
+            expect_eq("EGA cursor compares logical CRTC address", cursor, 1);
+        end
+        force dut.row_addr_r = 16'h0124;
+        #1 expect_eq("EGA cursor clears on adjacent logical cell", cursor, 0);
+        release dut.row_addr_r;
+        release dut.cursor_addr_frame;
+        release dut.line;
+        release dut.hde;
+        release dut.vde;
+        release dut.cursor_line;
 
         if (failures == 0) begin
             $display("PASS: ega_crtc_vertical_tb");

@@ -651,7 +651,10 @@ end
 
 // Cursor control
 reg cursor_line;
-assign CURSOR = hde & vde & (MA == (CRTC_TYPE ? cursor_addr_frame : crtc_reg_cursor_addr)) & cursor_line & ~R10_cursor_mode[0];
+assign CURSOR = hde & vde &
+                ((CRTC_TYPE ? row_addr_r[13:0] : MA) ==
+                 (CRTC_TYPE ? cursor_addr_frame : crtc_reg_cursor_addr)) &
+                cursor_line & ~R10_cursor_mode[0];
 
 always @(posedge CLOCK) begin
 
