@@ -214,7 +214,7 @@ module PERIPHERALS #(
     wire    opl_388_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)) : 1'b0; // 0x388 .. 0x389 (Adlib)
     wire    opl_228_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)) : 1'b0; // 0x228 .. 0x229 (Sound Blaster FM)
     wire    cms_220_chip_select     = `ENABLE_CMS ? (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)) : 1'b0; // 0x220 .. 0x22F (C/MS Audio)
-    wire    mcga_a000_select        = mcga_mode13_active_sys && ~iorq && ~address_enable_n && (address[19:16] == 4'hA);
+    wire    mcga_a000_select;
     wire    ega_mem_select_raw      = ~iorq && ~address_enable_n && ega_memory_window_select(address, ega_mem_map_sel_cfg);
     wire    ega_mem_select          = ega_mem_select_raw && !mcga_a000_select;
     wire    cga_mem_select          = ~iorq && ~address_enable_n && ~ega_mem_select && (address[19:15] == 5'b10111); // B8000 - BFFFF (16 KB / 32 KB)
@@ -1174,6 +1174,7 @@ end
 
     defparam ega1.BLINK_MAX = 24'd4772727;
     wire [7:0] ega_vram_cpu_dout;
+    wire [7:0] mcga_vram_cpu_dout;
     wire [15:0] ega_vram_cpu_addr = address[15:0];
     wire        ega_vram_cpu_a16 = address[16];
     wire [7:0]  ega_vram_cpu_din = internal_data_bus;
@@ -1181,6 +1182,10 @@ end
     wire        ega_vram_cpu_write_req = ega_mem_select && ~memory_write_n;
     wire        ega_vram_cpu_cycle = ega_vram_cpu_read_req | ega_vram_cpu_write_req;
     wire        ega_vram_cpu_ready;
+    wire        mcga_vram_cpu_cycle;
+    wire        mcga_vram_cpu_ready;
+    wire [7:0]  mcga_vram_video_pixel;
+    wire        mcga_vram_video_valid;
     wire        ega_splash_text_we = ega_splash_copy_active;
     wire [10:0] ega_splash_text_addr = splash_copy_addr[11:1];
     wire        ega_splash_text_attr = splash_copy_addr[0];
@@ -1264,8 +1269,32 @@ end
         .rotate_count               (ega_rotate_count_cfg)
     );
 
+    mcga_a000_cpu_frontend mcga_a000_cpu_frontend_inst
+    (
+        .clock                      (clock),
+        .reset                      (reset),
+        .clk_video                  (clk_vga_cga),
+        .active                     (mcga_mode13_active_sys),
+        .address                    (address),
+        .cpu_din                    (internal_data_bus),
+        .iorq                       (iorq),
+        .address_enable_n           (address_enable_n),
+        .memory_read_n              (memory_read_n),
+        .memory_write_n             (memory_write_n),
+        .a000_select                (mcga_a000_select),
+        .cpu_cycle                  (mcga_vram_cpu_cycle),
+        .cpu_dout                   (mcga_vram_cpu_dout),
+        .cpu_ready                  (mcga_vram_cpu_ready),
+        .video_addr                 (16'h0000),
+        .video_read_en              (1'b0),
+        .video_pixel                (mcga_vram_video_pixel),
+        .video_data_valid           (mcga_vram_video_valid)
+    );
+
     assign cga_memory_access_ready = 1'b1;
-    assign ega_memory_access_ready = ega_vram_cpu_cycle ? ega_vram_cpu_ready : 1'b1;
+    assign ega_memory_access_ready = mcga_vram_cpu_cycle ? mcga_vram_cpu_ready :
+                                     ega_vram_cpu_cycle ? ega_vram_cpu_ready :
+                                     1'b1;
     //
     // XT2IDE
     //
@@ -1643,6 +1672,11 @@ end
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= ega_vram_cpu_dout;
+        end
+        else if (mcga_a000_select && (~memory_read_n))
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= mcga_vram_cpu_dout;
         end
         else if (CGA_CRTC_OE_2)
         begin

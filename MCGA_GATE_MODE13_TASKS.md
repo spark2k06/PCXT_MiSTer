@@ -224,7 +224,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-302 - Decode CPU A000 Packed Reads And Writes
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-301`.
 - Files: `rtl/KFPC-XT/HDL/ega_vram_bram_frontend.sv`, focused testbench.
