@@ -139,7 +139,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-101 - Remove User-Facing EGA Gate
 
-- Status: `[!]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-002`.
 - Files: project config/menu files, `rtl/KFPC-XT/HDL/Peripherals.sv`.

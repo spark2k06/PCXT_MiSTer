@@ -98,7 +98,8 @@ No JTAG hardware available
 ```
 
 This blocks collecting the `ECC-002` hardware smoke baseline in this session.
-`ECC-101` is intentionally not started because it depends on `ECC-002`.
+Per clean-core guidance, RTL refactor tasks may continue with this smoke test
+recorded as pending hardware validation.
 
 ## Release-Candidate Minimum
 

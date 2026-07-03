@@ -252,7 +252,6 @@ module emu
 	`include "build_id.v"
 
     localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1oC,PCXT CGA Graphics,Yes,No;P1oD,PCXT Hercules Graphics,Yes,No;" : "");
-    localparam CONF_STR_EGA = (`ENABLE_EGA ? "P1oL,EGA Gate,Disabled,Enabled;" : "");
     localparam CONF_STR_VIDEO_PRIMARY = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1O4,PCXT 1st Video,CGA,Hercules;" : "");
     localparam CONF_STR_ROM = (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;");
     localparam CONF_STR_CMS = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
@@ -276,7 +275,6 @@ module emu
 		"P1,System & BIOS;",
 		"P1-;",
 		CONF_STR_HGC,
-		CONF_STR_EGA,
 		CONF_STR_VIDEO_PRIMARY,
 		"P1O7,Boot Splash Screen,Yes,No;",
 		"P1-;",
@@ -357,7 +355,7 @@ module emu
     wire [1:0] ar = status[9:8];
     wire border = status[29] | xtctl[1];
     wire a000h = `ENABLE_A000_UMB ? (~status[41] & ~xtctl[6]) : 1'b0;
-    wire ega_enabled = `ENABLE_EGA ? status[53] : 1'b0;
+    wire ega_enabled = `ENABLE_EGA ? 1'b1 : 1'b0;
     wire [2:0] vsync_width_osd = status[56:54];  // 0=Auto (use register), 1-7=override
     wire [2:0] hsync_width_osd = status[59:57];  // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
 

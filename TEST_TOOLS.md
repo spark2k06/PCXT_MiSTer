@@ -449,6 +449,32 @@ Fix:
 quartus_sh -t sys\build_id.tcl compile PCXT PCXT
 ```
 
+During `ECC-101` verification on 2026-07-03, `build_id.v` already existed but
+regenerating it through the pre-flow helper failed before elaboration:
+
+```powershell
+$env:INTELFPGA_ROOT='C:\intelFPGA_lite\17.0'
+$env:QUARTUS_ROOTDIR="$env:INTELFPGA_ROOT\quartus"
+$env:QUARTUS_BIN="$env:QUARTUS_ROOTDIR\bin64"
+$env:PATH="$env:QUARTUS_BIN;$env:PATH"
+quartus_sh -t sys\build_id.tcl compile PCXT PCXT
+```
+
+Result:
+
+```text
+ERROR: Can't open revision: PCXT (project: PCXT). The revision is not compatible with the installed version of the Quartus Prime software. Opening the revision will overwrite the old revision database. If you wish to overwrite the old revision database, make sure to specify the -force option.
+```
+
+The follow-up Analysis & Elaboration was run directly with the existing
+`build_id.v` and completed successfully:
+
+```powershell
+quartus_map --read_settings_files=on --write_settings_files=off PCXT -c PCXT --analysis_and_elaboration
+```
+
+Result: `Quartus Prime Analysis & Elaboration was successful. 0 errors, 245 warnings`.
+
 ### `cbx_altsyncram.dll` Cannot Be Opened
 
 Symptom:
