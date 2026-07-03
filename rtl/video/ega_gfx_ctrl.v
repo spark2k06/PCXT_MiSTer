@@ -27,7 +27,7 @@ module ega_gfx_ctrl (
     output reg         odd_even_mode,
     output reg         chain2_read,
     output reg         graphics_mode,
-    output reg         cga_2bpp_mode,
+    output reg         compat_2bpp_mode,
     output reg  [1:0]  mem_map_sel,
     output reg  [7:0]  mode_debug
 );
@@ -115,7 +115,7 @@ module ega_gfx_ctrl (
         odd_even_mode = misc_reg[1];
         chain2_read = mode_reg[4];
         graphics_mode = misc_reg[0];
-        cga_2bpp_mode = mode_reg[5];
+        compat_2bpp_mode = mode_reg[5];
         mem_map_sel = misc_reg[3:2];
         mode_debug = mode_reg;
     end

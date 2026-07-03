@@ -85,7 +85,6 @@ module ega_top(
     output grph_mode,
     output hres_mode,
     output tandy_color_16,
-    input cga_hw,
     input [3:0] crt_h_offset,
     input [2:0] crt_v_offset,
     input [2:0] vsync_width_osd,
@@ -190,7 +189,7 @@ module ega_top(
     wire [7:0] ega_gfx_data_out;
     wire [7:0] ega_gfx_mode_debug;
     wire ega_graphics_mode;
-    wire ega_cga_2bpp_mode;
+    wire ega_compat_2bpp_mode;
     wire [1:0] ega_write_mode;
     wire [1:0] ega_read_mode;
     wire [1:0] ega_read_plane_sel;
@@ -237,7 +236,7 @@ module ega_top(
     wire ega_crtc_fetch_tick = (!ega_graphics_mode_active && ega_char_9dot_active) ? ega_text_fetch_tick :
                                                                                    ega_ce_crt_fetch;
     wire [1:0] ega_render_mode = !ega_graphics_mode_active ? 2'd0 :
-                                  ega_cga_2bpp_mode ? 2'd2 : 2'd1;
+                                  ega_compat_2bpp_mode ? 2'd2 : 2'd1;
     wire ega_display_enable = ega_display_enable_crtc;
     reg [25:0] ega_display_enable_delay = 26'd0;
     wire ega_display_enable_visible = ega_display_enable_delay[ega_visible_delay];
@@ -365,7 +364,7 @@ module ega_top(
         .odd_even_mode(ega_odd_even_mode),
         .chain2_read(ega_chain2_read),
         .graphics_mode(ega_graphics_mode),
-        .cga_2bpp_mode(ega_cga_2bpp_mode),
+        .compat_2bpp_mode(ega_compat_2bpp_mode),
         .mem_map_sel(ega_mem_map_sel),
         .mode_debug(ega_gfx_mode_debug)
     );

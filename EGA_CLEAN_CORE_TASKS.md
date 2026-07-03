@@ -361,7 +361,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-302 - Replace CGA-Derived Clock And Mode Outputs
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-301`.
 - Files: `rtl/video/ega_top.v`, consumers of `clkdiv`, `grph_mode`, `hres_mode`.
@@ -374,6 +374,23 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Mode/status outputs remain stable for OSD and downstream logic.
   - No `cga_*` mode output remains in `ega_top`.
+- Result:
+  - `clkdiv` remains an EGA-owned output driven by `ega_clkdiv`.
+  - `grph_mode` and `hres_mode` are driven only by EGA internal state, with
+    explicit inactive defaults.
+  - Renamed the EGA graphics-controller CGA-compatible 2bpp indicator from
+    `cga_2bpp_mode`/`ega_cga_2bpp_mode` to `compat_2bpp_mode`/
+    `ega_compat_2bpp_mode`.
+  - Removed the unused `cga_hw` input from `ega_top` and its instantiation in
+    `Peripherals.sv`.
+  - Verified `rg -n "cga_|cga_hw|cga_2bpp|ega_cga" rtl/video/ega_top.v
+    rtl/video/ega_gfx_ctrl.v` returns no matches.
+  - Verified `ega_pixel_tb` and `ega_vram_b8000_tb` pass.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 221
+    warnings.
 
 ### ECC-303 - Prove `ega_top` Builds Without CGA Sources
 

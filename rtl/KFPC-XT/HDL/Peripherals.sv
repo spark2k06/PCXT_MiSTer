@@ -1527,7 +1527,6 @@ end
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
         .tandy_color_16             (tandy_color_16_raw),
-        .cga_hw                     (`ENABLE_EGA ? (cga_hw & ~ega_display_sel_cga) : cga_hw),
         .crt_h_offset               (crt_h_offset),
         .crt_v_offset               (crt_v_offset),
         .vsync_width_osd            (vsync_width_osd),
