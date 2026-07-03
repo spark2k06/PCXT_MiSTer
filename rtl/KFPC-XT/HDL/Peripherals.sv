@@ -993,6 +993,10 @@ end
     wire [5:0] R_EGA;
     wire [5:0] G_EGA;
     wire [5:0] B_EGA;
+    wire [15:0] MCGA_FRAMEBUFFER_ADDR;
+    wire        MCGA_FRAMEBUFFER_READ_EN;
+    wire [7:0]  MCGA_FRAMEBUFFER_PIXEL;
+    wire        MCGA_FRAMEBUFFER_DATA_VALID;
     wire       HSYNC_EGA;
     wire       VSYNC_EGA;
     wire       HBLANK_EGA;
@@ -1109,6 +1113,10 @@ end
         .ega_text_attr              (EGA_TEXT_ATTR),
         .ega_text_glyph             (EGA_TEXT_GLYPH),
         .ega_text_data_valid        (EGA_TEXT_DATA_VALID),
+        .mcga_framebuffer_addr      (MCGA_FRAMEBUFFER_ADDR),
+        .mcga_framebuffer_read_en   (MCGA_FRAMEBUFFER_READ_EN),
+        .mcga_framebuffer_pixel     (MCGA_FRAMEBUFFER_PIXEL),
+        .mcga_framebuffer_data_valid(MCGA_FRAMEBUFFER_DATA_VALID),
         .cpu_mem_select             (ega_mem_select_2),
         .cpu_mem_write              (ega_mem_write_2),
         .ega_cfg_toggle             (ega_cfg_toggle),
@@ -1184,8 +1192,6 @@ end
     wire        ega_vram_cpu_ready;
     wire        mcga_vram_cpu_cycle;
     wire        mcga_vram_cpu_ready;
-    wire [7:0]  mcga_vram_video_pixel;
-    wire        mcga_vram_video_valid;
     wire        ega_splash_text_we = ega_splash_copy_active;
     wire [10:0] ega_splash_text_addr = splash_copy_addr[11:1];
     wire        ega_splash_text_attr = splash_copy_addr[0];
@@ -1285,10 +1291,10 @@ end
         .cpu_cycle                  (mcga_vram_cpu_cycle),
         .cpu_dout                   (mcga_vram_cpu_dout),
         .cpu_ready                  (mcga_vram_cpu_ready),
-        .video_addr                 (16'h0000),
-        .video_read_en              (1'b0),
-        .video_pixel                (mcga_vram_video_pixel),
-        .video_data_valid           (mcga_vram_video_valid)
+        .video_addr                 (MCGA_FRAMEBUFFER_ADDR),
+        .video_read_en              (MCGA_FRAMEBUFFER_READ_EN),
+        .video_pixel                (MCGA_FRAMEBUFFER_PIXEL),
+        .video_data_valid           (MCGA_FRAMEBUFFER_DATA_VALID)
     );
 
     assign cga_memory_access_ready = 1'b1;

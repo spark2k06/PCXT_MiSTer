@@ -300,7 +300,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-502 - Render Packed Pixels Through DAC
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-303`, `MCGA-402`, `MCGA-501`.
 - Files: `rtl/video/ega_top.v`, renderer RTL, focused testbench.

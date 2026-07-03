@@ -38,6 +38,10 @@ module ega_top(
     input [7:0] ega_text_attr,
     input [7:0] ega_text_glyph,
     input ega_text_data_valid,
+    output [15:0] mcga_framebuffer_addr,
+    output mcga_framebuffer_read_en,
+    input [7:0] mcga_framebuffer_pixel,
+    input mcga_framebuffer_data_valid,
     input cpu_mem_select,
     input cpu_mem_write,
     output reg ega_cfg_toggle,
@@ -136,6 +140,7 @@ module ega_top(
     wire ega_dac_write_index_cs = ((bus_a == 15'h03C8) || (bus_a == 15'h02C8)) & ~bus_aen & ega_enabled;
     wire ega_dac_data_cs = ((bus_a == 15'h03C9) || (bus_a == 15'h02C9)) & ~bus_aen & ega_enabled;
     wire [7:0] mcga_dac_io_data_out;
+    wire [7:0] mcga_dac_sample_index;
     wire [5:0] mcga_dac_sample_red;
     wire [5:0] mcga_dac_sample_green;
     wire [5:0] mcga_dac_sample_blue;
@@ -215,6 +220,17 @@ module ega_top(
     wire ega_chain2_read;
     wire [1:0] ega_mem_map_sel;
     wire [7:0] ega_attr_data_out;
+    wire [5:0] ega_red_compat;
+    wire [5:0] ega_green_compat;
+    wire [5:0] ega_blue_compat;
+    wire [5:0] mcga_red;
+    wire [5:0] mcga_green;
+    wire [5:0] mcga_blue;
+    wire       mcga_de;
+    wire       mcga_hsync;
+    wire       mcga_vsync;
+    wire       mcga_hblank;
+    wire       mcga_vblank;
     wire [5:0] ega_color_raw;
     wire ega_display_enable_raw;
     wire ega_attr_video_enable;
@@ -475,13 +491,35 @@ module ega_top(
         .data_read          (ega_dac_data_cs & ega_io_re),
         .io_data_in         (bus_d),
         .io_data_out        (mcga_dac_io_data_out),
-        .sample_index       (8'h00),
+        .sample_index       (mcga_dac_sample_index),
         .sample_red         (mcga_dac_sample_red),
         .sample_green       (mcga_dac_sample_green),
         .sample_blue        (mcga_dac_sample_blue),
         .sample_red_8       (mcga_dac_sample_red_8),
         .sample_green_8     (mcga_dac_sample_green_8),
         .sample_blue_8      (mcga_dac_sample_blue_8)
+    );
+
+    mcga_mode13_renderer mcga_renderer (
+        .clock                  (clk),
+        .reset                  (reset),
+        .enable                 (mcga_mode13_active),
+        .framebuffer_addr       (mcga_framebuffer_addr),
+        .framebuffer_read_en    (mcga_framebuffer_read_en),
+        .framebuffer_pixel      (mcga_framebuffer_pixel),
+        .framebuffer_data_valid (mcga_framebuffer_data_valid),
+        .dac_index              (mcga_dac_sample_index),
+        .dac_red                (mcga_dac_sample_red),
+        .dac_green              (mcga_dac_sample_green),
+        .dac_blue               (mcga_dac_sample_blue),
+        .red                    (mcga_red),
+        .green                  (mcga_green),
+        .blue                   (mcga_blue),
+        .de                     (mcga_de),
+        .hsync                  (mcga_hsync),
+        .vsync                  (mcga_vsync),
+        .hblank                 (mcga_hblank),
+        .vblank                 (mcga_vblank)
     );
 
     wire [5:0] ega_dbl_color;
@@ -516,9 +554,9 @@ module ega_top(
     ega_vgaport ega_rgb_conv (
         .color(ega_video_selected),
         .palette_64_mode(ega_misc_output_reg[7]),
-        .red(ega_red),
-        .green(ega_green),
-        .blue(ega_blue)
+        .red(ega_red_compat),
+        .green(ega_green_compat),
+        .blue(ega_blue_compat)
     );
 
     // IBM EGA switch-sense readback for a color display switch pattern (1001b).
@@ -661,8 +699,8 @@ module ega_top(
         {7'd0, ega_splash_text_row, 4'd0} +
         {8'd0, ega_char_col};
     assign ega_fetch_addr = ega_splash_active ? ega_splash_text_addr : ega_crtc_addr_full;
-    assign ega_fetch_en = ega_display_sel ? (ega_graphics_mode_active & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
-    assign ega_text_fetch_en = ega_display_sel & ega_text_mode_active & ega_text_fetch_en_raw;
+    assign ega_fetch_en = (!mcga_mode13_active && ega_display_sel) ? (ega_graphics_mode_active & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
+    assign ega_text_fetch_en = !mcga_mode13_active & ega_display_sel & ega_text_mode_active & ega_text_fetch_en_raw;
     assign ega_plane_write_mask_out = ega_plane_write_mask;
     assign ega_odd_even_mode_out = ega_odd_even_mode;
     assign ega_cpu_access_slot_out = ega_ce_cpu_access_unused;
@@ -684,26 +722,30 @@ module ega_top(
     assign ega_blink_counter_out = ega_blink_counter;
     assign ega_blink_state_out = ega_blink_state;
     assign mcga_mode13_active_out = mcga_mode13_active;
-    assign ega_rgb_active = ega_display_sel;
-    assign ega_display_sel_out = ega_display_sel;
+    assign ega_rgb_active = mcga_mode13_active ? mcga_de : ega_display_sel;
+    assign ega_display_sel_out = mcga_mode13_active ? mcga_de : ega_display_sel;
 
     assign bus_out = ega_bus_out_mux;
     assign bus_dir = ega_enabled ? ega_bus_dir_sel : 1'b0;
     assign ram_we_l = 1'b0;
     assign ram_a = 19'd0;
-    assign hsync = ega_enabled ? ega_hsync_int : 1'b1;
-    assign dbl_hsync = ega_enabled ? ega_dbl_hsync : 1'b1;
-    assign hblank = ega_enabled ? (scandouble_en ? ~ega_display_enable_sd : ega_hblank_crtc) : 1'b1;
-    assign vsync = ega_enabled ? (scandouble_en ? ~ega_vsync_sd_l : ega_vsync) : 1'b1;
-    assign vblank = ega_enabled ? (scandouble_en ? ega_vblank_sd : ega_visible_vblank) : 1'b1;
-    assign vblank_border = ega_enabled ? (scandouble_en ? ega_vblank_sd : ega_vblank_crtc) : 1'b1;
+    assign ega_red = mcga_mode13_active ? mcga_red : ega_red_compat;
+    assign ega_green = mcga_mode13_active ? mcga_green : ega_green_compat;
+    assign ega_blue = mcga_mode13_active ? mcga_blue : ega_blue_compat;
+    assign hsync = ega_enabled ? (mcga_mode13_active ? mcga_hsync : ega_hsync_int) : 1'b1;
+    assign dbl_hsync = ega_enabled ? (mcga_mode13_active ? mcga_hsync : ega_dbl_hsync) : 1'b1;
+    assign hblank = ega_enabled ? (mcga_mode13_active ? mcga_hblank : (scandouble_en ? ~ega_display_enable_sd : ega_hblank_crtc)) : 1'b1;
+    assign vsync = ega_enabled ? (mcga_mode13_active ? mcga_vsync : (scandouble_en ? ~ega_vsync_sd_l : ega_vsync)) : 1'b1;
+    assign vblank = ega_enabled ? (mcga_mode13_active ? mcga_vblank : (scandouble_en ? ega_vblank_sd : ega_visible_vblank)) : 1'b1;
+    assign vblank_border = ega_enabled ? (mcga_mode13_active ? mcga_vblank : (scandouble_en ? ega_vblank_sd : ega_vblank_crtc)) : 1'b1;
     assign std_hsyncwidth = ega_enabled
                           ? (ega_hsync_width_crtc == (ega_dot_clock_div2_active ? EGA_STD_HSYNC_W_LO : EGA_STD_HSYNC_W_HI))
                           : 1'b0;
-    assign de_o = ega_display_sel ? (scandouble_en ? ega_display_enable_sd : ega_display_enable_raw) : 1'b0;
-    assign video = ega_display_sel ? ega_video_real : 4'd0;
-    assign dbl_video = ega_display_sel ? ega_dbl_color[3:0] : 4'd0;
-    assign comp_video = ega_display_sel ? ega_comp_video : 7'd0;
+    assign de_o = mcga_mode13_active ? mcga_de :
+                  (ega_display_sel ? (scandouble_en ? ega_display_enable_sd : ega_display_enable_raw) : 1'b0);
+    assign video = (!mcga_mode13_active && ega_display_sel) ? ega_video_real : 4'd0;
+    assign dbl_video = (!mcga_mode13_active && ega_display_sel) ? ega_dbl_color[3:0] : 4'd0;
+    assign comp_video = (!mcga_mode13_active && ega_display_sel) ? ega_comp_video : 7'd0;
     assign grph_mode = ega_enabled ? ega_graphics_mode_active : 1'b0;
     assign hres_mode = ega_enabled ? ega_hres_mode_int : 1'b0;
 endmodule
