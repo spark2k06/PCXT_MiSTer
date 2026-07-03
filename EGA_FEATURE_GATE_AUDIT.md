@@ -1,5 +1,11 @@
 # EGA Menu And Feature-Gate Integration Audit
 
+> Superseded for the `ega-mcga-clean-core` branch. This audit documents the old
+> compile-time/runtime `EGA Gate` model. The active clean-core architecture is
+> defined by `EGA_CLEAN_CORE_SPEC.md` and `EGA_CLEAN_CORE_PLAN.md`: EGA is
+> always the active video hardware model, and the old functional EGA/CGA/HGC/
+> Tandy selection gates are removed.
+
 ## Scope
 
 This audit verifies how the current PCXT integration gates the EGA feature at

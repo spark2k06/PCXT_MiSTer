@@ -838,7 +838,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-701 - Mark Old Coexistence Documentation As Superseded
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P2`
 - Depends on: `ECC-505`.
 - Files: `PLAN.md`, `EGA_TRACEABILITY.md`, coexistence audit docs.
@@ -849,6 +849,16 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Documentation no longer gives contradictory maintenance goals for this
     branch.
+- Result:
+  - Marked historical coexistence documentation as superseded for
+    `ega-mcga-clean-core` in `PLAN.md`, `EGA_TRACEABILITY.md`,
+    `EGA_CGA_HGC_COEXISTENCE_AUDIT.md`, and `EGA_FEATURE_GATE_AUDIT.md`.
+  - Linked the superseded documents to `EGA_CLEAN_CORE_SPEC.md`,
+    `EGA_CLEAN_CORE_PLAN.md`, and `EGA_CLEAN_CORE_TASKS.md` as the active
+    clean-core sources of truth.
+  - Updated the integration traceability row to describe always-on EGA,
+    CGA-compatible behavior through EGA, and removed legacy video gates instead
+    of CGA/HGC/Tandy coexistence.
 
 ### ECC-702 - Update README For Clean EGA Core
 

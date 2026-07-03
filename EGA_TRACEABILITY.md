@@ -1,5 +1,11 @@
 # EGA Traceability Checklist
 
+> Clean-core note: older EGA task IDs in this file describe the historical
+> coexistence port. For the `ega-mcga-clean-core` branch, use
+> `EGA_CLEAN_CORE_SPEC.md`, `EGA_CLEAN_CORE_PLAN.md`, and
+> `EGA_CLEAN_CORE_TASKS.md` as the active architecture source. CGA compatibility
+> is now an EGA feature, not a separate CGA/HGC/Tandy coexistence target.
+
 This checklist maps the EGA specification to implementation areas, current
 evidence, and backlog task IDs. It is meant to answer two questions before each
 change: where should the behavior live, and which task proves or completes it?
@@ -21,7 +27,7 @@ change: where should the behavior live, and which task proves or completes it?
 | 8. Palette and RGB output | Attribute palette indirection, 16/64-color lookup, overscan/border, RGB conversion. | `rtl/video/ega_attrib_ctrl.v`, `rtl/video/ega_vgaport.v`, `rtl/video/ega_top.v` | `EGA_ATTR_CTRL_AUDIT.md`; `EGA_SMOKE_CHECKLIST.md` | EGA-501..EGA-503 |
 | 9. Status and timing side effects | Input Status #1 display/retrace bits, attribute flip-flop reset, switch-sense bits, blink cadence. | `rtl/video/ega_top.v`, `rtl/video/UM6845R.v`, future shared blink generator | EGA-203, EGA-204 | EGA-504, EGA-506, EGA-507 |
 | 10. Text rendering | Text fetches, font plane, character map select, attributes, underline, cursor, 9th-dot line graphics, text panning. | Future text renderer plus `rtl/video/ega_sequencer.v`, `rtl/video/UM6845R.v` | Current ownership identified only | EGA-601..EGA-610 |
-| 11. Integration | BIOS ROM path, EGA activation, CGA/HGC/Tandy coexistence, menu/feature gates, smoke flows. | `egabios.rom`, `egabios.asm`, `rtl/KFPC-XT/HDL/Peripherals.sv`, project config | `EGA_SMOKE_CHECKLIST.md`; EGA-004 | EGA-701..EGA-705 |
+| 11. Integration | BIOS ROM path, always-on EGA activation, CGA-compatible behavior through EGA, removed legacy video gates, smoke flows. | `egabios.rom`, `egabios.asm`, `rtl/KFPC-XT/HDL/Peripherals.sv`, project config | `EGA_SMOKE_CHECKLIST.md`; `EGA_CLEAN_CORE_TASKS.md` | ECC-601..ECC-604, ECC-701..ECC-703 |
 | 12. Verification | Reference models, register tests, CRTC address tests, pixel/text tests, integrated smoke and game matrix. | `rtl/KFPC-XT/TESTBENCH/`, future reference helpers, smoke docs | `TEST_TOOLS.md`; `EGA_SMOKE_CHECKLIST.md` | EGA-208, EGA-801..EGA-807 |
 
 ## x86Box Reference Anchors

@@ -1,5 +1,11 @@
 # PCXT MiSTer EGA Porting Plan
 
+> Superseded for the `ega-mcga-clean-core` branch: this historical EGA porting
+> plan preserved the old CGA/HGC/Tandy coexistence model. The clean-core branch
+> is governed by `EGA_CLEAN_CORE_SPEC.md`, `EGA_CLEAN_CORE_PLAN.md`, and
+> `EGA_CLEAN_CORE_TASKS.md`, where EGA is the only active video hardware model
+> and CGA compatibility lives inside EGA.
+
 This plan turns `SPEC.md` into an implementation roadmap for bringing the PCXT
 MiSTer EGA core into practical alignment with the x86Box EGA model.
 
@@ -56,8 +62,10 @@ are out of scope for the first complete port.
     system.
 - `egabios.asm` is a smoke-test helper and BIOS shim, not the hardware source
   of truth.
-- Changes should preserve CGA/HGC/Tandy behavior. EGA integration must not
-  break the existing video mux, memory map, or bus ready behavior.
+- Historical assumption, superseded for `ega-mcga-clean-core`: old changes
+  preserved CGA/HGC/Tandy behavior and the existing video mux. Clean-core work
+  intentionally removes standalone CGA/HGC/Tandy hardware paths while keeping
+  CGA-compatible behavior inside EGA.
 
 ## 3. Workstream Overview
 
@@ -72,7 +80,7 @@ The work is split into ten phases:
 | 4 | Graphics Scanout | Correct planar pixel generation, panning, plane enable, blink, and CGA 2bpp mode. |
 | 5 | Attribute, Palette, Border, Status | Complete color pipeline and Input Status #1 behavior. |
 | 6 | Text Renderer | Add complete EGA text scanout with font-plane access and cursor behavior. |
-| 7 | PCXT Integration And BIOS Compatibility | Ensure EGA coexists cleanly with CGA/HGC/Tandy and BIOS probes. |
+| 7 | PCXT Integration And BIOS Compatibility | Historical coexistence target, superseded by the clean-core EGA-only integration model. |
 | 8 | Verification Expansion | Build deterministic and game-oriented validation coverage. |
 | 9 | Stabilization And Documentation | Clean up debug paths, document behavior, and prepare implementation tasks for long-term maintenance. |
 

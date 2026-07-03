@@ -1,5 +1,11 @@
 # EGA / CGA / HGC / Tandy Coexistence Audit
 
+> Superseded for the `ega-mcga-clean-core` branch. This audit records the old
+> multi-video-card coexistence model and is retained only as historical context.
+> The active branch target is defined by `EGA_CLEAN_CORE_SPEC.md` and
+> `EGA_CLEAN_CORE_PLAN.md`: standalone CGA, HGC, and Tandy video paths are
+> removed, while CGA-compatible software behavior is implemented inside EGA.
+
 ## Scope
 
 This audit rechecks the legacy video memory decode and output mux paths after
