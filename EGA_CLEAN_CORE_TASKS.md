@@ -331,7 +331,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-301 - Remove CGA Instance From `ega_top`
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-202`, `ECC-203`, `ECC-204`.
 - Files: `rtl/video/ega_top.v`.
@@ -343,6 +343,21 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - `rg "cga_passthrough" rtl/video/ega_top.v` returns no matches.
   - `ega_top` does not require `cga.v` to elaborate.
+- Result:
+  - Removed the `cga cga_passthrough` instance, its `cga_*` fallback wires,
+    and all `defparam cga_passthrough.*` assignments from `ega_top`.
+  - EGA I/O reads now return only EGA-owned register mux data, defaulting to
+    `8'h00` when no EGA register is selected.
+  - `bus_rdy`, external CGA RAM strobes/address, inactive sync/blank outputs,
+    and mode outputs now use EGA-owned or explicit inactive defaults.
+  - Verified `rg -n "cga_passthrough" rtl/video/ega_top.v` returns no matches.
+  - Verified focused tests:
+    `ega_pixel_tb` and `ega_vram_b8000_tb` pass.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 222
+    warnings.
 
 ### ECC-302 - Replace CGA-Derived Clock And Mode Outputs
 
