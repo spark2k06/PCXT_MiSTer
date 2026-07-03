@@ -87,7 +87,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-001 - Record Clean-Core Starting Point
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: none.
 - Files: `EGA_CLEAN_CORE_PLAN.md`, new baseline notes if needed.
