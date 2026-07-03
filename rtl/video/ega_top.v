@@ -275,6 +275,8 @@ module ega_top(
     wire ega_attr_mono_attributes;
     wire ega_attr_line_graphics_enable;
     wire ega_cursor_active;
+    wire ega_text_mode_active = !ega_graphics_mode;
+    wire ega_text_fetch_en_raw;
     reg [4:0] ega_text_fetch_phase = 5'd0;
     reg       ega_text_fetch_tick = 1'b0;
     wire [4:0] ega_text_fetch_phase_last =
@@ -440,7 +442,7 @@ module ega_top(
         .reset(reset),
         .ce_pix(ce_pix),
         .fetch_tick(ega_crtc_fetch_tick),
-        .display_enable(ega_display_enable_render),
+        .display_enable(ega_text_mode_active ? ega_display_enable_render : 1'b0),
         .dot_clock_div2(ega_dot_clock_div2),
         .char_9dot(ega_char_9dot),
         .h_pixel_pan(4'd0),
@@ -460,7 +462,7 @@ module ega_top(
         .text_data_valid(ega_text_data_valid),
         .text_cell_addr(ega_text_cell_addr),
         .text_font_addr(ega_text_font_addr),
-        .text_fetch_en(ega_text_fetch_en),
+        .text_fetch_en(ega_text_fetch_en_raw),
         .plane_index(ega_text_plane_index),
         .pixel_valid(ega_text_pixel_valid)
     );
@@ -648,6 +650,7 @@ module ega_top(
     // next frame after vertical blank has completed.
     assign ega_fetch_addr = ega_crtc_addr_full;
     assign ega_fetch_en = ega_display_sel ? (ega_graphics_mode & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
+    assign ega_text_fetch_en = ega_display_sel & ega_text_mode_active & ega_text_fetch_en_raw;
     assign ega_plane_write_mask_out = ega_plane_write_mask;
     assign ega_odd_even_mode_out = ega_odd_even_mode;
     assign ega_cpu_access_slot_out = ega_ce_cpu_access_unused;

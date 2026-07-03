@@ -922,6 +922,17 @@ module ega_registers_tb;
         top_io_read(16'h03D5, read_value);
         expect8("color CRTC sees shared EGA CRTC after reselect", read_value, 8'h55);
 
+        begin_test("top-level text fetch is isolated from graphics mode");
+        force top_dut.ega_video_active = 1'b1;
+        force top_dut.ega_text_fetch_en_raw = 1'b1;
+        force top_dut.ega_graphics_mode = 1'b1;
+        #1 expect1("graphics mode suppresses text VRAM fetch", top_ega_text_fetch_en, 1'b0);
+        force top_dut.ega_graphics_mode = 1'b0;
+        #1 expect1("text mode passes text VRAM fetch", top_ega_text_fetch_en, 1'b1);
+        release top_dut.ega_graphics_mode;
+        release top_dut.ega_text_fetch_en_raw;
+        release top_dut.ega_video_active;
+
         begin_test("top-level selected status read side effects");
         top_io_read(16'h03DA, read_value);
         top_io_write(16'h03C0, 8'h24);
