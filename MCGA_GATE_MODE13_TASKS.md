@@ -314,7 +314,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-503 - Verify Switching Between EGA And MCGA Output
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `MCGA-502`.
 - Files: focused testbench.
