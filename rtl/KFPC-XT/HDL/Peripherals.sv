@@ -180,7 +180,7 @@ module PERIPHERALS #(
     wire grph_mode;
     wire hres_mode;
 
-    wire tandy_video_en = `ENABLE_TANDY_VIDEO ? tandy_video : 1'b0;
+    wire tandy_video_en = 1'b0;
     wire tandy_audio_en = `ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0;
     wire tandy_kbd_en = `ENABLE_TANDY_KBD ? 1'b1 : 1'b0;
 
@@ -203,7 +203,7 @@ module PERIPHERALS #(
         end
     endfunction
 
-    assign tandy_16_gfx = `ENABLE_CGA ? (tandy_video_en & grph_mode & hres_mode) : 1'b0;
+    assign tandy_16_gfx = 1'b0;
 
 
 
@@ -250,22 +250,18 @@ module PERIPHERALS #(
     wire    timer_chip_select_n     = chip_select_n[2]; // 0x40 .. 0x5F
     wire    ppi_chip_select_n       = chip_select_n[3]; // 0x60 .. 0x7F
     assign  dma_page_chip_select_n  = chip_select_n[4]; // 0x80 .. 0x8F
-    wire    nmi_chip_select_n       = chip_select_n[5]; // 0xA0 .. 0xBF
     wire    joystick_select         = (iorq && ~address_enable_n && address[15:3] == (16'h0200 >> 3)); // 0x200 .. 0x207
     wire    tandy_chip_select_n     = tandy_io_en ? chip_select_n[6] : 1'b1; // 0xC0 .. 0xDF
-    wire    nmi_mask_register       = (tandy_video_en && ~nmi_chip_select_n);
 
     wire    opl_388_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)) : 1'b0; // 0x388 .. 0x389 (Adlib)
     wire    opl_228_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)) : 1'b0; // 0x228 .. 0x229 (Sound Blaster FM)
     wire    cms_220_chip_select     = `ENABLE_CMS ? (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)) : 1'b0; // 0x220 .. 0x22F (C/MS Audio)
     wire    ega_mem_select          = `ENABLE_EGA ? (~iorq && ~address_enable_n && ega_enabled && enable_cga && ega_memory_window_select(address, ega_mem_map_sel_cfg)) : 1'b0;
-    wire    video_mem_select        = `ENABLE_TANDY_VIDEO ? (tandy_video_en && ~iorq && ~address_enable_n && ~ega_mem_select && (address[19:17] == nmi_mask_register_data[3:1])) : 1'b0; // 128KB
     wire    cga_mem_select          = `ENABLE_CGA ? (~iorq && ~address_enable_n && enable_cga && ~ega_mem_select && (address[19:15] == 5'b10111)) : 1'b0; // B8000 - BFFFF (16 KB / 32 KB)
     wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
     wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
     wire    lpt_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h0378 >> 1)); // 0x378 ... 0x379
 	 wire    lpt_ctrl_select         = (iorq && ~address_enable_n && address[15:0] == 16'h037A); // 0x37A
-    wire    tandy_page_chip_select  = `ENABLE_TANDY_VIDEO ? (tandy_video_en && iorq && ~address_enable_n && address[15:0] == 16'h03DF) : 1'b0;
     wire    xtctl_chip_select       = (iorq && ~address_enable_n && address[15:0] == 16'h8888);
     wire    rtc_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h02C0 >> 1)); // 0x2C0 .. 0x2C1
 
@@ -287,12 +283,7 @@ module PERIPHERALS #(
     // I/O Ports
     //
     // Address
-    always_comb begin
-        if (`ENABLE_TANDY_VIDEO && cga_mem_select && ~memory_write_n && tandy_video_en)
-            latch_address   = {nmi_mask_register_data[3:1], tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]}};
-        else
-            latch_address   = address;
-    end
+    assign latch_address = address;
 
     always_ff @(posedge clock, posedge reset)
     begin
@@ -483,7 +474,7 @@ module PERIPHERALS #(
     wire            opl_warm_reset = `ENABLE_OPL2 ? (opl_reset_cnt != 16'd0) : 1'b0;
 
     wire    clear_keycode = port_b_out[7];
-    wire    ps2_reset_n   = ~tandy_video ? port_b_out[6] : 1'b1;
+    wire    ps2_reset_n   = port_b_out[6];
 
     always_ff @(posedge clock, posedge reset)
     begin
@@ -808,15 +799,11 @@ end
     reg [7:0] lpt_reg = 8'hFF;
 	 reg [7:0] lpt_ctrl = 8'h00;
 	 reg [7:0] lpt_enable_irq = 8'h00;
-    reg [7:0] tandy_page_data = 8'h00;
-    reg [7:0] nmi_mask_register_data = 8'hFF;
     always_ff @(posedge clock, posedge reset)
     begin
         if (reset)        
         begin
             xtctl <= 8'b00;
-            tandy_page_data <= 8'h00;
-            nmi_mask_register_data <= 8'hFF;
         end
         else begin
             if (~io_write_n)
@@ -841,12 +828,6 @@ end
 
             if ((xtctl_chip_select) && (~io_write_n))
                 xtctl <= internal_data_bus;
-
-            if (`ENABLE_TANDY_VIDEO && (tandy_page_chip_select) && (~io_write_n))
-                tandy_page_data <= internal_data_bus;
-
-            if (`ENABLE_TANDY_VIDEO && nmi_mask_register && (~io_write_n))
-                nmi_mask_register_data <= internal_data_bus;
         end
 
     end
@@ -956,7 +937,7 @@ end
     logic          ega_enabled_cga_ff_1;
     logic          ega_enabled_cga_ff_2;
     localparam int SPLASH_COPY_SIZE = 4000;
-    localparam int TEXT_CLEAR_SIZE = (`ENABLE_TANDY_VIDEO ? 131072 : 16384);
+    localparam int TEXT_CLEAR_SIZE = 16384;
     localparam [11:0] SPLASH_COPY_LAST = SPLASH_COPY_SIZE - 1;
     localparam [16:0] TEXT_CLEAR_LAST = TEXT_CLEAR_SIZE - 1;
     logic         splashscreen_ff = 1'b0;
@@ -1208,7 +1189,7 @@ end
     wire        ega_blink_state;
     wire        VGA_VBlank_border_raw;
     wire        std_hsyncwidth_raw;
-    wire        tandy_color_16_raw;
+    wire        tandy_color_16_unused;
 
     // Sets up the card to generate a video signal
     // that will work with a standard VGA monitor
@@ -1223,11 +1204,11 @@ end
     // Thin font switch (TODO: switchable with Keyboard shortcut)
     assign thin_font = 1'b0; // Default: No thin font
 
-    wire composite_cga = tandy_video_en ? (swap_video ? ~composite : composite) : composite;
+    wire composite_cga = composite;
 
     assign VGA_VBlank_border = `ENABLE_CGA ? VGA_VBlank_border_raw : 1'b0;
     assign std_hsyncwidth = `ENABLE_CGA ? std_hsyncwidth_raw : 1'b0;
-    assign tandy_color_16 = `ENABLE_CGA ? tandy_color_16_raw : 1'b0;
+    assign tandy_color_16 = 1'b0;
 
 
     // CGA digital to analog converter
@@ -1315,12 +1296,12 @@ end
         .ega_display_sel_out        (ega_display_sel_cga),
         .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
-        .tandy_video                (tandy_video_en),
+        .tandy_video                (1'b0),
         .scandouble_en              (cga_scandouble_en),
         .ega_enabled                (ega_enabled_cga_ff_2),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
-        .tandy_color_16             (tandy_color_16_raw),
+        .tandy_color_16             (tandy_color_16_unused),
         .crt_h_offset               (crt_h_offset),
         .crt_v_offset               (crt_v_offset),
         .vsync_width_osd            (vsync_width_osd),
@@ -1844,11 +1825,6 @@ end
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= xtctl;
-        end
-        else if (`ENABLE_TANDY_VIDEO && nmi_mask_register && (~io_read_n))
-        begin
-            data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= nmi_mask_register_data;
         end
         else if (joystick_select && ~io_read_n)
         begin

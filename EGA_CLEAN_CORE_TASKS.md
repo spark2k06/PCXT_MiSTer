@@ -484,7 +484,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-403 - Remove Tandy Video Banking From Active Path
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `ECC-401`.
 - Files: `rtl/KFPC-XT/HDL/Peripherals.sv`, Tandy config references.
@@ -496,6 +496,23 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Active video memory paths no longer branch on Tandy video state.
   - `ENABLE_TANDY_VIDEO` is no longer needed for active video logic.
+- Result:
+  - Disabled Tandy video in `Peripherals.sv` active logic by fixing
+    `tandy_video_en` low, removing Tandy page/NMI register state, removing
+    Tandy video memory selection, and latching CPU addresses directly.
+  - Removed Tandy-specific CGA/EGA video assumptions from the active path:
+    `tandy_16_gfx` and `tandy_color_16` are fixed low, composite output no
+    longer branches on Tandy video, and `ega_top` receives `tandy_video=0`.
+  - Left Tandy audio/keyboard compile paths for `ECC-504`; they are no longer
+    tied to active video banking.
+  - Verified `rg -n "video_mem_select|tandy_page|nmi_mask_register"
+    rtl/KFPC-XT/HDL/Peripherals.sv` returns no matches.
+  - Verified `ega_pixel_tb` and `ega_vram_b8000_tb` pass.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 199
+    warnings.
 
 ### ECC-404 - Route VGA And OSD Signals Directly From EGA
 
