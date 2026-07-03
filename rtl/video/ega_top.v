@@ -81,6 +81,7 @@ module ega_top(
     input thin_font,
     input scandouble_en,
     input ega_enabled,
+    input mcga_enabled,
     output grph_mode,
     output hres_mode,
     input [3:0] crt_h_offset,

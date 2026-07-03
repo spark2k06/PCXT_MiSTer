@@ -161,7 +161,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-102 - Route Inert MCGA Enable Signal
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-101`.
 - Files: `PCXT.sv`, `rtl/KFPC-XT/HDL/Chipset.sv`,

@@ -322,6 +322,7 @@ module emu
     wire [2:0] screen_mode = status[16:14];
     wire [1:0] ar = status[9:8];
     wire border = status[29] | xtctl[1];
+    wire mcga_enabled = status[60];
     wire [2:0] vsync_width_osd = status[56:54];  // 0=Auto (use register), 1-7=override
     wire [2:0] hsync_width_osd = status[59:57];  // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
 
@@ -1068,6 +1069,7 @@ module emu
 		.ram_write_wait_cycle               (ram_write_wait_cycle),
 		.pause_core                         (pause_core),
 		.cga_scandouble_en                  (cga_scandouble_en),
+		.mcga_enabled                       (mcga_enabled),
 		.crt_h_offset                       (status[49:46]),
 		.crt_v_offset                       (status[52:50]),
 		.vsync_width_osd                    (vsync_width_osd),

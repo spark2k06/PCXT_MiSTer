@@ -389,6 +389,7 @@ module ega_registers_tb;
         .thin_font(1'b0),
         .scandouble_en(1'b0),
         .ega_enabled(1'b1),
+        .mcga_enabled(1'b0),
         .grph_mode(top_grph_mode),
         .hres_mode(top_hres_mode),
         .crt_h_offset(4'h0),
