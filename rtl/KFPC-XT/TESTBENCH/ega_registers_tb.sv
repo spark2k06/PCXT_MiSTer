@@ -162,7 +162,6 @@ module ega_registers_tb;
     wire       attr_blink_enable;
     wire       attr_line_graphics_enable;
     wire [7:0] attr_data_out;
-    wire [3:0] attr_pixel_pan_out;
     wire [5:0] attr_color_out;
     wire       attr_display_enable_out;
     wire       attr_video_enable_out;
@@ -184,8 +183,8 @@ module ega_registers_tb;
         .blink_state(1'b0),
         .palette_64_mode(attr_palette_64_mode),
         .blink_enable_out(attr_blink_enable),
+        .mono_attributes_out(),
         .line_graphics_enable_out(attr_line_graphics_enable),
-        .pixel_pan_out(attr_pixel_pan_out),
         .color_out(attr_color_out),
         .display_enable_out(attr_display_enable_out),
         .video_enable_out(attr_video_enable_out)
@@ -712,7 +711,6 @@ module ega_registers_tb;
         io_write(16'h03C0, 8'h07);
         select_and_read_attr(5'h13, read_value);
         expect8("ATTR pixel panning register", read_value, 8'h07);
-        expect8("ATTR pixel pan output", {4'h0, attr_pixel_pan_out}, 8'h07);
 
         begin_test("attribute palette remap and overscan width");
         attr_write_reg(5'h02, 8'h2A);
@@ -786,9 +784,6 @@ module ega_registers_tb;
                  {6'd0, crtc_dut.eff_v_displayed}, 16'h0356);
         expect16("CRTC vsync start uses overflow bits 07h[7,2]",
                  {6'd0, crtc_dut.eff_v_sync_pos}, 16'h0334);
-        expect16("CRTC split uses 09h[6], 07h[4], 18h plus one",
-                 {5'd0, crtc_dut.line_compare_target}, 16'h03FF);
-
         begin_test("CRTC scanout address remap");
         expect_crtc_scanout("CRTC word mode using MA13",
                             16'h9234, 5'd0, 8'h00, 8'h83);
@@ -857,26 +852,6 @@ module ega_registers_tb;
         release crtc_dut.frame_new;
         release crtc_dut.hcc_last;
         release crtc_dut.row_addr_save;
-
-        begin_test("CRTC split resets address and scanline");
-        crtc_write(1'b0, 8'h13);
-        crtc_write(1'b1, 8'h14);
-        crtc_dut.row_addr = 16'h5555;
-        crtc_dut.row_addr_r = 16'hAAAA;
-        crtc_dut.line = 5'd9;
-        force crtc_dut.line_compare_match = 1'b1;
-        force crtc_dut.hcc_last = 1'b0;
-        @(posedge clk);
-        #1 begin
-            expect16("CRTC split resets saved row address",
-                     crtc_dut.row_addr, 16'h0000);
-            expect16("CRTC split resets current row address",
-                     crtc_dut.row_addr_r, 16'h0000);
-            expect8("CRTC split resets scanline",
-                    {3'b000, crtc_dut.line}, 8'h00);
-        end
-        release crtc_dut.line_compare_match;
-        release crtc_dut.hcc_last;
 
         begin_test("CRTC sampled address and blanking outputs");
         crtc_write(1'b0, 8'h14);

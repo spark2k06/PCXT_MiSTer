@@ -25,7 +25,6 @@ module ega_attrib_ctrl (
     output wire        blink_enable_out,
     output wire        mono_attributes_out,
     output wire        line_graphics_enable_out,
-    output wire [3:0]  pixel_pan_out, //NEW
     output reg  [5:0]  color_out,
     output reg         display_enable_out,
     output reg         video_enable_out
@@ -70,7 +69,6 @@ module ega_attrib_ctrl (
     assign blink_enable_out = attr_blink_enable;
     assign mono_attributes_out = attr_mono_attributes;
     assign line_graphics_enable_out = attr_line_graphics_enable;
-    assign pixel_pan_out = pixel_panning_reg[3:0];    //NEW
 
     integer palette_index;
 

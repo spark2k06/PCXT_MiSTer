@@ -132,7 +132,7 @@ reg [3:0] R3_h_sync_width = H_SYNCWIDTH;
 reg [6:0] R4_v_total = V_TOTAL;
 reg [4:0] R5_v_total_adj = V_TOTALADJ;
 reg [7:0] R6_v_displayed = V_DISP;
-reg [7:0] R7_v_sync_pos = V_SYNCPOS;//CGA sync
+reg [7:0] R7_v_sync_pos = V_SYNCPOS;
 reg [1:0] R8_skew;
 reg [1:0] R8_interlace = 2'd2;
 reg [7:0] R9_v_max_line = {3'b000, V_MAXSCAN};
@@ -151,7 +151,7 @@ reg [7:0] R20_underline_loc_e = 8'd0;
 reg [7:0] R21_v_blank_start_e = 8'd0;
 reg [7:0] R22_v_blank_end_e = 8'd0;
 reg [7:0] R23_mode_control_e = 8'h80;
-reg [7:0] R24_line_compare_e = 8'hff;
+reg [7:0] R24_line_compare_e = 8'd0;
 reg       ega_status_vretrace = 1'b0;
 reg       ega_vert_blank_active_r = 1'b0;
 reg [3:0] ega_scanline_mod16 = 4'd0;
@@ -171,11 +171,7 @@ wire [9:0] eff_v_sync_pos = ega_ext_timing ? ({R7_v_sync_pos[7], R7_v_sync_pos[2
 wire [9:0] eff_v_blank_start = ega_v_blank_start_valid ? {1'b0, R7_v_sync_pos[3], R21_v_blank_start_e} : eff_v_displayed;
 
 wire [9:0] eff_v_blank_end = ega_v_blank_end_valid ? {2'd0, R22_v_blank_end_e} : 10'd0;
-
-//wire [9:0] eff_v_sync_match = eff_v_sync_pos - (hres_mode ? 10'd1 : 10'd2);
-wire [9:0] timing_offset = CRTC_TYPE ? (hres_mode ? 10'd1 : 10'd2) : 10'd0;
-wire [9:0] eff_v_sync_match = eff_v_sync_pos - timing_offset;
-
+wire [9:0] eff_v_sync_match = eff_v_sync_pos - (hres_mode ? 10'd1 : 10'd2);
 
 reg [4:0] addr;
 wire ega_crtc_write_protect = CRTC_TYPE && R17_v_sync_end_e[7];
@@ -199,7 +195,7 @@ always @(*) begin
 				21: DO = CRTC_TYPE ? R21_v_blank_start_e : 8'h00;
 				22: DO = CRTC_TYPE ? R22_v_blank_end_e : 8'h00;
 				23: DO = CRTC_TYPE ? R23_mode_control_e : 8'h00;
-				24: DO = CRTC_TYPE ? R24_line_compare_e : 8'hff;
+				24: DO = CRTC_TYPE ? R24_line_compare_e : 8'h00;
 				31: DO = CRTC_TYPE ? 8'hFF : 8'h00;
 			 default: DO = 0;
 			endcase
@@ -221,13 +217,7 @@ always @(posedge CLOCK) begin
 		R4_v_total <= V_TOTAL;
 		R5_v_total_adj <= V_TOTALADJ;
 		R6_v_displayed <= V_DISP;
-		R7_v_sync_pos <= V_SYNCPOS; //Needs other real EGA value ??
-			//bit 5 = bit 8 of cursor location
-			//bit 4 = bit 8 of the Line Compare field. (enabled, so 350 line modes don't show split screen).
-			//bit 3 = bit 8 of the Start Vertical Blanking field.
-			//bit 2 = bit 8 of the Vertical Retrace Start field.
-			//bit 1 = bit 8 of the Vertical Display End field.
-			//bit 0 = bit 8 of the Vertical total.
+		R7_v_sync_pos <= V_SYNCPOS;
 		R8_skew <= 2'd0;
 		R8_interlace <= 2'd2;
 		R9_v_max_line <= {3'b000, V_MAXSCAN};
@@ -247,7 +237,7 @@ always @(posedge CLOCK) begin
 		R21_v_blank_start_e <= 8'd0;
 		R22_v_blank_end_e <= 8'd0;
 		R23_mode_control_e <= 8'h80;
-		R24_line_compare_e <= 8'hff;
+		R24_line_compare_e <= 8'd0;
 	end else if (ENABLE & ~nCS & ~R_nW) begin
 		if (~RS) addr <= DI[4:0];
 		else begin
@@ -315,10 +305,6 @@ wire       frame_adj_CRTC1 = row_last && ~in_adj && R5_v_total_adj;
 wire       frame_adj = CRTC_TYPE ? frame_adj_CRTC1 : frame_adj_CRTC0;
 wire       frame_new = row_new & row_frame_last;
 
-wire [10:0] line_compare_target = {1'b0, R9_v_max_line[6], R7_v_sync_pos[4], R24_line_compare_e} + 11'd1;
-reg [9:0] frame_scanline_cnt;
-wire line_compare_match = ({1'b0, frame_scanline_cnt} == line_compare_target);//!vsync_raw;
-
 // x86Box remaps interleaved byte addresses; this core fetches independent
 // planes, so convert row_addr_r to byte space and return out_addr[17:2].
 wire [19:0] ega_remap_in_addr = {2'b00, row_addr_r, 2'b00};
@@ -378,13 +364,6 @@ always @(posedge CLOCK) begin
 				field <= ~field & R8_interlace[0];
 			end
 		end
-		if(CRTC_TYPE && line_compare_match) line <= 5'd0;
-		if (vblank) begin
-            // Hold the counter at 0 during the entire vertical blanking/retrace phase
-            frame_scanline_cnt <= 10'd0;
-        end else if (line_new) begin
-			frame_scanline_cnt <= frame_scanline_cnt + 10'd1; // Tracks line drawing boundaries
-		end
 	end
 end
 
@@ -416,10 +395,7 @@ always @(posedge CLOCK) begin
 			cursor_addr_frame <= crtc_reg_cursor_addr;
 		end
 		if(ega_ma_mode) begin
-			if (line_compare_match) begin
-				row_addr   <= 16'd0;
-				row_addr_r <= 16'd0;
-			end else if(!hcc_last) begin
+			if(!hcc_last) begin
 				row_addr_r <= row_addr_r + 16'd1;
 			end else if(frame_new) begin
 				row_addr <= start_addr_latch;
@@ -432,6 +408,7 @@ always @(posedge CLOCK) begin
 			end
 		end else begin
 			if(row_addr_save) row_addr <= row_addr_r; // save current pointer
+
 			if(hcc_last & !row_addr_save) row_addr_r <= row_addr; // restore the pointer, take care of simultaneous saving and restoring
 			if(!hcc_last)                 row_addr_r <= row_addr_r + 1'd1;
 

@@ -270,7 +270,6 @@ module ega_top(
     wire [3:0] ega_plane_index = ega_graphics_mode ? ega_graphics_plane_index : ega_text_plane_index;
     wire ega_pixel_valid = ega_graphics_mode ? ega_graphics_pixel_valid : ega_text_pixel_valid;
     wire [1:0] ega_render_mode_debug_unused;
-    wire [3:0] ega_h_pixel_pan; //NEW
     wire ega_hres_mode_int = ~ega_dot_clock_div2;
     wire ega_attr_blink_enable;
     wire ega_attr_mono_attributes;
@@ -425,7 +424,6 @@ module ega_top(
         .display_enable(ega_display_enable),
         .render_mode(ega_render_mode),
         .plane_index(ega_graphics_plane_index),
-        .h_pixel_pan(ega_h_pixel_pan),  //NEW
         .pixel_valid(ega_graphics_pixel_valid),
         .render_mode_debug(ega_render_mode_debug_unused)
     );
@@ -438,7 +436,7 @@ module ega_top(
         .display_enable(ega_display_enable),
         .dot_clock_div2(ega_dot_clock_div2),
         .char_9dot(ega_char_9dot),
-        .h_pixel_pan(ega_h_pixel_pan),
+        .h_pixel_pan(4'd0),
         .blink_enable(ega_attr_blink_enable),
         .blink_state(ega_blink_state),
         .mono_attributes(ega_attr_mono_attributes),
@@ -478,7 +476,6 @@ module ega_top(
         .blink_enable_out(ega_attr_blink_enable),
         .mono_attributes_out(ega_attr_mono_attributes),
         .line_graphics_enable_out(ega_attr_line_graphics_enable),
-        .pixel_pan_out(ega_h_pixel_pan),  //NEW
         .palette_64_mode(ega_misc_output_reg[7]),
         .color_out(ega_color_raw),
         .display_enable_out(ega_display_enable_raw),
