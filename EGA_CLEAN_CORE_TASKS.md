@@ -811,7 +811,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-604 - Add Splash Through EGA Regression Test
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `ECC-204`, `ECC-401`.
 - Files: `rtl/KFPC-XT/TESTBENCH/`, `rtl/video/ega_text.v`,
@@ -822,6 +822,17 @@ ECC-000..099 baseline and recovery
   - Add a persistent test for splash font fallback if practical.
 - Acceptance:
   - The EGA splash path is covered by committed tests.
+- Result:
+  - Added `rtl/KFPC-XT/TESTBENCH/ega_vram_splash_tb.sv` as a focused
+    regression for splash text writes into EGA VRAM.
+  - The test verifies that splash character writes populate plane 0, splash
+    attribute writes populate plane 1, existing font glyph data in plane 2 is
+    preserved, and EGA text fetch returns the splash char/attr/glyph data.
+  - Verified with `iverilog -g2012 -I rtl/video -o
+    $env:TEMP\ega_vram_splash_tb.vvp
+    rtl/KFPC-XT/TESTBENCH/ega_vram_splash_tb.sv rtl/video/ega_vram.v; if
+    ($LASTEXITCODE -eq 0) { vvp $env:TEMP\ega_vram_splash_tb.vvp }`, which
+    passes.
 
 ## ECC-700: Documentation And Final Cleanup
 
