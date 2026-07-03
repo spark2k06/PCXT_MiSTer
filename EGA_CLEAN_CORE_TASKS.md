@@ -516,7 +516,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-404 - Route VGA And OSD Signals Directly From EGA
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-401`, `ECC-402`.
 - Files: `rtl/KFPC-XT/HDL/Peripherals.sv`.
@@ -528,6 +528,21 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - OSD observes EGA-owned sync and blanking.
   - No old video mux selects VGA output.
+- Result:
+  - Removed the local `cga_vgaport` DAC/fallback from `Peripherals.sv`.
+  - Routed `VGA_R/G/B`, sync, blanking, display enable,
+    `VGA_VBlank_border`, and `std_hsyncwidth` directly from `ega_top`
+    outputs. The legacy `swap_video` output remains fixed low from `ECC-402`.
+  - Renamed the local VGA-facing sync/blanking wires to EGA names so the
+    visible output path no longer selects CGA/HGC/Tandy video sources.
+  - Verified `rg -n "cga_vgaport|R_CGA|G_CGA|B_CGA|video_cga|hsync_cga|HSYNC_CGA|VSYNC_CGA|HBLANK_CGA|VBLANK_CGA|de_o_cga|swap_video_sel|R_HGC|G_HGC|B_HGC"
+    rtl/KFPC-XT/HDL/Peripherals.sv` returns no matches.
+  - Verified `ega_pixel_tb` and `ega_vram_b8000_tb` pass.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 180
+    warnings.
 
 ## ECC-500: Remove Dead Compile Paths
 

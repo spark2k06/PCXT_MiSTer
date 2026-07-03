@@ -1109,41 +1109,31 @@ end
     end
 
 
-    wire  [5:0]   R_CGA;
-    wire  [5:0]   G_CGA;
-    wire  [5:0]   B_CGA;
-    wire          HSYNC_CGA;
-    wire          VSYNC_CGA;
-    wire          HBLANK_CGA;
-    wire          VBLANK_CGA;
-    wire          de_o_cga;
-
-    wire [3:0] video_cga;
-    wire       hsync_cga_raw;
-    wire       hsync_cga_sd;
-    wire [3:0] video_cga_raw;
-    wire [3:0] video_cga_sd;
     wire [5:0] R_EGA;
     wire [5:0] G_EGA;
     wire [5:0] B_EGA;
-    wire       ega_rgb_active;
+    wire       HSYNC_EGA;
+    wire       VSYNC_EGA;
+    wire       HBLANK_EGA;
+    wire       VBLANK_EGA;
+    wire       de_o_ega;
+    wire       hsync_ega_raw;
+    wire       hsync_ega_sd;
+    wire [3:0] ega_compat_video_raw;
+    wire [3:0] ega_compat_video_sd;
     wire       ega_display_sel_cga;
 
-    assign VGA_R = ega_rgb_active ? R_EGA : (`ENABLE_CGA ? R_CGA : 6'd0);
-    assign VGA_G = ega_rgb_active ? G_EGA : (`ENABLE_CGA ? G_CGA : 6'd0);
-    assign VGA_B = ega_rgb_active ? B_EGA : (`ENABLE_CGA ? B_CGA : 6'd0);
-    assign VGA_HSYNC = `ENABLE_CGA ? HSYNC_CGA : 1'b0;
-    assign VGA_VSYNC = `ENABLE_CGA ? VSYNC_CGA : 1'b0;
+    assign VGA_R = R_EGA;
+    assign VGA_G = G_EGA;
+    assign VGA_B = B_EGA;
+    assign VGA_HSYNC = HSYNC_EGA;
+    assign VGA_VSYNC = VSYNC_EGA;
 
-    assign VGA_HBlank = `ENABLE_CGA ? HBLANK_CGA : 1'b0;
-    assign VGA_VBlank = `ENABLE_CGA ? VBLANK_CGA : 1'b0;
+    assign VGA_HBlank = HBLANK_EGA;
+    assign VGA_VBlank = VBLANK_EGA;
 
-    assign de_o = `ENABLE_CGA ? de_o_cga : 1'b0;
-    assign HSYNC_CGA = cga_scandouble_en ? hsync_cga_sd : hsync_cga_raw;
-    assign video_cga = cga_scandouble_en ? video_cga_sd : video_cga_raw;
-
-    wire intensity;
-
+    assign de_o = de_o_ega;
+    assign HSYNC_EGA = cga_scandouble_en ? hsync_ega_sd : hsync_ega_raw;
 
     wire        video_ram_unused_we_l;
     wire [18:0] video_ram_unused_addr;
@@ -1204,25 +1194,9 @@ end
     // Thin font switch (TODO: switchable with Keyboard shortcut)
     assign thin_font = 1'b0; // Default: No thin font
 
-    wire composite_cga = composite;
-
-    assign VGA_VBlank_border = `ENABLE_CGA ? VGA_VBlank_border_raw : 1'b0;
-    assign std_hsyncwidth = `ENABLE_CGA ? std_hsyncwidth_raw : 1'b0;
+    assign VGA_VBlank_border = VGA_VBlank_border_raw;
+    assign std_hsyncwidth = std_hsyncwidth_raw;
     assign tandy_color_16 = 1'b0;
-
-
-    // CGA digital to analog converter
-    cga_vgaport vga_cga 
-    (
-        .clk(clk_vga_cga),
-        .clkdiv(clkdiv),
-        .video(video_cga),
-        .hblank(HBLANK_CGA),
-        .composite(composite_cga),
-        .red(R_CGA),
-        .green(G_CGA),
-        .blue(B_CGA)
-    );
 
     ega_top ega1 
     (
@@ -1279,20 +1253,20 @@ end
         .ega_rotate_count_out       (ega_rotate_count_cfg),
         .ega_blink_counter_out      (ega_blink_counter),
         .ega_blink_state_out        (ega_blink_state),
-        .hsync                      (hsync_cga_raw),
-        .dbl_hsync                  (hsync_cga_sd),
-        .hblank                     (HBLANK_CGA),
-        .vsync                      (VSYNC_CGA),
-        .vblank                     (VBLANK_CGA),
+        .hsync                      (hsync_ega_raw),
+        .dbl_hsync                  (hsync_ega_sd),
+        .hblank                     (HBLANK_EGA),
+        .vsync                      (VSYNC_EGA),
+        .vblank                     (VBLANK_EGA),
         .vblank_border              (VGA_VBlank_border_raw),
         .std_hsyncwidth             (std_hsyncwidth_raw),
-        .de_o                       (de_o_cga),
-        .video                      (video_cga_raw),
-        .dbl_video                  (video_cga_sd),
+        .de_o                       (de_o_ega),
+        .video                      (ega_compat_video_raw),
+        .dbl_video                  (ega_compat_video_sd),
         .ega_red                    (R_EGA),
         .ega_green                  (G_EGA),
         .ega_blue                   (B_EGA),
-        .ega_rgb_active             (ega_rgb_active),
+        .ega_rgb_active             (),
         .ega_display_sel_out        (ega_display_sel_cga),
         .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
