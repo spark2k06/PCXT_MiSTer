@@ -454,7 +454,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-402 - Remove HGC VRAM And Video Path
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `ECC-401`.
 - Files: `rtl/KFPC-XT/HDL/Peripherals.sv`, HGC build references.
@@ -466,6 +466,21 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - No active HGC module is instantiated.
   - VGA output is not muxed with HGC.
+- Result:
+  - Removed the active `hgc` and `hgc_vgaport` instances, HGC VRAM BRAM,
+    HGC CRTC readback, HGC memory select, HGC I/O synchronizer, and HGC splash
+    destination from `Peripherals.sv`.
+  - Forced the legacy `swap_video` output low and routed local VGA RGB/sync/
+    blank/de outputs only through the EGA/CGA-compatible path; HGC bus ready is
+    fixed ready with no HGC memory/status branch.
+  - Verified `rg -n "hgc_mem_select|hgc_grph|hgc_io_|hgc_splash|hgc_vram|HGC_VRAM|HGC_CRTC|hgc1|hgc_vgaport|R_HGC|G_HGC|B_HGC|swap_video_sel|std_hsyncwidth_hgc|vblank_border_hgc|clk_vga_hgc\)"
+    rtl/KFPC-XT/HDL/Peripherals.sv` returns no matches.
+  - Verified `ega_pixel_tb` and `ega_vram_b8000_tb` pass.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 201
+    warnings.
 
 ### ECC-403 - Remove Tandy Video Banking From Active Path
 
