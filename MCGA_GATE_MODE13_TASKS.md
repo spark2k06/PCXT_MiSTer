@@ -115,7 +115,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-002 - Document IBM EGA BIOS Mode 13h Gap
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: none.
 - Files: `MCGA_GATE_MODE13_SPEC.md`, optional BIOS audit note.
