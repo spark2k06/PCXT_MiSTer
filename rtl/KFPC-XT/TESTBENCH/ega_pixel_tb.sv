@@ -365,6 +365,30 @@ module ega_pixel_tb;
         end
     endtask
 
+    task automatic check_fetch_gap_holds_last_pixel;
+        begin
+            render_mode = 2'd1;
+            dot_clock_div2 = 1'b0;
+            display_enable = 1'b1;
+
+            load_planes(8'h01, 8'h00, 8'h00, 8'h00);
+            drain_pixels(7);
+            @(posedge clk);
+            #1;
+            if (!pixel_valid || plane_index !== 4'h1) begin
+                $display(
+                    "FAIL active fetch gap should hold last pixel: valid=%0b pixel=%h",
+                    pixel_valid,
+                    plane_index
+                );
+                errors = errors + 1;
+            end
+
+            load_planes(8'h80, 8'h00, 8'h00, 8'h00);
+            expect_pixel(4'h1, 0);
+        end
+    endtask
+
     task automatic check_attribute_palette_path;
         begin
             render_mode = 2'd1;
@@ -406,6 +430,8 @@ module ega_pixel_tb;
         check_cga2bpp_conversion();
         repeat (2) @(posedge clk);
         check_display_disable_gating();
+        repeat (2) @(posedge clk);
+        check_fetch_gap_holds_last_pixel();
         repeat (2) @(posedge clk);
         check_attribute_palette_path();
 
