@@ -27,13 +27,21 @@ module mcga_dac_tb;
         .write_red      (write_red),
         .write_green    (write_green),
         .write_blue     (write_blue),
+        .component_write_en(1'b0),
+        .component_write_index(8'h00),
+        .component_select(2'd0),
+        .component_data  (6'h00),
         .sample_index   (sample_index),
         .sample_red     (sample_red),
         .sample_green   (sample_green),
         .sample_blue    (sample_blue),
         .sample_red_8   (sample_red_8),
         .sample_green_8 (sample_green_8),
-        .sample_blue_8  (sample_blue_8)
+        .sample_blue_8  (sample_blue_8),
+        .port_index     (8'h00),
+        .port_red       (),
+        .port_green     (),
+        .port_blue      ()
     );
 
     always #5 clock = ~clock;

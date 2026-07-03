@@ -135,6 +135,13 @@ module ega_top(
     wire ega_dac_read_index_cs = ((bus_a == 15'h03C7) || (bus_a == 15'h02C7)) & ~bus_aen & ega_enabled;
     wire ega_dac_write_index_cs = ((bus_a == 15'h03C8) || (bus_a == 15'h02C8)) & ~bus_aen & ega_enabled;
     wire ega_dac_data_cs = ((bus_a == 15'h03C9) || (bus_a == 15'h02C9)) & ~bus_aen & ega_enabled;
+    wire [7:0] mcga_dac_io_data_out;
+    wire [5:0] mcga_dac_sample_red;
+    wire [5:0] mcga_dac_sample_green;
+    wire [5:0] mcga_dac_sample_blue;
+    wire [7:0] mcga_dac_sample_red_8;
+    wire [7:0] mcga_dac_sample_green_8;
+    wire [7:0] mcga_dac_sample_blue_8;
     wire ega_cfg_we = ega_enabled && ega_io_we && ((ega_io_addr == 16'h03C5) || (ega_io_addr == 16'h02C5) || (ega_io_addr == 16'h03CF) || (ega_io_addr == 16'h02CF));
 
     reg ega_video_active = 1'b0;
@@ -457,6 +464,26 @@ module ega_top(
         .video_enable_out(ega_attr_video_enable)
     );
 
+    mcga_dac_io mcga_dac_io_inst (
+        .clock              (clk),
+        .reset              (reset),
+        .read_index_write   (ega_dac_read_index_cs & ega_io_we),
+        .write_index_write  (ega_dac_write_index_cs & ega_io_we),
+        .data_write         (ega_dac_data_cs & ega_io_we),
+        .read_index_read    (ega_dac_read_index_cs & ega_io_re),
+        .write_index_read   (ega_dac_write_index_cs & ega_io_re),
+        .data_read          (ega_dac_data_cs & ega_io_re),
+        .io_data_in         (bus_d),
+        .io_data_out        (mcga_dac_io_data_out),
+        .sample_index       (8'h00),
+        .sample_red         (mcga_dac_sample_red),
+        .sample_green       (mcga_dac_sample_green),
+        .sample_blue        (mcga_dac_sample_blue),
+        .sample_red_8       (mcga_dac_sample_red_8),
+        .sample_green_8     (mcga_dac_sample_green_8),
+        .sample_blue_8      (mcga_dac_sample_blue_8)
+    );
+
     wire [5:0] ega_dbl_color;
     wire ega_dbl_hsync;
     wire ega_vsync_sd_l;
@@ -531,7 +558,7 @@ module ega_top(
         else if (ega_gfx_data_cs & ~bus_ior_l)
             ega_bus_out_mux = ega_gfx_data_out;
         else if ((ega_dac_read_index_cs | ega_dac_write_index_cs | ega_dac_data_cs) & ~bus_ior_l)
-            ega_bus_out_mux = 8'h00;
+            ega_bus_out_mux = mcga_dac_io_data_out;
         else if (ega_crtc_cs & ~bus_ior_l & bus_a[0])
             ega_bus_out_mux = ega_crtc_data_out;
         else

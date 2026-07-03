@@ -269,7 +269,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-402 - Implement DAC Ports 03C7h 03C8h 03C9h
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-401`.
 - Files: I/O decode RTL, DAC RTL, focused testbench.

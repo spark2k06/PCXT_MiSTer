@@ -14,13 +14,23 @@ module mcga_dac(
     input  wire [5:0]  write_green,
     input  wire [5:0]  write_blue,
 
+    input  wire        component_write_en,
+    input  wire [7:0]  component_write_index,
+    input  wire [1:0]  component_select,
+    input  wire [5:0]  component_data,
+
     input  wire [7:0]  sample_index,
     output wire [5:0]  sample_red,
     output wire [5:0]  sample_green,
     output wire [5:0]  sample_blue,
     output wire [7:0]  sample_red_8,
     output wire [7:0]  sample_green_8,
-    output wire [7:0]  sample_blue_8
+    output wire [7:0]  sample_blue_8,
+
+    input  wire [7:0]  port_index,
+    output wire [5:0]  port_red,
+    output wire [5:0]  port_green,
+    output wire [5:0]  port_blue
 );
 
     reg [5:0] red_ram[0:255];
@@ -114,6 +124,14 @@ module mcga_dac(
             red_ram[write_index] <= write_red;
             green_ram[write_index] <= write_green;
             blue_ram[write_index] <= write_blue;
+        end else if (component_write_en) begin
+            case (component_select)
+                2'd0: red_ram[component_write_index] <= component_data;
+                2'd1: green_ram[component_write_index] <= component_data;
+                2'd2: blue_ram[component_write_index] <= component_data;
+                default: begin
+                end
+            endcase
         end
     end
 
@@ -123,5 +141,8 @@ module mcga_dac(
     assign sample_red_8 = {sample_red, sample_red[5:4]};
     assign sample_green_8 = {sample_green, sample_green[5:4]};
     assign sample_blue_8 = {sample_blue, sample_blue[5:4]};
+    assign port_red = red_ram[port_index];
+    assign port_green = green_ram[port_index];
+    assign port_blue = blue_ram[port_index];
 
 endmodule
