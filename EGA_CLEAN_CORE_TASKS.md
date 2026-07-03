@@ -175,7 +175,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-103 - Hard-Code EGA Video Selection
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-101`.
 - Files: `rtl/KFPC-XT/HDL/Peripherals.sv`, project `.qsf` files.
@@ -187,6 +187,12 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - EGA is the only selected active video path.
   - Any remaining old video macro is listed as migration debt.
+- Result:
+  - Removed the remaining user-facing CGA/HGC primary-video menu options.
+  - Hard-coded the top-level video selection away from HGC and standalone CGA.
+  - Temporarily retained `ENABLE_CGA`, `ENABLE_EGA`, and downstream
+    `enable_cga` wiring as migration debt because `ega_top` still contains the
+    `cga_passthrough` dependency scheduled for `ECC-201` through `ECC-303`.
 
 ## ECC-200: Native EGA CGA Compatibility
 

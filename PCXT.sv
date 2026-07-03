@@ -251,8 +251,6 @@ module emu
 
 	`include "build_id.v"
 
-    localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1oC,PCXT CGA Graphics,Yes,No;P1oD,PCXT Hercules Graphics,Yes,No;" : "");
-    localparam CONF_STR_VIDEO_PRIMARY = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1O4,PCXT 1st Video,CGA,Hercules;" : "");
     localparam CONF_STR_ROM = (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;");
     localparam CONF_STR_CMS = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
     localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
@@ -274,8 +272,6 @@ module emu
 		"-;",
 		"P1,System & BIOS;",
 		"P1-;",
-		CONF_STR_HGC,
-		CONF_STR_VIDEO_PRIMARY,
 		"P1O7,Boot Splash Screen,Yes,No;",
 		"P1-;",
 		CONF_STR_ROM,
@@ -363,25 +359,21 @@ module emu
     reg         hgc_mode_video_ff;
     reg [2:0]   screen_mode_video_ff;
     reg         border_video_ff;
-    reg         cga_hw;
     wire        video_scandoubler_en = (scale_video_ff > 0) || forced_scandoubler;
     wire        cga_scandouble_en = video_scandoubler_en;
-    reg         hercules_hw;
     wire [15:0] status_menumask = {12'd0, ega_enabled, ega_enabled, status[5]};
 
     wire VGA_VBlank_border;
     wire std_hsyncwidth;
     wire pause_core;
     wire swap_video;
-    wire swap_video_eff = `ENABLE_HGC ? (`ENABLE_CGA ? swap_video : (`ENABLE_TANDY_VIDEO ? 1'b0 : 1'b1)) : 1'b0;
+    wire swap_video_eff = 1'b0;
 
     always @(posedge clk_57_272)
     begin
         scale_video_ff          <= scale;
         screen_mode_video_ff    <= screen_mode;
         border_video_ff         <= border;
-        cga_hw                  <= `ENABLE_CGA ? (~status[44] | tandy_video_mode) : 1'b0;
-        hercules_hw             <= `ENABLE_HGC ? (`ENABLE_CGA ? ~status[45] : 1'b1) : 1'b0;
         VIDEO_ARX               <= (!ar) ? 12'd4 : (ar - 1'd1);
         VIDEO_ARY               <= (!ar) ? 12'd3 : 12'd0;
     end
@@ -1053,10 +1045,11 @@ module emu
 
     wire tandy_bios_flag = bios_write_n ? `ROM_IS_TANDY : tandy_bios_write;
 
-    wire video_output_sel = `ENABLE_HGC ? hgc_mode_video_ff : 1'b0;
-    wire enable_hgc_sel = `ENABLE_HGC ? 1'b1 : 1'b0;
-    wire [1:0] hgc_rgb_sel = `ENABLE_HGC ? 2'b10 : 2'b00;
-    wire hercules_hw_sel = `ENABLE_HGC ? hercules_hw : 1'b0;
+    wire video_output_sel = 1'b0;
+    wire enable_hgc_sel = 1'b0;
+    wire [1:0] hgc_rgb_sel = 2'b00;
+    wire cga_hw_sel = 1'b0;
+    wire hercules_hw_sel = 1'b0;
     wire ems_enabled_sel = `ENABLE_EMS ? ~status[11] : 1'b0;
     wire [1:0] ems_address_sel = `ENABLE_EMS ? status[13:12] : 2'b00;
 
@@ -1205,7 +1198,7 @@ module emu
 		.ram_read_wait_cycle                (ram_read_wait_cycle),
 		.ram_write_wait_cycle               (ram_write_wait_cycle),
 		.pause_core                         (pause_core),
-		.cga_hw                             (cga_hw),
+		.cga_hw                             (cga_hw_sel),
 		.ega_enabled                        (ega_enabled),
 		.cga_scandouble_en                  (cga_scandouble_en),
 		.hercules_hw                        (hercules_hw_sel),
