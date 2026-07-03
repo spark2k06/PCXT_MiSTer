@@ -242,7 +242,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-203 - Verify EGA-Owned CGA-Compatible 2bpp Graphics
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-201`.
 - Files: `rtl/video/ega_pixel.v`, `rtl/video/ega_gfx_ctrl.v`,
@@ -255,6 +255,16 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - CGA-compatible graphics do not require `cga_pixel.sv`.
   - Focused or hardware evidence covers the 2bpp path.
+- Result:
+  - `ega_gfx_ctrl.v` derives CGA-compatible 2bpp selection from the EGA
+    graphics controller mode register, and `ega_pixel.v` renders that mode
+    through its local `RENDER_CGA2` path without `cga_pixel.sv`.
+  - Verified with `iverilog -g2012 -I rtl/video -o
+    $env:TEMP\ega_pixel_tb.vvp rtl/KFPC-XT/TESTBENCH/ega_pixel_tb.sv
+    rtl/video/ega_pixel.v rtl/video/ega_attrib_ctrl.v; if ($LASTEXITCODE
+    -eq 0) { vvp $env:TEMP\ega_pixel_tb.vvp }`, which passes and covers
+    render-mode selection plus 2bpp conversion.
+  - Hardware game smoke remains pending under the hardware smoke baseline.
 
 ### ECC-204 - Verify EGA-Owned CGA-Compatible Text
 
