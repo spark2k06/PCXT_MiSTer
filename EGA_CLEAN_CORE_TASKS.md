@@ -121,7 +121,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-003 - Record Current Focused Test Status
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-001`.
 - Files: `EGA_TESTBENCH_INVENTORY.md`, `TEST_TOOLS.md`.

@@ -259,6 +259,11 @@ However, no standalone HDL simulator executable was found in the Intel FPGA
 Lite 17.0 tree or in `PATH`. Specifically, `vsim`, `vlog`, `vlib`, `iverilog`,
 `vvp`, and `verilator` were not available.
 
+Update for the 2026-07-03 clean-core baseline: `iverilog` and `vvp` are now
+available in `PATH` from `C:\iverilog\bin`. Focused EGA testbench execution
+status is recorded in `EGA_TESTBENCH_INVENTORY.md` under `ECC-003 Baseline
+Execution Snapshot`.
+
 `quartus_sim.exe` exists, but the verified installation does not include the
 usual ModelSim/Questa command-line compiler/run tools used for SystemVerilog
 testbench workflows. Treat `quartus_sim` as a Quartus simulation front-end, not
