@@ -193,7 +193,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-202 - Define MCGA A000 Ownership Boundary
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-201`.
 - Files: `rtl/KFPC-XT/HDL/ega_vram_bram_frontend.sv`,

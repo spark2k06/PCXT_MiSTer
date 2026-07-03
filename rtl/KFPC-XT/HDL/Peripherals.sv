@@ -145,7 +145,10 @@ module PERIPHERALS #(
     wire [4:0] clkdiv;
     wire grph_mode;
     wire hres_mode;
-    wire mcga_mode13_active_unused;
+    wire mcga_mode13_active_video;
+    logic mcga_mode13_active_sync1;
+    logic mcga_mode13_active_sync2;
+    wire mcga_mode13_active_sys = mcga_mode13_active_sync2;
 
     wire [1:0] ega_mem_map_sel_cfg;
 
@@ -211,7 +214,9 @@ module PERIPHERALS #(
     wire    opl_388_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)) : 1'b0; // 0x388 .. 0x389 (Adlib)
     wire    opl_228_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)) : 1'b0; // 0x228 .. 0x229 (Sound Blaster FM)
     wire    cms_220_chip_select     = `ENABLE_CMS ? (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)) : 1'b0; // 0x220 .. 0x22F (C/MS Audio)
-    wire    ega_mem_select          = ~iorq && ~address_enable_n && ega_memory_window_select(address, ega_mem_map_sel_cfg);
+    wire    mcga_a000_select        = mcga_mode13_active_sys && ~iorq && ~address_enable_n && (address[19:16] == 4'hA);
+    wire    ega_mem_select_raw      = ~iorq && ~address_enable_n && ega_memory_window_select(address, ega_mem_map_sel_cfg);
+    wire    ega_mem_select          = ega_mem_select_raw && !mcga_a000_select;
     wire    cga_mem_select          = ~iorq && ~address_enable_n && ~ega_mem_select && (address[19:15] == 5'b10111); // B8000 - BFFFF (16 KB / 32 KB)
     wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
     wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
@@ -891,6 +896,17 @@ end
         video_address_enable_n  <= address_enable_n;
     end
 
+    always_ff @(posedge clock or posedge reset)
+    begin
+        if (reset) begin
+            mcga_mode13_active_sync1 <= 1'b0;
+            mcga_mode13_active_sync2 <= 1'b0;
+        end else begin
+            mcga_mode13_active_sync1 <= mcga_mode13_active_video;
+            mcga_mode13_active_sync2 <= mcga_mode13_active_sync1;
+        end
+    end
+
     always_ff @(posedge clock)
     begin
         if (video_reset)
@@ -1138,7 +1154,7 @@ end
         .mcga_enabled               (mcga_enabled),
         .mcga_mode13_set            (1'b0),
         .mcga_mode13_clear          (1'b0),
-        .mcga_mode13_active_out     (mcga_mode13_active_unused),
+        .mcga_mode13_active_out     (mcga_mode13_active_video),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
         .crt_h_offset               (crt_h_offset),
