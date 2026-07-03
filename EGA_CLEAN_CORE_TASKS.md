@@ -733,7 +733,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-601 - Add Clean-Core Smoke Matrix
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-404`.
 - Files: new smoke matrix document or `EGA_SMOKE_CHECKLIST.md`.
@@ -744,6 +744,19 @@ ECC-000..099 baseline and recovery
   - Record pass/fail status after each major phase.
 - Acceptance:
   - Smoke coverage proves both EGA-native and CGA-compatible behavior.
+- Result:
+  - Updated `EGA_SMOKE_CHECKLIST.md` so the required smoke set covers EGA BIOS
+    boot, text mode `03h`, EGA modes `0Dh`/`0Eh`/`10h`, an EGA game, a
+    CGA-compatible text case, a CGA-compatible graphics case, and reset
+    recovery.
+  - Replaced old non-EGA coexistence smoke rows with CGA-compatible cases that
+    explicitly run through EGA ownership.
+  - Added an `ECC-601` clean-core matrix with all hardware visual cases marked
+    `blocked` in this session because `jtagconfig` reports no available JTAG
+    hardware.
+  - Updated release-candidate criteria to require CGA-compatible text and
+    graphics results through EGA instead of CGA/HGC/Tandy non-regression
+    adapter checks.
 
 ### ECC-602 - Add B8000-Compatible EGA VRAM Tests
 

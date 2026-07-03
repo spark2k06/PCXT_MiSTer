@@ -3,8 +3,8 @@
 This checklist defines the minimum visual smoke set for EGA release-candidate
 runs. It is not a substitute for deterministic register, VRAM, CRTC, or pixel
 testbenches; it is the final platform-level check that BIOS-visible behavior,
-video mode programming, scanout, palette, and non-EGA coexistence still work
-together.
+video mode programming, scanout, palette, and CGA-compatible EGA behavior still
+work together.
 
 ## Local Assets
 
@@ -23,15 +23,16 @@ log. Do not treat an untracked local disk image as reproducible evidence.
 | ID | Case | Setup | Expected Visual Properties | Primary Failure Class |
 | --- | --- | --- | --- | --- |
 | `SMOKE-BIOS-EGA` | EGA BIOS boot/probe | Boot with `egabios.rom` enabled. | System reaches DOS or the configured boot path without corrupt text, snow-like planar artifacts, or hangs during video probe. | Integration, register, CPU memory |
-| `SMOKE-TEXT-03` | DOS text mode `03h` | Boot DOS text from the PCXT disk image. | 80-column text is stable, cursor location is coherent, attributes do not bleed between characters, and CGA/HGC/Tandy modes are not selected accidentally. | Text, scanout, integration |
+| `SMOKE-TEXT-03` | DOS text mode `03h` | Boot DOS text from the PCXT disk image. | 80-column text is stable, cursor location is coherent, attributes do not bleed between characters, and the EGA path owns the displayed output. | Text, scanout, integration |
 | `SMOKE-EGA-0D` | EGA mode `0Dh` 320x200x16 | Use `egabios.asm`/BIOS mode set or a small DOS mode-set helper. | 320-wide graphics are centered, four EGA planes combine into 16 visible color indices, palette changes affect colors without changing geometry, and sprite/filled-area writes do not show stale latch data. | CPU memory, register, palette, scanout |
 | `SMOKE-EGA-0E` | EGA mode `0Eh` 640x200x16 | Use a direct register-programming helper if BIOS does not expose the mode. | 640-wide graphics have double horizontal resolution versus `0Dh`, no every-other-pixel loss, and the same palette entries map consistently. | Scanout, palette, register |
 | `SMOKE-EGA-10` | EGA mode `10h` 640x350x16 | Use a direct register-programming helper if BIOS does not expose the mode. | 350-line graphics are vertically stable, no bottom wrap occurs, CRTC overflow bits produce the expected height, and start address remains frame-latched. | CRTC, scanout, palette |
 | `SMOKE-GAME-PREHISTORIK` | Known EGA game probe | Run Prehistorik from a recorded disk image. | EGA detection succeeds, INT `11h` equipment probing does not select a wrong adapter, mode `0Dh` starts, palette is plausible, and planar sprite writes do not leave masks or wrong colors. | Register, CPU memory, palette |
 | `SMOKE-GAME-SCROLL` | Smooth EGA scrolling game | Run a documented EGA scroller from a recorded disk image. | Horizontal panning and start-address changes are smooth, no byte-boundary shimmer appears, and split-screen/status areas stay anchored. | CRTC, scanout, register |
 | `SMOKE-GAME-MASKED` | Masked sprite game | Run a documented EGA sprite-heavy game from a recorded disk image. | Sprites preserve backgrounds, transparent regions remain transparent, and repeated movement does not accumulate plane corruption. | CPU memory, register |
-| `SMOKE-CGA-BASE` | Non-EGA CGA regression | Boot or run a known CGA mode from the PCXT disk image with EGA disabled or bypassed. | CGA output uses the expected memory aperture and colors; EGA decode must not steal CGA VRAM or I/O. | Integration, CPU memory |
-| `SMOKE-HGC-TANDY` | Non-EGA HGC/Tandy regression | Run one existing HGC or Tandy smoke case where configured. | The selected non-EGA adapter still produces its expected text/graphics output without EGA register side effects. | Integration |
+| `SMOKE-CGA-TEXT-EGA` | CGA-compatible text through EGA | Run a CGA-era text program or mode-set case through the normal EGA boot path. | B8000 text remains stable through EGA ownership, 80-column layout and attributes are correct, and no standalone CGA adapter path is selected. | Text, CPU memory, integration |
+| `SMOKE-CGA-GFX-EGA` | CGA-compatible graphics through EGA | Run a CGA-era graphics program that uses EGA-compatible CGA modes through the normal EGA boot path. | 2bpp pixels, palette/index mapping, memory aperture behavior, and frame timing are plausible without a separate CGA module. | CPU memory, palette, scanout |
+| `SMOKE-RESET-EGA` | Reset after EGA boot | Reset after reaching DOS or a graphics smoke case. | Splash/text recovery is stable, EGA BIOS remains available, and no removed CGA/HGC/Tandy selection state is required. | Integration, CRTC |
 
 ## Failure Classification
 
@@ -101,6 +102,34 @@ This blocks collecting the `ECC-002` hardware smoke baseline in this session.
 Per clean-core guidance, RTL refactor tasks may continue with this smoke test
 recorded as pending hardware validation.
 
+## Clean-Core Smoke Matrix: ECC-601
+
+This matrix supersedes the old non-EGA coexistence rows for this branch. CGA
+software compatibility is validated as behavior inside the EGA model, not by
+switching to a standalone CGA adapter. Hardware execution is still pending in
+this development session because `jtagconfig` reports no available JTAG
+hardware.
+
+- Branch: `ega-mcga-clean-core`.
+- Last RTL checkpoint before matrix creation: `9f0be9b`.
+- Build check available in-session: Quartus A&E only.
+
+| Case | Required Observation | ECC-601 Status | Notes |
+| --- | --- | --- | --- |
+| `SMOKE-BIOS-EGA` | EGA BIOS cold boot reaches the configured boot path. | `blocked` | Requires MiSTer hardware run. |
+| `SMOKE-TEXT-03` | DOS 80-column text remains stable after boot. | `blocked` | Requires MiSTer hardware run. |
+| `SMOKE-EGA-0D` | 320x200x16 EGA graphics render with correct plane/color behavior. | `blocked` | Requires MiSTer hardware run or captured DOS helper output. |
+| `SMOKE-EGA-0E` | 640x200x16 EGA graphics render at the expected horizontal resolution. | `blocked` | Requires MiSTer hardware run or captured DOS helper output. |
+| `SMOKE-EGA-10` | 640x350x16 EGA graphics are vertically stable. | `blocked` | Requires MiSTer hardware run or captured DOS helper output. |
+| `SMOKE-GAME-PREHISTORIK` | A known EGA title detects EGA and renders plausible graphics. | `blocked` | Requires reproducible disk image and MiSTer hardware run. |
+| `SMOKE-CGA-TEXT-EGA` | CGA-era text software works through EGA-owned B8000 behavior. | `blocked` | Requires MiSTer hardware run. |
+| `SMOKE-CGA-GFX-EGA` | CGA-era graphics software works through EGA-owned 2bpp compatibility. | `blocked` | Requires MiSTer hardware run. |
+| `SMOKE-RESET-EGA` | Reset recovers through the EGA splash/text path without video selection state. | `blocked` | Requires MiSTer hardware run. |
+
+Post-phase status should be appended here after each hardware smoke run, using
+the current commit hash, bitstream path, disk image checksum, and one result per
+`SMOKE-*` row.
+
 ## Release-Candidate Minimum
 
 A release-candidate run is not complete until:
@@ -108,5 +137,6 @@ A release-candidate run is not complete until:
 1. `SMOKE-BIOS-EGA`, `SMOKE-TEXT-03`, `SMOKE-EGA-0D`, `SMOKE-EGA-0E`, and
    `SMOKE-EGA-10` have explicit pass/fail results.
 2. At least one known EGA game case has a result.
-3. At least one CGA/HGC/Tandy non-regression case has a result.
+3. At least one CGA-compatible text case and one CGA-compatible graphics case
+   have results through EGA.
 4. Every failure is classified and linked to an EGA task or a new follow-up.
