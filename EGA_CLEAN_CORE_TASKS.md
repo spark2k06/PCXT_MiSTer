@@ -885,7 +885,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-703 - Final Grep And Build Closure
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-601`, `ECC-602`, `ECC-603`, `ECC-604`, `ECC-701`.
 - Files: all active RTL and build files.
@@ -898,3 +898,20 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Definition of Done in `EGA_CLEAN_CORE_PLAN.md` is satisfied.
   - No active standalone CGA/HGC/Tandy path remains.
+- Result:
+  - Final active-file grep returned no matches for removed gates, macros, or
+    standalone video/audio/keyboard path references with:
+    `rg -n "cga_passthrough|EGA Gate|ENABLE_CGA|ENABLE_HGC|ENABLE_TANDY_VIDEO|ENABLE_TANDY_AUDIO|ENABLE_TANDY_KBD|SYSTEM_VARIANT_TANDY|ROM_VARIANT_TANDY|ROM_IS_TANDY|cga_vram|cga_vgaport|cga_sequencer|cga_pixel|cga_composite|module cga\b|hgc_vgaport|hgc_sequencer|hgc_pixel|hgc_attrib|module hgc\b|Tandy_Scancode|jt89|tandy_video|tandy_bios|tandy_snd|tandy_16|tandy_color|swap_video|hercules_hw|enable_cga|cga_hw" PCXT.sv rtl\KFPC-XT\HDL\Chipset.sv rtl\KFPC-XT\HDL\Peripherals.sv rtl\KFPC-XT\HDL\RAM.sv rtl\KFPC-XT\HDL\KFPS2KB\HDL\KFPS2KB.sv rtl\video\ega_top.v files.qip rtl\video\video.qip config.tcl`.
+  - Final QIP/QSF/TCL grep found only inactive internal files under
+    `rtl/sound/jt89`; `files.qip` no longer references those paths.
+  - Final focused tests passed:
+    `iverilog -g2012 -I rtl/video -o $env:TEMP\ega_pixel_tb.vvp rtl/KFPC-XT/TESTBENCH/ega_pixel_tb.sv rtl/video/ega_pixel.v rtl/video/ega_attrib_ctrl.v; if ($LASTEXITCODE -eq 0) { vvp $env:TEMP\ega_pixel_tb.vvp }`,
+    `iverilog -g2012 -I rtl/video -o $env:TEMP\ega_vram_b8000_tb.vvp rtl/KFPC-XT/TESTBENCH/ega_vram_b8000_tb.sv rtl/video/ega_vram.v; if ($LASTEXITCODE -eq 0) { vvp $env:TEMP\ega_vram_b8000_tb.vvp }`,
+    and
+    `iverilog -g2012 -I rtl/video -o $env:TEMP\ega_vram_splash_tb.vvp rtl/KFPC-XT/TESTBENCH/ega_vram_splash_tb.sv rtl/video/ega_vram.v; if ($LASTEXITCODE -eq 0) { vvp $env:TEMP\ega_vram_splash_tb.vvp }`.
+  - Final Quartus analysis and elaboration passed with 0 errors and 169
+    warnings using:
+    `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64'; $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map --read_settings_files=on --write_settings_files=off PCXT -c PCXT --analysis_and_elaboration`.
+  - Hardware visual smoke remains pending because no JTAG target is available;
+    the pending cases and `jtagconfig` limitation are documented in
+    `EGA_SMOKE_CHECKLIST.md` and the `ECC-002` baseline.
