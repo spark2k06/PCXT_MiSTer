@@ -33,9 +33,6 @@ module CHIPSET #(
         input   logic           video_output,
         input   logic           clk_vga_cga,
         input   logic           enable_cga,
-        input   logic           clk_vga_hgc,
-        input   logic           enable_hgc,
-        input   logic   [1:0]   hgc_rgb,
         output  logic           de_o,
         output  logic   [5:0]   VGA_R,
         output  logic   [5:0]   VGA_G,
@@ -186,7 +183,6 @@ module CHIPSET #(
     logic           dma_chip_select_n;
     logic           dma_page_chip_select_n;
     logic           memory_access_ready;
-    logic           hgc_memory_access_ready;
     logic           cga_memory_access_ready;
     logic           ega_memory_access_ready;
     logic           ram_address_select_n;
@@ -239,7 +235,7 @@ module CHIPSET #(
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
         .dma_wait_n                         (dma_wait_n),
-        .io_channel_ready                   (io_channel_ready & memory_access_ready & hgc_memory_access_ready & cga_memory_access_ready & ega_memory_access_ready & tandy_snd_rdy),
+        .io_channel_ready                   (io_channel_ready & memory_access_ready & cga_memory_access_ready & ega_memory_access_ready & tandy_snd_rdy),
         .io_read_n                          (io_read_n),
         .io_write_n                         (io_write_n),
         .memory_read_n                      (memory_read_n),
@@ -312,10 +308,7 @@ module CHIPSET #(
         .video_output                       (video_output),
         .clk_vga_cga                        (clk_vga_cga),
         .enable_cga                         (enable_cga),
-        .clk_vga_hgc                        (clk_vga_hgc),
-        .enable_hgc                         (enable_hgc),
         .de_o                               (de_o),
-        .hgc_rgb                            (hgc_rgb),
         .VGA_R                              (VGA_R),
         .VGA_G                              (VGA_G),
         .VGA_B                              (VGA_B),
@@ -335,7 +328,6 @@ module CHIPSET #(
         .memory_read_n                      (memory_read_n),
         .memory_write_n                     (memory_write_n),
         .address_enable_n                   (address_enable_n),
-        .hgc_memory_access_ready            (hgc_memory_access_ready),
         .cga_memory_access_ready            (cga_memory_access_ready),
         .ega_memory_access_ready            (ega_memory_access_ready),
         .timer_counter_out                  (timer_counter_out),

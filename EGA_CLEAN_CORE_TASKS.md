@@ -604,7 +604,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-503 - Stop Compiling HGC Modules
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `ECC-402`.
 - Files: `rtl/video/video.qip`, `files.qip`, HGC module files.
@@ -615,6 +615,27 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Build files do not compile HGC modules.
   - No active HGC references remain in RTL.
+- Result:
+  - Removed `hgc_vgaport.v`, `hgc_sequencer.v`, `hgc_pixel.v`,
+    `hgc_attrib.v`, and `hgc.v` from `rtl/video/video.qip`.
+  - Removed the inactive top-level HGC HDMI/mixer/retime path from `PCXT.sv`
+    and routed the final HDMI/credits path directly from the single EGA output
+    pipeline.
+  - Removed dead HGC ports and ready wiring from `PCXT.sv`,
+    `rtl/KFPC-XT/HDL/Chipset.sv`, `rtl/KFPC-XT/HDL/Peripherals.sv`, and
+    `rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv`.
+  - Verified `rg -n "ENABLE_HGC|hgc_|HGC|hgc\b|swap_video_eff|video_mixer_hgc|VGA_R_hgc|CE_PIXEL_hgc|CLK_VIDEO_HGC"
+    PCXT.sv rtl/KFPC-XT/HDL/Chipset.sv rtl/KFPC-XT/HDL/Peripherals.sv
+    rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv rtl/video/video.qip` returns no
+    matches.
+  - Verified `rg -n "hgc_vgaport|hgc_sequencer|hgc_pixel|hgc_attrib|hgc\.v|module hgc\b"
+    -g"*.qsf" -g"*.qip" -g"*.tcl" .` returns no build-config matches.
+  - Verified `ega_pixel_tb` and `ega_vram_b8000_tb` pass.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 176
+    warnings.
 
 ### ECC-504 - Remove Tandy Variant Compile And Menu Paths
 

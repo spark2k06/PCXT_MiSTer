@@ -1,8 +1,3 @@
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) hgc_vgaport.v ]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) hgc_sequencer.v ]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) hgc_pixel.v ]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) hgc_attrib.v ]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) hgc.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vram.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) UM6845R.v ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) video_scandoubler.v ]

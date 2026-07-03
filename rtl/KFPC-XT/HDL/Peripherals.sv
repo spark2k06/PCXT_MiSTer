@@ -16,9 +16,6 @@
 `ifndef ENABLE_CGA
 `define ENABLE_CGA 1
 `endif
-`ifndef ENABLE_HGC
-`define ENABLE_HGC 0
-`endif
 `ifndef ENABLE_EGA
 `define ENABLE_EGA 1
 `endif
@@ -59,9 +56,6 @@ module PERIPHERALS #(
         input   logic           video_output,
         input   logic           clk_vga_cga,
         input   logic           enable_cga,
-        input   logic           clk_vga_hgc,
-        input   logic           enable_hgc,
-        input   logic   [1:0]   hgc_rgb,
         output  logic           de_o,
         output  logic   [5:0]   VGA_R,
         output  logic   [5:0]   VGA_G,
@@ -83,7 +77,6 @@ module PERIPHERALS #(
         input   logic           memory_read_n,
         input   logic           memory_write_n,
         input   logic           address_enable_n,
-        output  logic           hgc_memory_access_ready,
         output  logic           cga_memory_access_ready,
         output  logic           ega_memory_access_ready,
         // Peripherals
@@ -1372,7 +1365,6 @@ end
         .rotate_count               (ega_rotate_count_cfg)
     );
 
-    assign hgc_memory_access_ready = 1'b1;
     assign cga_memory_access_ready = 1'b1;
     assign ega_memory_access_ready = `ENABLE_EGA
                                    ? (ega_vram_cpu_cycle ? ega_vram_cpu_ready : 1'b1)

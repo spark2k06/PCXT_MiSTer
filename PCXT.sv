@@ -43,9 +43,6 @@
 `ifndef ENABLE_CGA
 `define ENABLE_CGA 1
 `endif
-`ifndef ENABLE_HGC
-`define ENABLE_HGC 0
-`endif
 `ifndef ENABLE_EGA
 `define ENABLE_EGA 1
 `endif
@@ -356,7 +353,6 @@ module emu
     wire [2:0] hsync_width_osd = status[59:57];  // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
 
     reg [1:0]   scale_video_ff;
-    reg         hgc_mode_video_ff;
     reg [2:0]   screen_mode_video_ff;
     reg         border_video_ff;
     wire        video_scandoubler_en = (scale_video_ff > 0) || forced_scandoubler;
@@ -367,7 +363,6 @@ module emu
     wire std_hsyncwidth;
     wire pause_core;
     wire swap_video;
-    wire swap_video_eff = 1'b0;
 
     always @(posedge clk_57_272)
     begin
@@ -377,9 +372,6 @@ module emu
         VIDEO_ARX               <= (!ar) ? 12'd4 : (ar - 1'd1);
         VIDEO_ARY               <= (!ar) ? 12'd3 : 12'd0;
     end
-
-    always @(posedge clk_chipset)
-        hgc_mode_video_ff       <= `ENABLE_HGC ? hgc_mode : 1'b0;
 
     hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io 
 	(
@@ -587,13 +579,10 @@ module emu
     end
 
     localparam tandy_video_mode = `ENABLE_TANDY_VIDEO;
-    reg hgc_mode = 0;
-
     always @(negedge clk_chipset, posedge reset)
     begin
         if (reset)
         begin
-            hgc_mode <= `ENABLE_HGC ? (`ENABLE_CGA ? status[4] : 1'b1) : 1'b0;
             reset_cpu <= 1'b1;
             reset_cpu_count <= 16'h0000;
         end
@@ -1038,7 +1027,7 @@ module emu
     wire    [5:0]   sw_base;
     wire    [1:0]   sw_floppy;
 
-    assign  sw_base = `ENABLE_HGC ? (hgc_mode ? 6'b111101 : 6'b101101) : 6'b101101;
+    assign  sw_base = 6'b101101;
     assign  sw_floppy = fdd_present[1] ? 2'b01 : 2'b00;
     assign  sw = {sw_floppy, sw_base}; // DIP switches (CGA and floppy count)
     assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
@@ -1046,8 +1035,6 @@ module emu
     wire tandy_bios_flag = bios_write_n ? `ROM_IS_TANDY : tandy_bios_write;
 
     wire video_output_sel = 1'b0;
-    wire enable_hgc_sel = 1'b0;
-    wire [1:0] hgc_rgb_sel = 2'b00;
     wire cga_hw_sel = 1'b0;
     wire hercules_hw_sel = 1'b0;
     wire ems_enabled_sel = `ENABLE_EMS ? ~status[11] : 1'b0;
@@ -1086,9 +1073,6 @@ module emu
 		.video_output                       (video_output_sel),
 		.clk_vga_cga                        (clk_28_636),
 		.enable_cga                         (`ENABLE_CGA),
-		.clk_vga_hgc                        (clk_57_272),
-		.enable_hgc                         (enable_hgc_sel),
-		.hgc_rgb                            (hgc_rgb_sel),
 	//	.de_o                               (VGA_DE),
 		.VGA_R                              (r),
 		.VGA_G                              (g),
@@ -1436,13 +1420,10 @@ module emu
     wire VBlank;
     wire VSync;
     reg  ce_pixel_cga = 1'b0;
-    wire ce_pixel_hgc_raw;
     wire de_o;
     wire [5:0] r, g, b;
     reg [7:0] raux_cga, gaux_cga, baux_cga;
-    reg [7:0] raux_hgc, gaux_hgc, baux_hgc;
 	 wire [7:0] VGA_R_AUX, VGA_G_AUX, VGA_B_AUX;
-    wire CLK_VIDEO_HGC;
     wire CLK_VIDEO_CGA;
     wire CE_PIXEL_CREDITS;
 
@@ -1456,22 +1437,6 @@ module emu
     wire        CE_PIXEL_cga;
     reg         ce_pixel_cga_2x = 1'b0;
     wire        ce_pixel_cga_vid = cga_scandouble_en ? ce_pixel_cga_2x : ce_pixel_cga;
-
-    wire  [7:0] VGA_R_hgc;
-    wire  [7:0] VGA_G_hgc;
-    wire  [7:0] VGA_B_hgc;
-    wire        VGA_HS_hgc;
-    wire        VGA_VS_hgc;
-    wire        VGA_DE_hgc;
-    wire [21:0] gamma_bus_hgc;
-    wire        CE_PIXEL_hgc;
-    reg  [1:0]  ce_pixel_hgc_div = 2'b0;
-    reg  [5:0]  hgc_r_meta, hgc_g_meta, hgc_b_meta;
-    reg  [5:0]  hgc_r_sync, hgc_g_sync, hgc_b_sync;
-    reg         hgc_hs_meta, hgc_vs_meta;
-    reg         hgc_hs_sync, hgc_vs_sync;
-    reg         hgc_hb_meta, hgc_vb_meta;
-    reg         hgc_hb_sync, hgc_vb_sync;
 
     reg  [7:0]  VGA_R_cga_src = 8'd0;
     reg  [7:0]  VGA_G_cga_src = 8'd0;
@@ -1497,44 +1462,8 @@ module emu
     reg         LHBL_cga_hdmi, LVBL_cga_hdmi;
     reg         CE_PIXEL_cga_hdmi = 1'b0;
 
-    reg  [7:0]  VGA_R_hgc_src = 8'd0;
-    reg  [7:0]  VGA_G_hgc_src = 8'd0;
-    reg  [7:0]  VGA_B_hgc_src = 8'd0;
-    reg         VGA_HS_hgc_src = 1'b0;
-    reg         VGA_VS_hgc_src = 1'b0;
-    reg         VGA_DE_hgc_src = 1'b0;
-    reg         LHBL_hgc_src = 1'b1;
-    reg         credits_vb_hgc_src = 1'b1;
-    reg         CE_PIXEL_hgc_src = 1'b0;
-    reg  [7:0]  VGA_R_hgc_ps = 8'd0;
-    reg  [7:0]  VGA_G_hgc_ps = 8'd0;
-    reg  [7:0]  VGA_B_hgc_ps = 8'd0;
-    reg         VGA_HS_hgc_ps = 1'b0;
-    reg         VGA_VS_hgc_ps = 1'b0;
-    reg         VGA_DE_hgc_ps = 1'b0;
-    reg         LHBL_hgc_ps = 1'b1;
-    reg         credits_vb_hgc_ps = 1'b1;
-    reg         CE_PIXEL_hgc_ps = 1'b0;
-    reg         ce_pixel_hgc_prev = 1'b0;
-    reg         ce_pixel_hgc_tog = 1'b0;
-    reg         ce_pixel_hgc_tog_1 = 1'b0;
-    reg         ce_pixel_hgc_tog_2 = 1'b0;
-    wire        CE_PIXEL_hgc_sync;
-    reg  [7:0]  VGA_R_hgc_56 = 8'd0, VGA_G_hgc_56 = 8'd0, VGA_B_hgc_56 = 8'd0;
-    reg         VGA_HS_hgc_56 = 1'b0, VGA_VS_hgc_56 = 1'b0, VGA_DE_hgc_56 = 1'b0;
-    reg         LHBL_hgc_56 = 1'b1, credits_vb_hgc_56 = 1'b1;
-    reg         CE_PIXEL_hgc_hdmi = 1'b0;
-
     assign CLK_VIDEO = clk_video_out_ps;
-    assign CLK_VIDEO_HGC = clk_114_544;
     assign CLK_VIDEO_CGA = clk_57_272;
-    assign ce_pixel_hgc_raw = ce_pixel_hgc_div[1];
-
-    always @(posedge clk_114_544)
-        if (`ENABLE_HGC)
-            ce_pixel_hgc_div <= ce_pixel_hgc_div + 2'd1;
-        else
-            ce_pixel_hgc_div <= 2'd0;
 
     always @(posedge clk_57_272)
         ce_pixel_cga_2x <= ~ce_pixel_cga_2x;
@@ -1544,7 +1473,6 @@ module emu
     wire   scandoubler = video_scandoubler_en;
 
     reg [14:0] HBlank_del;
-    reg [24:0] HBlank_del_hgc;
     wire tandy_16_gfx;
     wire tandy_color_16;
     wire color = (screen_mode_video_ff == 3'd0);
@@ -1552,21 +1480,14 @@ module emu
 	 wire HBlank_VGA;
 
     reg [10:0] HBlank_counter = 0;
-    reg [10:0] HBlank_counter_hgc = 0;
     reg HBlank_fixed = 1'b1;
-    reg HBlank_fixed_hgc = 1'b1;
     reg [1:0] HSync_del = 1'b11;
-    reg [1:0] HSync_del_hgc = 1'b11;
-    localparam integer MDA_VSYNC_DELAY = 19;
-    reg [MDA_VSYNC_DELAY:0] VSync_line;
     reg        video_pause_core_buf;
     reg        video_pause_core;
 
     always_comb
     begin
-        if (swap_video_eff)
-            HBlank_VGA = HBlank_del_hgc[24];
-        else if (tandy_color_16)
+        if (tandy_color_16)
             HBlank_VGA = HBlank_del[11];
         else if (tandy_16_gfx)
             HBlank_VGA = HBlank_del[9];
@@ -1593,28 +1514,6 @@ module emu
         end
     end
 
-    always @(posedge clk_57_272)
-    begin
-        if (swap_video_eff)
-        begin
-            HBlank_del_hgc <= {HBlank_del_hgc[23:0], HBlank};
-            HSync_del_hgc <= {HSync_del_hgc[0], HSync};
-            if (HSync_del_hgc == 2'b01)
-            begin
-                VSync_line <= {VSync_line[MDA_VSYNC_DELAY-1:0], VSync};
-                HBlank_counter_hgc <= 0;
-                HBlank_fixed_hgc <= 1'b1;
-            end
-            else
-            begin
-                if (HBlank_counter_hgc == (std_hsyncwidth ? 120 : 143))
-                    HBlank_fixed_hgc <= 1'b0;
-                else
-                    HBlank_counter_hgc <= HBlank_counter_hgc + 1;
-            end
-        end
-    end
-
     always @ (posedge clk_video_out_ps) begin
         video_pause_core_buf    <= pause_core;
         video_pause_core        <= video_pause_core_buf;
@@ -1636,22 +1535,6 @@ module emu
 		.B_OUT(baux_cga)
 	);
 
-    video_monochrome_converter video_mono_hgc
-	(
-		.clk_vid(CLK_VIDEO_HGC),
-		.ce_pix(ce_pixel_hgc_raw),
-
-		.R({hgc_r_sync, 2'b00}),
-		.G({hgc_g_sync, 2'b00}),
-		.B({hgc_b_sync, 2'b00}),
-
-		.gfx_mode(screen_mode_video_ff),
-
-		.R_OUT(raux_hgc),
-		.G_OUT(gaux_hgc),
-		.B_OUT(baux_hgc)
-	);
-
     /*
     assign VGA_R = raux;
     assign VGA_G = gaux;
@@ -1663,10 +1546,9 @@ module emu
     */
 
     wire LHBL = cga_scandouble_en ? HBlank :
-                ((border_video_ff) ? (swap_video_eff ? HBlank_fixed_hgc : HBlank_fixed) : HBlank_VGA);
+                ((border_video_ff) ? HBlank_fixed : HBlank_VGA);
     wire LVBL = cga_scandouble_en ? VBlank :
                 ((border_video_ff) ? (std_hsyncwidth ? VGA_VBlank_border : VBlank) : VBlank);
-    wire VSync_hgc = VSync_line[MDA_VSYNC_DELAY];
 
     wire       pre2x_LHBL, pre2x_LVBL;
     wire [7:0] pre2x_r, pre2x_g, pre2x_b;
@@ -1771,152 +1653,18 @@ module emu
         end
     end
 
-    always @(posedge clk_114_544)
-    begin
-        if (ce_pixel_hgc_raw)
-        begin
-            hgc_r_meta  <= r;
-            hgc_g_meta  <= g;
-            hgc_b_meta  <= b;
-            hgc_hs_meta <= HSync;
-            hgc_vs_meta <= VSync_hgc;
-            hgc_hb_meta <= HBlank;
-            hgc_vb_meta <= VBlank;
-
-            hgc_r_sync  <= hgc_r_meta;
-            hgc_g_sync  <= hgc_g_meta;
-            hgc_b_sync  <= hgc_b_meta;
-            hgc_hs_sync <= hgc_hs_meta;
-            hgc_vs_sync <= hgc_vs_meta;
-            hgc_hb_sync <= hgc_hb_meta;
-            hgc_vb_sync <= hgc_vb_meta;
-        end
-    end
-
-    video_mixer #(.GAMMA(0)) video_mixer_hgc
-	(
-		.*,
-
-		.CLK_VIDEO(CLK_VIDEO_HGC),
-		.CE_PIXEL(CE_PIXEL_hgc),
-		.ce_pix(ce_pixel_hgc_raw),
-
-		.freeze_sync(),
-
-		.R(raux_hgc),
-		.G(gaux_hgc),
-		.B(baux_hgc),
-
-		.HBlank(hgc_hb_sync),
-		.VBlank(hgc_vb_sync),
-		.HSync(hgc_hs_sync),
-		.VSync(hgc_vs_sync),
-
-		.scandoubler(scandoubler),
-		.hq2x(scale_video_ff==1),
-		.gamma_bus(gamma_bus_hgc),
-
-		.VGA_R(VGA_R_hgc),
-		.VGA_G(VGA_G_hgc),
-		.VGA_B(VGA_B_hgc),
-		.VGA_VS(VGA_VS_hgc),
-		.VGA_HS(VGA_HS_hgc),
-		.VGA_DE(VGA_DE_hgc)
-
-	);
-
-    always @(posedge clk_114_544)
-    begin
-        ce_pixel_hgc_prev <= CE_PIXEL_hgc;
-        if (CE_PIXEL_hgc && ~ce_pixel_hgc_prev)
-            ce_pixel_hgc_tog <= ~ce_pixel_hgc_tog;
-    end
-
-    always @(posedge clk_57_272)
-    begin
-        ce_pixel_hgc_tog_1 <= ce_pixel_hgc_tog;
-        ce_pixel_hgc_tog_2 <= ce_pixel_hgc_tog_1;
-        CE_PIXEL_hgc_src <= CE_PIXEL_hgc_sync;
-
-        if (CE_PIXEL_hgc_sync)
-        begin
-            VGA_R_hgc_src <= VGA_R_hgc;
-            VGA_G_hgc_src <= VGA_G_hgc;
-            VGA_B_hgc_src <= VGA_B_hgc;
-            VGA_HS_hgc_src <= VGA_HS_hgc;
-            VGA_VS_hgc_src <= VGA_VS_hgc;
-            VGA_DE_hgc_src <= VGA_DE_hgc;
-            LHBL_hgc_src <= hgc_hb_sync;
-            credits_vb_hgc_src <= hgc_vb_sync;
-        end
-    end
-
-    assign CE_PIXEL_hgc_sync = ce_pixel_hgc_tog_1 ^ ce_pixel_hgc_tog_2;
-
-    // Retimes the HGC mixer output by exploiting the exact 2:1 relation between
-    // clk_114_544 and the phase-shifted clk_video_out_ps.
-    always @(posedge clk_video_out_ps or posedge video_retime_reset)
-    begin
-        if (video_retime_reset)
-        begin
-            VGA_R_hgc_ps <= 8'd0;
-            VGA_G_hgc_ps <= 8'd0;
-            VGA_B_hgc_ps <= 8'd0;
-            VGA_HS_hgc_ps <= 1'b0;
-            VGA_VS_hgc_ps <= 1'b0;
-            VGA_DE_hgc_ps <= 1'b0;
-            LHBL_hgc_ps <= 1'b1;
-            credits_vb_hgc_ps <= 1'b1;
-            CE_PIXEL_hgc_ps <= 1'b0;
-            VGA_R_hgc_56 <= 8'd0;
-            VGA_G_hgc_56 <= 8'd0;
-            VGA_B_hgc_56 <= 8'd0;
-            VGA_HS_hgc_56 <= 1'b0;
-            VGA_VS_hgc_56 <= 1'b0;
-            VGA_DE_hgc_56 <= 1'b0;
-            LHBL_hgc_56 <= 1'b1;
-            credits_vb_hgc_56 <= 1'b1;
-            CE_PIXEL_hgc_hdmi <= 1'b0;
-        end
-        else
-        begin
-            CE_PIXEL_hgc_hdmi <= CE_PIXEL_hgc_ps;
-            if (CE_PIXEL_hgc_ps)
-            begin
-                VGA_R_hgc_56 <= VGA_R_hgc_ps;
-                VGA_G_hgc_56 <= VGA_G_hgc_ps;
-                VGA_B_hgc_56 <= VGA_B_hgc_ps;
-                VGA_HS_hgc_56 <= VGA_HS_hgc_ps;
-                VGA_VS_hgc_56 <= VGA_VS_hgc_ps;
-                VGA_DE_hgc_56 <= VGA_DE_hgc_ps;
-                LHBL_hgc_56 <= LHBL_hgc_ps;
-                credits_vb_hgc_56 <= credits_vb_hgc_ps;
-            end
-
-            CE_PIXEL_hgc_ps <= CE_PIXEL_hgc_src;
-            VGA_R_hgc_ps <= VGA_R_hgc_src;
-            VGA_G_hgc_ps <= VGA_G_hgc_src;
-            VGA_B_hgc_ps <= VGA_B_hgc_src;
-            VGA_HS_hgc_ps <= VGA_HS_hgc_src;
-            VGA_VS_hgc_ps <= VGA_VS_hgc_src;
-            VGA_DE_hgc_ps <= VGA_DE_hgc_src;
-            LHBL_hgc_ps <= LHBL_hgc_src;
-            credits_vb_hgc_ps <= credits_vb_hgc_src;
-        end
-    end
-
-    assign VGA_R_AUX  =  swap_video_eff ? VGA_R_hgc_56   : VGA_R_cga_hdmi;
-    assign VGA_G_AUX  =  swap_video_eff ? VGA_G_hgc_56   : VGA_G_cga_hdmi;
-    assign VGA_B_AUX  =  swap_video_eff ? VGA_B_hgc_56   : VGA_B_cga_hdmi;
-    assign VGA_HS =  swap_video_eff ? VGA_HS_hgc_56 : VGA_HS_cga_hdmi;
-    assign VGA_VS =  swap_video_eff ? VGA_VS_hgc_56 : VGA_VS_cga_hdmi;
-    assign VGA_DE =  swap_video_eff ? VGA_DE_hgc_56 : VGA_DE_cga_hdmi;
-    assign gamma_bus =  swap_video_eff ? gamma_bus_hgc : gamma_bus_cga;
-    assign CE_PIXEL  =  swap_video_eff ? CE_PIXEL_hgc_hdmi : CE_PIXEL_cga_hdmi;
-    assign CE_PIXEL_CREDITS = swap_video_eff ? CE_PIXEL_hgc_hdmi : CE_PIXEL_cga_hdmi;
-    wire credits_hb = swap_video_eff ? LHBL_hgc_56 : LHBL_cga_hdmi;
-    wire credits_vb = swap_video_eff ? credits_vb_hgc_56 : LVBL_cga_hdmi;
-    wire credits_border = swap_video_eff ? 1'b0 : border_video_ff;
+    assign VGA_R_AUX  =  VGA_R_cga_hdmi;
+    assign VGA_G_AUX  =  VGA_G_cga_hdmi;
+    assign VGA_B_AUX  =  VGA_B_cga_hdmi;
+    assign VGA_HS =  VGA_HS_cga_hdmi;
+    assign VGA_VS =  VGA_VS_cga_hdmi;
+    assign VGA_DE =  VGA_DE_cga_hdmi;
+    assign gamma_bus =  gamma_bus_cga;
+    assign CE_PIXEL  =  CE_PIXEL_cga_hdmi;
+    assign CE_PIXEL_CREDITS = CE_PIXEL_cga_hdmi;
+    wire credits_hb = LHBL_cga_hdmi;
+    wire credits_vb = LVBL_cga_hdmi;
+    wire credits_border = border_video_ff;
     jtframe_credits #(
         .PAGES  (4),
         .COLW   (8),
