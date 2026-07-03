@@ -280,11 +280,18 @@ module ega_top(
     wire [4:0] ega_text_fetch_phase_last =
         ega_dot_clock_div2 ? (ega_char_9dot ? 5'd17 : 5'd15) :
                              (ega_char_9dot ? 5'd8  : 5'd7);
+    wire [4:0] ega_graphics_fetch_phase_last = ega_dot_clock_div2 ? 5'd15 : 5'd7;
+    wire [4:0] ega_visible_base_delay = ega_graphics_mode ? ega_graphics_fetch_phase_last :
+                                                            ega_text_fetch_phase_last;
+    wire [4:0] ega_visible_delay = ega_visible_base_delay + (ega_dot_clock_div2 ? 5'd8 : 5'd4);
     wire ega_crtc_fetch_tick = (!ega_graphics_mode && ega_char_9dot) ? ega_text_fetch_tick :
                                                                     ega_ce_crt_fetch;
     wire [1:0] ega_render_mode = !ega_graphics_mode ? 2'd0 :
                                   ega_cga_2bpp_mode ? 2'd2 : 2'd1;
     wire ega_display_enable = ega_display_enable_crtc;
+    reg [25:0] ega_display_enable_delay = 26'd0;
+    wire ega_display_enable_visible = ega_display_enable_delay[ega_visible_delay];
+    wire ega_display_enable_render = ega_display_enable | ega_display_enable_visible;
     wire ega_blanking_active = ega_status_not_displaying_crtc;
     wire ega_status_vretrace_active = ega_status_vretrace_crtc;
 
@@ -421,7 +428,7 @@ module ega_top(
         .plane3_data(ega_plane3_data),
         .fetch_en(ega_fetch_data_valid),
         .dot_clock_div2(ega_dot_clock_div2),
-        .display_enable(ega_display_enable),
+        .display_enable(ega_display_enable_render),
         .render_mode(ega_render_mode),
         .plane_index(ega_graphics_plane_index),
         .pixel_valid(ega_graphics_pixel_valid),
@@ -433,7 +440,7 @@ module ega_top(
         .reset(reset),
         .ce_pix(ce_pix),
         .fetch_tick(ega_crtc_fetch_tick),
-        .display_enable(ega_display_enable),
+        .display_enable(ega_display_enable_render),
         .dot_clock_div2(ega_dot_clock_div2),
         .char_9dot(ega_char_9dot),
         .h_pixel_pan(4'd0),
@@ -470,7 +477,7 @@ module ega_top(
         .status_re(ega_status_read),
         .plane_index(ega_plane_index),
         .pixel_valid(ega_pixel_valid),
-        .display_enable(ega_display_enable),
+        .display_enable(ega_display_enable_visible),
         .text_mode(~ega_graphics_mode),
         .blink_state(ega_blink_state),
         .blink_enable_out(ega_attr_blink_enable),
@@ -575,6 +582,7 @@ module ega_top(
             ega_write_seen_since_vblank <= 1'b0;
             ega_text_fetch_phase <= 5'd0;
             ega_text_fetch_tick <= 1'b0;
+            ega_display_enable_delay <= 26'd0;
         end else begin
             ega_text_fetch_tick <= 1'b0;
             if (ce_pix) begin
@@ -584,6 +592,9 @@ module ega_top(
                 end else begin
                     ega_text_fetch_phase <= ega_text_fetch_phase + 5'd1;
                 end
+
+                ega_display_enable_delay <= {ega_display_enable_delay[24:0],
+                                             ega_display_enable};
             end
 
             cga_vblank_q <= cga_vblank;
@@ -606,6 +617,7 @@ module ega_top(
                 ega_blink_counter <= 7'h00;
                 ega_text_fetch_phase <= 5'd0;
                 ega_text_fetch_tick <= 1'b0;
+                ega_display_enable_delay <= 26'd0;
             end
 
             if (!ega_enabled) begin
@@ -635,7 +647,7 @@ module ega_top(
     // latch immediately, but the visible fetch base only changes for the
     // next frame after vertical blank has completed.
     assign ega_fetch_addr = ega_crtc_addr_full;
-    assign ega_fetch_en = ega_display_sel ? (ega_graphics_mode & ega_ce_crt_fetch & ega_display_enable) : 1'b0;
+    assign ega_fetch_en = ega_display_sel ? (ega_graphics_mode & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
     assign ega_plane_write_mask_out = ega_plane_write_mask;
     assign ega_odd_even_mode_out = ega_odd_even_mode;
     assign ega_cpu_access_slot_out = ega_ce_cpu_access_unused;
@@ -665,7 +677,7 @@ module ega_top(
     assign ram_a = ega_display_sel ? 19'd0 : cga_ram_a;
     assign hsync = ega_display_sel ? ega_hsync_int : cga_hsync;
     assign dbl_hsync = ega_display_sel ? ega_dbl_hsync : cga_dbl_hsync;
-    assign hblank = ega_display_sel ? (scandouble_en ? ~ega_display_enable_sd : ega_hblank_crtc) : cga_hblank;
+    assign hblank = ega_display_sel ? (scandouble_en ? ~ega_display_enable_sd : ~ega_display_enable_visible) : cga_hblank;
     assign vsync = ega_display_sel ? (scandouble_en ? ~ega_vsync_sd_l : ega_vsync) : cga_vsync;
     assign vblank = ega_display_sel ? (scandouble_en ? ega_vblank_sd : ega_vblank_crtc) : cga_vblank;
     assign vblank_border = ega_display_sel ? (scandouble_en ? ega_vblank_sd : ega_vblank_crtc) : cga_vblank_border;
