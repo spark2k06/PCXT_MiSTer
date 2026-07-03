@@ -39,6 +39,7 @@ module UM6845R
 	output reg       VSYNC,
 	output reg       HSYNC,
 	output           DE,
+	output           VDE,
 	output           FIELD,
 	output           CURSOR,
 
@@ -90,6 +91,7 @@ parameter EGA_RESET_R19 = 0;
 /* verilator lint_off WIDTH */
 
 wire [15:0] ega_display_addr;
+wire ega_crtc_semantics = CRTC_TYPE && |EGA_RESET_R19;
 
 assign FIELD = ~field & interlace[0];
 
@@ -104,9 +106,9 @@ assign hsync_width = R3_h_sync_width;
 // Match 86Box more closely: Input Status #1 bit 3 tracks the retrace window
 // opened at VSYNC start and closed a few scanlines later, not the whole
 // vertical blank interval.
-assign status_vretrace = CRTC_TYPE ? ega_status_vretrace : 1'b0;
-assign status_not_displaying = CRTC_TYPE ? (~hde | ega_vert_blank_active_r) : ~DE;
-assign vert_blank_active = CRTC_TYPE ? ega_vert_blank_active_r : ~vde;
+assign status_vretrace = ega_crtc_semantics ? ega_status_vretrace : 1'b0;
+assign status_not_displaying = ega_crtc_semantics ? (~hde | ega_vert_blank_active_r) : ~DE;
+assign vert_blank_active = ega_crtc_semantics ? ega_vert_blank_active_r : ~vde;
 assign scanline_mod16_debug = ega_scanline_mod16;
 assign vslines_debug = ega_vslines;
 assign crtc_r10_debug = R16_v_sync_pos_e;
@@ -119,9 +121,10 @@ assign crtc_r15_debug = R21_v_blank_start_e;
 assign crtc_r16_debug = R22_v_blank_end_e;
 
 assign DE = de[R8_skew & ~{2{CRTC_TYPE}}];
+assign VDE = vde & vde_r;
 
 assign hblank = ~hde;
-assign vblank = CRTC_TYPE ? ega_vert_blank_active_r : ~vde;
+assign vblank = ega_crtc_semantics ? ega_vert_blank_active_r : ~vde;
 assign line_reset = hcc_last;
 
 reg [7:0] R0_h_total = H_TOTAL;
@@ -160,11 +163,9 @@ reg [3:0] ega_vslines = 4'd0;
 // Effective vsync width: OSD override (1-7) takes priority, 0 = use register/CRTC_TYPE default
 wire [3:0] eff_v_sync_width = |vsync_width_osd ? {1'b0, vsync_width_osd} :
 	(CRTC_TYPE ? (|R17_v_sync_end_e[3:0] ? R17_v_sync_end_e[3:0] : 4'd1) : R3_v_sync_width);
-wire ega_ext_timing = CRTC_TYPE && (|R16_v_sync_pos_e || |R18_v_display_end_e || |R19_offset_e || |R21_v_blank_start_e || |R22_v_blank_end_e);
+wire ega_ext_timing = ega_crtc_semantics && (|R16_v_sync_pos_e || |R18_v_display_end_e || |R19_offset_e || |R21_v_blank_start_e || |R22_v_blank_end_e);
 wire ega_v_blank_start_valid = ega_ext_timing && |R21_v_blank_start_e;
 wire ega_v_blank_end_valid = ega_ext_timing && |R22_v_blank_end_e;
-wire ega_crtc_semantics = CRTC_TYPE && |EGA_RESET_R19;
-
 wire [9:0] eff_v_total = ega_ext_timing ? ({R7_v_sync_pos[5], R7_v_sync_pos[0], R6_v_displayed} + 10'd2) : {3'd0, R4_v_total};
 wire [9:0] eff_v_displayed = ega_ext_timing ? ({R7_v_sync_pos[6], R7_v_sync_pos[1], R18_v_display_end_e} + 10'd1) : {3'd0, R6_v_displayed[6:0]};
 wire [9:0] eff_v_sync_pos = ega_ext_timing ? ({R7_v_sync_pos[7], R7_v_sync_pos[2], R16_v_sync_pos_e} + 10'd1) : {3'd0, R7_v_sync_pos[6:0]};
@@ -174,7 +175,7 @@ wire [9:0] eff_v_blank_end = ega_v_blank_end_valid ? {2'd0, R22_v_blank_end_e} :
 wire [9:0] eff_v_sync_match = eff_v_sync_pos - (hres_mode ? 10'd1 : 10'd2);
 
 reg [4:0] addr;
-wire ega_crtc_write_protect = CRTC_TYPE && R17_v_sync_end_e[7];
+wire ega_crtc_write_protect = ega_crtc_semantics && R17_v_sync_end_e[7];
 
 always @(*) begin
 	DO = 8'hFF;
@@ -187,16 +188,16 @@ always @(*) begin
 				13: DO = R13_start_addr_l;
 				14: DO = R14_cursor_h;
 				15: DO = R15_cursor_l;
-				16: DO = CRTC_TYPE ? R16_v_sync_pos_e : 8'h00;
-				17: DO = CRTC_TYPE ? R17_v_sync_end_e : 8'h00;
-				18: DO = CRTC_TYPE ? R18_v_display_end_e : 8'h00;
-				19: DO = CRTC_TYPE ? R19_offset_e : 8'h00;
-				20: DO = CRTC_TYPE ? R20_underline_loc_e : 8'h00;
-				21: DO = CRTC_TYPE ? R21_v_blank_start_e : 8'h00;
-				22: DO = CRTC_TYPE ? R22_v_blank_end_e : 8'h00;
-				23: DO = CRTC_TYPE ? R23_mode_control_e : 8'h00;
-				24: DO = CRTC_TYPE ? R24_line_compare_e : 8'h00;
-				31: DO = CRTC_TYPE ? 8'hFF : 8'h00;
+				16: DO = ega_crtc_semantics ? R16_v_sync_pos_e : 8'h00;
+				17: DO = ega_crtc_semantics ? R17_v_sync_end_e : 8'h00;
+				18: DO = ega_crtc_semantics ? R18_v_display_end_e : 8'h00;
+				19: DO = ega_crtc_semantics ? R19_offset_e : 8'h00;
+				20: DO = ega_crtc_semantics ? R20_underline_loc_e : 8'h00;
+				21: DO = ega_crtc_semantics ? R21_v_blank_start_e : 8'h00;
+				22: DO = ega_crtc_semantics ? R22_v_blank_end_e : 8'h00;
+				23: DO = ega_crtc_semantics ? R23_mode_control_e : 8'h00;
+				24: DO = ega_crtc_semantics ? R24_line_compare_e : 8'h00;
+				31: DO = ega_crtc_semantics ? 8'hFF : 8'h00;
 			 default: DO = 0;
 			endcase
 		end
@@ -260,15 +261,15 @@ always @(posedge CLOCK) begin
 				13: begin R13_start_addr_l <= DI[7:0]; if (CRTC_TYPE) start_addr_latch[7:0] <= DI; end
 				14: R14_cursor_h <= DI[5:0];
 				15: R15_cursor_l <= DI[7:0];
-				16: if (CRTC_TYPE) R16_v_sync_pos_e <= DI;
-				17: if (CRTC_TYPE) R17_v_sync_end_e <= DI;
-				18: if (CRTC_TYPE) R18_v_display_end_e <= DI;
-				19: if (CRTC_TYPE) R19_offset_e <= DI;
-				20: if (CRTC_TYPE) R20_underline_loc_e <= DI;
-				21: if (CRTC_TYPE) R21_v_blank_start_e <= DI;
-				22: if (CRTC_TYPE) R22_v_blank_end_e <= DI;
-				23: if (CRTC_TYPE) R23_mode_control_e <= DI;
-				24: if (CRTC_TYPE) R24_line_compare_e <= DI;
+				16: if (ega_crtc_semantics) R16_v_sync_pos_e <= DI;
+				17: if (ega_crtc_semantics) R17_v_sync_end_e <= DI;
+				18: if (ega_crtc_semantics) R18_v_display_end_e <= DI;
+				19: if (ega_crtc_semantics) R19_offset_e <= DI;
+				20: if (ega_crtc_semantics) R20_underline_loc_e <= DI;
+				21: if (ega_crtc_semantics) R21_v_blank_start_e <= DI;
+				22: if (ega_crtc_semantics) R22_v_blank_end_e <= DI;
+				23: if (ega_crtc_semantics) R23_mode_control_e <= DI;
+				24: if (ega_crtc_semantics) R24_line_compare_e <= DI;
 			endcase
 		end
 	end
@@ -297,7 +298,8 @@ wire       row_frame_last = ((CRTC_TYPE ? row_last : row_last_r) | in_adj) & ~fr
 wire [9:0] row_next  = row_frame_last ? 10'd0 : row + 1'd1;
 // EGA vertical timing registers count scanlines. Keep Maximum Scan Line for
 // glyph row/address stepping, but do not multiply vtotal/vsync/dispend by it.
-wire       row_new   = line_new & (CRTC_TYPE ? 1'b1 : line_last_r);
+wire       row_new   = line_new & (ega_crtc_semantics ? 1'b1 :
+                                   (CRTC_TYPE ? line_last : line_last_r));
 
 reg        frame_adj_r;
 wire       frame_adj_CRTC0 = (hcc == 2) ? frame_adj_r & |R5_v_total_adj : frame_adj_r;
@@ -327,7 +329,7 @@ wire [19:0] ega_remap_row0_addr = R23_mode_control_e[0] ? ega_remap_mode_addr :
 wire [19:0] ega_remap_row_addr = R23_mode_control_e[1] ? ega_remap_row0_addr :
                                  ((ega_remap_row0_addr & 20'hEFFFF) |
                                   (line[1] ? 20'h10000 : 20'h00000));
-assign ega_display_addr = CRTC_TYPE ? ega_remap_row_addr[17:2] : row_addr_r;
+assign ega_display_addr = ega_crtc_semantics ? ega_remap_row_addr[17:2] : row_addr_r;
 
 // counters
 reg  field;
@@ -360,7 +362,7 @@ always @(posedge CLOCK) begin
 			else if(frame_new) begin
 				in_adj <= 0;
 				row <= 0;
-				if(CRTC_TYPE) line <= 5'd0;
+				if(ega_crtc_semantics) line <= 5'd0;
 				field <= ~field & R8_interlace[0];
 			end
 		end
@@ -381,7 +383,10 @@ reg  [13:0] cursor_addr_frame;
 wire [13:0] crtc_reg_cursor_addr = {R14_cursor_h, R15_cursor_l};
 wire [15:0] ega_row_advance = R9_v_max_line[7] ? {6'd0, R19_offset_e, 2'b00} :
                                                    {7'd0, R19_offset_e, 1'b0};
-wire        ega_ma_mode = CRTC_TYPE && |R19_offset_e;
+wire        ega_ma_mode = ega_crtc_semantics && |R19_offset_e;
+wire [15:0] crtc1_reload_addr = ega_crtc_semantics ?
+                                (frame_new ? start_addr_latch : start_addr_frame) :
+                                crtc_reg_start_addr;
 always @(posedge CLOCK) begin
 	if(~nRESET) begin
 		row_addr <= crtc_reg_start_addr;
@@ -390,7 +395,7 @@ always @(posedge CLOCK) begin
 		cursor_addr_frame <= crtc_reg_cursor_addr;
 	end
 	else if(CLKEN) begin
-		if(CRTC_TYPE && frame_new) begin
+		if(ega_crtc_semantics && frame_new) begin
 			start_addr_frame <= start_addr_latch;
 			cursor_addr_frame <= crtc_reg_cursor_addr;
 		end
@@ -417,7 +422,7 @@ always @(posedge CLOCK) begin
 				row_addr_r <= crtc_reg_start_addr;
 			end
 			if(CRTC1_reload) begin
-				row_addr_r <= frame_new ? start_addr_latch : start_addr_frame;
+				row_addr_r <= crtc1_reload_addr;
 			end
 		end
 	end
@@ -582,7 +587,7 @@ always @(posedge CLOCK) begin
 		ega_scanline_mod16 <= 4'd0;
 		ega_vslines <= 4'd0;
 	end
-	else if (CLKEN && CRTC_TYPE) begin
+	else if (CLKEN && ega_crtc_semantics) begin
 		if(frame_new)
 			ega_scanline_mod16 <= 4'd0;
 		else if(line_new)
@@ -629,8 +634,8 @@ end
 // Cursor control
 reg cursor_line;
 assign CURSOR = hde & vde &
-                ((CRTC_TYPE ? row_addr_r[13:0] : MA) ==
-                 (CRTC_TYPE ? cursor_addr_frame : crtc_reg_cursor_addr)) &
+                ((ega_crtc_semantics ? row_addr_r[13:0] : MA) ==
+                 (ega_crtc_semantics ? cursor_addr_frame : crtc_reg_cursor_addr)) &
                 cursor_line & ~R10_cursor_mode[0];
 
 always @(posedge CLOCK) begin

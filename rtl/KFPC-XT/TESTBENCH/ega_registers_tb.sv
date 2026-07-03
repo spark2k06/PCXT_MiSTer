@@ -900,9 +900,20 @@ module ega_registers_tb;
                     crtc_vert_blank_active, 1'b1);
         end
 
-        begin_test("top-level misc output and color CRTC ports");
+        begin_test("top-level misc output reset");
         top_io_read(16'h03CC, read_value);
         expect8("Misc Output reset", read_value, 8'h63);
+
+        begin_test("top-level EGA activation waits for programmed CRTC timing");
+        expect1("EGA timing not ready after reset", top_dut.ega_crtc_timing_ready, 1'b0);
+        top_io_write(16'h03D4, 8'h00);
+        top_io_write(16'h03D5, 8'h38);
+        expect1("horizontal timing alone does not arm EGA output", top_dut.ega_crtc_timing_ready, 1'b0);
+        top_io_write(16'h03D4, 8'h06);
+        top_io_write(16'h03D5, 8'h19);
+        expect1("horizontal and vertical timing arm EGA output", top_dut.ega_crtc_timing_ready, 1'b1);
+
+        begin_test("top-level misc output and color CRTC ports");
         top_io_write(16'h03D4, 8'h12);
         top_io_write(16'h03D5, 8'h44);
         top_io_read(16'h03D5, read_value);

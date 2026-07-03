@@ -392,6 +392,41 @@ module ega_pixel_tb;
         end
     endtask
 
+    task automatic check_non_ce_fetch_keeps_pixel_valid;
+        begin
+            render_mode = 2'd1;
+            dot_clock_div2 = 1'b0;
+            display_enable = 1'b1;
+            ce_pix = 1'b1;
+
+            load_planes(8'hFF, 8'h00, 8'h00, 8'h00);
+            drain_pixels(7);
+            if (!pixel_valid) begin
+                $display("FAIL setup for non-ce fetch valid hold");
+                errors = errors + 1;
+            end
+
+            ce_pix = 1'b0;
+            plane0_data = 8'h80;
+            plane1_data = 8'h00;
+            plane2_data = 8'h00;
+            plane3_data = 8'h00;
+            fetch_en = 1'b1;
+            @(posedge clk);
+            #1;
+            fetch_en = 1'b0;
+            if (!pixel_valid) begin
+                $display("FAIL non-ce fetch cleared pixel_valid before the next pixel edge");
+                errors = errors + 1;
+            end
+
+            ce_pix = 1'b1;
+            @(posedge clk);
+            #1;
+            expect_pixel(4'h1, 0);
+        end
+    endtask
+
     initial begin
         repeat (2) @(posedge clk);
         attr_reset = 1'b0;
@@ -408,6 +443,8 @@ module ega_pixel_tb;
         check_display_disable_gating();
         repeat (2) @(posedge clk);
         check_attribute_palette_path();
+        repeat (2) @(posedge clk);
+        check_non_ce_fetch_keeps_pixel_valid();
 
         if (errors == 0) begin
             $display("PASS ega_pixel_tb");

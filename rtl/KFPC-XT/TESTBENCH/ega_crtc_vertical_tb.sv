@@ -20,6 +20,9 @@ module ega_crtc_vertical_tb;
     integer line_delta = 0;
     wire cursor;
     wire [15:0] ma_full;
+    wire cga_cursor;
+    wire [13:0] cga_ma;
+    wire [15:0] cga_ma_full;
 
     always #5 clk = ~clk;
 
@@ -86,6 +89,66 @@ module ega_crtc_vertical_tb;
     defparam dut.EGA_RESET_R16 = 8'd0;
     defparam dut.EGA_RESET_R18 = 8'd0;
     defparam dut.EGA_RESET_R19 = 8'h14;
+
+    UM6845R cga_dut (
+        .CLOCK(clk),
+        .CLKEN(1'b1),
+        .nCLKEN(1'b0),
+        .nRESET(reset_n),
+        .CRTC_TYPE(1'b1),
+        .ENABLE(1'b1),
+        .nCS(1'b1),
+        .R_nW(1'b1),
+        .RS(1'b0),
+        .DI(8'h00),
+        .DO(),
+        .hblank(),
+        .vblank(),
+        .line_reset(),
+        .VSYNC(),
+        .HSYNC(),
+        .DE(),
+        .FIELD(),
+        .CURSOR(cga_cursor),
+        .MA(cga_ma),
+        .MA_FULL(cga_ma_full),
+        .RA(),
+        .HC(),
+        .VC(),
+        .H_DISP_REG(),
+        .V_MAXSCAN_REG(),
+        .hsync_width(),
+        .status_vretrace(),
+        .status_not_displaying(),
+        .vert_blank_active(),
+        .scanline_mod16_debug(),
+        .vslines_debug(),
+        .crtc_r10_debug(),
+        .crtc_r11_debug(),
+        .crtc_r12_debug(),
+        .crtc_r13_debug(),
+        .crtc_r14_debug(),
+        .crtc_r17_debug(),
+        .crtc_r15_debug(),
+        .crtc_r16_debug(),
+        .crt_h_offset(4'd0),
+        .crt_v_offset(3'd0),
+        .vsync_width_osd(3'd0),
+        .hsync_width_osd(3'd0),
+        .hres_mode(1'b1)
+    );
+
+    defparam cga_dut.H_TOTAL = 8'd3;
+    defparam cga_dut.H_DISP = 8'd1;
+    defparam cga_dut.H_SYNCPOS = 8'd2;
+    defparam cga_dut.H_SYNCWIDTH = 4'd1;
+    defparam cga_dut.V_TOTAL = 7'd0;
+    defparam cga_dut.V_TOTALADJ = 5'd0;
+    defparam cga_dut.V_DISP = 7'd0;
+    defparam cga_dut.V_SYNCPOS = 7'd0;
+    defparam cga_dut.V_MAXSCAN = 5'd8;
+    defparam cga_dut.C_START = 7'd0;
+    defparam cga_dut.C_END = 5'd0;
 
     task automatic crtc_write(input [7:0] index, input [7:0] data);
         begin
@@ -172,6 +235,25 @@ module ega_crtc_vertical_tb;
         release dut.hde;
         release dut.vde;
         release dut.cursor_line;
+
+        force cga_dut.row_addr_r = 16'h0123;
+        force cga_dut.hde = 1'b1;
+        force cga_dut.vde = 1'b1;
+        force cga_dut.cursor_line = 1'b1;
+        force cga_dut.R14_cursor_h = 6'h01;
+        force cga_dut.R15_cursor_l = 8'h23;
+        #1 begin
+            expect_eq("CGA CRTC keeps linear scanout address", cga_ma_full, 16'h0123);
+            expect_eq("CGA cursor compares linear CRTC address", cga_cursor, 1);
+        end
+        force cga_dut.row_addr_r = 16'h0124;
+        #1 expect_eq("CGA cursor clears on adjacent cell", cga_cursor, 0);
+        release cga_dut.row_addr_r;
+        release cga_dut.hde;
+        release cga_dut.vde;
+        release cga_dut.cursor_line;
+        release cga_dut.R14_cursor_h;
+        release cga_dut.R15_cursor_l;
 
         if (failures == 0) begin
             $display("PASS: ega_crtc_vertical_tb");

@@ -70,8 +70,6 @@ module ega_pixel (
             load_pending <= 1'b1;
         end
 
-        pixel_valid <= (bits_remaining != 4'd0);
-
         if (ce_pix) begin
             if (!display_enable) begin
                 plane_index <= 4'h0;
