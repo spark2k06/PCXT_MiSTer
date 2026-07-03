@@ -4,12 +4,6 @@
 //
 // Based on KFPC-XT written by @kitune-san
 //
-`ifndef ENABLE_CGA
-`define ENABLE_CGA 1
-`endif
-`ifndef ENABLE_EGA
-`define ENABLE_EGA 1
-`endif
 `ifndef ENABLE_OPL2
 `define ENABLE_OPL2 0
 `endif
@@ -44,9 +38,7 @@ module PERIPHERALS #(
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
-        input   logic           video_output,
         input   logic           clk_vga_cga,
-        input   logic           enable_cga,
         output  logic           de_o,
         output  logic   [5:0]   VGA_R,
         output  logic   [5:0]   VGA_G,
@@ -142,11 +134,7 @@ module PERIPHERALS #(
         output  logic   [7:0]   xtctl = 8'h00,
         // Others
         output  logic           pause_core,
-        input   logic           cga_hw,
-        input   logic           ega_enabled,
         input   logic           cga_scandouble_en,
-        input   logic           hercules_hw,
-        output  logic           swap_video,
         input   logic   [3:0]   crt_h_offset,
         input   logic   [2:0]   crt_v_offset,
         input   logic   [2:0]   vsync_width_osd,
@@ -222,8 +210,8 @@ module PERIPHERALS #(
     wire    opl_388_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)) : 1'b0; // 0x388 .. 0x389 (Adlib)
     wire    opl_228_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)) : 1'b0; // 0x228 .. 0x229 (Sound Blaster FM)
     wire    cms_220_chip_select     = `ENABLE_CMS ? (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)) : 1'b0; // 0x220 .. 0x22F (C/MS Audio)
-    wire    ega_mem_select          = `ENABLE_EGA ? (~iorq && ~address_enable_n && ega_enabled && enable_cga && ega_memory_window_select(address, ega_mem_map_sel_cfg)) : 1'b0;
-    wire    cga_mem_select          = `ENABLE_CGA ? (~iorq && ~address_enable_n && enable_cga && ~ega_mem_select && (address[19:15] == 5'b10111)) : 1'b0; // B8000 - BFFFF (16 KB / 32 KB)
+    wire    ega_mem_select          = ~iorq && ~address_enable_n && ega_memory_window_select(address, ega_mem_map_sel_cfg);
+    wire    cga_mem_select          = ~iorq && ~address_enable_n && ~ega_mem_select && (address[19:15] == 5'b10111); // B8000 - BFFFF (16 KB / 32 KB)
     wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
     wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
     wire    lpt_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h0378 >> 1)); // 0x378 ... 0x379
@@ -430,7 +418,6 @@ module PERIPHERALS #(
     logic           prev_ps2_reset;
     logic           prev_ps2_reset_n;
     logic           lock_recv_clock;
-    logic           swap_video_unused;
     localparam [15:0] OPL_WARM_RESET_HOLD = 16'd5000;
     logic           prev_keybord_irq;
     logic           ctrl_down;
@@ -464,9 +451,7 @@ module PERIPHERALS #(
         .irq                        (keybord_irq),
         .keycode                    (keycode_buf),
         .clear_keycode              (clear_keycode),
-        .pause_core                 (pause_core),
-        .swap_video                 (swap_video_unused),
-        .video_output               (video_output)
+        .pause_core                 (pause_core)
     );
 
     assign  keycode = ps2_reset_n ? keycode_buf : 8'h80;
@@ -535,9 +520,6 @@ module PERIPHERALS #(
         else
             ps2_clock_out = ~(keybord_irq | ~ps2_send_clock | ~ps2_reset_n);
     end
-
-    assign swap_video = 1'b0;
-
 
     wire [7:0] jtopl2_dout_int;
     wire [15:0] jtopl2_snd_e_int;
@@ -869,8 +851,6 @@ end
     logic          ega_mem_select_2;
     logic          ega_mem_write_1;
     logic          ega_mem_write_2;
-    logic          ega_enabled_cga_ff_1;
-    logic          ega_enabled_cga_ff_2;
     localparam int SPLASH_COPY_SIZE = 4000;
     localparam int TEXT_CLEAR_SIZE = 16384;
     localparam [11:0] SPLASH_COPY_LAST = SPLASH_COPY_SIZE - 1;
@@ -888,7 +868,7 @@ end
     wire          status0_clear_start = status0_clear;
     wire  [7:0]   splash_rom_data;
     wire          ega_splash_copy_active = splash_copy_active & splash_copy_dest_ega;
-    wire          splash_ega_selected = `ENABLE_EGA ? (ega_enabled & enable_cga) : 1'b0;
+    wire          splash_ega_selected = 1'b1;
     wire          video_splash_copy_progress = 1'b1;
 
     always_ff @(posedge clock)
@@ -1000,10 +980,8 @@ end
             ega_mem_select_2        <= 1'b0;
             ega_mem_write_1         <= 1'b0;
             ega_mem_write_2         <= 1'b0;
-            ega_enabled_cga_ff_1    <= 1'b0;
-            ega_enabled_cga_ff_2    <= 1'b0;
         end
-        else if (`ENABLE_CGA)
+        else
         begin
             cga_io_address_1        <= video_io_address;
             cga_io_address_2        <= cga_io_address_1;
@@ -1019,27 +997,6 @@ end
             ega_mem_select_2        <= ega_mem_select_1;
             ega_mem_write_1         <= ega_mem_write_sys;
             ega_mem_write_2         <= ega_mem_write_1;
-            ega_enabled_cga_ff_1    <= `ENABLE_EGA ? ega_enabled : 1'b0;
-            ega_enabled_cga_ff_2    <= ega_enabled_cga_ff_1;
-        end
-        else
-        begin
-            cga_io_address_1        <= 15'd0;
-            cga_io_address_2        <= 15'd0;
-            cga_io_data_1           <= 8'd0;
-            cga_io_data_2           <= 8'd0;
-            cga_io_write_n_1        <= 1'b1;
-            cga_io_write_n_2        <= 1'b1;
-            cga_io_read_n_1         <= 1'b1;
-            cga_io_read_n_2         <= 1'b1;
-            cga_address_enable_n_1  <= 1'b1;
-            cga_address_enable_n_2  <= 1'b1;
-            ega_mem_select_1        <= 1'b0;
-            ega_mem_select_2        <= 1'b0;
-            ega_mem_write_1         <= 1'b0;
-            ega_mem_write_2         <= 1'b0;
-            ega_enabled_cga_ff_1    <= 1'b0;
-            ega_enabled_cga_ff_2    <= 1'b0;
         end
     end
 
@@ -1204,7 +1161,7 @@ end
         .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
         .scandouble_en              (cga_scandouble_en),
-        .ega_enabled                (ega_enabled_cga_ff_2),
+        .ega_enabled                (1'b1),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
         .crt_h_offset               (crt_h_offset),
@@ -1215,20 +1172,10 @@ end
 
     always_ff @(posedge clock)
     begin
-        if (`ENABLE_CGA)
-        begin
-            CGA_CRTC_OE_1   <= CGA_CRTC_OE;
-            CGA_CRTC_OE_2   <= CGA_CRTC_OE_1;
-            CGA_CRTC_DOUT_1 <= CGA_CRTC_DOUT;
-            CGA_CRTC_DOUT_2 <= CGA_CRTC_DOUT_1;
-        end
-        else
-        begin
-            CGA_CRTC_OE_1   <= 1'b0;
-            CGA_CRTC_OE_2   <= 1'b0;
-            CGA_CRTC_DOUT_1 <= 8'h00;
-            CGA_CRTC_DOUT_2 <= 8'h00;
-        end
+        CGA_CRTC_OE_1   <= CGA_CRTC_OE;
+        CGA_CRTC_OE_2   <= CGA_CRTC_OE_1;
+        CGA_CRTC_DOUT_1 <= CGA_CRTC_DOUT;
+        CGA_CRTC_DOUT_2 <= CGA_CRTC_DOUT_1;
     end
 
 
@@ -1237,11 +1184,11 @@ end
     wire [15:0] ega_vram_cpu_addr = address[15:0];
     wire        ega_vram_cpu_a16 = address[16];
     wire [7:0]  ega_vram_cpu_din = internal_data_bus;
-    wire        ega_vram_cpu_read_req = `ENABLE_EGA ? (ega_mem_select && ~memory_read_n) : 1'b0;
-    wire        ega_vram_cpu_write_req = `ENABLE_EGA ? (ega_mem_select && ~memory_write_n) : 1'b0;
+    wire        ega_vram_cpu_read_req = ega_mem_select && ~memory_read_n;
+    wire        ega_vram_cpu_write_req = ega_mem_select && ~memory_write_n;
     wire        ega_vram_cpu_cycle = ega_vram_cpu_read_req | ega_vram_cpu_write_req;
     wire        ega_vram_cpu_ready;
-    wire        ega_splash_text_we = `ENABLE_EGA ? ega_splash_copy_active : 1'b0;
+    wire        ega_splash_text_we = ega_splash_copy_active;
     wire [10:0] ega_splash_text_addr = splash_copy_addr[11:1];
     wire        ega_splash_text_attr = splash_copy_addr[0];
     wire [7:0]  ega_splash_text_data = splash_rom_data;
@@ -1304,9 +1251,7 @@ end
     );
 
     assign cga_memory_access_ready = 1'b1;
-    assign ega_memory_access_ready = `ENABLE_EGA
-                                   ? (ega_vram_cpu_cycle ? ega_vram_cpu_ready : 1'b1)
-                                   : 1'b1;
+    assign ega_memory_access_ready = ega_vram_cpu_cycle ? ega_vram_cpu_ready : 1'b1;
     //
     // XT2IDE
     //
@@ -1680,12 +1625,12 @@ end
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= ppi_data_bus_out;
         end
-        else if (`ENABLE_EGA && ega_mem_select && (~memory_read_n))
+        else if (ega_mem_select && (~memory_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= ega_vram_cpu_dout;
         end
-        else if (`ENABLE_CGA && CGA_CRTC_OE_2)
+        else if (CGA_CRTC_OE_2)
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= CGA_CRTC_DOUT_2;

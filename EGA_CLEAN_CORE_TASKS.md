@@ -691,7 +691,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-505 - Remove Dead `ifdef` Branches
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `ECC-501`, `ECC-502`, `ECC-503`, `ECC-504`.
 - Files: RTL files touched by prior phases.
@@ -704,6 +704,30 @@ ECC-000..099 baseline and recovery
   - Active RTL is not structured as a multi-video-card build.
   - `rg "ENABLE_CGA|ENABLE_HGC|ENABLE_TANDY_VIDEO"` returns no active
     implementation references.
+- Result:
+  - Removed the remaining active `ENABLE_CGA` and `ENABLE_EGA` conditional
+    branches from `PCXT.sv` and `rtl/KFPC-XT/HDL/Peripherals.sv`; EGA is now
+    wired as the unconditional video path.
+  - Removed dead `enable_cga`, `video_output`, `hercules_hw`, `swap_video`,
+    `cga_hw`, and external `ega_enabled` plumbing from `PCXT.sv`,
+    `rtl/KFPC-XT/HDL/Chipset.sv`, `rtl/KFPC-XT/HDL/Peripherals.sv`, and
+    `rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv`.
+  - Removed the obsolete keyboard video-toggle output path from
+    `rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB.sv`.
+  - Verified `rg -n "ENABLE_CGA|ENABLE_HGC|ENABLE_TANDY_VIDEO|ENABLE_EGA|enable_cga|cga_hw|hercules_hw|swap_video|video_output|tandy_video|tandy_bios_flag"
+    PCXT.sv rtl/KFPC-XT/HDL/Chipset.sv rtl/KFPC-XT/HDL/Peripherals.sv
+    rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB.sv
+    rtl/KFPC-XT/TESTBENCH/Chipset_tb.sv files.qip rtl/video/video.qip
+    config.tcl` returns no matches.
+  - Historical, inactive `rtl/video/cga*.v` and `rtl/video/hgc*.v` sources
+    still contain legacy macro/port names, but they are no longer compiled by
+    the active QIP files.
+  - Verified `ega_pixel_tb` and `ega_vram_b8000_tb` pass.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 169
+    warnings.
 
 ## ECC-600: Verification Expansion
 

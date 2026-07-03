@@ -22,12 +22,6 @@
 `ifndef ENABLE_A000_UMB
 `define ENABLE_A000_UMB 0
 `endif
-`ifndef ENABLE_CGA
-`define ENABLE_CGA 1
-`endif
-`ifndef ENABLE_EGA
-`define ENABLE_EGA 1
-`endif
 `ifndef ENABLE_OPL2
 `define ENABLE_OPL2 0
 `endif
@@ -327,8 +321,6 @@ module emu
     wire [2:0] screen_mode = status[16:14];
     wire [1:0] ar = status[9:8];
     wire border = status[29] | xtctl[1];
-    wire a000h = `ENABLE_A000_UMB ? (~status[41] & ~xtctl[6]) : 1'b0;
-    wire ega_enabled = `ENABLE_EGA ? 1'b1 : 1'b0;
     wire [2:0] vsync_width_osd = status[56:54];  // 0=Auto (use register), 1-7=override
     wire [2:0] hsync_width_osd = status[59:57];  // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
 
@@ -337,12 +329,11 @@ module emu
     reg         border_video_ff;
     wire        video_scandoubler_en = (scale_video_ff > 0) || forced_scandoubler;
     wire        cga_scandouble_en = video_scandoubler_en;
-    wire [15:0] status_menumask = {12'd0, ega_enabled, ega_enabled, status[5]};
+    wire [15:0] status_menumask = {12'd0, 2'b11, status[5]};
 
     wire VGA_VBlank_border;
     wire std_hsyncwidth;
     wire pause_core;
-    wire swap_video;
 
     always @(posedge clk_57_272)
     begin
@@ -1001,9 +992,6 @@ module emu
     assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
 
-    wire video_output_sel = 1'b0;
-    wire cga_hw_sel = 1'b0;
-    wire hercules_hw_sel = 1'b0;
     wire ems_enabled_sel = `ENABLE_EMS ? ~status[11] : 1'b0;
     wire [1:0] ems_address_sel = `ENABLE_EMS ? status[13:12] : 2'b00;
 
@@ -1037,9 +1025,7 @@ module emu
 		.cga_clear_busy                     (cga_clear_busy),
 		.std_hsyncwidth                     (std_hsyncwidth),
 		.composite                          (composite),
-		.video_output                       (video_output_sel),
 		.clk_vga_cga                        (clk_28_636),
-		.enable_cga                         (`ENABLE_CGA),
 	//	.de_o                               (VGA_DE),
 		.VGA_R                              (r),
 		.VGA_G                              (g),
@@ -1139,16 +1125,12 @@ module emu
 		.fdd_request                        (mgmt_req[7:6]),
 		.ide0_request                       (mgmt_req[2:0]),
 		.xtctl                              (xtctl),
-		.enable_a000h                       (a000h & ~ega_enabled),
+		.enable_a000h                       (1'b0),
 		.wait_count_clk_en                  (cpu_ce_negedge),
 		.ram_read_wait_cycle                (ram_read_wait_cycle),
 		.ram_write_wait_cycle               (ram_write_wait_cycle),
 		.pause_core                         (pause_core),
-		.cga_hw                             (cga_hw_sel),
-		.ega_enabled                        (ega_enabled),
 		.cga_scandouble_en                  (cga_scandouble_en),
-		.hercules_hw                        (hercules_hw_sel),
-		.swap_video                         (swap_video),
 		.crt_h_offset                       (status[49:46]),
 		.crt_v_offset                       (status[52:50]),
 		.vsync_width_osd                    (vsync_width_osd),
