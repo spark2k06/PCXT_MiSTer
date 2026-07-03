@@ -146,7 +146,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-101 - Add User-Facing MCGA Gate
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-001`.
 - Files: `PCXT.sv`.

@@ -275,6 +275,7 @@ module emu
 		"P3-;",
 		CONF_STR_EMS,
 		CONF_STR_A000,
+		"P3oS,MCGA Gate,Disabled,Enabled;",
 		"P3ONO,Joystick 1, Analog, Digital, Disabled;",
 		"P3OPQ,Joystick 2, Analog, Digital, Disabled;",
 		"P3OR,Sync Joy to CPU Speed,No,Yes;",
