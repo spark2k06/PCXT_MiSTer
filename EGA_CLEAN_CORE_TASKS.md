@@ -577,7 +577,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-502 - Stop Compiling Standalone CGA Modules
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-303`, `ECC-401`.
 - Files: `rtl/video/video.qip`, `files.qip`, CGA module files.
@@ -589,6 +589,18 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Build files do not compile standalone CGA modules.
   - `rg "module cga\\b|cga_passthrough"` returns no active implementation use.
+- Result:
+  - Removed `cga_vram.v`, `cga_vgaport.v`, `cga_sequencer.v`,
+    `cga_pixel.sv`, `cga_composite.v`, `cga_attrib.v`, and `cga.v` from
+    `rtl/video/video.qip`.
+  - Kept source files in-tree for now; they are no longer active build inputs.
+  - Verified `rg -n "cga_vram|cga_vgaport|cga_sequencer|cga_pixel|cga_composite|cga_attrib|cga\.v|module cga\b|cga_passthrough"
+    -g"*.qsf" -g"*.qip" -g"*.tcl" .` returns no build-config matches.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 180
+    warnings.
 
 ### ECC-503 - Stop Compiling HGC Modules
 
