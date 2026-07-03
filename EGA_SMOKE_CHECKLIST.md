@@ -61,6 +61,27 @@ Each smoke run should record:
 - One screenshot or capture per failed visual case when practical.
 - Primary failure class and follow-up task ID for each failure.
 
+## Clean-Core Baseline Run: ECC-002
+
+This baseline must be collected on MiSTer hardware before using it as pass/fail
+evidence for the clean EGA refactor. It is intentionally recorded as pending in
+this repository because this development session cannot execute hardware smoke
+tests.
+
+- Branch: `ega-mcga-clean-core`.
+- Starting commit: `8d1c719fe2a5d78d19e711cdeec842d6b9c129a8`.
+- Recovery artifact: `D:\GitHub\PCXT_MiSTer\output_files\PCXT_EGATEST9.rbf`.
+- Companion SOF: `D:\GitHub\PCXT_MiSTer\output_files\PCXT.sof`.
+
+| Case | Required Observation | Baseline Status | Notes |
+| --- | --- | --- | --- |
+| Cold boot with EGA BIOS | Boot reaches the expected DOS or configured boot path. | `blocked` | Requires MiSTer hardware run. |
+| Splash through EGA | Splash is visible and stable through the EGA path. | `blocked` | Requires MiSTer hardware run and screenshot/capture. |
+| EGA text after reset | Mode `03h` text is stable after reset. | `blocked` | Requires MiSTer hardware run. |
+| EGA graphics title | At least one EGA graphics title renders correctly. | `blocked` | Record title, image checksum, and OSD mode. |
+| CGA-compatible title 1 through EGA | A CGA-era graphics or text title renders through EGA compatibility. | `blocked` | Record title, image checksum, and OSD mode. |
+| CGA-compatible title 2 through EGA | A second CGA-era title renders through EGA compatibility. | `blocked` | Record title, image checksum, and OSD mode. |
+
 ## Release-Candidate Minimum
 
 A release-candidate run is not complete until:

@@ -102,7 +102,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-002 - Capture Current Hardware Smoke Baseline
 
-- Status: `[ ]`
+- Status: `[!]`
 - Priority: `P0`
 - Depends on: `ECC-001`.
 - Files: `EGA_SMOKE_CHECKLIST.md` or a new clean-core smoke note.
