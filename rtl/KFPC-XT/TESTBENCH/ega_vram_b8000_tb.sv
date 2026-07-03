@@ -170,6 +170,31 @@ module ega_vram_b8000_tb;
         end
     endtask
 
+    task automatic crt_fetch(input [15:0] addr);
+        begin
+            @(negedge clk_vram);
+            crt_addr = addr;
+            crt_re = 1'b1;
+            text_re = 1'b0;
+            @(posedge clk_vram);
+            @(negedge clk_vram);
+            crt_re = 1'b0;
+        end
+    endtask
+
+    task automatic text_fetch(input [15:0] cell_addr, input [15:0] font_addr);
+        begin
+            @(negedge clk_vram);
+            text_cell_addr = cell_addr;
+            text_font_addr = font_addr;
+            text_re = 1'b1;
+            crt_re = 1'b0;
+            @(posedge clk_vram);
+            @(negedge clk_vram);
+            text_re = 1'b0;
+        end
+    endtask
+
     initial begin
         repeat (4) @(posedge clk);
 
@@ -197,6 +222,35 @@ module ega_vram_b8000_tb;
         page_select = 1'b0;
         cpu_write_abs(20'hB8002, 8'h77);
         expect8("page_select=0 forces odd EGA address", dut.plane0[16'h0003], 8'h77);
+
+        $display("TEST: B8000 graphics fetch returns all EGA planes");
+        odd_even_mode = 1'b0;
+        page_select = 1'b0;
+        mem_map_sel = 2'b11;
+        plane_write_mask = 4'h1;
+        cpu_write_abs(20'hB9000, 8'h11);
+        plane_write_mask = 4'h2;
+        cpu_write_abs(20'hB9000, 8'h22);
+        plane_write_mask = 4'h4;
+        cpu_write_abs(20'hB9000, 8'h44);
+        plane_write_mask = 4'h8;
+        cpu_write_abs(20'hB9000, 8'h88);
+        crt_fetch(b8000_plane_addr(20'hB9000));
+        expect8("B9000 CRT plane0", crt_plane0, 8'h11);
+        expect8("B9000 CRT plane1", crt_plane1, 8'h22);
+        expect8("B9000 CRT plane2", crt_plane2, 8'h44);
+        expect8("B9000 CRT plane3", crt_plane3, 8'h88);
+
+        $display("TEST: B8000 text fetch returns char attr and font planes");
+        plane_write_mask = 4'h1;
+        cpu_write_abs(20'hB8120, 8'h43);
+        plane_write_mask = 4'h2;
+        cpu_write_abs(20'hB8120, 8'h1E);
+        dut.plane2[16'h0123] = 8'hA5;
+        text_fetch(b8000_plane_addr(20'hB8120), 16'h0123);
+        expect8("B8120 text char plane0", crt_plane0, 8'h43);
+        expect8("B8120 text attr plane1", crt_plane1, 8'h1E);
+        expect8("B8120 text glyph plane2", crt_plane2, 8'hA5);
 
         if (failures == 0)
             $display("PASS ega_vram_b8000_tb");

@@ -760,7 +760,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-602 - Add B8000-Compatible EGA VRAM Tests
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `ECC-205`.
 - Files: `rtl/KFPC-XT/TESTBENCH/`, `rtl/video/ega_vram.v`,
@@ -771,6 +771,20 @@ ECC-000..099 baseline and recovery
   - Cover relevant odd/even, map, and text/graphics cases.
 - Acceptance:
   - Regressions in CGA-compatible EGA memory access are caught by tests.
+- Result:
+  - Extended `rtl/KFPC-XT/TESTBENCH/ega_vram_b8000_tb.sv` with directed
+    B8000 graphics fetch coverage that writes distinct data into all four EGA
+    planes through the CPU path and verifies CRT fetch returns those planes.
+  - Added directed B8000 text fetch coverage that verifies plane 0 character,
+    plane 1 attribute, and plane 2 glyph data are fetched through the EGA text
+    path.
+  - Existing coverage continues to check B8000/BFFFF decode and odd/even page
+    remapping inside EGA VRAM.
+  - Verified with `iverilog -g2012 -I rtl/video -o
+    $env:TEMP\ega_vram_b8000_tb.vvp
+    rtl/KFPC-XT/TESTBENCH/ega_vram_b8000_tb.sv rtl/video/ega_vram.v; if
+    ($LASTEXITCODE -eq 0) { vvp $env:TEMP\ega_vram_b8000_tb.vvp }`, which
+    passes.
 
 ### ECC-603 - Add CGA-Compatible EGA Render Tests
 
