@@ -37,7 +37,6 @@ module ega_pixel (
     reg [3:0] bits_remaining = 4'd0;
     reg       repeat_phase = 1'b0;
     reg       load_pending = 1'b0;
-    reg       have_pixel = 1'b0;
 
     // EGA CGA-compatible graphics fetches pack adjacent 2bpp pixels across
     // planes; this mirrors x86Box's EGA render path before palette lookup.
@@ -80,7 +79,6 @@ module ega_pixel (
                 bits_remaining <= 4'd0;
                 repeat_phase <= 1'b0;
                 load_pending <= 1'b0;
-                have_pixel <= 1'b0;
             end
             else if (!graphics_render) begin
                 plane_index <= 4'h0;
@@ -88,13 +86,11 @@ module ega_pixel (
                 bits_remaining <= 4'd0;
                 repeat_phase <= 1'b0;
                 load_pending <= 1'b0;
-                have_pixel <= 1'b0;
             end
             else if (load_pending || fetch_en) begin
                 plane_index <= load_pixel;
                 pixel_valid <= 1'b1;
                 load_pending <= 1'b0;
-                have_pixel <= 1'b1;
 
                 if (dot_clock_div2) begin
                     shift_plane0 <= load_plane0;
@@ -130,7 +126,7 @@ module ega_pixel (
                 end
             end
             else begin
-                pixel_valid <= have_pixel;
+                plane_index <= 4'h0;
             end
         end
     end
