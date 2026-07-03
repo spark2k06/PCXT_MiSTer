@@ -862,7 +862,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-702 - Update README For Clean EGA Core
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P2`
 - Depends on: `ECC-505`.
 - Files: `README.md`, related user-facing docs.
@@ -873,6 +873,15 @@ ECC-000..099 baseline and recovery
   - Remove or revise references to active CGA/HGC/Tandy selection.
 - Acceptance:
   - User-facing docs describe the actual clean-core behavior.
+- Result:
+  - Updated `README.md` key features to describe the EGA-centered video model
+    and EGA-owned CGA-compatible text/graphics behavior.
+  - Replaced the old `config.tcl` section that described CGA/HGC/Tandy active
+    variants with clean-core EGA build guidance and links to
+    `EGA_CLEAN_CORE_SPEC.md` / `EGA_CLEAN_CORE_PLAN.md`.
+  - Removed the obsolete selectable-video resource comparison table from the
+    active README description and noted that fresh resource numbers should be
+    regenerated after clean-core closure.
 
 ### ECC-703 - Final Grep And Build Closure
 
