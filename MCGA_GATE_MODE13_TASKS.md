@@ -239,7 +239,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-303 - Verify Pixel Address Mapping
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `MCGA-302`.
 - Files: focused testbench.
