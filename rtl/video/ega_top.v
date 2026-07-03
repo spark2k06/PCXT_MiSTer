@@ -101,6 +101,15 @@ module ega_top(
     localparam [3:0] EGA_STD_HSYNC_W_HI = 4'd10;
     localparam [3:0] EGA_STD_HSYNC_W_LO = 4'd5;
 
+    reg [4:0] ega_clkdiv = 5'd0;
+
+    always @(posedge clk or posedge reset) begin
+        if (reset)
+            ega_clkdiv <= 5'd0;
+        else
+            ega_clkdiv <= ega_clkdiv + 5'd1;
+    end
+
     wire [4:0] cga_clkdiv;
     wire [7:0] cga_bus_out;
     wire cga_bus_dir;
@@ -170,10 +179,10 @@ module ega_top(
     defparam cga_passthrough.NO_DISPLAY_DISABLE = NO_DISPLAY_DISABLE;
     defparam cga_passthrough.IO_BASE_ADDR = IO_BASE_ADDR;
 
-    assign clkdiv = cga_clkdiv;
+    assign clkdiv = ega_clkdiv;
     assign bus_rdy = cga_bus_rdy;
 
-    wire ce_pix = cga_clkdiv[0];
+    wire ce_pix = ega_clkdiv[0];
     wire [15:0] ega_io_addr = {1'b0, bus_a};
     wire ega_io_we = ~bus_iow_l & ~bus_aen & ega_enabled;
     wire ega_io_re = ~bus_ior_l & ~bus_aen & ega_enabled;
@@ -199,8 +208,7 @@ module ega_top(
     reg ega_video_active = 1'b0;
     reg ega_video_pending = 1'b0;
     reg ega_write_seen_since_vblank = 1'b0;
-    reg cga_vblank_q = 1'b0;
-    wire cga_vblank_rise = ~cga_vblank_q & cga_vblank;
+    reg ega_vblank_q = 1'b0;
     wire ega_splash_active = ega_enabled & splashscreen;
     wire ega_display_sel = ega_enabled & (ega_video_active | ega_splash_active);
     reg [4:0] ega_crtc_index_shadow = 5'd0;
@@ -529,6 +537,7 @@ module ega_top(
     wire [5:0] ega_video_selected = scandouble_en ? ega_dbl_color : ega_color_raw;
     wire [3:0] ega_video_real = ega_color_raw[3:0];
     wire [6:0] ega_comp_video = {1'b0, ega_color_raw};
+    wire ega_vblank_rise = ~ega_vblank_q & ega_visible_vblank;
 
     ega_vgaport ega_rgb_conv (
         .color(ega_video_selected),
@@ -584,7 +593,7 @@ module ega_top(
 
     always @(posedge clk or posedge reset) begin
         if (reset) begin
-            cga_vblank_q <= 1'b0;
+            ega_vblank_q <= 1'b0;
             ega_cfg_toggle <= 1'b0;
             ega_status_read_q <= 1'b0;
             ega_status_toggle <= 2'b00;
@@ -614,7 +623,7 @@ module ega_top(
                                              ega_display_enable};
             end
 
-            cga_vblank_q <= cga_vblank;
+            ega_vblank_q <= ega_visible_vblank;
             ega_status_read_q <= ega_status_read;
             ega_vblank_crtc_q <= ega_crtc_fetch_tick ? ega_vert_blank_active_crtc : ega_vblank_crtc_q;
             cpu_mem_write_evt_d <= cpu_mem_write_evt;
@@ -661,7 +670,7 @@ module ega_top(
                     ega_write_seen_since_vblank <= 1'b1;
                 end
 
-                if (cga_vblank_rise) begin
+                if (ega_vblank_rise) begin
                     if (ega_crtc_timing_ready & ega_video_pending & ~ega_write_seen_since_vblank & ~cpu_mem_write_stretched) begin
                         ega_video_active <= 1'b1;
                         ega_video_pending <= 1'b0;
@@ -706,21 +715,21 @@ module ega_top(
     assign bus_dir = ega_enabled ? (ega_bus_dir_sel | cga_bus_dir) : cga_bus_dir;
     assign ram_we_l = ega_display_sel ? 1'b0 : cga_ram_we_l;
     assign ram_a = ega_display_sel ? 19'd0 : cga_ram_a;
-    assign hsync = ega_display_sel ? ega_hsync_int : cga_hsync;
-    assign dbl_hsync = ega_display_sel ? ega_dbl_hsync : cga_dbl_hsync;
-    assign hblank = ega_display_sel ? (scandouble_en ? ~ega_display_enable_sd : ega_hblank_crtc) : cga_hblank;
-    assign vsync = ega_display_sel ? (scandouble_en ? ~ega_vsync_sd_l : ega_vsync) : cga_vsync;
-    assign vblank = ega_display_sel ? (scandouble_en ? ega_vblank_sd : ega_visible_vblank) : cga_vblank;
-    assign vblank_border = ega_display_sel ? (scandouble_en ? ega_vblank_sd : ega_vblank_crtc) : cga_vblank_border;
-    assign std_hsyncwidth = ega_display_sel
+    assign hsync = ega_enabled ? ega_hsync_int : cga_hsync;
+    assign dbl_hsync = ega_enabled ? ega_dbl_hsync : cga_dbl_hsync;
+    assign hblank = ega_enabled ? (scandouble_en ? ~ega_display_enable_sd : ega_hblank_crtc) : cga_hblank;
+    assign vsync = ega_enabled ? (scandouble_en ? ~ega_vsync_sd_l : ega_vsync) : cga_vsync;
+    assign vblank = ega_enabled ? (scandouble_en ? ega_vblank_sd : ega_visible_vblank) : cga_vblank;
+    assign vblank_border = ega_enabled ? (scandouble_en ? ega_vblank_sd : ega_vblank_crtc) : cga_vblank_border;
+    assign std_hsyncwidth = ega_enabled
                           ? (ega_hsync_width_crtc == (ega_dot_clock_div2_active ? EGA_STD_HSYNC_W_LO : EGA_STD_HSYNC_W_HI))
                           : cga_std_hsyncwidth;
-    assign de_o = ega_display_sel ? (scandouble_en ? ega_display_enable_sd : ega_display_enable_raw) : cga_de_o;
-    assign video = ega_display_sel ? ega_video_real : cga_video;
-    assign dbl_video = ega_display_sel ? ega_dbl_color[3:0] : cga_dbl_video;
-    assign comp_video = ega_display_sel ? ega_comp_video : cga_comp_video;
-    assign grph_mode = ega_display_sel ? ega_graphics_mode_active : cga_grph_mode;
-    assign hres_mode = ega_display_sel ? ega_hres_mode_int : cga_hres_mode;
-    assign tandy_color_16 = ega_display_sel ? 1'b0 : cga_tandy_color_16;
+    assign de_o = ega_display_sel ? (scandouble_en ? ega_display_enable_sd : ega_display_enable_raw) : 1'b0;
+    assign video = ega_display_sel ? ega_video_real : 4'd0;
+    assign dbl_video = ega_display_sel ? ega_dbl_color[3:0] : 4'd0;
+    assign comp_video = ega_display_sel ? ega_comp_video : 7'd0;
+    assign grph_mode = ega_enabled ? ega_graphics_mode_active : cga_grph_mode;
+    assign hres_mode = ega_enabled ? ega_hres_mode_int : cga_hres_mode;
+    assign tandy_color_16 = 1'b0;
 
 endmodule

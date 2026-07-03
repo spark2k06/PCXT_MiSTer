@@ -219,7 +219,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-202 - Move Pre-BIOS Defaults Into EGA
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-201`.
 - Files: `rtl/video/ega_top.v`, `rtl/video/UM6845R.v`, `rtl/video/ega_sequencer.v`.
@@ -231,6 +231,14 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Cold boot and reset produce stable EGA-owned sync.
   - OSD resolution does not depend on CGA fallback.
+- Result:
+  - `ega_top` now owns the exported pixel divider used by its EGA pipeline.
+  - `ega_video_active` is armed from EGA vertical blank instead of CGA vertical
+    blank.
+  - Sync, blanking, mode status, and inactive pixel outputs are EGA-owned while
+    EGA is enabled; inactive pixels are explicitly blanked.
+  - Hardware cold-boot and OSD checks remain pending under the `ECC-002`
+    hardware smoke baseline.
 
 ### ECC-203 - Verify EGA-Owned CGA-Compatible 2bpp Graphics
 
