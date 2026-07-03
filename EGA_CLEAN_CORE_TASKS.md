@@ -198,7 +198,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-201 - Audit `ega_top` CGA Passthrough Dependencies
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-103`.
 - Files: `rtl/video/ega_top.v`, new audit notes if needed.
@@ -211,6 +211,11 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Every `cga_passthrough` dependency has a planned replacement or deletion.
   - No Phase 3 removal starts with unknown signal ownership.
+- Result:
+  - Added `EGA_CGA_PASSTHROUGH_AUDIT.md` with every current
+    `cga_passthrough` signal dependency in `rtl/video/ega_top.v`.
+  - Classified each dependency as EGA-owned replacement, EGA default, or
+    removable fallback before Phase 3 deletion begins.
 
 ### ECC-202 - Move Pre-BIOS Defaults Into EGA
 
