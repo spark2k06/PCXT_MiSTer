@@ -942,8 +942,6 @@ end
     logic  [7:0]   video_ram_data;
     logic          video_memory_write_n;
     logic          hgc_mem_select_1;
-    logic          cga_mem_select_1;
-    logic          video_mem_select_1;
     logic  [14:0]  video_io_address;
     logic  [7:0]   video_io_data;
     logic          video_io_write_n;
@@ -1005,11 +1003,9 @@ end
     wire  [7:0]   splash_rom_data;
     wire          hgc_splash_copy_active = splash_copy_active & splash_copy_dest_hgc;
     wire          ega_splash_copy_active = splash_copy_active & splash_copy_dest_ega;
-    wire          cga_splash_copy_active = splash_copy_active & ~splash_copy_dest_ega;
-    wire          cga_vram_copy = cga_splash_copy_active | splash_clear_active;
     wire          hgc_splash_cpu_write = hgc_splash_copy_active & (hgc_splash_state == HGC_SPLASH_ASSERT);
-    wire  [7:0]   splash_clear_data = 8'h00;
     wire          splash_ega_selected = `ENABLE_EGA ? (ega_enabled & enable_cga) : 1'b0;
+    wire          video_splash_copy_progress = 1'b1;
 
     always_ff @(posedge clock)
     begin
@@ -1031,8 +1027,6 @@ end
         video_ram_data          <= internal_data_bus;
         video_memory_write_n    <= memory_write_n;
         hgc_mem_select_1        <= hgc_mem_select;
-        cga_mem_select_1        <= cga_mem_select;
-        video_mem_select_1      <= video_mem_select;
         ega_mem_select_sys      <= ega_mem_select;
         ega_mem_write_sys       <= ega_mem_select & ~memory_write_n;
 
@@ -1096,7 +1090,7 @@ end
             end
             else
             begin
-                if (cga_vram_int_progress)
+                if (video_splash_copy_progress)
                 begin
                     if (splash_copy_addr == SPLASH_COPY_LAST)
                     begin
@@ -1132,7 +1126,7 @@ end
         end
         else if (splash_clear_active)
         begin
-            if (cga_vram_int_progress)
+            if (video_splash_copy_progress)
             begin
                 if (splash_clear_addr == TEXT_CLEAR_LAST)
                 begin
@@ -1366,9 +1360,8 @@ end
     end
 
 
-    wire CGA_VRAM_ENABLE;
-    wire [18:0] CGA_VRAM_ADDR;
-    wire [7:0] CGA_VRAM_DOUT;
+    wire        video_ram_unused_we_l;
+    wire [18:0] video_ram_unused_addr;
     wire        CGA_CRTC_OE;
     logic       CGA_CRTC_OE_1;
     logic       CGA_CRTC_OE_2;
@@ -1463,10 +1456,10 @@ end
         .bus_out                    (CGA_CRTC_DOUT),
         .bus_dir                    (CGA_CRTC_OE),
         .bus_aen                    (cga_address_enable_n_2),
-        .ram_we_l                   (CGA_VRAM_ENABLE),
-        .ram_a                      (CGA_VRAM_ADDR),
-        .ram_d                      (CGA_VRAM_DOUT),
-        .ram_data_valid             (cga_vram_video_valid),
+        .ram_we_l                   (video_ram_unused_we_l),
+        .ram_a                      (video_ram_unused_addr),
+        .ram_d                      (8'h00),
+        .ram_data_valid             (1'b1),
         .ega_fetch_addr             (EGA_FETCH_ADDR),
         .ega_fetch_en               (EGA_FETCH_EN),
         .ega_plane0_data            (EGA_PLANE0_DOUT),
@@ -1554,15 +1547,10 @@ end
 
     defparam ega1.BLINK_MAX = 24'd4772727;
     defparam hgc1.BLINK_MAX = 24'd9100000;
-    localparam int CGA_VRAM_AW = (`ENABLE_TANDY_VIDEO ? 17 : 14);
-
-    wire [7:0] cga_vram_cpu_dout;
     wire [7:0] ega_vram_cpu_dout;
     wire [7:0] hgc_vram_cpu_dout;
     wire       hgc_vram_cpu_ready = 1'b1;
-    wire       cga_vram_cpu_ready = 1'b1;
     wire       hgc_vram_video_valid = 1'b1;
-    wire       cga_vram_video_valid = 1'b1;
     wire [15:0] ega_vram_cpu_addr = address[15:0];
     wire        ega_vram_cpu_a16 = address[16];
     wire [7:0]  ega_vram_cpu_din = internal_data_bus;
@@ -1579,41 +1567,6 @@ end
     (
         .addr       (splash_copy_addr),
         .data       (splash_rom_data)
-    );
-
-    wire [16:0] cga_copy_addr  = splash_copy_active ? {5'd0, splash_copy_addr} : splash_clear_addr;
-    wire [7:0]  cga_copy_data  = splash_copy_active ? splash_rom_data : splash_clear_data;
-    wire [16:0] cga_vram_addra = `ENABLE_CGA ? (cga_vram_copy ? cga_copy_addr :
-                                 (tandy_video_en ? (video_mem_select_1 ? video_ram_address :
-                                 (tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} :
-                                 {tandy_page_data[5:4], video_ram_address[14:0]})) : {3'b000, video_ram_address[13:0]})) : 17'd0;
-    wire [16:0] cga_vram_addrb = `ENABLE_CGA ? (tandy_video_en ?
-                                 ((grph_mode & hres_mode) ? {tandy_page_data[2:1], CGA_VRAM_ADDR[14:0]} :
-                                 {tandy_page_data[2:0], CGA_VRAM_ADDR[13:0]}) : {3'b000, CGA_VRAM_ADDR[13:0]}) : 17'd0;
-    wire [7:0]  cga_vram_dina  = cga_vram_copy ? cga_copy_data : video_ram_data;
-    wire        cga_vram_ena   = `ENABLE_CGA ? (cga_vram_copy ? 1'b1 : (cga_mem_select_1 || video_mem_select_1)) : 1'b0;
-    wire        cga_vram_wea   = `ENABLE_CGA ? (cga_vram_copy ? 1'b1 : ~video_memory_write_n) : 1'b0;
-    wire        cga_vram_enb   = `ENABLE_CGA ? CGA_VRAM_ENABLE : 1'b0;
-    wire [CGA_VRAM_AW-1:0] cga_vram_addra_eff = cga_vram_addra[CGA_VRAM_AW-1:0];
-    wire [CGA_VRAM_AW-1:0] cga_vram_addrb_eff = cga_vram_addrb[CGA_VRAM_AW-1:0];
-    wire        cga_vram_cpu_cycle = `ENABLE_CGA ? (cga_mem_select && (~memory_read_n || ~memory_write_n)) : 1'b0;
-    wire        cga_vram_int_ready = 1'b1;
-    wire        cga_vram_int_progress = `ENABLE_CGA ? cga_vram_int_ready : 1'b1;
-
-    vram #(.AW(CGA_VRAM_AW)) cga_vram
-    (
-        .clka                       (clock),
-        .ena                        (cga_vram_ena),
-        .wea                        (cga_vram_wea),
-        .addra                      (cga_vram_addra_eff),
-        .dina                       (cga_vram_dina),
-        .douta                      (cga_vram_cpu_dout),
-        .clkb                       (clk_vga_cga),
-        .web                        (1'b0),
-        .enb                        (cga_vram_enb),
-        .addrb                      (cga_vram_addrb_eff),
-        .dinb                       (8'h0),
-        .doutb                      (CGA_VRAM_DOUT)
     );
 
     wire hgc_vram_ena = `ENABLE_HGC ? (hgc_mem_select_1 | hgc_splash_cpu_write) : 1'b0;
@@ -1689,9 +1642,7 @@ end
     assign hgc_memory_access_ready = `ENABLE_HGC
                                    ? ((hgc_mem_select && (~memory_read_n || ~memory_write_n)) ? hgc_vram_cpu_ready : 1'b1)
                                    : 1'b1;
-    assign cga_memory_access_ready = `ENABLE_CGA
-                                   ? (cga_vram_cpu_cycle ? cga_vram_cpu_ready : 1'b1)
-                                   : 1'b1;
+    assign cga_memory_access_ready = 1'b1;
     assign ega_memory_access_ready = `ENABLE_EGA
                                    ? (ega_vram_cpu_cycle ? ega_vram_cpu_ready : 1'b1)
                                    : 1'b1;
@@ -2072,11 +2023,6 @@ end
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= ega_vram_cpu_dout;
-        end
-        else if (`ENABLE_CGA && cga_mem_select && (~memory_read_n))
-        begin
-            data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= cga_vram_cpu_dout;
         end
         else if (`ENABLE_HGC && hgc_mem_select && (~memory_read_n))
         begin

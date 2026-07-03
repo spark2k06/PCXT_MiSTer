@@ -421,7 +421,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-401 - Remove CGA VRAM Path From `Peripherals.sv`
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-303`, `ECC-205`.
 - Files: `rtl/KFPC-XT/HDL/Peripherals.sv`.
@@ -434,6 +434,23 @@ ECC-000..099 baseline and recovery
   - No CGA VRAM instance remains.
   - Splash still renders through EGA.
   - CGA-compatible titles still render through EGA.
+- Result:
+  - Removed the `vram cga_vram` instance and all CGA VRAM address/data/enable
+    muxing from `Peripherals.sv`.
+  - Disconnected the legacy RAM-side ports on `ega_top` from any CGA VRAM
+    storage; EGA VRAM remains served by `ega_vram_bram_frontend`.
+  - Removed CPU readback from standalone CGA VRAM; B8000-compatible reads are
+    handled by the EGA VRAM path when the EGA memory map selects that aperture.
+  - Kept the `cga_clear_busy` handshake alive as a generic splash-clear hold
+    pulse for `PCXT.sv`, but it no longer drives CGA VRAM writes.
+  - Verified `rg -n "CGA_VRAM|cga_vram|cga_splash_copy|cga_copy"
+    rtl/KFPC-XT/HDL/Peripherals.sv` returns no active CGA VRAM path matches.
+  - Verified `ega_vram_b8000_tb` passes.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 220
+    warnings.
 
 ### ECC-402 - Remove HGC VRAM And Video Path
 
