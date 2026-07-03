@@ -100,7 +100,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-001 - Record MCGA Starting Baseline
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: none.
 - Files: `MCGA_GATE_MODE13_SPEC.md`, new baseline notes if needed.
