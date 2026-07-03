@@ -130,7 +130,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-003 - Identify DOS Mode 13h Test Targets
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: none.
 - Files: MCGA smoke checklist or test inventory.
