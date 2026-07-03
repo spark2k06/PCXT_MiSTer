@@ -394,7 +394,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-303 - Prove `ega_top` Builds Without CGA Sources
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-301`, `ECC-302`.
 - Files: `rtl/video/ega_top.v`, test or build scripts.
@@ -406,6 +406,16 @@ ECC-000..099 baseline and recovery
   - `ega_top` has no dependency on `cga.v`, `cga_pixel.sv`,
     `cga_sequencer.v`, `cga_attrib.v`, `cga_vgaport.v`, or
     `cga_composite.v`.
+- Result:
+  - Verified `ega_top` elaborates under Icarus without standalone CGA sources:
+    `iverilog -g2012 -I rtl/video -s ega_top -o
+    $env:TEMP\ega_top_no_cga.vvp rtl/video/ega_top.v
+    rtl/video/UM6845R.v rtl/video/ega_sequencer.v
+    rtl/video/ega_gfx_ctrl.v rtl/video/ega_pixel.v rtl/video/ega_text.v
+    rtl/video/ega_attrib_ctrl.v rtl/video/video_scandoubler.v
+    rtl/video/ega_vgaport.v`.
+  - Verified `rg -n "cga\.v|cga_pixel|cga_sequencer|cga_attrib|cga_vgaport|cga_composite|cga_passthrough|module cga\b|cga_"
+    rtl/video/ega_top.v` returns no matches.
 
 ## ECC-400: Collapse `Peripherals.sv` Video Mux
 
