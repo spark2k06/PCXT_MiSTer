@@ -268,7 +268,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-204 - Verify EGA-Owned CGA-Compatible Text
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `ECC-201`.
 - Files: `rtl/video/ega_text.v`, `rtl/video/ega_vram.v`,
@@ -282,6 +282,22 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Text does not require CGA VRAM or `cga_pixel.sv`.
   - EGA BIOS text remains stable after reset.
+- Result:
+  - Documented in `EGA_TEXT_COMPAT_AUDIT.md`.
+  - Text character, attribute, and BIOS-loaded glyph fetches are sourced from
+    EGA VRAM planes through `ega_vram_bram_frontend.sv` and `ega_vram.v`;
+    `cga_pixel.sv` is not used.
+  - `splash_font_enable` is the only path that uses the internal pre-BIOS
+    fallback font ROM.
+  - Ran `iverilog -g2012 -I rtl/video -o $env:TEMP\ega_text_tb.vvp
+    rtl/KFPC-XT/TESTBENCH/ega_text_tb.sv rtl/video/ega_text.v; if
+    ($LASTEXITCODE -eq 0) { vvp $env:TEMP\ega_text_tb.vvp }`. It reproduces
+    the pre-existing `cga.hex` splash fallback failure documented in
+    `EGA_TESTBENCH_INVENTORY.md`; the non-splash text checks run through cell
+    fetch cadence, font address selection, attributes, cursor, mono, underline,
+    9-dot, and panning coverage.
+  - Hardware reset/text and CGA-compatible text-mode smoke remain pending under
+    `ECC-002`.
 
 ### ECC-205 - Verify B8000-Compatible Access Through EGA VRAM
 
