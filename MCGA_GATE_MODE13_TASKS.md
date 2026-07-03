@@ -255,7 +255,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-401 - Implement 256-Entry DAC
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-301`.
 - Files: new or existing RTL under `rtl/video/`.
