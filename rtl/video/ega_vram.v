@@ -53,6 +53,10 @@ module ega_vram (
     input  wire [15:0] text_cell_addr,
     input  wire [15:0] text_font_addr,
     input  wire        text_re,
+    input  wire        splash_text_we,
+    input  wire [10:0] splash_text_addr,
+    input  wire        splash_text_attr,
+    input  wire [7:0]  splash_text_data,
     output wire [7:0]  crt_plane0,
     output wire [7:0]  crt_plane1,
     output wire [7:0]  crt_plane2,
@@ -158,10 +162,15 @@ module ega_vram (
     wire write_plane1_commit = cpu_mem_select_q & cpu_we_q & effective_plane_write_mask[1];
     wire write_plane2_commit = cpu_mem_select_q & cpu_we_q & effective_plane_write_mask[2];
     wire write_plane3_commit = cpu_mem_select_q & cpu_we_q & effective_plane_write_mask[3];
+    wire splash_plane0_write = splash_text_we & ~splash_text_attr;
+    wire splash_plane1_write = splash_text_we & splash_text_attr;
+    wire [EGA_PLANE_ADDR_WIDTH-1:0] splash_plane_addr = {{(EGA_PLANE_ADDR_WIDTH-11){1'b0}}, splash_text_addr};
 
 `ifdef ALTERA_RESERVED_QIS
-    wire [EGA_PLANE_ADDR_WIDTH-1:0] plane0_cpu_addr = write_plane0_commit ? cpu_plane_addr_qw : cpu_plane_addr;
-    wire [EGA_PLANE_ADDR_WIDTH-1:0] plane1_cpu_addr = write_plane1_commit ? cpu_plane_addr_qw : cpu_plane_addr;
+    wire [EGA_PLANE_ADDR_WIDTH-1:0] plane0_cpu_addr = splash_plane0_write ? splash_plane_addr :
+                                                      write_plane0_commit ? cpu_plane_addr_qw : cpu_plane_addr;
+    wire [EGA_PLANE_ADDR_WIDTH-1:0] plane1_cpu_addr = splash_plane1_write ? splash_plane_addr :
+                                                      write_plane1_commit ? cpu_plane_addr_qw : cpu_plane_addr;
     wire [EGA_PLANE_ADDR_WIDTH-1:0] plane2_cpu_addr = write_plane2_commit ? cpu_plane_addr_qw : cpu_plane_addr;
     wire [EGA_PLANE_ADDR_WIDTH-1:0] plane3_cpu_addr = write_plane3_commit ? cpu_plane_addr_qw : cpu_plane_addr;
 `endif
@@ -382,11 +391,11 @@ module ega_vram (
         .addressstall_b (1'b0),
         .byteena_a      (1'b1),
         .byteena_b      (1'b1),
-        .data_a         (cpu_plane0_new),
+        .data_a         (splash_plane0_write ? splash_text_data : cpu_plane0_new),
         .data_b         (8'h00),
-        .wren_a         (write_plane0_commit),
+        .wren_a         (splash_plane0_write | write_plane0_commit),
         .wren_b         (1'b0),
-        .rden_a         (cpu_access & ~write_plane0_commit),
+        .rden_a         (cpu_access & ~write_plane0_commit & ~splash_plane0_write),
         .rden_b         (crt_read_en),
         .q_a            (cpu_plane0_q),
         .q_b            (crt_plane0_s),
@@ -437,11 +446,11 @@ module ega_vram (
         .addressstall_b (1'b0),
         .byteena_a      (1'b1),
         .byteena_b      (1'b1),
-        .data_a         (cpu_plane1_new),
+        .data_a         (splash_plane1_write ? splash_text_data : cpu_plane1_new),
         .data_b         (8'h00),
-        .wren_a         (write_plane1_commit),
+        .wren_a         (splash_plane1_write | write_plane1_commit),
         .wren_b         (1'b0),
-        .rden_a         (cpu_access & ~write_plane1_commit),
+        .rden_a         (cpu_access & ~write_plane1_commit & ~splash_plane1_write),
         .rden_b         (crt_read_en),
         .q_a            (cpu_plane1_q),
         .q_b            (crt_plane1_s),
@@ -587,18 +596,22 @@ module ega_vram (
         plane3_ram.wrcontrol_wraddress_reg_b = "CLOCK1";
 `else
     always @(posedge clk) begin
-        if (cpu_access)
+        if (cpu_access && !splash_plane0_write)
             cpu_plane0_q <= plane0[cpu_plane_addr];
 
-        if (write_plane0_commit)
+        if (splash_plane0_write)
+            plane0[splash_plane_addr] <= splash_text_data;
+        else if (write_plane0_commit)
             plane0[cpu_plane_addr_qw] <= cpu_plane0_new;
     end
 
     always @(posedge clk) begin
-        if (cpu_access)
+        if (cpu_access && !splash_plane1_write)
             cpu_plane1_q <= plane1[cpu_plane_addr];
 
-        if (write_plane1_commit)
+        if (splash_plane1_write)
+            plane1[splash_plane_addr] <= splash_text_data;
+        else if (write_plane1_commit)
             plane1[cpu_plane_addr_qw] <= cpu_plane1_new;
     end
 

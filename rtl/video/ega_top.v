@@ -201,7 +201,8 @@ module ega_top(
     reg ega_write_seen_since_vblank = 1'b0;
     reg cga_vblank_q = 1'b0;
     wire cga_vblank_rise = ~cga_vblank_q & cga_vblank;
-    wire ega_display_sel = ega_enabled & ega_video_active;
+    wire ega_splash_active = ega_enabled & splashscreen;
+    wire ega_display_sel = ega_enabled & (ega_video_active | ega_splash_active);
     reg [4:0] ega_crtc_index_shadow = 5'd0;
     reg       ega_crtc_h_timing_seen = 1'b0;
     reg       ega_crtc_v_timing_seen = 1'b0;
@@ -272,28 +273,31 @@ module ega_top(
     wire ega_graphics_pixel_valid;
     wire [3:0] ega_text_plane_index;
     wire ega_text_pixel_valid;
-    wire [3:0] ega_plane_index = ega_graphics_mode ? ega_graphics_plane_index : ega_text_plane_index;
-    wire ega_pixel_valid = ega_graphics_mode ? ega_graphics_pixel_valid : ega_text_pixel_valid;
+    wire ega_graphics_mode_active = ega_splash_active ? 1'b0 : ega_graphics_mode;
+    wire ega_dot_clock_div2_active = ega_splash_active ? 1'b0 : ega_dot_clock_div2;
+    wire ega_char_9dot_active = ega_splash_active ? 1'b0 : ega_char_9dot;
+    wire [3:0] ega_plane_index = ega_graphics_mode_active ? ega_graphics_plane_index : ega_text_plane_index;
+    wire ega_pixel_valid = ega_graphics_mode_active ? ega_graphics_pixel_valid : ega_text_pixel_valid;
     wire [1:0] ega_render_mode_debug_unused;
-    wire ega_hres_mode_int = ~ega_dot_clock_div2;
+    wire ega_hres_mode_int = ~ega_dot_clock_div2_active;
     wire ega_attr_blink_enable;
     wire ega_attr_mono_attributes;
     wire ega_attr_line_graphics_enable;
     wire ega_cursor_active;
-    wire ega_text_mode_active = !ega_graphics_mode;
+    wire ega_text_mode_active = !ega_graphics_mode_active;
     wire ega_text_fetch_en_raw;
     reg [4:0] ega_text_fetch_phase = 5'd0;
     reg       ega_text_fetch_tick = 1'b0;
     wire [4:0] ega_text_fetch_phase_last =
-        ega_dot_clock_div2 ? (ega_char_9dot ? 5'd17 : 5'd15) :
-                             (ega_char_9dot ? 5'd8  : 5'd7);
-    wire [4:0] ega_graphics_fetch_phase_last = ega_dot_clock_div2 ? 5'd15 : 5'd7;
-    wire [4:0] ega_visible_base_delay = ega_graphics_mode ? ega_graphics_fetch_phase_last :
-                                                            ega_text_fetch_phase_last;
-    wire [4:0] ega_visible_delay = ega_visible_base_delay + (ega_dot_clock_div2 ? 5'd8 : 5'd4);
-    wire ega_crtc_fetch_tick = (!ega_graphics_mode && ega_char_9dot) ? ega_text_fetch_tick :
-                                                                    ega_ce_crt_fetch;
-    wire [1:0] ega_render_mode = !ega_graphics_mode ? 2'd0 :
+        ega_dot_clock_div2_active ? (ega_char_9dot_active ? 5'd17 : 5'd15) :
+                                    (ega_char_9dot_active ? 5'd8  : 5'd7);
+    wire [4:0] ega_graphics_fetch_phase_last = ega_dot_clock_div2_active ? 5'd15 : 5'd7;
+    wire [4:0] ega_visible_base_delay = ega_graphics_mode_active ? ega_graphics_fetch_phase_last :
+                                                                   ega_text_fetch_phase_last;
+    wire [4:0] ega_visible_delay = ega_visible_base_delay + (ega_dot_clock_div2_active ? 5'd8 : 5'd4);
+    wire ega_crtc_fetch_tick = (!ega_graphics_mode_active && ega_char_9dot_active) ? ega_text_fetch_tick :
+                                                                                   ega_ce_crt_fetch;
+    wire [1:0] ega_render_mode = !ega_graphics_mode_active ? 2'd0 :
                                   ega_cga_2bpp_mode ? 2'd2 : 2'd1;
     wire ega_display_enable = ega_display_enable_crtc;
     reg [25:0] ega_display_enable_delay = 26'd0;
@@ -361,12 +365,12 @@ module ega_top(
         .hres_mode(ega_hres_mode_int)
     );
 
-    // Default to a 40-column timing base so forced-EGA rendering consumes
-    // 40 bytes per scanline and expands them to 320 visible pixels.
-    defparam ega_crtc.H_TOTAL = 8'd56;
-    defparam ega_crtc.H_DISP = 8'd40;
-    defparam ega_crtc.H_SYNCPOS = 8'd45;
-    defparam ega_crtc.H_SYNCWIDTH = 4'd5;
+    // Reset to an 80-column text base so the pre-BIOS splash can be shown
+    // through EGA VRAM before the EGA BIOS programs its final mode timings.
+    defparam ega_crtc.H_TOTAL = 8'd112;
+    defparam ega_crtc.H_DISP = 8'd80;
+    defparam ega_crtc.H_SYNCPOS = 8'd90;
+    defparam ega_crtc.H_SYNCWIDTH = 4'd10;
     defparam ega_crtc.V_TOTAL = 7'd31;
     defparam ega_crtc.V_TOTALADJ = 5'd6;
     defparam ega_crtc.V_DISP = 7'd25;
@@ -377,7 +381,7 @@ module ega_top(
     defparam ega_crtc.DISPLAYED_CHARS_PLUS1 = 1;
     defparam ega_crtc.EGA_RESET_R16 = 8'hDF;
     defparam ega_crtc.EGA_RESET_R18 = 8'hC7;
-    defparam ega_crtc.EGA_RESET_R19 = 8'h14;
+    defparam ega_crtc.EGA_RESET_R19 = 8'h28;
 
     ega_sequencer ega_seq (
         .clk(clk),
@@ -435,7 +439,7 @@ module ega_top(
         .plane2_data(ega_plane2_data),
         .plane3_data(ega_plane3_data),
         .fetch_en(ega_fetch_data_valid),
-        .dot_clock_div2(ega_dot_clock_div2),
+        .dot_clock_div2(ega_dot_clock_div2_active),
         .display_enable(ega_display_enable_render),
         .render_mode(ega_render_mode),
         .plane_index(ega_graphics_plane_index),
@@ -449,8 +453,8 @@ module ega_top(
         .ce_pix(ce_pix),
         .fetch_tick(ega_crtc_fetch_tick),
         .display_enable(ega_text_mode_active ? ega_display_enable_render : 1'b0),
-        .dot_clock_div2(ega_dot_clock_div2),
-        .char_9dot(ega_char_9dot),
+        .dot_clock_div2(ega_dot_clock_div2_active),
+        .char_9dot(ega_char_9dot_active),
         .h_pixel_pan(4'd0),
         .blink_enable(ega_attr_blink_enable),
         .blink_state(ega_blink_state),
@@ -466,6 +470,7 @@ module ega_top(
         .text_attr_in(ega_text_attr),
         .text_glyph_in(ega_text_glyph),
         .text_data_valid(ega_text_data_valid),
+        .splash_font_enable(ega_splash_active),
         .text_cell_addr(ega_text_cell_addr),
         .text_font_addr(ega_text_font_addr),
         .text_fetch_en(ega_text_fetch_en_raw),
@@ -486,7 +491,7 @@ module ega_top(
         .plane_index(ega_plane_index),
         .pixel_valid(ega_pixel_valid),
         .display_enable(ega_display_enable_visible),
-        .text_mode(~ega_graphics_mode),
+        .text_mode(~ega_graphics_mode_active),
         .blink_state(ega_blink_state),
         .blink_enable_out(ega_attr_blink_enable),
         .mono_attributes_out(ega_attr_mono_attributes),
@@ -672,7 +677,7 @@ module ega_top(
     // latch immediately, but the visible fetch base only changes for the
     // next frame after vertical blank has completed.
     assign ega_fetch_addr = ega_crtc_addr_full;
-    assign ega_fetch_en = ega_display_sel ? (ega_graphics_mode & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
+    assign ega_fetch_en = ega_display_sel ? (ega_graphics_mode_active & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
     assign ega_text_fetch_en = ega_display_sel & ega_text_mode_active & ega_text_fetch_en_raw;
     assign ega_plane_write_mask_out = ega_plane_write_mask;
     assign ega_odd_even_mode_out = ega_odd_even_mode;
@@ -708,13 +713,13 @@ module ega_top(
     assign vblank = ega_display_sel ? (scandouble_en ? ega_vblank_sd : ega_visible_vblank) : cga_vblank;
     assign vblank_border = ega_display_sel ? (scandouble_en ? ega_vblank_sd : ega_vblank_crtc) : cga_vblank_border;
     assign std_hsyncwidth = ega_display_sel
-                          ? (ega_hsync_width_crtc == (ega_dot_clock_div2 ? EGA_STD_HSYNC_W_LO : EGA_STD_HSYNC_W_HI))
+                          ? (ega_hsync_width_crtc == (ega_dot_clock_div2_active ? EGA_STD_HSYNC_W_LO : EGA_STD_HSYNC_W_HI))
                           : cga_std_hsyncwidth;
     assign de_o = ega_display_sel ? (scandouble_en ? ega_display_enable_sd : ega_display_enable_raw) : cga_de_o;
     assign video = ega_display_sel ? ega_video_real : cga_video;
     assign dbl_video = ega_display_sel ? ega_dbl_color[3:0] : cga_dbl_video;
     assign comp_video = ega_display_sel ? ega_comp_video : cga_comp_video;
-    assign grph_mode = ega_display_sel ? ega_graphics_mode : cga_grph_mode;
+    assign grph_mode = ega_display_sel ? ega_graphics_mode_active : cga_grph_mode;
     assign hres_mode = ega_display_sel ? ega_hres_mode_int : cga_hres_mode;
     assign tandy_color_16 = ega_display_sel ? 1'b0 : cga_tandy_color_16;
 

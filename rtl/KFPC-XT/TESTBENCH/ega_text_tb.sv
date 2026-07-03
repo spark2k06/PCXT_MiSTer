@@ -27,6 +27,7 @@ module ega_text_tb;
     reg [7:0] text_attr_in = 8'h00;
     reg [7:0] text_glyph_in = 8'h00;
     reg text_data_valid = 1'b0;
+    reg splash_font_enable = 1'b0;
 
     wire [15:0] text_cell_addr;
     wire [15:0] text_font_addr;
@@ -60,6 +61,7 @@ module ega_text_tb;
         .text_attr_in(text_attr_in),
         .text_glyph_in(text_glyph_in),
         .text_data_valid(text_data_valid),
+        .splash_font_enable(splash_font_enable),
         .text_cell_addr(text_cell_addr),
         .text_font_addr(text_font_addr),
         .text_fetch_en(text_fetch_en),
@@ -140,6 +142,7 @@ module ega_text_tb;
             text_attr_in = 8'h00;
             text_glyph_in = 8'h00;
             text_data_valid = 1'b0;
+            splash_font_enable = 1'b0;
             repeat (4) @(negedge clk);
             reset = 1'b0;
             repeat (2) @(negedge clk);
@@ -264,6 +267,15 @@ module ega_text_tb;
         expect4("set glyph bit selects foreground", plane_index, 4'hE);
         step_pixel();
         expect4("clear glyph bit selects background", plane_index, 4'h1);
+
+        reset_dut();
+
+        begin_test("splash font fallback uses CGA ROM glyphs");
+        display_enable = 1'b1;
+        splash_font_enable = 1'b1;
+        load_cell(16'h0410, 8'hDB, 8'h2E, 8'h00);
+        step_pixel();
+        expect4("splash full block glyph selects foreground", plane_index, 4'hE);
 
         reset_dut();
 

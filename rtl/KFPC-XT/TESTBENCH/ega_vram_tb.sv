@@ -36,6 +36,10 @@ module ega_vram_tb;
     reg  [15:0] text_cell_addr = 16'h0000;
     reg  [15:0] text_font_addr = 16'h0000;
     reg         text_re = 1'b0;
+    reg         splash_text_we = 1'b0;
+    reg  [10:0] splash_text_addr = 11'h000;
+    reg         splash_text_attr = 1'b0;
+    reg  [7:0]  splash_text_data = 8'h00;
     wire [7:0]  crt_plane0;
     wire [7:0]  crt_plane1;
     wire [7:0]  crt_plane2;
@@ -88,6 +92,10 @@ module ega_vram_tb;
         .text_cell_addr(text_cell_addr),
         .text_font_addr(text_font_addr),
         .text_re(text_re),
+        .splash_text_we(splash_text_we),
+        .splash_text_addr(splash_text_addr),
+        .splash_text_attr(splash_text_attr),
+        .splash_text_data(splash_text_data),
         .crt_plane0(crt_plane0),
         .crt_plane1(crt_plane1),
         .crt_plane2(crt_plane2),

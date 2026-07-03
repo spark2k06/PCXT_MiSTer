@@ -29,6 +29,7 @@ module ega_text (
     input  wire [7:0]  text_attr_in,
     input  wire [7:0]  text_glyph_in,
     input  wire        text_data_valid,
+    input  wire        splash_font_enable,
     output reg  [15:0] text_cell_addr,
     output reg  [15:0] text_font_addr,
     output reg         text_fetch_en,
@@ -47,13 +48,21 @@ module ega_text (
     reg [3:0] pan_cache = 4'd0;
     reg [31:0] pan_history = 32'h00000000;
     reg [1:0] fetch_state = 2'd0;
+    reg [7:0] splash_char_rom[0:4095];
+
+    initial begin
+        $readmemh("cga.hex", splash_char_rom, 0, 4095);
+    end
 
     wire       start_cell = display_enable && fetch_tick;
     wire [1:0] pending_font_bank = text_attr_in[3] ? char_map_b : char_map_a;
+    wire [7:0] splash_glyph =
+        (scanline < 5'd8) ? splash_char_rom[{1'b1, char_pending, scanline[2:0]}] : 8'h00;
+    wire [7:0] active_text_glyph = splash_font_enable ? splash_glyph : text_glyph_in;
     wire       glyph_pixel = glyph_shift[8];
     wire       pending_line_graphics_char = (char_pending[7:5] == 3'b110);
     wire       pending_ninth_dot = char_9dot && line_graphics_enable &&
-                                   pending_line_graphics_char && text_glyph_in[0];
+                                   pending_line_graphics_char && active_text_glyph[0];
     wire [3:0] foreground_index = attr_latch[3:0];
     wire [3:0] background_index = blink_enable ? {1'b0, attr_latch[6:4]} : attr_latch[7:4];
     wire [3:0] visible_foreground_index =
@@ -157,7 +166,7 @@ module ega_text (
                     fetch_state <= 2'd2;
                 end else if (fetch_state == 2'd2) begin
                     attr_latch <= attr_pending;
-                    glyph_shift <= {text_glyph_in, pending_ninth_dot};
+                    glyph_shift <= {active_text_glyph, pending_ninth_dot};
                     cursor_latch <= cursor_pending;
                     dot_repeat <= 1'b0;
                     fetch_state <= 2'd0;

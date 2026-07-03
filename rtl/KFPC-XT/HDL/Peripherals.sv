@@ -991,6 +991,7 @@ end
     logic         splashscreen_ff = 1'b0;
     logic         splash_copy_active = 1'b0;
     logic         splash_copy_dest_hgc = 1'b0;
+    logic         splash_copy_dest_ega = 1'b0;
     logic [11:0]  splash_copy_addr = 12'd0;
     logic         hgc_splash_seen_busy = 1'b0;
     hgc_splash_state_t hgc_splash_state = HGC_SPLASH_IDLE;
@@ -1003,10 +1004,12 @@ end
     wire          status0_clear_start = status0_clear;
     wire  [7:0]   splash_rom_data;
     wire          hgc_splash_copy_active = splash_copy_active & splash_copy_dest_hgc;
-    wire          cga_splash_copy_active = splash_copy_active;
+    wire          ega_splash_copy_active = splash_copy_active & splash_copy_dest_ega;
+    wire          cga_splash_copy_active = splash_copy_active & ~splash_copy_dest_ega;
     wire          cga_vram_copy = cga_splash_copy_active | splash_clear_active;
     wire          hgc_splash_cpu_write = hgc_splash_copy_active & (hgc_splash_state == HGC_SPLASH_ASSERT);
     wire  [7:0]   splash_clear_data = 8'h00;
+    wire          splash_ega_selected = `ENABLE_EGA ? (ega_enabled & enable_cga) : 1'b0;
 
     always_ff @(posedge clock)
     begin
@@ -1045,10 +1048,11 @@ end
         if (splash_copy_start)
         begin
             splash_copy_active <= 1'b1;
-            splash_copy_dest_hgc <= `ENABLE_HGC ? 1'b1 : 1'b0;
+            splash_copy_dest_ega <= splash_ega_selected;
+            splash_copy_dest_hgc <= `ENABLE_HGC ? ~splash_ega_selected : 1'b0;
             splash_copy_addr   <= 12'd0;
             hgc_splash_seen_busy <= 1'b0;
-            hgc_splash_state <= `ENABLE_HGC ? HGC_SPLASH_ASSERT : HGC_SPLASH_IDLE;
+            hgc_splash_state <= (`ENABLE_HGC && ~splash_ega_selected) ? HGC_SPLASH_ASSERT : HGC_SPLASH_IDLE;
         end
         else if (splash_copy_active)
         begin
@@ -1070,6 +1074,7 @@ end
                         begin
                             splash_copy_active <= 1'b0;
                             splash_copy_dest_hgc <= 1'b0;
+                            splash_copy_dest_ega <= 1'b0;
                             splash_copy_addr   <= 12'd0;
                             hgc_splash_seen_busy <= 1'b0;
                             hgc_splash_state <= HGC_SPLASH_IDLE;
@@ -1096,6 +1101,7 @@ end
                     if (splash_copy_addr == SPLASH_COPY_LAST)
                     begin
                         splash_copy_active <= 1'b0;
+                        splash_copy_dest_ega <= 1'b0;
                         splash_copy_addr   <= 12'd0;
                     end
                     else
@@ -1109,6 +1115,7 @@ end
         begin
             splash_copy_active <= 1'b0;
             splash_copy_dest_hgc <= 1'b0;
+            splash_copy_dest_ega <= 1'b0;
             splash_copy_addr   <= 12'd0;
             hgc_splash_seen_busy <= 1'b0;
             hgc_splash_state <= HGC_SPLASH_IDLE;
@@ -1564,6 +1571,10 @@ end
     wire        ega_vram_cpu_write_req = `ENABLE_EGA ? (ega_mem_select && ~memory_write_n) : 1'b0;
     wire        ega_vram_cpu_cycle = ega_vram_cpu_read_req | ega_vram_cpu_write_req;
     wire        ega_vram_cpu_ready;
+    wire        ega_splash_text_we = `ENABLE_EGA ? ega_splash_copy_active : 1'b0;
+    wire [10:0] ega_splash_text_addr = splash_copy_addr[11:1];
+    wire        ega_splash_text_attr = splash_copy_addr[0];
+    wire [7:0]  ega_splash_text_data = splash_rom_data;
 
     splash_rom splash_rom_inst
     (
@@ -1651,6 +1662,10 @@ end
         .text_attr                  (EGA_TEXT_ATTR),
         .text_glyph                 (EGA_TEXT_GLYPH),
         .text_data_valid            (EGA_TEXT_DATA_VALID),
+        .splash_text_we             (ega_splash_text_we),
+        .splash_text_addr           (ega_splash_text_addr),
+        .splash_text_attr           (ega_splash_text_attr),
+        .splash_text_data           (ega_splash_text_data),
         .cfg_toggle                 (ega_cfg_toggle),
         .plane_write_mask           (ega_plane_write_mask_cfg),
         .odd_even_mode              (ega_odd_even_mode_cfg),

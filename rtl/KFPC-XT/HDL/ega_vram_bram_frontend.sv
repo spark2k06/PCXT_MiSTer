@@ -27,6 +27,11 @@ module ega_vram_bram_frontend (
     output logic [7:0]   text_glyph,
     output logic         text_data_valid,
 
+    input  logic         splash_text_we,
+    input  logic [10:0]  splash_text_addr,
+    input  logic         splash_text_attr,
+    input  logic [7:0]   splash_text_data,
+
     input  logic         cfg_toggle,
     input  logic [3:0]   plane_write_mask,
     input  logic         odd_even_mode,
@@ -138,6 +143,10 @@ module ega_vram_bram_frontend (
         .text_cell_addr     (text_cell_addr),
         .text_font_addr     (text_font_addr),
         .text_re            (text_fetch_en),
+        .splash_text_we     (splash_text_we),
+        .splash_text_addr   (splash_text_addr),
+        .splash_text_attr   (splash_text_attr),
+        .splash_text_data   (splash_text_data),
         .crt_plane0         (core_video_plane0),
         .crt_plane1         (core_video_plane1),
         .crt_plane2         (core_video_plane2),
