@@ -286,7 +286,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-501 - Add Mode 13h Timing
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-201`.
 - Files: `rtl/video/ega_top.v` or new timing RTL.

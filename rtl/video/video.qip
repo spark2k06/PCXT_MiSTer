@@ -14,6 +14,7 @@ set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mcga_a0
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mcga_mode13_address.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mcga_dac.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mcga_dac_io.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) mcga_mode13_timing.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) ega_top.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) splash_rom.v ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) video_monochrome_converter.sv ]
