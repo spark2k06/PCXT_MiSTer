@@ -154,6 +154,15 @@ The first failing group is `write modes 0 and 2`; observed examples include
 `write mode2 plane1 expected=f0 actual=34`.
 
 ```powershell
+iverilog -g2012 -I rtl/video -o $env:TEMP\ega_vram_b8000_tb.vvp rtl/KFPC-XT/TESTBENCH/ega_vram_b8000_tb.sv rtl/video/ega_vram.v
+vvp $env:TEMP\ega_vram_b8000_tb.vvp
+```
+
+Result: passes. This directed check covers the EGA VRAM B8000-BFFFF memory-map
+selection plus odd/even page-select remapping for CGA-compatible text aperture
+access.
+
+```powershell
 iverilog -g2012 -I rtl/video -o $env:TEMP\ega_registers_tb.vvp rtl/KFPC-XT/TESTBENCH/ega_registers_tb.sv rtl/video/ega_sequencer.v rtl/video/ega_gfx_ctrl.v rtl/video/ega_attrib_ctrl.v rtl/video/UM6845R.v rtl/video/ega_top.v rtl/video/ega_vram.v rtl/video/ega_pixel.v rtl/video/ega_text.v rtl/video/ega_vgaport.v rtl/video/video_scandoubler.v rtl/video/cga.v rtl/video/cga_vram.v rtl/video/cga_sequencer.v rtl/video/cga_attrib.v rtl/video/cga_pixel.sv rtl/video/cga_vgaport.v rtl/video/cga_composite.v
 vvp $env:TEMP\ega_registers_tb.vvp
 ```

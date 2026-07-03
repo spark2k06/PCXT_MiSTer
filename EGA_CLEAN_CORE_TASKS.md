@@ -301,7 +301,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-205 - Verify B8000-Compatible Access Through EGA VRAM
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `ECC-203`, `ECC-204`.
 - Files: `rtl/KFPC-XT/HDL/Peripherals.sv`, `rtl/video/ega_vram.v`,
@@ -314,6 +314,18 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - CGA-compatible software reaches EGA VRAM without standalone CGA RAM.
   - Directed tests or hardware smoke notes cover the path.
+- Result:
+  - Added `rtl/KFPC-XT/TESTBENCH/ega_vram_b8000_tb.sv`.
+  - The directed test verifies that `mem_map_sel=2'b11` selects the
+    B8000-BFFFF aperture into EGA VRAM and rejects B7FFF.
+  - The directed test also verifies odd/even `page_select` remapping inside
+    the EGA VRAM address space.
+  - Verified with `iverilog -g2012 -I rtl/video -o
+    $env:TEMP\ega_vram_b8000_tb.vvp
+    rtl/KFPC-XT/TESTBENCH/ega_vram_b8000_tb.sv rtl/video/ega_vram.v; if
+    ($LASTEXITCODE -eq 0) { vvp $env:TEMP\ega_vram_b8000_tb.vvp }`.
+  - The broader `ega_vram_tb` still reproduces its pre-existing 14 write-mode
+    mismatches documented in `EGA_TESTBENCH_INVENTORY.md`.
 
 ## ECC-300: Remove `cga_passthrough`
 
