@@ -210,7 +210,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-301 - Implement Packed 8bpp Framebuffer Storage
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-202`.
 - Files: new or existing RTL under `rtl/video/`.
