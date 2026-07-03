@@ -82,6 +82,24 @@ tests.
 | CGA-compatible title 1 through EGA | A CGA-era graphics or text title renders through EGA compatibility. | `blocked` | Record title, image checksum, and OSD mode. |
 | CGA-compatible title 2 through EGA | A second CGA-era title renders through EGA compatibility. | `blocked` | Record title, image checksum, and OSD mode. |
 
+Hardware access check performed from `D:\GitHub\PCXT_MiSTer`:
+
+```powershell
+$env:INTELFPGA_ROOT='C:\intelFPGA_lite\17.0'
+$env:QUARTUS_ROOTDIR="$env:INTELFPGA_ROOT\quartus"
+$env:PATH="$env:QUARTUS_ROOTDIR\bin64;$env:PATH"
+jtagconfig
+```
+
+Result:
+
+```text
+No JTAG hardware available
+```
+
+This blocks collecting the `ECC-002` hardware smoke baseline in this session.
+`ECC-101` is intentionally not started because it depends on `ECC-002`.
+
 ## Release-Candidate Minimum
 
 A release-candidate run is not complete until:
