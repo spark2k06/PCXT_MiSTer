@@ -548,7 +548,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-501 - Remove Obsolete Video Macros From Project Config
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `ECC-404`.
 - Files: project `.qsf` files, `files.qip`, `rtl/video/video.qip`.
@@ -559,6 +559,21 @@ ECC-000..099 baseline and recovery
     removed hardware.
 - Acceptance:
   - Old video macros are not required to build the clean EGA core.
+- Result:
+  - Removed project-config `VERILOG_MACRO` assignments for
+    `SYSTEM_VARIANT_TANDY`, `ROM_VARIANT_TANDY`, `ENABLE_TANDY_VIDEO`,
+    `ENABLE_TANDY_AUDIO`, `ENABLE_TANDY_KBD`, `ENABLE_CGA`, and `ENABLE_HGC`
+    from `config.tcl`.
+  - Kept unrelated feature macros (`ENABLE_OPL2`, `ENABLE_CMS`, `ENABLE_EMS`,
+    `ENABLE_A000_UMB`) unchanged.
+  - Verified `rg -n "SYSTEM_VARIANT_TANDY|ROM_VARIANT_TANDY|ENABLE_TANDY_VIDEO|ENABLE_TANDY_AUDIO|ENABLE_TANDY_KBD|ENABLE_CGA|ENABLE_HGC"
+    -g"*.qsf" -g"*.qip" -g"*.tcl" .` returns no build-config matches.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 180
+    warnings. Standalone CGA files still listed by `rtl/video/video.qip` are
+    tracked by `ECC-502`.
 
 ### ECC-502 - Stop Compiling Standalone CGA Modules
 
