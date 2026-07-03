@@ -131,6 +131,7 @@ module ega_pixel (
             end
             else begin
                 pixel_valid <= have_pixel;
+                have_pixel <= 1'b0;
             end
         end
     end
