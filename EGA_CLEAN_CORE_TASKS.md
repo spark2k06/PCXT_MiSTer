@@ -155,7 +155,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-102 - Add Inert MCGA Gate Placeholder If Needed
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P2`
 - Depends on: `ECC-101`.
 - Files: project config/menu files.
@@ -167,6 +167,11 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Toggling `MCGA Gate` does not change hardware behavior.
   - The placeholder is documented as inert.
+- Result:
+  - No `MCGA Gate` placeholder was added because no current UI or RTL surface
+    needs it.
+  - `rg "MCGA|M-CGA|mcga"` shows only clean-core planning documentation and
+    the branch/baseline name; there is no active hardware behavior to gate.
 
 ### ECC-103 - Hard-Code EGA Video Selection
 
