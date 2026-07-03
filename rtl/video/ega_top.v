@@ -82,6 +82,9 @@ module ega_top(
     input scandouble_en,
     input ega_enabled,
     input mcga_enabled,
+    input mcga_mode13_set,
+    input mcga_mode13_clear,
+    output mcga_mode13_active_out,
     output grph_mode,
     output hres_mode,
     input [3:0] crt_h_offset,
@@ -137,6 +140,7 @@ module ega_top(
     reg ega_video_active = 1'b0;
     reg ega_video_pending = 1'b0;
     reg ega_write_seen_since_vblank = 1'b0;
+    wire mcga_mode13_active;
     reg ega_vblank_q = 1'b0;
     wire ega_splash_active = ega_enabled & splashscreen;
     wire ega_display_sel = ega_enabled & (ega_video_active | ega_splash_active);
@@ -255,6 +259,15 @@ module ega_top(
     wire       ega_blink_advance = ega_crtc_fetch_tick & ega_vert_blank_active_crtc & ~ega_vblank_crtc_q;
     wire       ega_blink_state = ega_blink_counter[4];
     wire [7:0] ega_status_reg = {2'b00, ega_status_toggle, ega_status_vretrace_active, 2'b00, ega_blanking_active};
+
+    mcga_mode13_ctrl mcga_mode13_state (
+        .clk(clk),
+        .reset(reset),
+        .mcga_enabled(mcga_enabled),
+        .mode13_set(mcga_mode13_set),
+        .mode13_clear(mcga_mode13_clear),
+        .mcga_mode13_active(mcga_mode13_active)
+    );
 
     UM6845R ega_crtc (
         .CLOCK(clk),
@@ -643,6 +656,7 @@ module ega_top(
     assign ega_rotate_count_out = ega_rotate_count;
     assign ega_blink_counter_out = ega_blink_counter;
     assign ega_blink_state_out = ega_blink_state;
+    assign mcga_mode13_active_out = mcga_mode13_active;
     assign ega_rgb_active = ega_display_sel;
     assign ega_display_sel_out = ega_display_sel;
 

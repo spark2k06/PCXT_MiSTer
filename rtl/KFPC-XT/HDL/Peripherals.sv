@@ -145,6 +145,7 @@ module PERIPHERALS #(
     wire [4:0] clkdiv;
     wire grph_mode;
     wire hres_mode;
+    wire mcga_mode13_active_unused;
 
     wire [1:0] ega_mem_map_sel_cfg;
 
@@ -1135,6 +1136,9 @@ end
         .scandouble_en              (cga_scandouble_en),
         .ega_enabled                (1'b1),
         .mcga_enabled               (mcga_enabled),
+        .mcga_mode13_set            (1'b0),
+        .mcga_mode13_clear          (1'b0),
+        .mcga_mode13_active_out     (mcga_mode13_active_unused),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
         .crt_h_offset               (crt_h_offset),

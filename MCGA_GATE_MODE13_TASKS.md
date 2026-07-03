@@ -179,7 +179,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-201 - Add MCGA Mode 13h State
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-102`.
 - Files: `rtl/video/ega_top.v`, focused testbench.
