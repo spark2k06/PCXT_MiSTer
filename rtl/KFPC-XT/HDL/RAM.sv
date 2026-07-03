@@ -4,16 +4,6 @@
 //
 // Based on KFPC-XT written by @kitune-san
 //
-`ifndef SYSTEM_VARIANT_TANDY
-`define SYSTEM_VARIANT_TANDY 0
-`endif
-`ifndef ROM_VARIANT_TANDY
-`define ROM_VARIANT_TANDY `SYSTEM_VARIANT_TANDY
-`endif
-`ifndef ROM_IS_TANDY
-`define ROM_IS_TANDY `ROM_VARIANT_TANDY
-`endif
-
 module RAM (
     input   logic           clock,
     input   logic           reset,
@@ -49,7 +39,6 @@ module RAM (
      input   logic           ems_b4,
      // BIOS
      input  logic    [2:0]  bios_protect_flag,
-     input  logic           tandy_bios_flag,
     // Optional flags
     input  logic           enable_a000h,
     // Wait mode
@@ -69,7 +58,6 @@ module RAM (
     logic           prev_no_command_state;
     logic           enable_refresh;
     logic           write_protect;
-    logic           tandy_bios_select;
 
     logic   [1:0]   read_wait_count;
     logic   [1:0]   write_wait_count;
@@ -81,9 +69,6 @@ module RAM (
     assign ram_address_select_n = ~(enable_sdram && ~(address[19:16] == 4'b1011) &&  // B0000h reserved for VRAM
 	                               ~(~enable_a000h && address[19:16] == 4'b1010));    // A0000h is optional
 	 
-
-    assign tandy_bios_select    = `ROM_IS_TANDY ? (tandy_bios_flag & (address[19:16] == 4'b1111)) : 1'b0;
-
 
     //
     // Write protect
@@ -107,7 +92,7 @@ module RAM (
         else if (ems_b4)
             latch_address   = {1'b1, map_ems[3], address[13:0]};
         else
-            latch_address   = {1'b0, tandy_bios_select, address};
+            latch_address   = {2'b00, address};
     end
 
     // Data

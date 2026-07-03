@@ -19,8 +19,7 @@ module KFPS2KB #(
     input   logic           clear_keycode,
     output  reg             pause_core,
     output  reg             swap_video,
-    input   logic           video_output,
-    input   logic           tandy_video
+    input   logic           video_output
 );
     //
     // Internal Signals
@@ -217,7 +216,7 @@ module KFPS2KB #(
     //
     always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
-            swap_video  <= tandy_video ? 1'b0 : video_output;
+            swap_video  <= video_output;
             irq         <= 1'b0;
             keycode     <= 8'h00;
             break_flag  <= 1'b0;
@@ -253,7 +252,7 @@ module KFPS2KB #(
                 break_flag  <= 1'b1;
             end
             else if (register == 8'h78) begin
-                // F11: CGA <-> Hercules (PCXT), RGB <-> Composite (Tandy)
+                // F11: CGA <-> Hercules compatibility toggle.
                 irq         <= 1'b0;
                 keycode     <= 8'h00;
                 break_flag  <= 1'b0;

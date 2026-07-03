@@ -639,7 +639,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-504 - Remove Tandy Variant Compile And Menu Paths
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `ECC-403`.
 - Files: project `.qsf` files, menu/status/config files, Tandy-specific RTL.
@@ -652,6 +652,42 @@ ECC-000..099 baseline and recovery
 - Acceptance:
   - Tandy variant macros are not needed for this branch.
   - User-facing config no longer exposes Tandy hardware.
+- Result:
+  - Removed the top-level Tandy system/ROM/audio/video/keyboard macros and
+    user-facing Tandy BIOS/audio menu entries from `PCXT.sv`.
+  - Removed Tandy BIOS loader selection, alternate SDRAM BIOS banking, SN76489
+    audio mixing, Tandy keyboard scancode conversion, and Tandy video timing
+    outputs from the active `PCXT`/`CHIPSET`/`PERIPHERALS`/`RAM` path.
+  - Removed `rtl/sound/jt89/hdl/jt89.qip` and
+    `Tandy_Scancode_Converter.sv` from the active project file list.
+  - Removed inactive Tandy ports from `ega_top` and updated
+    `ega_registers_tb.sv` to match the cleaned interface.
+  - Verified `rg -n "SYSTEM_VARIANT_TANDY|ROM_VARIANT_TANDY|ROM_IS_TANDY|ENABLE_TANDY|tandy_video|tandy_bios|tandy_snd|tandy_16|tandy_color|Tandy_Scancode|jt89|Tandy BIOS|Tandy Volume"
+    PCXT.sv rtl/KFPC-XT/HDL/Chipset.sv rtl/KFPC-XT/HDL/Peripherals.sv
+    rtl/KFPC-XT/HDL/RAM.sv rtl/KFPC-XT/HDL/KFPS2KB/HDL/KFPS2KB.sv
+    rtl/video/ega_top.v rtl/KFPC-XT/TESTBENCH/ega_registers_tb.sv
+    files.qip` returns no matches.
+  - `rtl/common/tandy_pcjr_joy.sv` remains active as the existing joystick
+    port `0x200` implementation; it is not a Tandy variant menu/BIOS/audio/
+    video/keyboard path.
+  - Verified `ega_pixel_tb` and `ega_vram_b8000_tb` pass.
+  - Verified Quartus A&E with `$env:QUARTUS_BIN='C:\intelFPGA_lite\17.0\quartus\bin64';
+    $env:PATH="$env:QUARTUS_BIN;$env:PATH"; quartus_map
+    --read_settings_files=on --write_settings_files=off PCXT -c PCXT
+    --analysis_and_elaboration`, which succeeds with 0 errors and 171
+    warnings.
+  - Checked `ega_registers_tb` with `iverilog -g2012 -I rtl/video -o
+    $env:TEMP\ega_registers_tb.vvp rtl/KFPC-XT/TESTBENCH/ega_registers_tb.sv
+    rtl/video/ega_sequencer.v rtl/video/ega_gfx_ctrl.v
+    rtl/video/ega_attrib_ctrl.v rtl/video/UM6845R.v rtl/video/ega_top.v
+    rtl/video/ega_vram.v rtl/video/ega_pixel.v rtl/video/ega_text.v
+    rtl/video/ega_vgaport.v rtl/video/video_scandoubler.v rtl/video/cga.v
+    rtl/video/cga_vram.v rtl/video/cga_sequencer.v rtl/video/cga_attrib.v
+    rtl/video/cga_pixel.sv rtl/video/cga_vgaport.v
+    rtl/video/cga_composite.v`; it still fails only for preexisting Icarus
+    limitations in `rtl/video/cga_pixel.sv` array assignment/output l-value
+    handling and procedural `force` automatic-variable handling in
+    `ega_registers_tb.sv`.
 
 ### ECC-505 - Remove Dead `ifdef` Branches
 

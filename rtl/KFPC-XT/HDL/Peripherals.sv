@@ -4,15 +4,6 @@
 //
 // Based on KFPC-XT written by @kitune-san
 //
-`ifndef ENABLE_TANDY_VIDEO
-`define ENABLE_TANDY_VIDEO 0
-`endif
-`ifndef ENABLE_TANDY_AUDIO
-`define ENABLE_TANDY_AUDIO 0
-`endif
-`ifndef ENABLE_TANDY_KBD
-`define ENABLE_TANDY_KBD 0
-`endif
 `ifndef ENABLE_CGA
 `define ENABLE_CGA 1
 `endif
@@ -110,12 +101,6 @@ module PERIPHERALS #(
         input   logic           cms_en,
         output  reg     [15:0]  o_cms_l,
         output  reg     [15:0]  o_cms_r,
-        // TANDY
-        input   logic           tandy_video,
-        output  logic   [10:0]  tandy_snd_e,
-        output  logic           tandy_snd_rdy,
-        output  logic           tandy_16_gfx,
-        output  logic           tandy_color_16,
         // UART
         input   logic           clk_uart,
         input   logic           uart2_rx,
@@ -173,12 +158,6 @@ module PERIPHERALS #(
     wire grph_mode;
     wire hres_mode;
 
-    wire tandy_video_en = 1'b0;
-    wire tandy_audio_en = `ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0;
-    wire tandy_kbd_en = `ENABLE_TANDY_KBD ? 1'b1 : 1'b0;
-
-    wire tandy_io_en = tandy_video_en | tandy_audio_en;
-
     wire [1:0] ega_mem_map_sel_cfg;
 
     function automatic logic ega_memory_window_select(
@@ -196,10 +175,6 @@ module PERIPHERALS #(
         end
     endfunction
 
-    assign tandy_16_gfx = 1'b0;
-
-
-
     //
     // chip select
     //
@@ -207,7 +182,7 @@ module PERIPHERALS #(
 
     always_comb
     begin
-        if (iorq & ~address_enable_n & ~address[9] & ~address[8] & (tandy_io_en ? ~address[4] : 1'b1))
+        if (iorq & ~address_enable_n & ~address[9] & ~address[8])
         begin
             casez (address[7:5])
                 3'b000:
@@ -244,8 +219,6 @@ module PERIPHERALS #(
     wire    ppi_chip_select_n       = chip_select_n[3]; // 0x60 .. 0x7F
     assign  dma_page_chip_select_n  = chip_select_n[4]; // 0x80 .. 0x8F
     wire    joystick_select         = (iorq && ~address_enable_n && address[15:3] == (16'h0200 >> 3)); // 0x200 .. 0x207
-    wire    tandy_chip_select_n     = tandy_io_en ? chip_select_n[6] : 1'b1; // 0xC0 .. 0xDF
-
     wire    opl_388_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)) : 1'b0; // 0x388 .. 0x389 (Adlib)
     wire    opl_228_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)) : 1'b0; // 0x228 .. 0x229 (Sound Blaster FM)
     wire    cms_220_chip_select     = `ENABLE_CMS ? (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)) : 1'b0; // 0x220 .. 0x22F (C/MS Audio)
@@ -454,7 +427,6 @@ module PERIPHERALS #(
     logic           uart2_irq;
     logic   [7:0]   keycode_buf;
     logic   [7:0]   keycode;
-    logic   [7:0]   tandy_keycode_conv;
     logic           prev_ps2_reset;
     logic           prev_ps2_reset_n;
     logic           lock_recv_clock;
@@ -494,8 +466,7 @@ module PERIPHERALS #(
         .clear_keycode              (clear_keycode),
         .pause_core                 (pause_core),
         .swap_video                 (swap_video_unused),
-        .video_output               (video_output),
-        .tandy_video                (tandy_video_en)
+        .video_output               (video_output)
     );
 
     assign  keycode = ps2_reset_n ? keycode_buf : 8'h80;
@@ -557,17 +528,6 @@ module PERIPHERALS #(
         .send_data                  (8'hFF)
     );
 
-    // Convert Tandy scancode
-    Tandy_Scancode_Converter u_Tandy_Scancode_Converter 
-    (
-        .clock                      (clock),
-        .reset                      (reset),
-        .scancode                   (keycode),
-        .keybord_irq                (keybord_irq),
-        .convert_data               (tandy_keycode_conv)
-    );
-    wire [7:0] tandy_keycode = `ENABLE_TANDY_KBD ? tandy_keycode_conv : keycode;
-
     always_ff @(posedge clock, posedge reset)
     begin
         if (reset)
@@ -612,24 +572,6 @@ module PERIPHERALS #(
     );
 
 
-    wire [10:0] tandy_snd_e_int;
-    wire        tandy_snd_rdy_int;
-    assign tandy_snd_e = `ENABLE_TANDY_AUDIO ? tandy_snd_e_int : 11'd0;
-    assign tandy_snd_rdy = `ENABLE_TANDY_AUDIO ? tandy_snd_rdy_int : 1'b1;
-
-    // Tandy sound
-		 jt89 sn76489
-    (
-        .rst(reset),
-		  .clk(clock),
-		  .clk_en(clk_en_opl2), // 3.579MHz
-		  .wr_n(io_write_n),
-		  .cs_n(tandy_chip_select_n),
-		  .din(internal_data_bus),
-		  .sound(tandy_snd_e_int),
-		  .ready(tandy_snd_rdy_int)
-    );
-	 
 //------------------------------------------------------------------------------
 
 reg ce_1us;
@@ -784,7 +726,7 @@ end
         end
         else
         begin
-            keycode_ff  <= tandy_kbd_en ? tandy_keycode : keycode;
+            keycode_ff  <= keycode;
             port_a_in   <= keycode_ff;
         end
     end
@@ -1172,7 +1114,6 @@ end
     wire        ega_blink_state;
     wire        VGA_VBlank_border_raw;
     wire        std_hsyncwidth_raw;
-    wire        tandy_color_16_unused;
 
     // Sets up the card to generate a video signal
     // that will work with a standard VGA monitor
@@ -1189,7 +1130,6 @@ end
 
     assign VGA_VBlank_border = VGA_VBlank_border_raw;
     assign std_hsyncwidth = std_hsyncwidth_raw;
-    assign tandy_color_16 = 1'b0;
 
     ega_top ega1 
     (
@@ -1263,12 +1203,10 @@ end
         .ega_display_sel_out        (ega_display_sel_cga),
         .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
-        .tandy_video                (1'b0),
         .scandouble_en              (cga_scandouble_en),
         .ega_enabled                (ega_enabled_cga_ff_2),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
-        .tandy_color_16             (tandy_color_16_unused),
         .crt_h_offset               (crt_h_offset),
         .crt_v_offset               (crt_v_offset),
         .vsync_width_osd            (vsync_width_osd),

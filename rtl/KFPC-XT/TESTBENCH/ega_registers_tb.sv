@@ -313,7 +313,6 @@ module ega_registers_tb;
     wire       top_ega_display_sel;
     wire       top_grph_mode;
     wire       top_hres_mode;
-    wire       top_tandy_color_16;
 
     ega_top top_dut (
         .clk(clk),
@@ -388,13 +387,10 @@ module ega_registers_tb;
         .ega_display_sel_out(top_ega_display_sel),
         .splashscreen(1'b0),
         .thin_font(1'b0),
-        .tandy_video(1'b0),
         .scandouble_en(1'b0),
         .ega_enabled(1'b1),
         .grph_mode(top_grph_mode),
         .hres_mode(top_hres_mode),
-        .tandy_color_16(top_tandy_color_16),
-        .cga_hw(1'b0),
         .crt_h_offset(4'h0),
         .crt_v_offset(3'h0),
         .vsync_width_osd(3'h0),

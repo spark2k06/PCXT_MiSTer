@@ -16,26 +16,8 @@
 //
 //============================================================================
 
-`ifndef SYSTEM_VARIANT_TANDY
-`define SYSTEM_VARIANT_TANDY 0
-`endif
-`ifndef ROM_VARIANT_TANDY
-`define ROM_VARIANT_TANDY `SYSTEM_VARIANT_TANDY
-`endif
-`ifndef ROM_IS_TANDY
-`define ROM_IS_TANDY `ROM_VARIANT_TANDY
-`endif
 `ifndef CONF_STR_SYSTEM
-`define CONF_STR_SYSTEM (`SYSTEM_VARIANT_TANDY ? "Tandy1000;UART115200:115200;" : "PCXT;UART115200:115200;")
-`endif
-`ifndef ENABLE_TANDY_VIDEO
-`define ENABLE_TANDY_VIDEO 0
-`endif
-`ifndef ENABLE_TANDY_AUDIO
-`define ENABLE_TANDY_AUDIO 0
-`endif
-`ifndef ENABLE_TANDY_KBD
-`define ENABLE_TANDY_KBD 0
+`define CONF_STR_SYSTEM "PCXT;UART115200:115200;"
 `endif
 `ifndef ENABLE_A000_UMB
 `define ENABLE_A000_UMB 0
@@ -248,10 +230,9 @@ module emu
 
 	`include "build_id.v"
 
-    localparam CONF_STR_ROM = (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;");
+    localparam CONF_STR_ROM = "P1FC0,ROM,PCXT BIOS:;";
     localparam CONF_STR_CMS = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
     localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
-    localparam CONF_STR_TANDY_AUDIO = (`ENABLE_TANDY_AUDIO ? "P2o23,Tandy Volume,1,2,3,4;" : "");
     localparam CONF_STR_EMS = (`ENABLE_EMS ? "P3OB,Lo-tech 2MB EMS,Enabled,Disabled;P3OCD,EMS Frame,C000,D000,E000;P3-;" : "");
     localparam CONF_STR_A000 = (`ENABLE_A000_UMB ? "P3o9,A000 UMB,Enabled,Disabled;P3-;" : "");
 
@@ -282,7 +263,6 @@ module emu
 		CONF_STR_CMS,
 		CONF_STR_OPL2,
 		"P2o01,Speaker Volume,1,2,3,4;",
-		CONF_STR_TANDY_AUDIO,
 		"P2o45,Audio Boost,No,2x,4x;",
 		"P2o67,Stereo Mix,none,25%,50%,100%;",
 		"P2-;",
@@ -578,7 +558,6 @@ module emu
             reset_cpu_ff <= reset;
     end
 
-    localparam tandy_video_mode = `ENABLE_TANDY_VIDEO;
     always @(negedge clk_chipset, posedge reset)
     begin
         if (reset)
@@ -645,20 +624,17 @@ module emu
     reg        bios_write_n;
     reg [7:0]  bios_write_wait_cnt;
     reg        bios_write_byte_cnt;
-    reg        tandy_bios_write;
     reg        ega_bios_loaded;
     wire select_pcxt  = (ioctl_index[5:0] == 0) && (ioctl_addr[24:16] == 9'b000000000);
-    wire select_tandy = `ROM_IS_TANDY ? (ioctl_index[5:0] == 1) && (ioctl_addr[24:16] == 9'b000000000) : 1'b0;
     wire select_xtide = ioctl_index == 2;
     wire select_ega_bios = (ioctl_index[5:0] == 3) && (ioctl_addr[24:16] == 9'b000000000);
 
     wire [19:0] bios_access_address_wire = select_pcxt  ? { 4'b1111, ioctl_addr[15:0]} :
-         select_tandy ? { 4'b1111, ioctl_addr[15:0]} :
          select_xtide ? { 6'b111011, ioctl_addr[13:0]} :
          select_ega_bios ? { 4'b1100, ioctl_addr[15:0]} :
          20'hFFFFF;
 
-    wire bios_load_n = ~(ioctl_download & (select_pcxt | select_tandy | select_xtide | select_ega_bios));
+    wire bios_load_n = ~(ioctl_download & (select_pcxt | select_xtide | select_ega_bios));
 
     always @(posedge clk_chipset, posedge reset_sdram)
     begin
@@ -671,7 +647,6 @@ module emu
             bios_write_n        <= 1'b1;
             bios_write_wait_cnt <= 'h0;
             bios_write_byte_cnt <= 1'h0;
-            tandy_bios_write    <= 1'b0;
             ega_bios_loaded     <= 1'b0;
             ioctl_wait          <= 1'b1;
             bios_load_state     <= 4'h00;
@@ -685,7 +660,6 @@ module emu
             bios_write_n        <= 1'b1;
             bios_write_wait_cnt <= 'h0;
             bios_write_byte_cnt <= 1'h0;
-            tandy_bios_write    <= 1'b0;
             ega_bios_loaded     <= 1'b0;
             ioctl_wait          <= 1'b1;
             bios_load_state     <= 4'h00;
@@ -701,7 +675,6 @@ module emu
                     bios_write_n        <= 1'b1;
                     bios_write_wait_cnt <= 'h0;
                     bios_write_byte_cnt <= 1'h0;
-                    tandy_bios_write    <= 1'b0;
                     ega_bios_loaded     <= ega_bios_loaded;
                     if (~ioctl_download)
                     begin
@@ -724,7 +697,6 @@ module emu
                     bios_protect_flag   <= 3'b000;
                     bios_access_request <= 1'b1;
                     bios_write_byte_cnt <= 1'h0;
-                    tandy_bios_write    <= select_tandy;
                     ega_bios_loaded     <= select_ega_bios ? 1'b0 : ega_bios_loaded;
                     if (~ioctl_download)
                     begin
@@ -761,7 +733,6 @@ module emu
                     bios_access_address <= bios_access_address;
                     bios_write_data     <= bios_write_data;
                     bios_write_byte_cnt <= bios_write_byte_cnt;
-                    tandy_bios_write    <= select_tandy;
                     ioctl_wait          <= 1'b1;
                     bios_write_wait_cnt <= bios_write_wait_cnt + 'h1;
 
@@ -784,7 +755,6 @@ module emu
                     bios_write_data     <= bios_write_data;
                     bios_write_n        <= 1'b1;
                     bios_write_byte_cnt <= bios_write_byte_cnt;
-                    tandy_bios_write    <= 1'b0;
                     ioctl_wait          <= 1'b1;
                     bios_write_wait_cnt <= bios_write_wait_cnt + 'h1;
 
@@ -802,7 +772,6 @@ module emu
                     bios_write_n        <= 1'b1;
                     bios_write_wait_cnt <= 'h0;
                     bios_write_byte_cnt <= ~bios_write_byte_cnt;
-                    tandy_bios_write    <= 1'b0;
                     ega_bios_loaded     <= (bios_write_byte_cnt == 1'b1 && select_ega_bios) ? 1'b1 : ega_bios_loaded;
                     ioctl_wait          <= 1'b1;
                     if (bios_write_byte_cnt == 1'b0)
@@ -819,7 +788,6 @@ module emu
                     bios_write_n        <= 1'b1;
                     bios_write_wait_cnt <= 'h0;
                     bios_write_byte_cnt <= 1'h0;
-                    tandy_bios_write    <= 1'b0;
                     ioctl_wait          <= 1'b0;
                     bios_load_state     <= 4'h00;
                 end
@@ -1032,7 +1000,6 @@ module emu
     assign  sw = {sw_floppy, sw_base}; // DIP switches (CGA and floppy count)
     assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
-    wire tandy_bios_flag = bios_write_n ? `ROM_IS_TANDY : tandy_bios_write;
 
     wire video_output_sel = 1'b0;
     wire cga_hw_sel = 1'b0;
@@ -1127,15 +1094,10 @@ module emu
 		.joya0                              (status[28] ? joya1 : joya0),
 		.joya1                              (status[28] ? joya0 : joya1),
 		.jtopl2_snd_e                       (jtopl2_snd_e),
-		.tandy_snd_e                        (tandy_snd_e),
 		.opl2_io                            (xtctl[4] ? 2'b10 : status[43:42]),
 		.cms_en                             (~status[10]),
 		.o_cms_l                            (cms_l_snd_e),
 		.o_cms_r                            (cms_r_snd_e),
-		.tandy_video                        (tandy_video_mode),
-		.tandy_bios_flag                    (tandy_bios_flag),
-		.tandy_16_gfx                       (tandy_16_gfx),
-		.tandy_color_16                     (tandy_color_16),
 		.clk_uart                           (clk_uart2_en),
 		.uart2_rx                           (uart_rx),
 		.uart2_tx                           (uart_tx),
@@ -1241,8 +1203,6 @@ module emu
 	 
     wire [15:0] jtopl2_snd_e;
     wire [16:0] jtopl2_snd = {jtopl2_snd_e[15], jtopl2_snd_e};
-    wire [10:0] tandy_snd_e;
-    wire [16:0] tandy_snd = `ENABLE_TANDY_AUDIO ? {{{2{tandy_snd_e[10]}}, {4{tandy_snd_e[10]}}, tandy_snd_e} << status[35:34], 2'b00} : 17'd0;
     wire [16:0] spk_vol =  {2'b00, {3'b000,~speaker_out} << status[33:32], 11'd0};
     wire        speaker_out;
 
@@ -1274,7 +1234,7 @@ module emu
     begin
         reg [16:0] tmp_l;
 
-        tmp_l <= jtopl2_snd + cms_l_snd + tandy_snd + spk_vol;
+        tmp_l <= jtopl2_snd + cms_l_snd + spk_vol;
 
         // clamp the output
         out_l <= (^tmp_l[16:15]) ? {tmp_l[16], {15{tmp_l[15]}}} : tmp_l[15:0];
@@ -1288,7 +1248,7 @@ module emu
     begin
         reg [16:0] tmp_r;
 
-        tmp_r <= jtopl2_snd + cms_r_snd + tandy_snd + spk_vol;
+        tmp_r <= jtopl2_snd + cms_r_snd + spk_vol;
 
         // clamp the output
         out_r <= (^tmp_r[16:15]) ? {tmp_r[16], {15{tmp_r[15]}}} : tmp_r[15:0];
@@ -1473,27 +1433,15 @@ module emu
     wire   scandoubler = video_scandoubler_en;
 
     reg [14:0] HBlank_del;
-    wire tandy_16_gfx;
-    wire tandy_color_16;
     wire color = (screen_mode_video_ff == 3'd0);
     
-	 wire HBlank_VGA;
+    wire HBlank_VGA = HBlank_del[5];
 
     reg [10:0] HBlank_counter = 0;
     reg HBlank_fixed = 1'b1;
     reg [1:0] HSync_del = 1'b11;
     reg        video_pause_core_buf;
     reg        video_pause_core;
-
-    always_comb
-    begin
-        if (tandy_color_16)
-            HBlank_VGA = HBlank_del[11];
-        else if (tandy_16_gfx)
-            HBlank_VGA = HBlank_del[9];
-        else
-            HBlank_VGA = HBlank_del[5];
-    end
 
     always @ (posedge ce_pixel_cga)
     begin

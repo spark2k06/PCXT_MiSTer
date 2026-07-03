@@ -101,12 +101,6 @@ module CHIPSET #(
         input   logic           cms_en,
         output  logic   [15:0]  o_cms_l,
         output  logic   [15:0]  o_cms_r,
-        // TANDY
-        input   logic           tandy_video,
-        input   logic           tandy_bios_flag,
-        output  logic   [10:0]  tandy_snd_e,
-        output  logic           tandy_16_gfx,
-        output  logic           tandy_color_16,
         // UART
         input   logic           clk_uart,
         input   logic           uart2_rx,
@@ -202,7 +196,6 @@ module CHIPSET #(
     logic           ems_b2;
     logic           ems_b3;
     logic           ems_b4;
-    logic           tandy_snd_rdy;
     logic           fdd_dma_req;
 
 
@@ -235,7 +228,7 @@ module CHIPSET #(
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
         .dma_wait_n                         (dma_wait_n),
-        .io_channel_ready                   (io_channel_ready & memory_access_ready & cga_memory_access_ready & ega_memory_access_ready & tandy_snd_rdy),
+        .io_channel_ready                   (io_channel_ready & memory_access_ready & cga_memory_access_ready & ega_memory_access_ready),
         .io_read_n                          (io_read_n),
         .io_write_n                         (io_write_n),
         .memory_read_n                      (memory_read_n),
@@ -358,11 +351,6 @@ module CHIPSET #(
         .cms_en                             (cms_en),
         .o_cms_l                            (o_cms_l),
         .o_cms_r                            (o_cms_r),
-        .tandy_video                        (tandy_video),
-        .tandy_snd_e                        (tandy_snd_e),
-        .tandy_snd_rdy                      (tandy_snd_rdy),
-        .tandy_16_gfx                       (tandy_16_gfx),
-		.tandy_color_16                     (tandy_color_16),
         .uart2_rx                           (uart2_rx),
         .uart2_tx                           (uart2_tx),
         .uart2_cts_n                        (uart2_cts_n),
@@ -439,7 +427,6 @@ module CHIPSET #(
         .ems_b2                             (ems_b2),
         .ems_b3                             (ems_b3),
         .ems_b4                             (ems_b4),
-        .tandy_bios_flag                    (tandy_bios_flag),
         .bios_protect_flag                  (bios_protect_flag),
         .enable_a000h                       (enable_a000h),
         .wait_count_clk_en                  (wait_count_clk_en),

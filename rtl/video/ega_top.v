@@ -79,12 +79,10 @@ module ega_top(
     output ega_display_sel_out,
     input splashscreen,
     input thin_font,
-    input tandy_video,
     input scandouble_en,
     input ega_enabled,
     output grph_mode,
     output hres_mode,
-    output tandy_color_16,
     input [3:0] crt_h_offset,
     input [2:0] crt_v_offset,
     input [2:0] vsync_width_osd,
@@ -660,6 +658,4 @@ module ega_top(
     assign comp_video = ega_display_sel ? ega_comp_video : 7'd0;
     assign grph_mode = ega_enabled ? ega_graphics_mode_active : 1'b0;
     assign hres_mode = ega_enabled ? ega_hres_mode_int : 1'b0;
-    assign tandy_color_16 = 1'b0;
-
 endmodule
