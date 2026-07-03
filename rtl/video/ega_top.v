@@ -680,7 +680,7 @@ module ega_top(
     assign ram_a = ega_display_sel ? 19'd0 : cga_ram_a;
     assign hsync = ega_display_sel ? ega_hsync_int : cga_hsync;
     assign dbl_hsync = ega_display_sel ? ega_dbl_hsync : cga_dbl_hsync;
-    assign hblank = ega_display_sel ? (scandouble_en ? ~ega_display_enable_sd : ~ega_display_enable_visible) : cga_hblank;
+    assign hblank = ega_display_sel ? (scandouble_en ? ~ega_display_enable_sd : ega_hblank_crtc) : cga_hblank;
     assign vsync = ega_display_sel ? (scandouble_en ? ~ega_vsync_sd_l : ega_vsync) : cga_vsync;
     assign vblank = ega_display_sel ? (scandouble_en ? ega_vblank_sd : ega_vblank_crtc) : cga_vblank;
     assign vblank_border = ega_display_sel ? (scandouble_en ? ega_vblank_sd : ega_vblank_crtc) : cga_vblank_border;
