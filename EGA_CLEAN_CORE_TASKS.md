@@ -788,7 +788,7 @@ ECC-000..099 baseline and recovery
 
 ### ECC-603 - Add CGA-Compatible EGA Render Tests
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `ECC-203`.
 - Files: `rtl/KFPC-XT/TESTBENCH/`, `rtl/video/ega_pixel.v`.
@@ -798,6 +798,16 @@ ECC-000..099 baseline and recovery
   - Cover palette/index output for representative byte patterns.
 - Acceptance:
   - Render behavior no longer relies only on game smoke testing.
+- Result:
+  - Extended `rtl/KFPC-XT/TESTBENCH/ega_pixel_tb.sv` so the CGA-compatible
+    2bpp render path checks multiple representative packed byte patterns.
+  - Added a palette-path check that verifies a CGA-compatible 2bpp pixel index
+    is handed to the Attribute Controller and remapped through palette register
+    index `5`.
+  - Verified with `iverilog -g2012 -I rtl/video -o
+    $env:TEMP\ega_pixel_tb.vvp rtl/KFPC-XT/TESTBENCH/ega_pixel_tb.sv
+    rtl/video/ega_pixel.v rtl/video/ega_attrib_ctrl.v; if ($LASTEXITCODE -eq
+    0) { vvp $env:TEMP\ega_pixel_tb.vvp }`, which passes.
 
 ### ECC-604 - Add Splash Through EGA Regression Test
 

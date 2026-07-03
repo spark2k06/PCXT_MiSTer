@@ -315,24 +315,62 @@ module ega_pixel_tb;
         reg [7:0] dat3;
         integer i;
         begin
-            edat0 = 8'b11001001;
-            edat1 = 8'b00110110;
-            edat2 = 8'b10100101;
-            edat3 = 8'b01011010;
-            cga2bpp_convert(edat0, edat1, edat2, edat3, dat0, dat1, dat2, dat3);
-
             render_mode = 2'd2;
             dot_clock_div2 = 1'b0;
             display_enable = 1'b1;
 
-            load_planes(edat0, edat1, edat2, edat3);
-            expect_pixel(planar_pixel(dat0, dat1, dat2, dat3, 0), 0);
+            for (i = 0; i < 3; i = i + 1) begin
+                case (i)
+                    0: begin
+                        edat0 = 8'b11001001;
+                        edat1 = 8'b00110110;
+                        edat2 = 8'b10100101;
+                        edat3 = 8'b01011010;
+                    end
+                    1: begin
+                        edat0 = 8'b11110000;
+                        edat1 = 8'b00001111;
+                        edat2 = 8'b01010101;
+                        edat3 = 8'b10101010;
+                    end
+                    default: begin
+                        edat0 = 8'b10000001;
+                        edat1 = 8'b01111110;
+                        edat2 = 8'b00111100;
+                        edat3 = 8'b11000011;
+                    end
+                endcase
 
-            for (i = 1; i < 8; i = i + 1) begin
-                @(posedge clk);
-                #1;
-                expect_pixel(planar_pixel(dat0, dat1, dat2, dat3, i), i);
+                cga2bpp_convert(edat0, edat1, edat2, edat3, dat0, dat1, dat2, dat3);
+                load_planes(edat0, edat1, edat2, edat3);
+                expect_pixel(planar_pixel(dat0, dat1, dat2, dat3, 0), 0);
+
+                for (integer pixel = 1; pixel < 8; pixel = pixel + 1) begin
+                    @(posedge clk);
+                    #1;
+                    expect_pixel(planar_pixel(dat0, dat1, dat2, dat3, pixel), pixel);
+                end
             end
+
+            render_mode = 2'd1;
+        end
+    endtask
+
+    task automatic check_cga2bpp_palette_path;
+        begin
+            render_mode = 2'd2;
+            dot_clock_div2 = 1'b0;
+            display_enable = 1'b1;
+
+            attr_write_reg(5'h10, 8'h01);
+            attr_write_reg(5'h05, 8'h2A);
+            attr_write_reg(5'h12, 8'h0F);
+
+            load_planes(8'b01000000, 8'h00, 8'b01000000, 8'h00);
+            expect_pixel(4'h5, 0);
+            @(posedge clk);
+            #1;
+            expect_color(6'h2A, "cga-compatible 2bpp palette index 5");
 
             render_mode = 2'd1;
         end
@@ -439,6 +477,8 @@ module ega_pixel_tb;
         check_render_mode_selection();
         repeat (2) @(posedge clk);
         check_cga2bpp_conversion();
+        repeat (2) @(posedge clk);
+        check_cga2bpp_palette_path();
         repeat (2) @(posedge clk);
         check_display_disable_gating();
         repeat (2) @(posedge clk);
