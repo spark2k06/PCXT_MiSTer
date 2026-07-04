@@ -406,7 +406,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-703 - Run Game Or Demo Smoke
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `MCGA-701`.
 - Files: smoke checklist.
