@@ -420,7 +420,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-704 - Run Full Quartus Build And Record Resources
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-702`.
 - Files: build reports, task notes.

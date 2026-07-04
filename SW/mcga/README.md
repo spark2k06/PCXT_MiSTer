@@ -5,7 +5,8 @@ unmodified IBM EGA option ROM.
 
 See `DELIVERY.md` for the selected integration path and tradeoffs. See
 `REGRESSION.md` for the current EGA/MCGA regression log. See `SMOKE.md` for the
-mode `13h` visual smoke procedure and current run status.
+mode `13h` visual smoke procedure and current run status. See
+`QUARTUS_BUILD.md` for the latest full-build result.
 
 It hooks `INT 10h` and handles:
 
