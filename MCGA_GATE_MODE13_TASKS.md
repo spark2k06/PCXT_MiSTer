@@ -345,7 +345,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-602 - Implement Minimal Mode 13h BIOS Services
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `MCGA-601`.
 - Files: BIOS/TSR source and DOS test.
