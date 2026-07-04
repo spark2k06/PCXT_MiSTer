@@ -434,7 +434,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-705 - Document Compatibility Limits
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `MCGA-702`, `MCGA-703`.
 - Files: `README.md`, MCGA docs.
