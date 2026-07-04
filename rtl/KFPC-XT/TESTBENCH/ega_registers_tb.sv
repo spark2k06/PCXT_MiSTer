@@ -653,7 +653,7 @@ module ega_registers_tb;
         expect8("SEQ reset register", read_value, 8'h03);
         io_write(16'h03C4, 8'h01);
         io_read(16'h03C5, read_value);
-        expect8("SEQ clocking register", read_value, 8'h08);
+        expect8("SEQ clocking register", read_value, 8'h01);
         io_write(16'h03C4, 8'h02);
         io_read(16'h03C5, read_value);
         expect8("SEQ map mask reset", read_value, 8'h0F);

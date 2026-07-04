@@ -25,6 +25,7 @@ module PERIPHERALS #(
         input   logic           peripheral_ce,
         input   logic   [1:0]   clk_select,
         input   logic           reset,
+        input   logic           video_reset,
         // CPU
         output  logic           interrupt_to_cpu,
         // Bus Arbiter
@@ -33,8 +34,6 @@ module PERIPHERALS #(
         output  logic           dma_page_chip_select_n,
         // SplashScreen
         input   logic           splashscreen,
-        input   logic           status0_clear,
-        output  logic           cga_clear_busy,
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
@@ -852,20 +851,12 @@ end
     logic          ega_mem_write_1;
     logic          ega_mem_write_2;
     localparam int SPLASH_COPY_SIZE = 4000;
-    localparam int TEXT_CLEAR_SIZE = 16384;
     localparam [11:0] SPLASH_COPY_LAST = SPLASH_COPY_SIZE - 1;
-    localparam [16:0] TEXT_CLEAR_LAST = TEXT_CLEAR_SIZE - 1;
     logic         splashscreen_ff = 1'b0;
     logic         splash_copy_active = 1'b0;
     logic         splash_copy_dest_ega = 1'b0;
     logic [11:0]  splash_copy_addr = 12'd0;
-    logic         splash_clear_active = 1'b0;
-    logic         splash_clear_pending = 1'b0;
-    logic [16:0]  splash_clear_addr = 17'd0;
-    assign cga_clear_busy = splash_clear_pending | splash_clear_active;
     wire          splash_copy_start = splashscreen & ~splashscreen_ff;
-    wire          splash_clear_start = ~splashscreen & splashscreen_ff;
-    wire          status0_clear_start = status0_clear;
     wire  [7:0]   splash_rom_data;
     wire          ega_splash_copy_active = splash_copy_active & splash_copy_dest_ega;
     wire          splash_ega_selected = 1'b1;
@@ -900,65 +891,45 @@ end
 
     always_ff @(posedge clock)
     begin
-        splashscreen_ff <= splashscreen;
-
-        if (splash_copy_start)
+        if (video_reset)
         begin
-            splash_copy_active <= 1'b1;
-            splash_copy_dest_ega <= splash_ega_selected;
-            splash_copy_addr   <= 12'd0;
-        end
-        else if (splash_copy_active)
-        begin
-            if (video_splash_copy_progress)
-            begin
-                if (splash_copy_addr == SPLASH_COPY_LAST)
-                begin
-                    splash_copy_active <= 1'b0;
-                    splash_copy_dest_ega <= 1'b0;
-                    splash_copy_addr   <= 12'd0;
-                end
-                else
-                begin
-                    splash_copy_addr <= splash_copy_addr + 12'd1;
-                end
-            end
-        end
-        else
-        begin
+            splashscreen_ff <= 1'b0;
             splash_copy_active <= 1'b0;
             splash_copy_dest_ega <= 1'b0;
-            splash_copy_addr   <= 12'd0;
-        end
-
-        if (splash_clear_start || status0_clear_start)
-            splash_clear_pending <= 1'b1;
-
-        if (~splash_copy_active && splash_clear_pending && ~splash_clear_active && ~splashscreen)
-        begin
-            splash_clear_active  <= 1'b1;
-            splash_clear_pending <= 1'b0;
-            splash_clear_addr    <= 17'd0;
-        end
-        else if (splash_clear_active)
-        begin
-            if (video_splash_copy_progress)
-            begin
-                if (splash_clear_addr == TEXT_CLEAR_LAST)
-                begin
-                    splash_clear_active <= 1'b0;
-                    splash_clear_addr   <= 17'd0;
-                end
-                else
-                begin
-                    splash_clear_addr <= splash_clear_addr + 17'd1;
-                end
-            end
+            splash_copy_addr <= 12'd0;
         end
         else
         begin
-            splash_clear_active <= 1'b0;
-            splash_clear_addr   <= 17'd0;
+            splashscreen_ff <= splashscreen;
+
+            if (splash_copy_start)
+            begin
+                splash_copy_active <= 1'b1;
+                splash_copy_dest_ega <= splash_ega_selected;
+                splash_copy_addr   <= 12'd0;
+            end
+            else if (splash_copy_active)
+            begin
+                if (video_splash_copy_progress)
+                begin
+                    if (splash_copy_addr == SPLASH_COPY_LAST)
+                    begin
+                        splash_copy_active <= 1'b0;
+                        splash_copy_dest_ega <= 1'b0;
+                        splash_copy_addr   <= 12'd0;
+                    end
+                    else
+                    begin
+                        splash_copy_addr <= splash_copy_addr + 12'd1;
+                    end
+                end
+            end
+            else
+            begin
+                splash_copy_active <= 1'b0;
+                splash_copy_dest_ega <= 1'b0;
+                splash_copy_addr   <= 12'd0;
+            end
         end
     end
 
@@ -1091,7 +1062,7 @@ end
     ega_top ega1 
     (
         .clk                        (clk_vga_cga),
-        .reset                      (reset),
+        .reset                      (video_reset),
         .clkdiv                     (clkdiv),
         .bus_a                      (cga_io_address_2),
         .bus_ior_l                  (cga_io_read_n_2),
@@ -1192,6 +1163,10 @@ end
     wire [10:0] ega_splash_text_addr = splash_copy_addr[11:1];
     wire        ega_splash_text_attr = splash_copy_addr[0];
     wire [7:0]  ega_splash_text_data = splash_rom_data;
+    wire [11:0] ega_splash_read_char_addr;
+    wire [11:0] ega_splash_read_attr_addr;
+    wire [7:0]  ega_splash_read_char_data;
+    wire [7:0]  ega_splash_read_attr_data;
 
     splash_rom splash_rom_inst
     (
@@ -1199,10 +1174,22 @@ end
         .data       (splash_rom_data)
     );
 
+    splash_rom splash_text_char_rom_inst
+    (
+        .addr       (ega_splash_read_char_addr),
+        .data       (ega_splash_read_char_data)
+    );
+
+    splash_rom splash_text_attr_rom_inst
+    (
+        .addr       (ega_splash_read_attr_addr),
+        .data       (ega_splash_read_attr_data)
+    );
+
     ega_vram_bram_frontend ega_vram_frontend
     (
         .clock                      (clock),
-        .reset                      (reset),
+        .reset                      (video_reset),
         .clk_video                  (clk_vga_cga),
         .cpu_addr                   (ega_vram_cpu_addr),
         .cpu_a16                    (ega_vram_cpu_a16),
@@ -1221,6 +1208,11 @@ end
         .text_cell_addr             (EGA_TEXT_CELL_ADDR),
         .text_font_addr             (EGA_TEXT_FONT_ADDR),
         .text_fetch_en              (EGA_TEXT_FETCH_EN & ega_display_sel_cga),
+        .splash_text_active         (splashscreen),
+        .splash_text_char_addr      (ega_splash_read_char_addr),
+        .splash_text_attr_addr      (ega_splash_read_attr_addr),
+        .splash_text_char_data      (ega_splash_read_char_data),
+        .splash_text_attr_data      (ega_splash_read_attr_data),
         .text_char                  (EGA_TEXT_CHAR),
         .text_attr                  (EGA_TEXT_ATTR),
         .text_glyph                 (EGA_TEXT_GLYPH),

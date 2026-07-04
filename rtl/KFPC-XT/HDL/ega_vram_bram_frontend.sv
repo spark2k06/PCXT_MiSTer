@@ -22,6 +22,11 @@ module ega_vram_bram_frontend (
     input  logic [15:0]  text_cell_addr,
     input  logic [15:0]  text_font_addr,
     input  logic         text_fetch_en,
+    input  logic         splash_text_active,
+    output logic [11:0]  splash_text_char_addr,
+    output logic [11:0]  splash_text_attr_addr,
+    input  logic [7:0]   splash_text_char_data,
+    input  logic [7:0]   splash_text_attr_data,
     output logic [7:0]   text_char,
     output logic [7:0]   text_attr,
     output logic [7:0]   text_glyph,
@@ -94,6 +99,7 @@ module ega_vram_bram_frontend (
     logic [7:0] core_video_plane3;
     logic       video_read_en_q;
     logic       text_fetch_en_q;
+    logic [10:0] splash_text_cell_q;
 
     logic core_cpu_select;
 
@@ -107,8 +113,10 @@ module ega_vram_bram_frontend (
     assign video_plane1 = core_video_plane1;
     assign video_plane2 = core_video_plane2;
     assign video_plane3 = core_video_plane3;
-    assign text_char = core_video_plane0;
-    assign text_attr = core_video_plane1;
+    assign splash_text_char_addr = {splash_text_cell_q, 1'b0};
+    assign splash_text_attr_addr = {splash_text_cell_q, 1'b1};
+    assign text_char = splash_text_active ? splash_text_char_data : core_video_plane0;
+    assign text_attr = splash_text_active ? splash_text_attr_data : core_video_plane1;
     assign text_glyph = core_video_plane2;
 
     ega_vram u_ega_vram (
@@ -308,11 +316,14 @@ module ega_vram_bram_frontend (
             video_data_valid <= 1'b0;
             text_fetch_en_q <= 1'b0;
             text_data_valid <= 1'b0;
+            splash_text_cell_q <= 11'h000;
         end else begin
             video_read_en_q <= video_read_en;
             video_data_valid <= video_read_en_q;
             text_fetch_en_q <= text_fetch_en;
             text_data_valid <= text_fetch_en_q;
+            if (text_fetch_en)
+                splash_text_cell_q <= text_cell_addr[10:0];
         end
     end
 

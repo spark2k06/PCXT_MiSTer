@@ -48,6 +48,7 @@ module UM6845R
 	output     [4:0] RA,
 	output     [7:0] HC,
 	output     [6:0] VC,
+	output     [9:0] VSCAN,
 	output     [7:0] H_DISP_REG,
 	output     [4:0] V_MAXSCAN_REG,
 	output    [3:0] hsync_width,
@@ -100,6 +101,7 @@ assign MA_FULL = ega_display_addr;
 assign RA = line | (field & interlace[0]);
 assign HC = hcc;
 assign VC = row[6:0];
+assign VSCAN = row;
 assign H_DISP_REG = R1_h_displayed;
 assign V_MAXSCAN_REG = R9_v_max_line[4:0];
 assign hsync_width = R3_h_sync_width;
@@ -492,13 +494,15 @@ end
 wire hsync_effective = (|hsync_width_osd & ~hres_mode) ? hsync_shaped : hsync_raw;
 
 reg [121:0] hsync_delay_line;
+wire [6:0] hsync_delay_index = (hres_mode ? 7'd60 : 7'd120) -
+                               ({3'd0, crt_h_offset} << (hres_mode ? 2'd2 : 2'd3));
 always @(posedge CLOCK) begin
     if(~nRESET) begin
         hsync_delay_line <= 122'd0;
         HSYNC <= 1'b0;
     end else begin
         hsync_delay_line <= {hsync_delay_line[120:0], hsync_effective};
-        HSYNC <= hsync_delay_line[(hres_mode ? 60 : 120) - (crt_h_offset << (hres_mode ? 2 : 3))];
+        HSYNC <= hsync_delay_line[hsync_delay_index];
     end
 end
 
@@ -545,7 +549,8 @@ always @(posedge CLOCK) begin
 		end
 		if(field ? (hcc_next == {1'b0, R0_h_total[7:1]}) : line_new) begin
 			if(vsc) vsc <= vsc - 1'd1;
-			else if (vsync_allow & (field ? ((row == eff_v_sync_match) && !line) : ((row_next == eff_v_sync_match) && line_last))) begin
+			else if (vsync_allow & (field ? ((row == eff_v_sync_match) && !line) :
+				((row_next == eff_v_sync_match) && (ega_crtc_semantics ? 1'b1 : line_last)))) begin
 				VSYNC_r <= 1;
 				// Don't allow a new vsync until a new row (Onescreen Colonies) or the R7 is written (PHX)
 				vsync_allow <= 0;
@@ -614,13 +619,14 @@ end
 reg [8:0] vsync_delay_line;
 wire [3:0] ega_crt_v_offset_sum = {1'b0, crt_v_offset} + 4'd2;
 wire [2:0] eff_crt_v_offset = ega_crtc_semantics ? (ega_crt_v_offset_sum[3] ? 3'd7 : ega_crt_v_offset_sum[2:0]) : crt_v_offset;
+wire [3:0] vsync_delay_index = 4'd7 - {1'b0, eff_crt_v_offset};
 always @(posedge HSYNC) begin
     if(~nRESET) begin
         vsync_delay_line <= 9'd0;
         VSYNC <= 1'b0;
     end else begin
         vsync_delay_line <= {vsync_delay_line[7:0], vsync_raw};
-        VSYNC <= vsync_delay_line[7 - eff_crt_v_offset];
+        VSYNC <= vsync_delay_line[vsync_delay_index];
     end
 end
 

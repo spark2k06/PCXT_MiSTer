@@ -14,6 +14,7 @@ module CHIPSET #(
         input   logic           peripheral_ce,
         input   logic   [1:0]   clk_select,
         input   logic           reset,
+        input   logic           video_reset,
         input   logic           sdram_reset,
         // CPU
         input   logic   [19:0]  cpu_address,
@@ -25,8 +26,6 @@ module CHIPSET #(
         output  logic           interrupt_to_cpu,
         // SplashScreen
         input   logic           splashscreen,
-        input   logic           status0_clear,
-        output  logic           cga_clear_busy,
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
@@ -283,13 +282,12 @@ module CHIPSET #(
         .peripheral_ce                      (peripheral_ce),
         .clk_select                         (clk_select),
         .reset                              (reset),
+        .video_reset                        (video_reset),
         .interrupt_to_cpu                   (interrupt_to_cpu),
         .interrupt_acknowledge_n            (interrupt_acknowledge_n),
         .dma_chip_select_n                  (dma_chip_select_n),
         .dma_page_chip_select_n             (dma_page_chip_select_n),
         .splashscreen                       (splashscreen),
-        .status0_clear                      (status0_clear),
-        .cga_clear_busy                     (cga_clear_busy),
         .std_hsyncwidth                     (std_hsyncwidth),
         .composite                          (composite),
         .clk_vga_cga                        (clk_vga_cga),

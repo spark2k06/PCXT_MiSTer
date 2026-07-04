@@ -27,7 +27,7 @@ module ega_vgaport (
             red = red_64;
             green = green_64;
             blue = blue_64;
-        end else if ((color & 6'h17) == 6'h06) begin
+        end else if (color == 6'h06) begin
             red = 6'd42;
             green = 6'd21;
             blue = 6'd0;

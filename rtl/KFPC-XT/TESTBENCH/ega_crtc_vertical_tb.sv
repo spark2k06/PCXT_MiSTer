@@ -18,11 +18,13 @@ module ega_crtc_vertical_tb;
     integer start_line = 0;
     integer row_delta = 0;
     integer line_delta = 0;
+    integer vsync_lines = 0;
     wire cursor;
     wire [15:0] ma_full;
     wire cga_cursor;
     wire [13:0] cga_ma;
     wire [15:0] cga_ma_full;
+    wire vsync;
 
     always #5 clk = ~clk;
 
@@ -41,7 +43,7 @@ module ega_crtc_vertical_tb;
         .hblank(),
         .vblank(),
         .line_reset(),
-        .VSYNC(),
+        .VSYNC(vsync),
         .HSYNC(),
         .DE(),
         .FIELD(),
@@ -187,6 +189,24 @@ module ega_crtc_vertical_tb;
         end
     endtask
 
+    task automatic expect_vsync_within(
+        input [8*80-1:0] label,
+        input integer max_lines
+    );
+        begin
+            vsync_lines = 0;
+            while (!dut.VSYNC_r && vsync_lines < max_lines) begin
+                wait_hline();
+                vsync_lines = vsync_lines + 1;
+            end
+
+            if (!dut.VSYNC_r) begin
+                $display("FAIL %0s: no VSYNC within %0d scanlines", label, max_lines);
+                failures = failures + 1;
+            end
+        end
+    endtask
+
     initial begin
         repeat (4) @(negedge clk);
         reset_n = 1'b1;
@@ -216,6 +236,14 @@ module ega_crtc_vertical_tb;
         if (line_delta < 0)
             line_delta = line_delta + 9;
         expect_eq("EGA glyph scanline wraps after maximum scan line", line_delta, 0);
+
+        crtc_write(8'h06, 8'h04);
+        crtc_write(8'h07, 8'h01);
+        crtc_write(8'h09, 8'h07);
+        crtc_write(8'h10, 8'hDF);
+        crtc_write(8'h12, 8'hC7);
+        crtc_write(8'h13, 8'h28);
+        expect_vsync_within("EGA extended VSYNC matches scanline timing", 300);
 
         force dut.row_addr_r = 16'h0123;
         force dut.cursor_addr_frame = 14'h0123;

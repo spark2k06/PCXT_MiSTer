@@ -35,9 +35,9 @@ module ega_sequencer (
 
     reg [2:0] seq_index = 3'd0;
     reg [7:0] reset_reg = 8'h03;
-    // Default to the low-resolution 320-pixel EGA graphics timing when the
-    // forced EGA display path is used without prior mode programming.
-    reg [7:0] clocking_mode_reg = 8'h08;
+    // Default to 8-dot text timing so the pre-BIOS splash has sane sync before
+    // the EGA BIOS programs the sequencer.
+    reg [7:0] clocking_mode_reg = 8'h01;
     reg [7:0] map_mask_reg = 8'h0F;
     reg [7:0] char_map_reg = 8'h00;
     // Start with planar CPU access enabled; odd/even can still be enabled later
@@ -55,7 +55,7 @@ module ega_sequencer (
         if (reset) begin
             seq_index <= 3'd0;
             reset_reg <= 8'h03;
-            clocking_mode_reg <= 8'h08;
+            clocking_mode_reg <= 8'h01;
             map_mask_reg <= 8'h0F;
             char_map_reg <= 8'h00;
             memory_mode_reg <= 8'h06;

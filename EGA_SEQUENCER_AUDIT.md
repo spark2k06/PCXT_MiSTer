@@ -17,7 +17,7 @@ and reads from the data port return the selected register:
 | Index | Register | Reset | Current behavior |
 | --- | --- | --- | --- |
 | `00h` | Reset | `03h` | Stored/readable. |
-| `01h` | Clocking Mode | `08h` | Stored/readable; bit `3` selects fetch phase length and `dot_clock_div2`. |
+| `01h` | Clocking Mode | `01h` | Stored/readable; bit `3` selects fetch phase length and `dot_clock_div2`. |
 | `02h` | Map Mask | `0Fh` | Stored/readable; bits `3:0` export as `plane_write_mask`. |
 | `03h` | Character Map Select | `00h` | Stored/readable; no text-render consumer yet. |
 | `04h` | Memory Mode | `06h` | Stored/readable; exports `chain2_write` and `extended_memory`. |

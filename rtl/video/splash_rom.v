@@ -10,7 +10,7 @@ module splash_rom
     initial begin
         for (i = 0; i < 4096; i = i + 1)
             mem[i] = 8'h00;
-        $readmemh("splash.hex", mem);
+        $readmemh("splash.hex", mem, 0, 3999);
     end
 
     always @* data = mem[addr];

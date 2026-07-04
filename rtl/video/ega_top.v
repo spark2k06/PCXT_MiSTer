@@ -169,6 +169,7 @@ module ega_top(
     wire [4:0] ega_row_addr;
     wire [7:0] ega_char_col;
     wire [6:0] ega_char_row;
+    wire [9:0] ega_scanline_addr;
     wire [7:0] ega_h_displayed;
     wire [4:0] ega_v_maxscan;
     wire [3:0] ega_hsync_width_crtc;
@@ -223,16 +224,16 @@ module ega_top(
     wire ega_text_mode_active = !ega_graphics_mode_active;
     wire ega_text_fetch_en_raw;
     reg [4:0] ega_text_fetch_phase = 5'd0;
-    reg       ega_text_fetch_tick = 1'b0;
     wire [4:0] ega_text_fetch_phase_last =
         ega_dot_clock_div2_active ? (ega_char_9dot_active ? 5'd17 : 5'd15) :
                                     (ega_char_9dot_active ? 5'd8  : 5'd7);
+    wire ega_text_fetch_tick = ce_pix && (ega_text_fetch_phase == ega_text_fetch_phase_last);
     wire [4:0] ega_graphics_fetch_phase_last = ega_dot_clock_div2_active ? 5'd15 : 5'd7;
     wire [4:0] ega_visible_base_delay = ega_graphics_mode_active ? ega_graphics_fetch_phase_last :
                                                                    ega_text_fetch_phase_last;
     wire [4:0] ega_visible_delay = ega_visible_base_delay + (ega_dot_clock_div2_active ? 5'd8 : 5'd4);
-    wire ega_crtc_fetch_tick = (!ega_graphics_mode_active && ega_char_9dot_active) ? ega_text_fetch_tick :
-                                                                                   ega_ce_crt_fetch;
+    wire ega_crtc_fetch_tick = (!ega_graphics_mode_active && (ega_splash_active || ega_char_9dot_active)) ? ega_text_fetch_tick :
+                                                                                                          ega_ce_crt_fetch;
     wire [1:0] ega_render_mode = !ega_graphics_mode_active ? 2'd0 :
                                   ega_compat_2bpp_mode ? 2'd2 : 2'd1;
     wire ega_display_enable = ega_display_enable_crtc;
@@ -291,6 +292,7 @@ module ega_top(
         .RA(ega_row_addr),
         .HC(ega_char_col),
         .VC(ega_char_row),
+        .VSCAN(ega_scanline_addr),
         .H_DISP_REG(ega_h_displayed),
         .V_MAXSCAN_REG(ega_v_maxscan),
         .hsync_width(ega_hsync_width_crtc),
@@ -309,8 +311,11 @@ module ega_top(
     defparam ega_crtc.H_SYNCWIDTH = 4'd10;
     defparam ega_crtc.V_TOTAL = 7'd31;
     defparam ega_crtc.V_TOTALADJ = 5'd6;
-    defparam ega_crtc.V_DISP = 7'd25;
-    defparam ega_crtc.V_SYNCPOS = 7'd28;
+    // EGA extended timing uses R7 as overflow bits, R6 as vertical-total low,
+    // and R18/R16 as display-end and sync-start low bytes. Seed a 262-line,
+    // 200-visible-line text frame so the splash has sane sync before BIOS.
+    defparam ega_crtc.V_DISP = 8'd4;
+    defparam ega_crtc.V_SYNCPOS = 7'd1;
     defparam ega_crtc.V_MAXSCAN = 5'd7;
     defparam ega_crtc.C_START = 7'd6;
     defparam ega_crtc.C_END = 5'd7;
@@ -396,7 +401,7 @@ module ega_top(
         .blink_state(ega_blink_state),
         .mono_attributes(ega_attr_mono_attributes),
         .line_graphics_enable(ega_attr_line_graphics_enable),
-        .cursor_active(ega_cursor_active),
+        .cursor_active(ega_splash_active ? 1'b0 : ega_cursor_active),
         .crtc_addr(ega_fetch_addr),
         .scanline(ega_row_addr),
         .underline_scanline(ega_crtc_r14_debug[4:0]),
@@ -535,14 +540,11 @@ module ega_top(
             ega_crtc_h_timing_seen <= 1'b0;
             ega_crtc_v_timing_seen <= 1'b0;
             ega_text_fetch_phase <= 5'd0;
-            ega_text_fetch_tick <= 1'b0;
             ega_display_enable_delay <= 26'd0;
         end else begin
-            ega_text_fetch_tick <= 1'b0;
             if (ce_pix) begin
                 if (ega_text_fetch_phase == ega_text_fetch_phase_last) begin
                     ega_text_fetch_phase <= 5'd0;
-                    ega_text_fetch_tick <= 1'b1;
                 end else begin
                     ega_text_fetch_phase <= ega_text_fetch_phase + 5'd1;
                 end
@@ -580,7 +582,6 @@ module ega_top(
                 ega_vblank_crtc_q <= 1'b0;
                 ega_blink_counter <= 7'h00;
                 ega_text_fetch_phase <= 5'd0;
-                ega_text_fetch_tick <= 1'b0;
                 ega_display_enable_delay <= 26'd0;
             end
 
@@ -613,7 +614,12 @@ module ega_top(
     // Match 86Box more closely: writes to CRTC start address update the
     // latch immediately, but the visible fetch base only changes for the
     // next frame after vertical blank has completed.
-    assign ega_fetch_addr = ega_crtc_addr_full;
+    wire [4:0] ega_splash_text_row = ega_scanline_addr[7:3];
+    wire [15:0] ega_splash_text_addr =
+        {5'd0, ega_splash_text_row, 6'd0} +
+        {7'd0, ega_splash_text_row, 4'd0} +
+        {8'd0, ega_char_col};
+    assign ega_fetch_addr = ega_splash_active ? ega_splash_text_addr : ega_crtc_addr_full;
     assign ega_fetch_en = ega_display_sel ? (ega_graphics_mode_active & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
     assign ega_text_fetch_en = ega_display_sel & ega_text_mode_active & ega_text_fetch_en_raw;
     assign ega_plane_write_mask_out = ega_plane_write_mask;

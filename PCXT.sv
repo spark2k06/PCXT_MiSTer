@@ -448,8 +448,7 @@ module emu
         .locked(pll_system_locked)
     );
 
-    wire cga_clear_busy;
-    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked  | splashscreen | splash_reset_hold | splash_pending;
+    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked  | splashscreen | splash_pending;
     wire video_retime_reset = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked | splash_pending;
     wire reset_sdram_wire = RESET | !pll_locked;
 
@@ -798,21 +797,6 @@ module emu
     reg splashscreen = 1'b0;
     reg splash_pending = 1'b1;
     reg [23:0] splash_boot_cnt = 24'd0;
-    reg splashscreen_sync1 = 0;
-    reg splashscreen_sync2 = 0;
-    reg splashscreen_sync_prev = 0;
-    reg status0_sync1 = 0;
-    reg status0_sync2 = 0;
-    reg status0_sync_prev = 0;
-    typedef enum logic [1:0] {
-        SPLASH_HOLD_IDLE,
-        SPLASH_HOLD_WAIT_BUSY_START,
-        SPLASH_HOLD_WAIT_BUSY_END
-    } splash_hold_state_t;
-    wire status0_clear_pulse = status0_sync2 & ~status0_sync_prev;
-    wire splash_clear_hold_start = status0_clear_pulse | (splashscreen_sync_prev & ~splashscreen_sync2);
-    reg splash_reset_hold = 0;
-    splash_hold_state_t splash_hold_state = SPLASH_HOLD_IDLE;
     reg phys_reset_hold = 0;
     reg [23:0] phys_reset_cnt = 24'd0;
     localparam [23:0] PHYS_RESET_HOLD = 24'd2863600;
@@ -872,53 +856,6 @@ module emu
                 splash_cnt <= splash_cnt + 1;
         end
 
-    end
-
-    always @(posedge clk_chipset)
-    begin
-        splashscreen_sync1 <= splashscreen;
-        splashscreen_sync2 <= splashscreen_sync1;
-        splashscreen_sync_prev <= splashscreen_sync2;
-        status0_sync1 <= status[0];
-        status0_sync2 <= status0_sync1;
-        status0_sync_prev <= status0_sync2;
-
-        if (RESET || !pll_locked || !pll_system_locked)
-        begin
-            splash_reset_hold <= 1'b0;
-            splash_hold_state <= SPLASH_HOLD_IDLE;
-        end
-        else
-        begin
-            case (splash_hold_state)
-                SPLASH_HOLD_IDLE:
-                begin
-                    splash_reset_hold <= 1'b0;
-                    if (splash_clear_hold_start)
-                    begin
-                        splash_reset_hold <= 1'b1;
-                        splash_hold_state <= SPLASH_HOLD_WAIT_BUSY_START;
-                    end
-                end
-
-                SPLASH_HOLD_WAIT_BUSY_START:
-                begin
-                    splash_reset_hold <= 1'b1;
-                    if (cga_clear_busy)
-                        splash_hold_state <= SPLASH_HOLD_WAIT_BUSY_END;
-                end
-
-                default:
-                begin
-                    splash_reset_hold <= 1'b1;
-                    if (~cga_clear_busy)
-                    begin
-                        splash_reset_hold <= 1'b0;
-                        splash_hold_state <= SPLASH_HOLD_IDLE;
-                    end
-                end
-            endcase
-        end
     end
 
     //
@@ -1012,6 +949,7 @@ module emu
 		.peripheral_ce                      (peripheral_ce),
 		.clk_select                         (clk_select),
 		.reset                              (reset_cpu),
+		.video_reset                        (video_retime_reset),
 		.sdram_reset                        (reset_sdram),
 		.cpu_address                        (cpu_address),
 		.cpu_data_bus                       (cpu_data_bus),
@@ -1021,8 +959,6 @@ module emu
 		.processor_ready                    (processor_ready),
 		.interrupt_to_cpu                   (interrupt_to_cpu),
 		.splashscreen                       (splashscreen),
-		.status0_clear                      (status0_clear_pulse),
-		.cga_clear_busy                     (cga_clear_busy),
 		.std_hsyncwidth                     (std_hsyncwidth),
 		.composite                          (composite),
 		.clk_vga_cga                        (clk_28_636),
