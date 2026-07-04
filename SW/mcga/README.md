@@ -3,7 +3,8 @@
 `mcga13tsr.com` is a development DOS TSR for MCGA mode `13h` bring-up with the
 unmodified IBM EGA option ROM.
 
-See `DELIVERY.md` for the selected integration path and tradeoffs.
+See `DELIVERY.md` for the selected integration path and tradeoffs. See
+`REGRESSION.md` for the current EGA/MCGA regression log.
 
 It hooks `INT 10h` and handles:
 

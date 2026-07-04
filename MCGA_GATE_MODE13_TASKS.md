@@ -391,7 +391,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-702 - Run Full EGA And MCGA Regression Set
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P0`
 - Depends on: `MCGA-503`, `MCGA-701`.
 - Files: test inventory or smoke checklist.
