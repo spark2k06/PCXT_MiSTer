@@ -331,10 +331,10 @@ MCGA-000..099 baseline and research
 
 ### MCGA-601 - Add Development INT 10h Mode 13h Hook
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `MCGA-502`.
-- Files: `egabios.asm` or new TSR/option ROM source.
+- Files: new TSR/option ROM source.
 - Source: `MCGA_GATE_MODE13_SPEC.md` section 5.
 - Work:
   - Implement `INT 10h AX=0013h` for bring-up.
