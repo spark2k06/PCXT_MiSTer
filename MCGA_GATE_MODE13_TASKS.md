@@ -376,7 +376,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-701 - Add DOS Mode 13h Test Program
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `MCGA-602`.
 - Files: `SW/`, `x86_src/`, or test assets.

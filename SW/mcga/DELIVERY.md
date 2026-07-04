@@ -53,12 +53,14 @@ Build the TSR and its smoke test from source:
 ```bat
 nasm -O9 -f bin -o mcga13tsr.com mcga13tsr.asm
 nasm -O9 -f bin -o mcga13chk.com mcga13chk.asm
+nasm -O9 -f bin -o mcga13ramp.com mcga13ramp.asm
 ```
 
 Expected current binary sizes:
 
 - `mcga13tsr.com`: 521 bytes.
 - `mcga13chk.com`: 253 bytes.
+- `mcga13ramp.com`: 85 bytes.
 
 Smoke test sequence inside DOS:
 

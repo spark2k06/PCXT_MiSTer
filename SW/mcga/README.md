@@ -21,11 +21,16 @@ It hooks `INT 10h` and handles:
 `AH=0Fh`, validates `AH=0Ch`/`0Dh` pixel write/read, checks one DAC entry, and
 returns to text mode.
 
+`mcga13ramp.com` is a visual DOS smoke program. It sets mode `13h`, programs a
+256-entry DAC ramp through `INT 10h`, fills `A000:0000` with a packed color
+ramp, waits for one key, and returns to text mode.
+
 Build commands:
 
 ```bat
 nasm -O9 -f bin -o mcga13tsr.com mcga13tsr.asm
 nasm -O9 -f bin -o mcga13chk.com mcga13chk.asm
+nasm -O9 -f bin -o mcga13ramp.com mcga13ramp.asm
 ```
 
 DOS test sequence:
@@ -33,6 +38,7 @@ DOS test sequence:
 ```bat
 MCGA13TSR.COM
 MCGA13CHK.COM
+MCGA13RAMP.COM
 ```
 
 The `03CDh` control port is a development hook, not a final VGA-compatible
