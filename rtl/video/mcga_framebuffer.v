@@ -21,7 +21,7 @@ module mcga_framebuffer(
     output reg         video_data_valid
 );
 
-    reg [7:0] mem [0:65535];
+    (* ramstyle = "M10K" *) reg [7:0] mem [0:65535];
 
     always @(posedge clk_cpu or posedge reset_cpu) begin
         if (reset_cpu) begin
@@ -34,7 +34,7 @@ module mcga_framebuffer(
                 mem[cpu_addr] <= cpu_din;
 
             if (cpu_read)
-                cpu_dout <= cpu_write ? cpu_din : mem[cpu_addr];
+                cpu_dout <= mem[cpu_addr];
         end
     end
 
