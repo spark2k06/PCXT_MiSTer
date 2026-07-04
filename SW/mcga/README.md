@@ -3,6 +3,8 @@
 `mcga13tsr.com` is a development DOS TSR for MCGA mode `13h` bring-up with the
 unmodified IBM EGA option ROM.
 
+See `DELIVERY.md` for the selected integration path and tradeoffs.
+
 It hooks `INT 10h` and handles:
 
 - `AX=0013h`: enables the RTL mode `13h` path through temporary port `03CDh`

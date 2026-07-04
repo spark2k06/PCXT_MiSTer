@@ -360,7 +360,7 @@ MCGA-000..099 baseline and research
 
 ### MCGA-603 - Decide Final BIOS Delivery
 
-- Status: `[ ]`
+- Status: `[x]`
 - Priority: `P1`
 - Depends on: `MCGA-602`.
 - Files: documentation, ROM build scripts if needed.
