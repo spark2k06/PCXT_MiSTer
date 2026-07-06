@@ -90,6 +90,30 @@ module mcga_dac_io_tb;
             @(posedge clock);
             #1;
             data_read = 1'b0;
+            @(posedge clock);
+            #1;
+        end
+    endtask
+
+    task check_held_data_read;
+        input [7:0] expected;
+        input [8*64-1:0] message;
+        begin
+            data_read = 1'b1;
+            #1;
+            if (io_data_out !== expected) begin
+                $display("FAIL %0s expected=%02h actual=%02h", message, expected, io_data_out);
+                failures = failures + 1;
+            end
+            repeat (3) @(posedge clock);
+            #1;
+            if (io_data_out !== expected) begin
+                $display("FAIL %0s held expected=%02h actual=%02h", message, expected, io_data_out);
+                failures = failures + 1;
+            end
+            data_read = 1'b0;
+            @(posedge clock);
+            #1;
         end
     endtask
 
@@ -154,6 +178,10 @@ module mcga_dac_io_tb;
         check_data_read(8'h05, "03C9 next green read");
         check_data_read(8'h06, "03C9 next blue read");
         check_index_read(1'b0, 8'h22, "03C9 second read auto-increment");
+
+        pulse_read_index(8'h20);
+        check_held_data_read(8'h01, "03C9 held red read");
+        check_data_read(8'h22, "03C9 advances once after held read");
 
         if (sample_red_8 !== 8'h10 || sample_green_8 !== 8'h14 || sample_blue_8 !== 8'h18) begin
             $display("FAIL sampled RGB expansion expected=10/14/18 actual=%02h/%02h/%02h",

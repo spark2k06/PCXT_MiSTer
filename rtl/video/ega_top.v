@@ -150,6 +150,18 @@ module ega_top(
     wire [7:0] mcga_dac_sample_red_8;
     wire [7:0] mcga_dac_sample_green_8;
     wire [7:0] mcga_dac_sample_blue_8;
+    wire mcga_dac_read_index_write_raw = ega_dac_read_index_cs & ega_io_we;
+    wire mcga_dac_write_index_write_raw = ega_dac_write_index_cs & ega_io_we;
+    wire mcga_dac_data_write_raw = ega_dac_data_cs & ega_io_we;
+    wire mcga_dac_read_index_read_raw = ega_dac_read_index_cs & ega_io_re;
+    wire mcga_dac_write_index_read_raw = ega_dac_write_index_cs & ega_io_re;
+    wire mcga_dac_data_read_raw = ega_dac_data_cs & ega_io_re;
+    reg mcga_dac_read_index_write_q = 1'b0;
+    reg mcga_dac_write_index_write_q = 1'b0;
+    reg mcga_dac_data_write_q = 1'b0;
+    wire mcga_dac_read_index_write_evt = mcga_dac_read_index_write_raw & ~mcga_dac_read_index_write_q;
+    wire mcga_dac_write_index_write_evt = mcga_dac_write_index_write_raw & ~mcga_dac_write_index_write_q;
+    wire mcga_dac_data_write_evt = mcga_dac_data_write_raw & ~mcga_dac_data_write_q;
     wire ega_cfg_we = ega_enabled && ega_io_we && ((ega_io_addr == 16'h03C5) || (ega_io_addr == 16'h02C5) || (ega_io_addr == 16'h03CF) || (ega_io_addr == 16'h02CF));
 
     reg ega_video_active = 1'b0;
@@ -486,12 +498,12 @@ module ega_top(
     mcga_dac_io mcga_dac_io_inst (
         .clock              (clk),
         .reset              (reset),
-        .read_index_write   (ega_dac_read_index_cs & ega_io_we),
-        .write_index_write  (ega_dac_write_index_cs & ega_io_we),
-        .data_write         (ega_dac_data_cs & ega_io_we),
-        .read_index_read    (ega_dac_read_index_cs & ega_io_re),
-        .write_index_read   (ega_dac_write_index_cs & ega_io_re),
-        .data_read          (ega_dac_data_cs & ega_io_re),
+        .read_index_write   (mcga_dac_read_index_write_evt),
+        .write_index_write  (mcga_dac_write_index_write_evt),
+        .data_write         (mcga_dac_data_write_evt),
+        .read_index_read    (mcga_dac_read_index_read_raw),
+        .write_index_read   (mcga_dac_write_index_read_raw),
+        .data_read          (mcga_dac_data_read_raw),
         .io_data_in         (bus_d),
         .io_data_out        (mcga_dac_io_data_out),
         .sample_index       (mcga_dac_sample_index),
@@ -621,6 +633,9 @@ module ega_top(
             ega_crtc_index_shadow <= 5'd0;
             ega_crtc_h_timing_seen <= 1'b0;
             ega_crtc_v_timing_seen <= 1'b0;
+            mcga_dac_read_index_write_q <= 1'b0;
+            mcga_dac_write_index_write_q <= 1'b0;
+            mcga_dac_data_write_q <= 1'b0;
             ega_text_fetch_phase <= 5'd0;
             ega_display_enable_delay <= 26'd0;
         end else begin
@@ -637,6 +652,9 @@ module ega_top(
 
             ega_vblank_q <= ega_visible_vblank;
             ega_status_read_q <= ega_status_read;
+            mcga_dac_read_index_write_q <= mcga_dac_read_index_write_raw;
+            mcga_dac_write_index_write_q <= mcga_dac_write_index_write_raw;
+            mcga_dac_data_write_q <= mcga_dac_data_write_raw;
             ega_vblank_crtc_q <= ega_crtc_fetch_tick ? ega_vert_blank_active_crtc : ega_vblank_crtc_q;
             cpu_mem_write_evt_d <= cpu_mem_write_evt;
             if (ega_misc_write_cs && ega_io_we)

@@ -30,6 +30,9 @@ module mcga_dac_io(
     reg [7:0] read_index = 8'h00;
     reg [1:0] write_component = 2'd0;
     reg [1:0] read_component = 2'd0;
+    reg data_read_q = 1'b0;
+    wire data_read_evt = data_read & ~data_read_q;
+    reg [7:0] data_read_latch = 8'h00;
 
     wire [5:0] port_red;
     wire [5:0] port_green;
@@ -74,7 +77,7 @@ module mcga_dac_io(
         else if (write_index_read)
             io_data_out = write_index;
         else if (data_read)
-            io_data_out = {2'b00, read_component_data};
+            io_data_out = data_read_q ? data_read_latch : {2'b00, read_component_data};
         else
             io_data_out = 8'h00;
     end
@@ -85,7 +88,11 @@ module mcga_dac_io(
             read_index <= 8'h00;
             write_component <= 2'd0;
             read_component <= 2'd0;
+            data_read_q <= 1'b0;
+            data_read_latch <= 8'h00;
         end else begin
+            data_read_q <= data_read;
+
             if (read_index_write) begin
                 read_index <= io_data_in;
                 read_component <= 2'd0;
@@ -105,7 +112,8 @@ module mcga_dac_io(
                 end
             end
 
-            if (data_read) begin
+            if (data_read_evt) begin
+                data_read_latch <= {2'b00, read_component_data};
                 if (read_component == 2'd2) begin
                     read_component <= 2'd0;
                     read_index <= read_index + 8'd1;

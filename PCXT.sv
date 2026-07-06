@@ -1425,6 +1425,9 @@ module emu
     wire       pre2x_LHBL, pre2x_LVBL;
     wire [7:0] pre2x_r, pre2x_g, pre2x_b;
     wire [23:0] credits_rgb_out;
+    wire [7:0] video_mixer_r = mcga_video_direct ? {r, r[5:4]} : raux_cga;
+    wire [7:0] video_mixer_g = mcga_video_direct ? {g, g[5:4]} : gaux_cga;
+    wire [7:0] video_mixer_b = mcga_video_direct ? {b, b[5:4]} : baux_cga;
 	 
 
 	video_mixer #(.GAMMA(1)) video_mixer_cga
@@ -1437,9 +1440,9 @@ module emu
 
 		.freeze_sync(),
 
-		.R(raux_cga),
-		.G(gaux_cga),
-		.B(baux_cga),
+		.R(video_mixer_r),
+		.G(video_mixer_g),
+		.B(video_mixer_b),
 
 		.HBlank(LHBL),
 		.VBlank(LVBL),
