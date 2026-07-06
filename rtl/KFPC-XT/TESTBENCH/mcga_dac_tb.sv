@@ -93,9 +93,10 @@ module mcga_dac_tb;
         check_sample(8'h0E, 6'h3F, 6'h3F, 6'h15);
         check_sample(8'h0F, 6'h3F, 6'h3F, 6'h3F);
         check_sample(8'h10, 6'h00, 6'h00, 6'h00);
-        check_sample(8'h15, 6'h00, 6'h00, 6'h3F);
-        check_sample(8'h34, 6'h0C, 6'h00, 6'h00);
-        check_sample(8'hE8, 6'h08, 6'h08, 6'h08);
+        check_sample(8'h15, 6'h11, 6'h11, 6'h11);
+        check_sample(8'h20, 6'h00, 6'h00, 6'h3F);
+        check_sample(8'h34, 6'h00, 6'h3F, 6'h3F);
+        check_sample(8'hE8, 6'h10, 6'h0B, 6'h0B);
 
         write_entry(8'h2A, 6'h01, 6'h23, 6'h3E);
         check_sample(8'h2A, 6'h01, 6'h23, 6'h3E);

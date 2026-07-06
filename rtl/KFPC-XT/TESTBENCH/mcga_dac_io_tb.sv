@@ -197,8 +197,8 @@ module mcga_dac_io_tb;
         reset_palette = 1'b0;
         sample_index = 8'h20;
         #1;
-        if (sample_red !== 6'h00 || sample_green !== 6'h18 || sample_blue !== 6'h30) begin
-            $display("FAIL palette reset default entry 20h expected=00/18/30 actual=%02h/%02h/%02h",
+        if (sample_red !== 6'h00 || sample_green !== 6'h00 || sample_blue !== 6'h3F) begin
+            $display("FAIL palette reset default entry 20h expected=00/00/3f actual=%02h/%02h/%02h",
                      sample_red, sample_green, sample_blue);
             failures = failures + 1;
         end
