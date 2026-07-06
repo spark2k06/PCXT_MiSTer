@@ -393,7 +393,6 @@ module ega_registers_tb;
         .thin_font(1'b0),
         .scandouble_en(1'b0),
         .ega_enabled(1'b1),
-        .mcga_enabled(1'b0),
         .mcga_mode13_set(1'b0),
         .mcga_mode13_clear(1'b0),
         .mcga_mode13_active_out(),

@@ -3,7 +3,6 @@
 module mcga_mode13_ctrl_tb;
     reg clk = 1'b0;
     reg reset = 1'b1;
-    reg mcga_enabled = 1'b0;
     reg mode13_set = 1'b0;
     reg mode13_clear = 1'b0;
     wire mcga_mode13_active;
@@ -13,7 +12,6 @@ module mcga_mode13_ctrl_tb;
     mcga_mode13_ctrl dut (
         .clk(clk),
         .reset(reset),
-        .mcga_enabled(mcga_enabled),
         .mode13_set(mode13_set),
         .mode13_clear(mode13_clear),
         .mcga_mode13_active(mcga_mode13_active)
@@ -58,25 +56,13 @@ module mcga_mode13_ctrl_tb;
         expect1("reset clears mode13", mcga_mode13_active, 1'b0);
 
         pulse_set();
-        expect1("disabled gate blocks set", mcga_mode13_active, 1'b0);
-
-        mcga_enabled = 1'b1;
-        pulse_set();
-        expect1("enabled gate allows set", mcga_mode13_active, 1'b1);
+        expect1("mode13 set enters mode13", mcga_mode13_active, 1'b1);
 
         pulse_clear();
         expect1("clear exits mode13", mcga_mode13_active, 1'b0);
 
         pulse_set();
-        expect1("enabled gate allows set after clear", mcga_mode13_active, 1'b1);
-
-        mcga_enabled = 1'b0;
-        repeat (1) @(negedge clk);
-        expect1("dropping gate clears active mode13", mcga_mode13_active, 1'b0);
-
-        mcga_enabled = 1'b1;
-        pulse_set();
-        expect1("enabled gate allows final set", mcga_mode13_active, 1'b1);
+        expect1("mode13 set enters again after clear", mcga_mode13_active, 1'b1);
 
         reset = 1'b1;
         repeat (1) @(negedge clk);

@@ -4,7 +4,7 @@ Date: 2026-07-04
 
 ## Candidate
 
-The local mode `13h` visual demo is `mcga13ramp.com`.
+The local mode `13h` visual demo is `mcgaramp.com`.
 
 It is a DOS `.COM` program that:
 
@@ -16,18 +16,18 @@ It is a DOS `.COM` program that:
 
 ## Intended Smoke Procedure
 
-Run inside DOS on the PCXT_MiSTer core with MCGA Gate enabled:
+Run inside DOS on the PCXT_MiSTer core:
 
 ```bat
-MCGA13TSR.COM
-MCGA13CHK.COM
-MCGA13RAMP.COM
+MCGATSR.COM
+MCGACHK.COM
+MCGARAMP.COM
 ```
 
 Expected result:
 
-- `MCGA13CHK.COM` prints `MCGA13CHK OK` and exits with code `0`.
-- `MCGA13RAMP.COM` switches to a 320x200 packed 256-color screen.
+- `MCGACHK.COM` prints `MCGACHK OK` and exits with code `0`.
+- `MCGARAMP.COM` switches to a 320x200 packed 256-color screen.
 - The visible image is a repeated horizontal 256-color ramp.
 - Pressing one key returns to text mode.
 

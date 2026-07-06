@@ -10,7 +10,6 @@ module mcga_mode13_bios_ctrl_tb;
     reg         bus_memr_l = 1'b1;
     reg         bus_memw_l = 1'b1;
     reg [7:0]   bus_d = 8'h00;
-    reg         mcga_enabled = 1'b1;
     wire [4:0]  clkdiv;
     wire [7:0]  bus_out;
     wire        bus_dir;
@@ -107,7 +106,6 @@ module mcga_mode13_bios_ctrl_tb;
         .thin_font(1'b0),
         .scandouble_en(1'b0),
         .ega_enabled(1'b1),
-        .mcga_enabled(mcga_enabled),
         .mcga_mode13_set(1'b0),
         .mcga_mode13_clear(1'b0),
         .mcga_mode13_active_out(mcga_mode13_active),
@@ -154,11 +152,6 @@ module mcga_mode13_bios_ctrl_tb;
         repeat (2) @(posedge clk);
         #1;
 
-        mcga_enabled = 1'b0;
-        write_port_03cd(8'h13);
-        check(!mcga_mode13_active, "MCGA gate blocks development mode13 port");
-
-        mcga_enabled = 1'b1;
         write_port_03cd(8'h13);
         check(mcga_mode13_active, "03CDh write 13h enters mode13");
         check(mcga_framebuffer_read_en, "mode13 renderer starts framebuffer fetches");

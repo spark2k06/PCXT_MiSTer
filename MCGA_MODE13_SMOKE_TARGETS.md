@@ -8,9 +8,9 @@ reproducible DOS `.COM` programs to be added when `MCGA-701` is implemented.
 
 ## Target 1: Minimal Deterministic Test
 
-- Program name: `MCGA13T.COM`
-- Planned source path: `SW/MCGA/mcga13t.asm`
-- Planned binary path: `SW/MCGA/mcga13t.com`
+- Program name: `MCGAT.COM`
+- Planned source path: `SW/MCGA/mcgat.asm`
+- Planned binary path: `SW/MCGA/mcgat.com`
 - CPU target: 8088-compatible real mode.
 - Dependencies: BIOS `INT 10h`, direct writes to `A000:0000`, DAC ports
   `03C8h/03C9h`.
@@ -47,9 +47,9 @@ Exit path:
 
 ## Target 2: Visual Demo Smoke
 
-- Program name: `MCGA13D.COM`
-- Planned source path: `SW/MCGA/mcga13d.asm`
-- Planned binary path: `SW/MCGA/mcga13d.com`
+- Program name: `MCGAD.COM`
+- Planned source path: `SW/MCGA/mcgad.asm`
+- Planned binary path: `SW/MCGA/mcgad.com`
 - CPU target: 8088-compatible real mode.
 - Dependencies: BIOS `INT 10h`, direct writes to `A000:0000`, DAC ports
   `03C7h/03C8h/03C9h`, optional keyboard polling.
@@ -99,6 +99,6 @@ and exit path before using it as a release smoke.
 
 | ID | Target | Purpose | Expected Result |
 | --- | --- | --- | --- |
-| `SMOKE-MCGA13-RAMP` | `MCGA13T.COM` | BIOS mode set, packed framebuffer, DAC ramp, visible boundary. | Ramp renders, readback passes, text mode returns. |
-| `SMOKE-MCGA13-DEMO` | `MCGA13D.COM` | Sustained visible mode `13h` output and DAC animation. | Pattern remains stable, palette cycles, text mode returns. |
-| `SMOKE-MCGA13-EXT` | External demo/game candidate | Compatibility beyond local tests. | Exact result recorded with title/version/provenance. |
+| `SMOKE-MCGA-RAMP` | `MCGAT.COM` | BIOS mode set, packed framebuffer, DAC ramp, visible boundary. | Ramp renders, readback passes, text mode returns. |
+| `SMOKE-MCGA-DEMO` | `MCGAD.COM` | Sustained visible mode `13h` output and DAC animation. | Pattern remains stable, palette cycles, text mode returns. |
+| `SMOKE-MCGA-EXT` | External demo/game candidate | Compatibility beyond local tests. | Exact result recorded with title/version/provenance. |

@@ -130,7 +130,6 @@ module mcga_ega_switch_tb;
         .thin_font(1'b0),
         .scandouble_en(1'b0),
         .ega_enabled(1'b1),
-        .mcga_enabled(1'b1),
         .mcga_mode13_set(mcga_mode13_set),
         .mcga_mode13_clear(mcga_mode13_clear),
         .mcga_mode13_active_out(mcga_mode13_active),

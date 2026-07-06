@@ -5,7 +5,7 @@ org 100h
 ; MCGA mode 13h development TSR for PCXT_MiSTer.
 ;
 ; Build:
-;   nasm -O9 -f bin -o mcga13tsr.com mcga13tsr.asm
+;   nasm -O9 -f bin -o mcgatsr.com mcgatsr.asm
 ;
 ; Installs an INT 10h hook. AX=0013h updates the BIOS Data Area and writes
 ; 13h to the temporary MCGA control port 03CDh. While mode 13h is active, the
@@ -64,12 +64,31 @@ int10_hook:
 
 .check_get_mode:
     cmp ah, 0Fh
-    jne .check_write_pixel
+    jne .check_ega_info
     cmp byte [cs:current_mode], 13h
     jne .chain
     mov al, 13h
     mov ah, 40
     xor bh, bh
+    iret
+
+.check_ega_info:
+    cmp ah, 12h
+    jne .check_display_combination
+    cmp bl, 10h
+    jne .chain
+    xor bh, bh
+    mov bl, 03h
+    mov cx, 0009h
+    iret
+
+.check_display_combination:
+    cmp ah, 1Ah
+    jne .check_write_pixel
+    or al, al
+    jne .chain
+    mov ax, 001Ah
+    mov bx, 0008h
     iret
 
 .check_write_pixel:

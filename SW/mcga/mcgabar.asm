@@ -5,8 +5,8 @@ org 100h
 ; MCGA mode 13h diagnostic bars.
 ;
 ; Run after installing the TSR:
-;   MCGA13TSR.COM
-;   MCGA13BAR.COM
+;   MCGATSR.COM
+;   MCGABAR.COM
 ;
 ; The program asks BIOS for mode 13h, verifies the TSR reports mode 13h, then
 ; programs the DAC through INT 10h AX=1010h and fills A000:0000 with vertical
@@ -112,4 +112,4 @@ draw_bars:
     ret
 
 msg_mode_fail:
-    db 'MCGA13BAR: INT 10h mode 13h was not reported. Is MCGA13TSR loaded and MCGA Gate enabled?', 13, 10, '$'
+    db 'MCGABAR: INT 10h mode 13h was not reported. Is MCGATSR loaded?', 13, 10, '$'

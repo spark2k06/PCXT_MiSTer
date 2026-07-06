@@ -4,7 +4,7 @@ org 100h
 
 ; Visual MCGA mode 13h smoke program.
 ;
-; Requires mcga13tsr.com to be installed first. The program sets mode 13h,
+; Requires mcgatsr.com to be installed first. The program sets mode 13h,
 ; programs a 256-entry DAC ramp through INT 10h, fills A000:0000 with a color
 ; ramp, waits for one key, and returns to text mode.
 

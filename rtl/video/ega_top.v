@@ -85,7 +85,6 @@ module ega_top(
     input thin_font,
     input scandouble_en,
     input ega_enabled,
-    input mcga_enabled,
     input mcga_mode13_set,
     input mcga_mode13_clear,
     output mcga_mode13_active_out,
@@ -303,7 +302,6 @@ module ega_top(
     mcga_mode13_ctrl mcga_mode13_state (
         .clk(clk),
         .reset(reset),
-        .mcga_enabled(mcga_enabled),
         .mode13_set(mcga_mode13_enter),
         .mode13_clear(mcga_mode13_exit),
         .mcga_mode13_active(mcga_mode13_active)

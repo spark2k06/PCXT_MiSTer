@@ -134,7 +134,6 @@ module PERIPHERALS #(
         // Others
         output  logic           pause_core,
         input   logic           cga_scandouble_en,
-        input   logic           mcga_enabled,
         output  logic           mcga_mode13_active_out,
         input   logic   [3:0]   crt_h_offset,
         input   logic   [2:0]   crt_v_offset,
@@ -1161,7 +1160,6 @@ end
         .thin_font                  (thin_font),
         .scandouble_en              (cga_scandouble_en),
         .ega_enabled                (1'b1),
-        .mcga_enabled               (mcga_enabled),
         .mcga_mode13_set            (1'b0),
         .mcga_mode13_clear          (1'b0),
         .mcga_mode13_active_out     (mcga_mode13_active_video),

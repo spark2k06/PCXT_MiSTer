@@ -156,7 +156,6 @@ module CHIPSET #(
         // Others
         output  logic           pause_core,
         input   logic           cga_scandouble_en,
-        input   logic           mcga_enabled,
         input   logic   [3:0]   crt_h_offset,
         input   logic   [2:0]   crt_v_offset,
         input   logic   [2:0]   vsync_width_osd,
@@ -378,7 +377,6 @@ module CHIPSET #(
         .xtctl                              (xtctl),
         .pause_core                         (pause_core),
         .cga_scandouble_en                  (cga_scandouble_en),
-        .mcga_enabled                       (mcga_enabled),
         .mcga_mode13_active_out             (mcga_mode13_active_out),
         .crt_h_offset                       (crt_h_offset),
         .crt_v_offset                       (crt_v_offset),

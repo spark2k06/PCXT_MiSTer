@@ -14,7 +14,7 @@ For a DOS environment that should run mode `13h` software, load the TSR before
 starting the program:
 
 ```bat
-MCGA13TSR.COM
+MCGATSR.COM
 ```
 
 For a bootable DOS image intended to work out of the box, add the TSR to the
@@ -51,23 +51,26 @@ Patched IBM EGA ROM:
 Build the TSR and its smoke test from source:
 
 ```bat
-nasm -O9 -f bin -o mcga13tsr.com mcga13tsr.asm
-nasm -O9 -f bin -o mcga13chk.com mcga13chk.asm
-nasm -O9 -f bin -o mcga13ramp.com mcga13ramp.asm
+nasm -O9 -f bin -o mcgatsr.com mcgatsr.asm
+nasm -O9 -f bin -o mcgachk.com mcgachk.asm
+nasm -O9 -f bin -o mcgaramp.com mcgaramp.asm
+nasm -O9 -f bin -o mcgabar.com mcgabar.asm
 ```
 
 Expected current binary sizes:
 
-- `mcga13tsr.com`: 521 bytes.
-- `mcga13chk.com`: 253 bytes.
-- `mcga13ramp.com`: 85 bytes.
+- `mcgatsr.com`: 561 bytes.
+- `mcgachk.com`: 318 bytes.
+- `mcgaramp.com`: 85 bytes.
+- `mcgabar.com`: 217 bytes.
 
 Smoke test sequence inside DOS:
 
 ```bat
-MCGA13TSR.COM
-MCGA13CHK.COM
+MCGATSR.COM
+MCGACHK.COM
+MCGABAR.COM
 ```
 
-`mcga13chk.com` returns DOS exit code `0` only after mode reporting, pixel
-write/read, and one DAC entry write/read pass.
+`mcgachk.com` returns DOS exit code `0` only after display detection, mode
+reporting, pixel write/read, and one DAC entry write/read pass.

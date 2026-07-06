@@ -2,15 +2,28 @@ cpu 8086
 bits 16
 org 100h
 
-; DOS smoke test for mcga13tsr.com.
+; DOS smoke test for mcgatsr.com.
 ;
 ; Run after installing the TSR:
-;   MCGA13TSR.COM
-;   MCGA13CHK.COM
+;   MCGATSR.COM
+;   MCGACHK.COM
 
 start:
     push cs
     pop ds
+
+    mov ax, 1A00h
+    int 10h
+    cmp al, 1Ah
+    jne fail_detect
+    cmp bl, 08h
+    jne fail_detect
+
+    mov ah, 12h
+    mov bl, 10h
+    int 10h
+    cmp bl, 03h
+    jne fail_detect
 
     mov ax, 0013h
     int 10h
@@ -73,6 +86,11 @@ fail_pixel:
 fail_palette:
     mov dx, msg_palette
     mov bl, 03h
+    jmp finish
+
+fail_detect:
+    mov dx, msg_detect
+    mov bl, 04h
 
 finish:
     push dx
@@ -87,7 +105,8 @@ finish:
     mov ah, 4Ch
     int 21h
 
-msg_ok:      db 'MCGA13CHK OK', 13, 10, '$'
-msg_mode:    db 'MCGA13CHK mode report failed', 13, 10, '$'
-msg_pixel:   db 'MCGA13CHK pixel read/write failed', 13, 10, '$'
-msg_palette: db 'MCGA13CHK palette service failed', 13, 10, '$'
+msg_ok:      db 'MCGACHK OK', 13, 10, '$'
+msg_mode:    db 'MCGACHK mode report failed', 13, 10, '$'
+msg_pixel:   db 'MCGACHK pixel read/write failed', 13, 10, '$'
+msg_palette: db 'MCGACHK palette service failed', 13, 10, '$'
+msg_detect:  db 'MCGACHK display detection failed', 13, 10, '$'

@@ -2,14 +2,17 @@
 
 ## Supported Behavior
 
-`MCGA Gate=Disabled` remains the clean-EGA compatibility mode. In that state,
-the MCGA packed framebuffer path is not selected by the OSD gate.
+Mode `13h` is selected only after the TSR or BIOS control path requests it.
+Until then, the normal EGA-compatible path remains active.
 
-With `MCGA Gate=Enabled` and `MCGA13TSR.COM` installed, the current target is:
+With `MCGATSR.COM` installed, the current target is:
 
 - BIOS mode set: `INT 10h AX=0013h`.
 - Mode report while active: `INT 10h AH=0Fh` returns `AL=13h`, `AH=40`,
   `BH=0`.
+- Display detection helpers: `INT 10h AX=1A00h` reports VGA color display
+  combination code `08h`; `INT 10h AH=12h`/`BL=10h` reports 256 KB of
+  EGA/VGA-style video memory.
 - Packed framebuffer: `A000:0000`, one byte per pixel, 320x200, 64,000 bytes.
 - Pixel BIOS helpers: `INT 10h AH=0Ch` write pixel and `AH=0Dh` read pixel for
   page 0.
@@ -23,13 +26,13 @@ With `MCGA Gate=Enabled` and `MCGA13TSR.COM` installed, the current target is:
 ## Delivery Limits
 
 The IBM EGA option ROM is not modified. The mode `13h` BIOS extension is
-provided by `MCGA13TSR.COM`.
+provided by `MCGATSR.COM`.
 
 Consequences:
 
 - Programs started before the TSR is loaded do not see mode `13h` support.
 - Boot-time software does not see mode `13h` support.
-- DOS images intended to work out of the box must load `MCGA13TSR.COM` from
+- DOS images intended to work out of the box must load `MCGATSR.COM` from
   `AUTOEXEC.BAT` before launching mode `13h` software.
 - A future option ROM or device-driver path may be needed if a real program
   needs the hook earlier than `AUTOEXEC.BAT`.
@@ -45,8 +48,8 @@ claims for this branch:
 - Undocumented VGA behavior outside the mode `13h` path.
 - Full VGA register compatibility for all sequencer, graphics controller, CRTC,
   attribute controller, and miscellaneous-output registers.
-- Software that relies on probing a complete VGA adapter before using BIOS mode
-  `13h`.
+- Software that relies on probing VGA hardware beyond the BIOS detection calls
+  listed above before using BIOS mode `13h`.
 
 Existing EGA register behavior remains owned by the EGA implementation. MCGA
 mode `13h` adds the packed framebuffer and DAC behavior needed by common

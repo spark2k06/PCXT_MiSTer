@@ -82,21 +82,23 @@ This is a testbench/tool limitation, not a new RTL failure from MCGA mode `13h`.
 Command run through WSL NASM:
 
 ```powershell
-wsl.exe -d Ubuntu-24.04 -- bash -lc "cd /mnt/d/GitHub/PCXT_MiSTer && nasm -O9 -f bin -o SW/mcga/mcga13tsr.com SW/mcga/mcga13tsr.asm && nasm -O9 -f bin -o SW/mcga/mcga13chk.com SW/mcga/mcga13chk.asm && nasm -O9 -f bin -o SW/mcga/mcga13ramp.com SW/mcga/mcga13ramp.asm"
+wsl.exe -d Ubuntu-24.04 -- bash -lc "cd /mnt/d/GitHub/PCXT_MiSTer && nasm -O9 -f bin -o SW/mcga/mcgatsr.com SW/mcga/mcgatsr.asm && nasm -O9 -f bin -o SW/mcga/mcgachk.com SW/mcga/mcgachk.asm && nasm -O9 -f bin -o SW/mcga/mcgaramp.com SW/mcga/mcgaramp.asm && nasm -O9 -f bin -o SW/mcga/mcgabar.com SW/mcga/mcgabar.asm"
 ```
 
 Results:
 
 | Artifact | Size | SHA-256 |
 | --- | ---: | --- |
-| `mcga13tsr.com` | 521 | `7aad9583fbc925c9b1a6a8d382d0010c0b2b256ce76e989717ecb595b3d5cf4a` |
-| `mcga13chk.com` | 253 | `5e097e32061220b4958cc0e11945be5dd13d2e920ca313f6b1681884bfcd0d22` |
-| `mcga13ramp.com` | 85 | `8ea1ef217308e4324cd5c383a5d0a31121b061abcf4f7eae9b835b9866bd1a4b` |
+| `mcgatsr.com` | 561 | `7cbdebbab3048b57eef2b45780f0210ec217c1ef2050f2afd529aa0b0bb41ef5` |
+| `mcgachk.com` | 318 | `3ca30752db2d1461744dcf5389d3111128ced6b3e0e79626a27f0a5ee8284733` |
+| `mcgaramp.com` | 85 | `8ea1ef217308e4324cd5c383a5d0a31121b061abcf4f7eae9b835b9866bd1a4b` |
+| `mcgabar.com` | 217 | `348ce167b40f8c696575226d48ed75fbcbe6cef91be48873bb9456cd869eeaf0` |
 
 DOS execution was not run in this environment. The intended in-DOS sequence is:
 
 ```bat
-MCGA13TSR.COM
-MCGA13CHK.COM
-MCGA13RAMP.COM
+MCGATSR.COM
+MCGACHK.COM
+MCGABAR.COM
+MCGARAMP.COM
 ```
