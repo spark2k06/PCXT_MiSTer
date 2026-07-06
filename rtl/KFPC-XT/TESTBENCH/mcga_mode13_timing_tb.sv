@@ -2,12 +2,12 @@
 
 module mcga_mode13_timing_tb;
 
-    localparam integer H_ACTIVE = 320;
-    localparam integer H_FRONT  = 16;
-    localparam integer H_SYNC   = 48;
-    localparam integer H_BACK   = 16;
+    localparam integer H_ACTIVE = 640;
+    localparam integer H_FRONT  = 24;
+    localparam integer H_SYNC   = 96;
+    localparam integer H_BACK   = 152;
     localparam integer H_TOTAL  = H_ACTIVE + H_FRONT + H_SYNC + H_BACK;
-    localparam integer V_ACTIVE = 200;
+    localparam integer V_ACTIVE = 400;
     localparam integer V_FRONT  = 12;
     localparam integer V_SYNC   = 2;
     localparam integer V_BACK   = 35;
@@ -33,6 +33,8 @@ module mcga_mode13_timing_tb;
     integer vsync_count = 0;
     integer line_count = 0;
     integer frame_count = 0;
+    integer max_pixel_x = 0;
+    integer max_pixel_y = 0;
 
     mcga_mode13_timing dut (
         .clock          (clock),
@@ -76,8 +78,12 @@ module mcga_mode13_timing_tb;
                 active_count = active_count + 1;
                 check(!hblank, "active pixels are not hblank");
                 check(!vblank, "active pixels are not vblank");
-                check(pixel_x < H_ACTIVE, "active x is inside 320");
-                check(pixel_y < V_ACTIVE, "active y is inside 200");
+                check(pixel_x < 10'd320, "active x is inside logical 320");
+                check(pixel_y < 10'd200, "active y is inside logical 200");
+                if (pixel_x > max_pixel_x)
+                    max_pixel_x = pixel_x;
+                if (pixel_y > max_pixel_y)
+                    max_pixel_y = pixel_y;
             end
 
             if (hsync)
@@ -89,18 +95,13 @@ module mcga_mode13_timing_tb;
             if (frame_start)
                 frame_count = frame_count + 1;
 
-            if (pixel_x == H_ACTIVE - 1 && pixel_y == V_ACTIVE - 1)
-                check(active, "last visible pixel is active");
-            if (pixel_x == H_ACTIVE && pixel_y == V_ACTIVE - 1)
-                check(!active && hblank, "first horizontal pixel after active area is blanked");
-            if (pixel_x == 0 && pixel_y == V_ACTIVE)
-                check(!active && vblank, "first vertical line after active area is blanked");
-
             @(posedge clock);
             #1;
         end
 
-        check(active_count == H_ACTIVE * V_ACTIVE, "active pixel count is 320x200");
+        check(active_count == H_ACTIVE * V_ACTIVE, "active dot count is doubled 640x400");
+        check(max_pixel_x == 319, "maximum logical x reaches 319");
+        check(max_pixel_y == 199, "maximum logical y reaches 199");
         check(hsync_count == H_SYNC * V_TOTAL, "hsync width is stable on every line");
         check(vsync_count == V_SYNC * H_TOTAL, "vsync width is stable");
         check(line_count == V_TOTAL, "one line_start per line");

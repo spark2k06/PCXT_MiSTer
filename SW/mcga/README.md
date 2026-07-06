@@ -3,6 +3,10 @@
 `mcga13tsr.com` is a development DOS TSR for MCGA mode `13h` bring-up with the
 unmodified IBM EGA option ROM.
 
+The TSR keeps `40h` paragraphs resident. Do not use older builds that kept only
+`20h` paragraphs resident; those can be overwritten by later DOS programs and
+leave the `INT 10h` hook corrupted.
+
 See `DELIVERY.md` for the selected integration path and tradeoffs. See
 `COMPATIBILITY.md` for supported behavior and limits. See `REGRESSION.md` for
 the current EGA/MCGA regression log. See `SMOKE.md` for the mode `13h` visual
@@ -29,12 +33,19 @@ returns to text mode.
 256-entry DAC ramp through `INT 10h`, fills `A000:0000` with a packed color
 ramp, waits for one key, and returns to text mode.
 
+`mcga13bar.com` is a simpler diagnostic. It sets mode `13h`, verifies
+`INT 10h AH=0Fh` reports `AL=13h`, programs the DAC directly through
+`03C8h`/`03C9h`, and draws 64 vertical color bars directly into `A000:0000`.
+If the TSR does not report mode `13h`, it returns to text mode and prints an
+error.
+
 Build commands:
 
 ```bat
 nasm -O9 -f bin -o mcga13tsr.com mcga13tsr.asm
 nasm -O9 -f bin -o mcga13chk.com mcga13chk.asm
 nasm -O9 -f bin -o mcga13ramp.com mcga13ramp.asm
+nasm -O9 -f bin -o mcga13bar.com mcga13bar.asm
 ```
 
 DOS test sequence:
@@ -42,6 +53,7 @@ DOS test sequence:
 ```bat
 MCGA13TSR.COM
 MCGA13CHK.COM
+MCGA13BAR.COM
 MCGA13RAMP.COM
 ```
 

@@ -37,7 +37,7 @@ module mcga_mode13_renderer_tb;
 
     integer failures = 0;
     integer i;
-    integer seen_first_pixel = 0;
+    integer visible_seen = 0;
 
     mcga_framebuffer framebuffer (
         .clk_cpu            (clock),
@@ -145,29 +145,29 @@ module mcga_mode13_renderer_tb;
         write_dac(8'h33, 6'h3E, 6'h05, 6'h10);
 
         enable = 1'b1;
-        for (i = 0; i < 16 && !seen_first_pixel; i = i + 1) begin
+        for (i = 0; i < 32 && visible_seen < 4; i = i + 1) begin
             @(posedge clock);
             #1;
             if (de) begin
-                if (dac_index !== 8'h2A || red !== 6'h01 || green !== 6'h23 || blue !== 6'h3F) begin
-                    $display("FAIL first packed pixel expected index/rgb=2a/01/23/3f actual=%02h/%02h/%02h/%02h",
-                             dac_index, red, green, blue);
-                    failures = failures + 1;
+                visible_seen = visible_seen + 1;
+                if (visible_seen <= 2) begin
+                    if (dac_index !== 8'h2A || red !== 6'h01 || green !== 6'h23 || blue !== 6'h3F) begin
+                        $display("FAIL duplicated first packed pixel expected index/rgb=2a/01/23/3f actual=%02h/%02h/%02h/%02h",
+                                 dac_index, red, green, blue);
+                        failures = failures + 1;
+                    end
+                end else begin
+                    if (dac_index !== 8'h33 || red !== 6'h3E || green !== 6'h05 || blue !== 6'h10) begin
+                        $display("FAIL duplicated second packed pixel expected index/rgb=33/3e/05/10 actual=%02h/%02h/%02h/%02h",
+                                 dac_index, red, green, blue);
+                        failures = failures + 1;
+                    end
                 end
-                seen_first_pixel = 1;
             end
         end
 
-        if (!seen_first_pixel) begin
-            $display("FAIL renderer did not produce first visible pixel");
-            failures = failures + 1;
-        end
-
-        @(posedge clock);
-        #1;
-        if (!de || dac_index !== 8'h33 || red !== 6'h3E || green !== 6'h05 || blue !== 6'h10) begin
-            $display("FAIL second packed pixel expected index/rgb=33/3e/05/10 actual de/index/rgb=%0d/%02h/%02h/%02h/%02h",
-                     de, dac_index, red, green, blue);
+        if (visible_seen < 4) begin
+            $display("FAIL renderer produced only %0d visible startup pixels", visible_seen);
             failures = failures + 1;
         end
 

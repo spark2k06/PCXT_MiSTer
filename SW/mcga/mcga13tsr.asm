@@ -39,9 +39,10 @@ start:
     mov ax, 2510h
     int 21h
 
-    ; INT 21h/AH=31h counts paragraphs from the PSP. 20h paragraphs keep the
-    ; 100h-byte PSP plus this small resident hook with room to spare.
-    mov dx, 20h
+    ; INT 21h/AH=31h counts paragraphs from the PSP. 40h paragraphs keep the
+    ; 100h-byte PSP plus the resident hook. Keep this conservative: if the hook
+    ; grows past the retained block, DOS can overwrite the INT 10h handler.
+    mov dx, 40h
     mov ax, 3100h
     int 21h
 
