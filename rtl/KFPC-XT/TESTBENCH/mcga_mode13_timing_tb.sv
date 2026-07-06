@@ -7,10 +7,10 @@ module mcga_mode13_timing_tb;
     localparam integer H_SYNC   = 96;
     localparam integer H_BACK   = 152;
     localparam integer H_TOTAL  = H_ACTIVE + H_FRONT + H_SYNC + H_BACK;
-    localparam integer V_ACTIVE = 400;
+    localparam integer V_ACTIVE = 200;
     localparam integer V_FRONT  = 12;
     localparam integer V_SYNC   = 2;
-    localparam integer V_BACK   = 35;
+    localparam integer V_BACK   = 235;
     localparam integer V_TOTAL  = V_ACTIVE + V_FRONT + V_SYNC + V_BACK;
 
     reg         clock = 1'b0;
@@ -99,7 +99,7 @@ module mcga_mode13_timing_tb;
             #1;
         end
 
-        check(active_count == H_ACTIVE * V_ACTIVE, "active dot count is doubled 640x400");
+        check(active_count == H_ACTIVE * V_ACTIVE, "active dot count is 640x200");
         check(max_pixel_x == 319, "maximum logical x reaches 319");
         check(max_pixel_y == 199, "maximum logical y reaches 199");
         check(hsync_count == H_SYNC * V_TOTAL, "hsync width is stable on every line");

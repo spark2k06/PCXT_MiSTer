@@ -288,6 +288,7 @@ module emu
 	};
 
     wire forced_scandoubler;
+    wire mcga_mode13_active_video;
     wire [1:0] buttons;
     wire [63:0] status;
     wire [7:0]  xtctl;
@@ -973,6 +974,7 @@ module emu
 		.VGA_HBlank                         (HBlank),
 		.VGA_VBlank                         (VBlank),
 		.VGA_VBlank_border                  (VGA_VBlank_border),
+		.mcga_mode13_active_out             (mcga_mode13_active_video),
 	//	.address                            (address),
 		.address_ext                        (bios_access_address),
 		.ext_access_request                 (bios_access_request),
@@ -1317,7 +1319,8 @@ module emu
     wire [21:0] gamma_bus_cga;
     wire        CE_PIXEL_cga;
     reg         ce_pixel_cga_2x = 1'b0;
-    wire        ce_pixel_cga_vid = cga_scandouble_en ? ce_pixel_cga_2x : ce_pixel_cga;
+    wire        mcga_video_direct = mcga_mode13_active_video;
+    wire        ce_pixel_cga_vid = (cga_scandouble_en || mcga_video_direct) ? ce_pixel_cga_2x : ce_pixel_cga;
 
     reg  [7:0]  VGA_R_cga_src = 8'd0;
     reg  [7:0]  VGA_G_cga_src = 8'd0;
@@ -1414,9 +1417,9 @@ module emu
     assign CE_PIXEL = ce_pixel;
     */
 
-    wire LHBL = cga_scandouble_en ? HBlank :
+    wire LHBL = (cga_scandouble_en || mcga_video_direct) ? HBlank :
                 ((border_video_ff) ? HBlank_fixed : HBlank_VGA);
-    wire LVBL = cga_scandouble_en ? VBlank :
+    wire LVBL = (cga_scandouble_en || mcga_video_direct) ? VBlank :
                 ((border_video_ff) ? (std_hsyncwidth ? VGA_VBlank_border : VBlank) : VBlank);
 
     wire       pre2x_LHBL, pre2x_LVBL;

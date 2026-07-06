@@ -29,20 +29,20 @@ Full compilation completed successfully.
 Flow report:
 
 ```text
-Flow Status: Successful - Mon Jul  6 05:57:47 2026
-Analysis & Synthesis: 00:03:01, peak virtual memory 2348 MB
-Fitter: 00:16:20, peak virtual memory 4773 MB
+Flow Status: Successful - Mon Jul  6 06:35:09 2026
+Analysis & Synthesis: 00:03:07, peak virtual memory 2347 MB
+Fitter: 00:16:46, peak virtual memory 4792 MB
 Assembler: 00:00:26, peak virtual memory 1826 MB
-TimeQuest Timing Analyzer: 00:01:31, peak virtual memory 2908 MB
-Total: 00:21:18
+TimeQuest Timing Analyzer: 00:01:33, peak virtual memory 2903 MB
+Total: 00:21:52
 ```
 
 Generated bitstream:
 
 ```text
 output_files/PCXT.rbf
-Size: 4,229,056 bytes
-SHA-256: 413E1ABBEAE64B9E0ECD19F5A87F2A1B610341E047BBB3F5C81D8978A3767E7E
+Size: 4,216,368 bytes
+SHA-256: 5949A4721EC1A4D8FF3973A5EFF9045C1F3E080116F0A04B5EDEA2119D637CB3
 ```
 
 ## Resource Summary
@@ -51,8 +51,8 @@ From `output_files/PCXT.fit.summary`:
 
 | Resource | Use |
 | --- | ---: |
-| Logic utilization | 26,218 / 41,910 ALMs (63%) |
-| Total registers | 36,825 |
+| Logic utilization | 26,199 / 41,910 ALMs (63%) |
+| Total registers | 36,797 |
 | Total pins | 145 / 314 (46%) |
 | Total block memory bits | 3,913,507 / 5,662,720 (69%) |
 | Total RAM blocks | 505 / 553 (91%) |
@@ -67,14 +67,14 @@ recovery slack in existing clock domains. Worst setup line observed in
 
 ```text
 Slow 1100mV 100C Model Setup 'VCLK_SDIO'
-Slack: -21.420
+Slack: -21.326
 ```
 
 Worst recovery line observed:
 
 ```text
 Slow 1100mV 100C Model Recovery 'emu|pll_system_inst|pll_system_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk'
-Slack: -13.850
+Slack: -13.843
 ```
 
 These timing violations should be treated as timing-closure work. They did not

@@ -1,6 +1,6 @@
 //============================================================================
 //
-//  MCGA mode 13h 320x200 timing, output as doubled 640x400 scan
+//  MCGA mode 13h 320x200 timing, output as 640x200 scan
 //
 //============================================================================
 
@@ -25,10 +25,10 @@ module mcga_mode13_timing(
     localparam [9:0] H_BACK   = 10'd152;
     localparam [9:0] H_TOTAL  = H_ACTIVE + H_FRONT + H_SYNC + H_BACK;
 
-    localparam [9:0] V_ACTIVE = 10'd400;
+    localparam [9:0] V_ACTIVE = 10'd200;
     localparam [9:0] V_FRONT  = 10'd12;
     localparam [9:0] V_SYNC   = 10'd2;
-    localparam [9:0] V_BACK   = 10'd35;
+    localparam [9:0] V_BACK   = 10'd235;
     localparam [9:0] V_TOTAL  = V_ACTIVE + V_FRONT + V_SYNC + V_BACK;
 
     reg [9:0] h_count = 10'd0;
@@ -56,7 +56,7 @@ module mcga_mode13_timing(
     end
 
     assign pixel_x = h_count[9:1];
-    assign pixel_y = v_count[9:1];
+    assign pixel_y = v_count;
     assign active = enable && (h_count < H_ACTIVE) && (v_count < V_ACTIVE);
     assign hblank = !enable || (h_count >= H_ACTIVE);
     assign vblank = !enable || (v_count >= V_ACTIVE);

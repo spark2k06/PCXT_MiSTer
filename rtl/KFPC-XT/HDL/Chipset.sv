@@ -39,6 +39,7 @@ module CHIPSET #(
         output  logic           VGA_HBlank,
         output  logic           VGA_VBlank,
         output  logic           VGA_VBlank_border,
+        output  logic           mcga_mode13_active_out,
         // I/O Ports
         output  logic   [19:0]  address,
         input   logic   [19:0]  address_ext,
@@ -378,6 +379,7 @@ module CHIPSET #(
         .pause_core                         (pause_core),
         .cga_scandouble_en                  (cga_scandouble_en),
         .mcga_enabled                       (mcga_enabled),
+        .mcga_mode13_active_out             (mcga_mode13_active_out),
         .crt_h_offset                       (crt_h_offset),
         .crt_v_offset                       (crt_v_offset),
         .vsync_width_osd                    (vsync_width_osd),

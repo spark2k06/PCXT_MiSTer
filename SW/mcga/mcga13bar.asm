@@ -9,12 +9,10 @@ org 100h
 ;   MCGA13BAR.COM
 ;
 ; The program asks BIOS for mode 13h, verifies the TSR reports mode 13h, then
-; programs the DAC directly through ports 03C8h/03C9h and fills A000:0000 with
-; vertical color bars. Press any key to return to text mode.
+; programs the DAC through INT 10h AX=1010h and fills A000:0000 with vertical
+; color bars. Press any key to return to text mode.
 
 %define MCGA_FB_SEG    0A000h
-%define VGA_DAC_WRITE  03C8h
-%define VGA_DAC_DATA   03C9h
 
 start:
     push cs
@@ -49,34 +47,44 @@ mode_fail:
     int 21h
 
 program_palette:
-    mov dx, VGA_DAC_WRITE
-    xor al, al
-    out dx, al
-    mov dx, VGA_DAC_DATA
-
-    mov cx, 256
-    xor bl, bl
+    xor bx, bx
 .next:
     mov al, bl
-    and al, 3Fh
-    out dx, al
+    and al, 03h
+    call scale_2bit_to_dac
+    mov dh, al
 
     mov al, bl
     shr al, 1
     shr al, 1
-    and al, 3Fh
-    out dx, al
+    and al, 03h
+    call scale_2bit_to_dac
+    mov ch, al
 
     mov al, bl
     shr al, 1
     shr al, 1
     shr al, 1
     shr al, 1
-    and al, 3Fh
-    out dx, al
+    and al, 03h
+    call scale_2bit_to_dac
+    mov cl, al
 
+    mov ax, 1010h
+    int 10h
     inc bl
-    loop .next
+    cmp bl, 40h
+    jne .next
+    ret
+
+scale_2bit_to_dac:
+    mov ah, al
+    shl al, 1
+    shl al, 1
+    add al, ah
+    shl al, 1
+    shl al, 1
+    add al, ah
     ret
 
 draw_bars:
@@ -95,7 +103,7 @@ draw_bars:
     stosb
     stosb
     stosb
-    add bl, 4
+    inc bl
     dec dx
     jne .bar
 

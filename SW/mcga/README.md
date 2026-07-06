@@ -34,10 +34,10 @@ returns to text mode.
 ramp, waits for one key, and returns to text mode.
 
 `mcga13bar.com` is a simpler diagnostic. It sets mode `13h`, verifies
-`INT 10h AH=0Fh` reports `AL=13h`, programs the DAC directly through
-`03C8h`/`03C9h`, and draws 64 vertical color bars directly into `A000:0000`.
-If the TSR does not report mode `13h`, it returns to text mode and prints an
-error.
+`INT 10h AH=0Fh` reports `AL=13h`, programs the DAC through
+`INT 10h AX=1010h`, and draws 64 vertical bars from a 4x4x4 RGB cube directly
+into `A000:0000`. If the TSR does not report mode `13h`, it returns to text
+mode and prints an error.
 
 Build commands:
 

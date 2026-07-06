@@ -135,6 +135,7 @@ module PERIPHERALS #(
         output  logic           pause_core,
         input   logic           cga_scandouble_en,
         input   logic           mcga_enabled,
+        output  logic           mcga_mode13_active_out,
         input   logic   [3:0]   crt_h_offset,
         input   logic   [2:0]   crt_v_offset,
         input   logic   [2:0]   vsync_width_osd,
@@ -149,6 +150,7 @@ module PERIPHERALS #(
     logic mcga_mode13_active_sync1;
     logic mcga_mode13_active_sync2;
     wire mcga_mode13_active_sys = mcga_mode13_active_sync2;
+    assign mcga_mode13_active_out = mcga_mode13_active_video;
 
     wire [1:0] ega_mem_map_sel_cfg;
 
