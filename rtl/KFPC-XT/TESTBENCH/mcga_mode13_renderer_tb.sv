@@ -58,6 +58,7 @@ module mcga_mode13_renderer_tb;
     mcga_dac dac (
         .clock                  (clock),
         .reset                  (reset),
+        .reset_palette          (1'b0),
         .write_en               (dac_write_en),
         .write_index            (dac_write_index),
         .write_red              (dac_write_red),

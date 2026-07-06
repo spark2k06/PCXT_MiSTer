@@ -7,6 +7,7 @@
 module mcga_dac_io(
     input  wire        clock,
     input  wire        reset,
+    input  wire        reset_palette,
 
     input  wire        read_index_write,
     input  wire        write_index_write,
@@ -49,6 +50,7 @@ module mcga_dac_io(
     mcga_dac dac (
         .clock                  (clock),
         .reset                  (reset),
+        .reset_palette          (reset_palette),
         .write_en               (1'b0),
         .write_index            (8'h00),
         .write_red              (6'h00),
@@ -93,7 +95,14 @@ module mcga_dac_io(
         end else begin
             data_read_q <= data_read;
 
-            if (read_index_write) begin
+            if (reset_palette) begin
+                write_index <= 8'h00;
+                read_index <= 8'h00;
+                write_component <= 2'd0;
+                read_component <= 2'd0;
+                data_read_q <= 1'b0;
+                data_read_latch <= 8'h00;
+            end else if (read_index_write) begin
                 read_index <= io_data_in;
                 read_component <= 2'd0;
             end

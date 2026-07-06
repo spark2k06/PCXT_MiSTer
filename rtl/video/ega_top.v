@@ -142,6 +142,8 @@ module ega_top(
     wire mcga_mode13_bios_ctrl_cs = (bus_a == 15'h03CD) & ~bus_aen & ega_enabled;
     wire mcga_mode13_bios_set = mcga_mode13_bios_ctrl_cs & ega_io_we & (bus_d == 8'h13);
     wire mcga_mode13_bios_clear = mcga_mode13_bios_ctrl_cs & ega_io_we & (bus_d != 8'h13);
+    wire mcga_mode13_enter = mcga_mode13_set | mcga_mode13_bios_set;
+    wire mcga_mode13_exit = mcga_mode13_clear | mcga_mode13_bios_clear;
     wire [7:0] mcga_dac_io_data_out;
     wire [7:0] mcga_dac_sample_index;
     wire [5:0] mcga_dac_sample_red;
@@ -302,8 +304,8 @@ module ega_top(
         .clk(clk),
         .reset(reset),
         .mcga_enabled(mcga_enabled),
-        .mode13_set(mcga_mode13_set | mcga_mode13_bios_set),
-        .mode13_clear(mcga_mode13_clear | mcga_mode13_bios_clear),
+        .mode13_set(mcga_mode13_enter),
+        .mode13_clear(mcga_mode13_exit),
         .mcga_mode13_active(mcga_mode13_active)
     );
 
@@ -498,6 +500,7 @@ module ega_top(
     mcga_dac_io mcga_dac_io_inst (
         .clock              (clk),
         .reset              (reset),
+        .reset_palette      (mcga_mode13_enter),
         .read_index_write   (mcga_dac_read_index_write_evt),
         .write_index_write  (mcga_dac_write_index_write_evt),
         .data_write         (mcga_dac_data_write_evt),

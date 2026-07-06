@@ -22,6 +22,7 @@ module mcga_dac_tb;
     mcga_dac dut (
         .clock          (clock),
         .reset          (reset),
+        .reset_palette  (1'b0),
         .write_en       (write_en),
         .write_index    (write_index),
         .write_red      (write_red),

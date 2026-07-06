@@ -7,6 +7,7 @@
 module mcga_dac(
     input  wire        clock,
     input  wire        reset,
+    input  wire        reset_palette,
 
     input  wire        write_en,
     input  wire [7:0]  write_index,
@@ -115,6 +116,12 @@ module mcga_dac(
 
     always @(posedge clock or posedge reset) begin
         if (reset) begin
+            for (reset_index = 0; reset_index < 256; reset_index = reset_index + 1) begin
+                red_ram[reset_index] <= default_component(reset_index[7:0], 2'd0);
+                green_ram[reset_index] <= default_component(reset_index[7:0], 2'd1);
+                blue_ram[reset_index] <= default_component(reset_index[7:0], 2'd2);
+            end
+        end else if (reset_palette) begin
             for (reset_index = 0; reset_index < 256; reset_index = reset_index + 1) begin
                 red_ram[reset_index] <= default_component(reset_index[7:0], 2'd0);
                 green_ram[reset_index] <= default_component(reset_index[7:0], 2'd1);

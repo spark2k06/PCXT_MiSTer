@@ -10,6 +10,7 @@ module mcga_dac_io_tb;
     reg        read_index_read = 1'b0;
     reg        write_index_read = 1'b0;
     reg        data_read = 1'b0;
+    reg        reset_palette = 1'b0;
     reg [7:0]  io_data_in = 8'h00;
     wire [7:0] io_data_out;
     reg [7:0]  sample_index = 8'h00;
@@ -25,6 +26,7 @@ module mcga_dac_io_tb;
     mcga_dac_io dut (
         .clock              (clock),
         .reset              (reset),
+        .reset_palette      (reset_palette),
         .read_index_write   (read_index_write),
         .write_index_write  (write_index_write),
         .data_write         (data_write),
@@ -186,6 +188,18 @@ module mcga_dac_io_tb;
         if (sample_red_8 !== 8'h10 || sample_green_8 !== 8'h14 || sample_blue_8 !== 8'h18) begin
             $display("FAIL sampled RGB expansion expected=10/14/18 actual=%02h/%02h/%02h",
                      sample_red_8, sample_green_8, sample_blue_8);
+            failures = failures + 1;
+        end
+
+        reset_palette = 1'b1;
+        @(posedge clock);
+        #1;
+        reset_palette = 1'b0;
+        sample_index = 8'h20;
+        #1;
+        if (sample_red !== 6'h00 || sample_green !== 6'h18 || sample_blue !== 6'h30) begin
+            $display("FAIL palette reset default entry 20h expected=00/18/30 actual=%02h/%02h/%02h",
+                     sample_red, sample_green, sample_blue);
             failures = failures + 1;
         end
 
