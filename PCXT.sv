@@ -267,7 +267,6 @@ module emu
         "P2-;",
 		"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 		"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
-		"P2OT,Border,No,Yes;",
 		"P2o8,Composite video,Off,On;",
 		"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
 		"P2-;",
@@ -321,13 +320,11 @@ module emu
     wire [1:0] scale = status[2:1];
     wire [2:0] screen_mode = status[16:14];
     wire [1:0] ar = status[9:8];
-    wire border = status[29] | xtctl[1];
     wire [2:0] vsync_width_osd = status[56:54];  // 0=Auto (use register), 1-7=override
     wire [2:0] hsync_width_osd = status[59:57];  // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
 
     reg [1:0]   scale_video_ff;
     reg [2:0]   screen_mode_video_ff;
-    reg         border_video_ff;
     wire        video_scandoubler_en = (scale_video_ff > 0) || forced_scandoubler;
     wire        cga_scandouble_en = video_scandoubler_en;
     wire [15:0] status_menumask = {12'd0, 2'b11, status[5]};
@@ -340,7 +337,6 @@ module emu
     begin
         scale_video_ff          <= scale;
         screen_mode_video_ff    <= screen_mode;
-        border_video_ff         <= border;
         VIDEO_ARX               <= (!ar) ? 12'd4 : (ar - 1'd1);
         VIDEO_ARY               <= (!ar) ? 12'd3 : 12'd0;
     end
@@ -458,9 +454,6 @@ module emu
     // TODO: messy, use a single clock domain at least
     always @(posedge clk_28_636)
     begin
-        HBlank_del <= {HBlank_del[13], HBlank_del[12], HBlank_del[11], HBlank_del[10], HBlank_del[9],
-                       HBlank_del[8], HBlank_del[7], HBlank_del[6], HBlank_del[5], HBlank_del[4],
-                       HBlank_del[3], HBlank_del[2], HBlank_del[1], HBlank_del[0], HBlank};
         clk_14_318 <= ~clk_14_318;  // 14.318Mhz
         ce_pixel_cga <= clk_14_318;	//if outside always block appears an overscan column in CGA mode
     end
@@ -1353,10 +1346,7 @@ module emu
 
     wire   scandoubler = video_scandoubler_en;
 
-    reg [14:0] HBlank_del;
     wire color = (screen_mode_video_ff == 3'd0);
-    
-    wire HBlank_VGA = HBlank_del[5];
 
     reg [10:0] HBlank_counter = 0;
     reg HBlank_fixed = 1'b1;
@@ -1414,10 +1404,8 @@ module emu
     assign CE_PIXEL = ce_pixel;
     */
 
-    wire LHBL = (cga_scandouble_en || mcga_video_direct) ? HBlank :
-                ((border_video_ff) ? HBlank_fixed : HBlank_VGA);
-    wire LVBL = (cga_scandouble_en || mcga_video_direct) ? VBlank :
-                ((border_video_ff) ? (std_hsyncwidth ? VGA_VBlank_border : VBlank) : VBlank);
+    wire LHBL = (cga_scandouble_en || mcga_video_direct) ? HBlank : HBlank_fixed;
+    wire LVBL = VBlank;
 
     wire       pre2x_LHBL, pre2x_LVBL;
     wire [7:0] pre2x_r, pre2x_g, pre2x_b;
@@ -1536,7 +1524,6 @@ module emu
     assign CE_PIXEL_CREDITS = CE_PIXEL_cga_hdmi;
     wire credits_hb = LHBL_cga_hdmi;
     wire credits_vb = LVBL_cga_hdmi;
-    wire credits_border = border_video_ff;
     jtframe_credits #(
         .PAGES  (4),
         .COLW   (8),
@@ -1553,7 +1540,7 @@ module emu
         .rotate     ( 2'd0  ),
         .toggle     ( 1'b0  ),
         .fast_scroll( 1'b0  ),
-        .border     ( credits_border ),
+        .border     ( 1'b0 ),
 
         .vram_din   ( 8'h0  ),
         .vram_dout  (       ),
