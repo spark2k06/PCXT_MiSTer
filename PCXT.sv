@@ -956,7 +956,7 @@ module emu
 		.std_hsyncwidth                     (std_hsyncwidth),
 		.composite                          (composite),
 		.clk_vga_cga                        (clk_28_636),
-	//	.de_o                               (VGA_DE),
+		.de_o                               (de_o),
 		.VGA_R                              (r),
 		.VGA_G                              (g),
 		.VGA_B                              (b),
@@ -1348,30 +1348,8 @@ module emu
 
     wire color = (screen_mode_video_ff == 3'd0);
 
-    reg [10:0] HBlank_counter = 0;
-    reg HBlank_fixed = 1'b1;
-    reg [1:0] HSync_del = 1'b11;
     reg        video_pause_core_buf;
     reg        video_pause_core;
-
-    always @ (posedge ce_pixel_cga)
-    begin
-
-        HSync_del <= {HSync_del[0], HSync};
-
-        if (HSync_del == 2'b01)
-        begin
-            HBlank_counter <= 0;
-            HBlank_fixed <= 1'b1;
-        end
-        else
-        begin
-            if (HBlank_counter == (std_hsyncwidth ? 120 : 143))
-                HBlank_fixed <= 1'b0;
-            else
-                HBlank_counter <= HBlank_counter + 1;
-        end
-    end
 
     always @ (posedge clk_video_out_ps) begin
         video_pause_core_buf    <= pause_core;
@@ -1404,7 +1382,7 @@ module emu
     assign CE_PIXEL = ce_pixel;
     */
 
-    wire LHBL = (cga_scandouble_en || mcga_video_direct) ? HBlank : HBlank_fixed;
+    wire LHBL = (cga_scandouble_en || mcga_video_direct) ? HBlank : ~de_o;
     wire LVBL = VBlank;
 
     wire       pre2x_LHBL, pre2x_LVBL;

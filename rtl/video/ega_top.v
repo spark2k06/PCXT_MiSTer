@@ -273,16 +273,37 @@ module ega_top(
                                     (ega_char_9dot_active ? 5'd8  : 5'd7);
     wire ega_text_fetch_tick = ce_pix && (ega_text_fetch_phase == ega_text_fetch_phase_last);
     wire [4:0] ega_graphics_fetch_phase_last = ega_dot_clock_div2_active ? 5'd15 : 5'd7;
+    localparam [4:0] EGA_VISIBLE_ADJ_TEXT_1X_A   = 5'd0;
+    localparam [4:0] EGA_VISIBLE_ADJ_TEXT_1X_B   = 5'd0;
+    localparam [4:0] EGA_VISIBLE_ADJ_TEXT_DIV2_A = 5'd3;
+    localparam [4:0] EGA_VISIBLE_ADJ_TEXT_DIV2_B = 5'd3;
+    localparam [4:0] EGA_VISIBLE_ADJ_GFX_1X_A    = 5'd1;
+    localparam [4:0] EGA_VISIBLE_ADJ_GFX_1X_B    = 5'd1;
+    localparam [4:0] EGA_VISIBLE_ADJ_GFX_DIV2_A  = 5'd7;
+    localparam [4:0] EGA_VISIBLE_ADJ_GFX_DIV2_B  = 5'd7;
+
     wire [4:0] ega_visible_base_delay = ega_graphics_mode_active ? ega_graphics_fetch_phase_last :
                                                                    ega_text_fetch_phase_last;
-    wire [4:0] ega_visible_delay = ega_visible_base_delay + (ega_dot_clock_div2_active ? 5'd8 : 5'd4);
+    wire [4:0] ega_visible_extra_delay = ega_dot_clock_div2_active ? 5'd8 : 5'd4;
+    wire [4:0] ega_visible_adjust_a =
+        ega_graphics_mode_active ?
+            (ega_dot_clock_div2_active ? EGA_VISIBLE_ADJ_GFX_DIV2_A : EGA_VISIBLE_ADJ_GFX_1X_A) :
+            (ega_dot_clock_div2_active ? EGA_VISIBLE_ADJ_TEXT_DIV2_A : EGA_VISIBLE_ADJ_TEXT_1X_A);
+    wire [4:0] ega_visible_adjust_b =
+        ega_graphics_mode_active ?
+            (ega_dot_clock_div2_active ? EGA_VISIBLE_ADJ_GFX_DIV2_B : EGA_VISIBLE_ADJ_GFX_1X_B) :
+            (ega_dot_clock_div2_active ? EGA_VISIBLE_ADJ_TEXT_DIV2_B : EGA_VISIBLE_ADJ_TEXT_1X_B);
+    wire [4:0] ega_visible_delay_a = ega_visible_base_delay + ega_visible_extra_delay - ega_visible_adjust_a;
+    wire [4:0] ega_visible_delay_b = ega_visible_base_delay + ega_visible_extra_delay - ega_visible_adjust_b;
+
     wire ega_crtc_fetch_tick = (!ega_graphics_mode_active && (ega_splash_active || ega_char_9dot_active)) ? ega_text_fetch_tick :
                                                                                                           ega_ce_crt_fetch;
     wire [1:0] ega_render_mode = !ega_graphics_mode_active ? 2'd0 :
                                   ega_compat_2bpp_mode ? 2'd2 : 2'd1;
     wire ega_display_enable = ega_display_enable_crtc;
     reg [25:0] ega_display_enable_delay = 26'd0;
-    wire ega_display_enable_visible = ega_display_enable_delay[ega_visible_delay];
+    wire ega_display_enable_visible = ega_display_enable_delay[ega_visible_delay_a] |
+                                      ega_display_enable_delay[ega_visible_delay_b];
     wire ega_display_enable_render = ega_display_enable | ega_display_enable_visible;
     wire ega_blanking_active = ega_status_not_displaying_crtc;
     wire ega_status_vretrace_active = ega_status_vretrace_crtc;
