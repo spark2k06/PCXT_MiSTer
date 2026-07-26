@@ -268,6 +268,7 @@ module emu
 		"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 		"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 		"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
+		"P2OT,MCGA Mode 13h,Off,On;",
 		"P2-;",
 		"P3,Hardware;",
 		"P3-;",
@@ -285,8 +286,10 @@ module emu
 	};
 
     wire forced_scandoubler;
+    wire mcga_mode13_active_video;
     wire [1:0] buttons;
     wire [63:0] status;
+    wire mcga_mode13_osd = status[29];
     wire [7:0]  xtctl;
 
     //Keyboard Ps2
@@ -969,6 +972,8 @@ module emu
 		.VGA_HBlank                         (HBlank),
 		.VGA_VBlank                         (VBlank),
 		.VGA_VBlank_border                  (VGA_VBlank_border),
+		.mcga_mode13_osd                    (mcga_mode13_osd),
+		.mcga_mode13_active_out             (mcga_mode13_active_video),
 	//	.address                            (address),
 		.address_ext                        (bios_access_address),
 		.ext_access_request                 (bios_access_request),
@@ -1312,7 +1317,8 @@ module emu
     wire [21:0] gamma_bus_video;
     wire        CE_PIXEL_video;
     reg         ce_pixel_28 = 1'b0;
-    wire        ce_pixel_video = video_scandoubler_en ? ce_pixel_28 : ce_pixel_14;
+    wire        mcga_video_direct = mcga_mode13_active_video;
+    wire        ce_pixel_video = (video_scandoubler_en || mcga_video_direct) ? ce_pixel_28 : ce_pixel_14;
 
     reg  [7:0]  VGA_R_video_src = 8'd0;
     reg  [7:0]  VGA_G_video_src = 8'd0;
@@ -1375,15 +1381,15 @@ module emu
 	);
 
 
-    wire LHBL = video_scandoubler_en ? HBlank : ~de_o;
+    wire LHBL = (video_scandoubler_en || mcga_video_direct) ? HBlank : ~de_o;
     wire LVBL = VBlank;
 
     wire       pre2x_LHBL, pre2x_LVBL;
     wire [7:0] pre2x_r, pre2x_g, pre2x_b;
     wire [23:0] credits_rgb_out;
-    wire [7:0] video_mixer_r = raux_video;
-    wire [7:0] video_mixer_g = gaux_video;
-    wire [7:0] video_mixer_b = baux_video;
+    wire [7:0] video_mixer_r = mcga_video_direct ? {r, r[5:4]} : raux_video;
+    wire [7:0] video_mixer_g = mcga_video_direct ? {g, g[5:4]} : gaux_video;
+    wire [7:0] video_mixer_b = mcga_video_direct ? {b, b[5:4]} : baux_video;
 	 
 
 	video_mixer #(.GAMMA(1)) video_mixer_main
@@ -1528,4 +1534,6 @@ module emu
 
     assign {VGA_R, VGA_G, VGA_B} = credits_rgb_out;
 
+
 endmodule
+

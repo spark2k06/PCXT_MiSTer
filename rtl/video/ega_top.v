@@ -30,6 +30,10 @@ module ega_top(
     input [7:0] ega_text_attr,
     input [7:0] ega_text_glyph,
     input ega_text_data_valid,
+    output [15:0] mcga_framebuffer_addr,
+    output mcga_framebuffer_read_en,
+    input [7:0] mcga_framebuffer_pixel,
+    input mcga_framebuffer_data_valid,
     input cpu_mem_select,
     input cpu_mem_write,
     output reg ega_cfg_toggle,
@@ -69,6 +73,9 @@ module ega_top(
     input thin_font,
     input scandouble_en,
     input ega_enabled,
+    input mcga_mode13_set,
+    input mcga_mode13_clear,
+    output mcga_mode13_active_out,
     input [3:0] crt_h_offset,
     input [2:0] crt_v_offset,
     input [2:0] vsync_width_osd,
@@ -111,11 +118,40 @@ module ega_top(
     wire ega_switch_sense_cs = ((bus_a == 15'h03C2) || (bus_a == 15'h02C2)) & ~bus_aen & ega_enabled;
     wire ega_misc_read_cs = ((bus_a == 15'h03CC) || (bus_a == 15'h02CC)) & ~bus_aen & ega_enabled;
     wire ega_gfx_data_cs = ((bus_a == 15'h03CF) || (bus_a == 15'h02CF)) & ~bus_aen & ega_enabled;
+    wire ega_dac_read_index_cs = ((bus_a == 15'h03C7) || (bus_a == 15'h02C7)) & ~bus_aen & ega_enabled;
+    wire ega_dac_write_index_cs = ((bus_a == 15'h03C8) || (bus_a == 15'h02C8)) & ~bus_aen & ega_enabled;
+    wire ega_dac_data_cs = ((bus_a == 15'h03C9) || (bus_a == 15'h02C9)) & ~bus_aen & ega_enabled;
+    wire mcga_mode13_bios_ctrl_cs = (bus_a == 15'h03CD) & ~bus_aen & ega_enabled;
+    wire mcga_mode13_bios_set = mcga_mode13_bios_ctrl_cs & ega_io_we & (bus_d == 8'h13);
+    wire mcga_mode13_bios_clear = mcga_mode13_bios_ctrl_cs & ega_io_we & (bus_d != 8'h13);
+    wire mcga_mode13_enter = mcga_mode13_set | mcga_mode13_bios_set;
+    wire mcga_mode13_exit = mcga_mode13_clear | mcga_mode13_bios_clear;
+    wire [7:0] mcga_dac_io_data_out;
+    wire [7:0] mcga_dac_sample_index;
+    wire [5:0] mcga_dac_sample_red;
+    wire [5:0] mcga_dac_sample_green;
+    wire [5:0] mcga_dac_sample_blue;
+    wire [7:0] mcga_dac_sample_red_8;
+    wire [7:0] mcga_dac_sample_green_8;
+    wire [7:0] mcga_dac_sample_blue_8;
+    wire mcga_dac_read_index_write_raw = ega_dac_read_index_cs & ega_io_we;
+    wire mcga_dac_write_index_write_raw = ega_dac_write_index_cs & ega_io_we;
+    wire mcga_dac_data_write_raw = ega_dac_data_cs & ega_io_we;
+    wire mcga_dac_read_index_read_raw = ega_dac_read_index_cs & ega_io_re;
+    wire mcga_dac_write_index_read_raw = ega_dac_write_index_cs & ega_io_re;
+    wire mcga_dac_data_read_raw = ega_dac_data_cs & ega_io_re;
+    reg mcga_dac_read_index_write_q = 1'b0;
+    reg mcga_dac_write_index_write_q = 1'b0;
+    reg mcga_dac_data_write_q = 1'b0;
+    wire mcga_dac_read_index_write_evt = mcga_dac_read_index_write_raw & ~mcga_dac_read_index_write_q;
+    wire mcga_dac_write_index_write_evt = mcga_dac_write_index_write_raw & ~mcga_dac_write_index_write_q;
+    wire mcga_dac_data_write_evt = mcga_dac_data_write_raw & ~mcga_dac_data_write_q;
     wire ega_cfg_we = ega_enabled && ega_io_we && ((ega_io_addr == 16'h03C5) || (ega_io_addr == 16'h02C5) || (ega_io_addr == 16'h03CF) || (ega_io_addr == 16'h02CF));
 
     reg ega_video_active = 1'b0;
     reg ega_video_pending = 1'b0;
     reg ega_write_seen_since_vblank = 1'b0;
+    wire mcga_mode13_active;
     reg ega_vblank_q = 1'b0;
     wire ega_splash_active = ega_enabled & splashscreen;
     wire ega_display_sel = ega_enabled & (ega_video_active | ega_splash_active);
@@ -186,6 +222,14 @@ module ega_top(
     wire [5:0] ega_red_compat;
     wire [5:0] ega_green_compat;
     wire [5:0] ega_blue_compat;
+    wire [5:0] mcga_red;
+    wire [5:0] mcga_green;
+    wire [5:0] mcga_blue;
+    wire       mcga_de;
+    wire       mcga_hsync;
+    wire       mcga_vsync;
+    wire       mcga_hblank;
+    wire       mcga_vblank;
     wire [5:0] ega_color_raw;
     wire ega_display_enable_raw;
     wire ega_attr_video_enable;
@@ -258,6 +302,14 @@ module ega_top(
     wire       ega_blink_advance = ega_crtc_fetch_tick & ega_vert_blank_active_crtc & ~ega_vblank_crtc_q;
     wire       ega_blink_state = ega_blink_counter[4];
     wire [7:0] ega_status_reg = {2'b00, ega_status_toggle, ega_status_vretrace_active, 2'b00, ega_blanking_active};
+
+    mcga_mode13_ctrl mcga_mode13_state (
+        .clk(clk),
+        .reset(reset),
+        .mode13_set(mcga_mode13_enter),
+        .mode13_clear(mcga_mode13_exit),
+        .mcga_mode13_active(mcga_mode13_active)
+    );
 
     UM6845R ega_crtc (
         .CLOCK(clk),
@@ -447,6 +499,49 @@ module ega_top(
         .video_enable_out(ega_attr_video_enable)
     );
 
+    mcga_dac_io mcga_dac_io_inst (
+        .clock              (clk),
+        .reset              (reset),
+        .reset_palette      (mcga_mode13_enter),
+        .read_index_write   (mcga_dac_read_index_write_evt),
+        .write_index_write  (mcga_dac_write_index_write_evt),
+        .data_write         (mcga_dac_data_write_evt),
+        .read_index_read    (mcga_dac_read_index_read_raw),
+        .write_index_read   (mcga_dac_write_index_read_raw),
+        .data_read          (mcga_dac_data_read_raw),
+        .io_data_in         (bus_d),
+        .io_data_out        (mcga_dac_io_data_out),
+        .sample_index       (mcga_dac_sample_index),
+        .sample_red         (mcga_dac_sample_red),
+        .sample_green       (mcga_dac_sample_green),
+        .sample_blue        (mcga_dac_sample_blue),
+        .sample_red_8       (mcga_dac_sample_red_8),
+        .sample_green_8     (mcga_dac_sample_green_8),
+        .sample_blue_8      (mcga_dac_sample_blue_8)
+    );
+
+    mcga_mode13_renderer mcga_renderer (
+        .clock                  (clk),
+        .reset                  (reset),
+        .enable                 (mcga_mode13_active),
+        .framebuffer_addr       (mcga_framebuffer_addr),
+        .framebuffer_read_en    (mcga_framebuffer_read_en),
+        .framebuffer_pixel      (mcga_framebuffer_pixel),
+        .framebuffer_data_valid (mcga_framebuffer_data_valid),
+        .dac_index              (mcga_dac_sample_index),
+        .dac_red                (mcga_dac_sample_red),
+        .dac_green              (mcga_dac_sample_green),
+        .dac_blue               (mcga_dac_sample_blue),
+        .red                    (mcga_red),
+        .green                  (mcga_green),
+        .blue                   (mcga_blue),
+        .de                     (mcga_de),
+        .hsync                  (mcga_hsync),
+        .vsync                  (mcga_vsync),
+        .hblank                 (mcga_hblank),
+        .vblank                 (mcga_vblank)
+    );
+
     wire [5:0] ega_dbl_color;
     wire ega_dbl_hsync;
     wire ega_vsync_sd_l;
@@ -500,6 +595,9 @@ module ega_top(
                          | (ega_switch_sense_cs & ~bus_ior_l)
                          | (ega_misc_read_cs & ~bus_ior_l)
                          | (ega_gfx_data_cs & ~bus_ior_l)
+                         | (ega_dac_read_index_cs & ~bus_ior_l)
+                         | (ega_dac_write_index_cs & ~bus_ior_l)
+                         | (ega_dac_data_cs & ~bus_ior_l)
                          | (ega_crtc_cs & ~bus_ior_l & bus_a[0]);
 
     always @(*) begin
@@ -515,6 +613,8 @@ module ega_top(
             ega_bus_out_mux = ega_misc_output_reg;
         else if (ega_gfx_data_cs & ~bus_ior_l)
             ega_bus_out_mux = ega_gfx_data_out;
+        else if ((ega_dac_read_index_cs | ega_dac_write_index_cs | ega_dac_data_cs) & ~bus_ior_l)
+            ega_bus_out_mux = mcga_dac_io_data_out;
         else if (ega_crtc_cs & ~bus_ior_l & bus_a[0])
             ega_bus_out_mux = ega_crtc_data_out;
         else
@@ -536,6 +636,9 @@ module ega_top(
             ega_crtc_index_shadow <= 5'd0;
             ega_crtc_h_timing_seen <= 1'b0;
             ega_crtc_v_timing_seen <= 1'b0;
+            mcga_dac_read_index_write_q <= 1'b0;
+            mcga_dac_write_index_write_q <= 1'b0;
+            mcga_dac_data_write_q <= 1'b0;
             ega_text_fetch_phase <= 5'd0;
             ega_display_enable_delay <= 26'd0;
         end else begin
@@ -552,6 +655,9 @@ module ega_top(
 
             ega_vblank_q <= ega_visible_vblank;
             ega_status_read_q <= ega_status_read;
+            mcga_dac_read_index_write_q <= mcga_dac_read_index_write_raw;
+            mcga_dac_write_index_write_q <= mcga_dac_write_index_write_raw;
+            mcga_dac_data_write_q <= mcga_dac_data_write_raw;
             ega_vblank_crtc_q <= ega_crtc_fetch_tick ? ega_vert_blank_active_crtc : ega_vblank_crtc_q;
             cpu_mem_write_evt_d <= cpu_mem_write_evt;
             if (ega_misc_write_cs && ega_io_we)
@@ -617,8 +723,8 @@ module ega_top(
         {7'd0, ega_splash_text_row, 4'd0} +
         {8'd0, ega_char_col};
     assign ega_fetch_addr = ega_splash_active ? ega_splash_text_addr : ega_crtc_addr_full;
-    assign ega_fetch_en = ega_display_sel ? (ega_graphics_mode_active & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
-    assign ega_text_fetch_en = ega_display_sel & ega_text_mode_active & ega_text_fetch_en_raw;
+    assign ega_fetch_en = (!mcga_mode13_active && ega_display_sel) ? (ega_graphics_mode_active & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
+    assign ega_text_fetch_en = !mcga_mode13_active & ega_display_sel & ega_text_mode_active & ega_text_fetch_en_raw;
     assign ega_plane_write_mask_out = ega_plane_write_mask;
     assign ega_odd_even_mode_out = ega_odd_even_mode;
     assign ega_cpu_access_slot_out = ega_ce_cpu_access_unused;
@@ -639,21 +745,23 @@ module ega_top(
     assign ega_rotate_count_out = ega_rotate_count;
     assign ega_blink_counter_out = ega_blink_counter;
     assign ega_blink_state_out = ega_blink_state;
-    assign ega_display_sel_out = ega_display_sel;
+    assign mcga_mode13_active_out = mcga_mode13_active;
+    assign ega_display_sel_out = mcga_mode13_active ? mcga_de : ega_display_sel;
 
     assign bus_out = ega_bus_out_mux;
     assign bus_dir = ega_enabled ? ega_bus_dir_sel : 1'b0;
-    assign ega_red = ega_red_compat;
-    assign ega_green = ega_green_compat;
-    assign ega_blue = ega_blue_compat;
-    assign hsync = ega_enabled ? ega_hsync_int : 1'b1;
-    assign dbl_hsync = ega_enabled ? ega_dbl_hsync : 1'b1;
-    assign hblank = ega_enabled ? (scandouble_en ? ~ega_display_enable_sd : ega_hblank_crtc) : 1'b1;
-    assign vsync = ega_enabled ? (scandouble_en ? ~ega_vsync_sd_l : ega_vsync) : 1'b1;
-    assign vblank = ega_enabled ? (scandouble_en ? ega_vblank_sd : ega_visible_vblank) : 1'b1;
-    assign vblank_border = ega_enabled ? (scandouble_en ? ega_vblank_sd : ega_vblank_crtc) : 1'b1;
+    assign ega_red = mcga_mode13_active ? mcga_red : ega_red_compat;
+    assign ega_green = mcga_mode13_active ? mcga_green : ega_green_compat;
+    assign ega_blue = mcga_mode13_active ? mcga_blue : ega_blue_compat;
+    assign hsync = ega_enabled ? (mcga_mode13_active ? mcga_hsync : ega_hsync_int) : 1'b1;
+    assign dbl_hsync = ega_enabled ? (mcga_mode13_active ? mcga_hsync : ega_dbl_hsync) : 1'b1;
+    assign hblank = ega_enabled ? (mcga_mode13_active ? mcga_hblank : (scandouble_en ? ~ega_display_enable_sd : ega_hblank_crtc)) : 1'b1;
+    assign vsync = ega_enabled ? (mcga_mode13_active ? mcga_vsync : (scandouble_en ? ~ega_vsync_sd_l : ega_vsync)) : 1'b1;
+    assign vblank = ega_enabled ? (mcga_mode13_active ? mcga_vblank : (scandouble_en ? ega_vblank_sd : ega_visible_vblank)) : 1'b1;
+    assign vblank_border = ega_enabled ? (mcga_mode13_active ? mcga_vblank : (scandouble_en ? ega_vblank_sd : ega_vblank_crtc)) : 1'b1;
     assign std_hsyncwidth = ega_enabled
                           ? (ega_hsync_width_crtc == (ega_dot_clock_div2_active ? EGA_STD_HSYNC_W_LO : EGA_STD_HSYNC_W_HI))
                           : 1'b0;
-    assign de_o = ega_display_sel ? (scandouble_en ? ega_display_enable_sd : ega_display_enable_raw) : 1'b0;
+    assign de_o = mcga_mode13_active ? mcga_de :
+                  (ega_display_sel ? (scandouble_en ? ega_display_enable_sd : ega_display_enable_raw) : 1'b0);
 endmodule
