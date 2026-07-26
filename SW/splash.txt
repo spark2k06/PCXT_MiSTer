@@ -20,6 +20,6 @@
           (MicroCoreLabs)                            (TubeTime)    
                                                                    
                                                                    
-            F11: CGA <-> HGC                                       
+
             F12: Pause & Credits            Win + F12: Menu OSD    
                                                                    

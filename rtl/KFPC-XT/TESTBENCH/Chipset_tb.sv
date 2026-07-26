@@ -24,11 +24,23 @@ module CHIPSET_tm();
     logic   clock;
     logic   video_clock;
     logic   sdram_clock;
+    logic   cpu_ce_posedge;
+    logic   cpu_ce_negedge;
+    logic   clk_sys;
+    logic   peripheral_ce;
+    logic   [1:0] clk_select;
     initial clock = 1'b0;
     initial sdram_clock = 1'b0;
     always #(`TB_CYCLE / 2) clock = ~clock;
 
     assign video_clock = clock;
+    assign cpu_ce_posedge = 1'b1;
+    assign cpu_ce_negedge = 1'b1;
+    assign clk_sys = clock;
+    assign peripheral_ce = 1'b1;
+    assign clk_select = 2'b00;
+    assign clk_video = video_clock;
+    assign clk_uart = clock;
 
     always #(`TB_SDRAM_CYCLE/ 2) sdram_clock = ~sdram_clock;
 
@@ -36,17 +48,19 @@ module CHIPSET_tm();
     // Generate reset
     //
     logic reset;
+    logic sdram_reset;
     initial begin
         reset = 1'b1;
             # (`TB_CYCLE * 10)
         reset = 1'b0;
     end
-    logic status0_clear = 1'b0;
+    logic splashscreen = 1'b0;
 
     //
     // Cycle counter
     //
     logic   [31:0]  tb_cycle_counter;
+    integer tb_failures = 0;
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             tb_cycle_counter <= 32'h0;
@@ -78,6 +92,18 @@ module CHIPSET_tm();
     logic           processor_transmit_or_receive_n;
     logic           processor_ready;
     logic           interrupt_to_cpu;
+    // VGA
+    logic           std_hsyncwidth;
+    logic           clk_video;
+    logic           de_o;
+    logic   [5:0]   VGA_R;
+    logic   [5:0]   VGA_G;
+    logic   [5:0]   VGA_B;
+    logic           VGA_HSYNC;
+    logic           VGA_VSYNC;
+    logic           VGA_HBlank;
+    logic           VGA_VBlank;
+    logic           VGA_VBlank_border;
     // I/O Ports
     logic   [19:0]  address;
     logic   [19:0]  address_ext;
@@ -101,6 +127,7 @@ module CHIPSET_tm();
     logic           memory_write_n;
     logic           memory_write_n_ext;
     logic           memory_write_n_direction;
+    logic           ext_access_request;
     logic   [3:0]   dma_request;
     logic   [3:0]   dma_acknowledge_n;
     logic           address_enable_n;
@@ -118,6 +145,22 @@ module CHIPSET_tm();
     logic   [7:0]   port_c_io;
     logic           ps2_clock;
     logic           ps2_data;
+    logic           ps2_clock_out;
+    logic           ps2_data_out;
+    logic           ps2_mouseclk_in;
+    logic           ps2_mousedat_in;
+    logic           ps2_mouseclk_out;
+    logic           ps2_mousedat_out;
+    logic   [4:0]   joy_opts;
+    logic   [13:0]  joy0;
+    logic   [13:0]  joy1;
+    logic   [15:0]  joya0;
+    logic   [15:0]  joya1;
+    logic   [15:0]  jtopl2_snd_e;
+    logic   [1:0]   opl2_io;
+    logic           cms_en;
+    logic   [15:0]  o_cms_l;
+    logic   [15:0]  o_cms_r;
     logic           enable_tvga;
     logic           video_reset;
     logic           video_h_sync;
@@ -126,7 +169,19 @@ module CHIPSET_tm();
     logic   [3:0]   video_g;
     logic   [3:0]   video_b;
     logic           enable_sdram;
-    logic           cga_scandouble_en;
+    logic           initilized_sdram;
+    logic           video_scandoubler_en;
+    logic   [10:0]  tandy_snd_e;
+    logic           tandy_16_gfx;
+    logic           tandy_color_16;
+    logic           clk_uart;
+    logic           uart2_rx;
+    logic           uart2_tx;
+    logic           uart2_cts_n;
+    logic           uart2_dcd_n;
+    logic           uart2_dsr_n;
+    logic           uart2_rts_n;
+    logic           uart2_dtr_n;
     logic   [12:0]  sdram_address;
     logic           sdram_cke;
     logic           sdram_cs;
@@ -139,6 +194,33 @@ module CHIPSET_tm();
     logic           sdram_dq_io;
     logic           sdram_ldqm;
     logic           sdram_udqm;
+    logic           ems_enabled;
+    logic   [1:0]   ems_address;
+    logic   [2:0]   bios_protect_flag;
+    logic   [1:0]   use_mmc;
+    logic           spi_clk;
+    logic           spi_cs;
+    logic           spi_mosi;
+    logic           spi_miso;
+    logic   [15:0]  mgmt_address;
+    logic           mgmt_read;
+    logic   [15:0]  mgmt_readdata;
+    logic           mgmt_write;
+    logic   [15:0]  mgmt_writedata;
+    logic   [1:0]   floppy_wp;
+    logic   [1:0]   fdd_present;
+    logic   [1:0]   fdd_request;
+    logic   [2:0]   ide0_request;
+    logic   [7:0]   xtctl;
+    logic           enable_a000h;
+    logic           wait_count_clk_en;
+    logic   [1:0]   ram_read_wait_cycle;
+    logic   [1:0]   ram_write_wait_cycle;
+    logic           pause_core;
+    logic   [3:0]   crt_h_offset;
+    logic   [2:0]   crt_v_offset;
+    logic   [2:0]   vsync_width_osd;
+    logic   [2:0]   hsync_width_osd;
 
     CHIPSET u_CHIPSET (.*);
 
@@ -155,6 +237,7 @@ module CHIPSET_tm();
         cpu_address         = 20'h00000;
         #(`TB_CYCLE * 0);
         //#(`TB_CYCLE / 2);
+        sdram_reset         = 1'b0;
         cpu_address         = 20'h00000;
         cpu_data_bus        = 8'h00;
         processor_status    = 3'b111;
@@ -168,16 +251,48 @@ module CHIPSET_tm();
         io_write_n_ext      = 1'b1;
         memory_read_n_ext   = 1'b1;
         memory_write_n_ext  = 1'b1;
+        ext_access_request  = 1'b0;
         dma_request         = 4'b0000;
         port_b_in           = 8'b00000000;
         port_c_in           = 8'b00000000;
         ps2_clock           = 1'b1;
         ps2_data            = 1'b1;
+        ps2_mouseclk_in     = 1'b1;
+        ps2_mousedat_in     = 1'b1;
+        joy_opts            = 5'b00000;
+        joy0                = 14'h0000;
+        joy1                = 14'h0000;
+        joya0               = 16'h0000;
+        joya1               = 16'h0000;
+        opl2_io             = 2'b00;
+        cms_en              = 1'b0;
         enable_tvga         = 1'b1;
         video_reset         = 1'b1;
         enable_sdram        = 1'b1;
-        cga_scandouble_en   = 1'b0;
+        video_scandoubler_en   = 1'b0;
+        uart2_rx            = 1'b1;
+        uart2_cts_n         = 1'b1;
+        uart2_dcd_n         = 1'b1;
+        uart2_dsr_n         = 1'b1;
         sdram_dq_in         = 16'hAAAA;
+        ems_enabled         = 1'b0;
+        ems_address         = 2'b00;
+        bios_protect_flag   = 3'b000;
+        use_mmc             = 2'b00;
+        spi_miso            = 1'b1;
+        mgmt_address        = 16'h0000;
+        mgmt_read           = 1'b0;
+        mgmt_write          = 1'b0;
+        mgmt_writedata      = 16'h0000;
+        floppy_wp           = 2'b00;
+        enable_a000h        = 1'b0;
+        wait_count_clk_en   = 1'b0;
+        ram_read_wait_cycle = 2'b00;
+        ram_write_wait_cycle = 2'b00;
+        crt_h_offset        = 4'h0;
+        crt_v_offset        = 3'h0;
+        vsync_width_osd     = 3'h0;
+        hsync_width_osd     = 3'h0;
         #(`TB_CYCLE * 12);
     end
     endtask
@@ -197,7 +312,7 @@ module CHIPSET_tm();
         processor_status    = 3'b111;
         #(`TB_CYCLE * 2);
     end
-    endtask;
+    endtask
 
     //
     // Task : Read I/O Port
@@ -213,7 +328,7 @@ module CHIPSET_tm();
         cpu_address         = 20'h00000;
         #(`TB_CYCLE * 1);
     end
-    endtask;
+    endtask
 
     //
     // Task : Write I/O Port
@@ -231,7 +346,7 @@ module CHIPSET_tm();
         cpu_data_bus        = 8'h00;
         #(`TB_CYCLE * 1);
     end
-    endtask;
+    endtask
 
     //
     // Task : Halt
@@ -244,7 +359,7 @@ module CHIPSET_tm();
         processor_status    = 3'b111;
         #(`TB_CYCLE * 2);
     end
-    endtask;
+    endtask
 
     //
     // Task : Code Access
@@ -260,7 +375,7 @@ module CHIPSET_tm();
         cpu_address         = 20'h00000;
         #(`TB_CYCLE * 1);
     end
-    endtask;
+    endtask
 
     //
     // Task : Read Memory
@@ -276,7 +391,7 @@ module CHIPSET_tm();
         cpu_address         = 20'h00000;
         #(`TB_CYCLE * 1);
     end
-    endtask;
+    endtask
 
     //
     // Task : Write I/O Port
@@ -294,7 +409,70 @@ module CHIPSET_tm();
         cpu_data_bus        = 8'h00;
         #(`TB_CYCLE * 1);
     end
-    endtask;
+    endtask
+
+    task TASK_EXPECT_TRUE(input [8*80-1:0] label, input condition);
+    begin
+        if (!condition) begin
+            $display("FAIL %0s at cycle %0d", label, tb_cycle_counter);
+            tb_failures = tb_failures + 1;
+        end
+    end
+    endtask
+
+`ifdef EGA_CHIPSET_SMOKE
+    task TASK_WAIT_EGA_DISPLAY(input integer max_cycles);
+        integer i;
+        reg found_display;
+        reg found_fetch;
+        reg found_rgb;
+    begin
+        found_display = 1'b0;
+        found_fetch = 1'b0;
+        found_rgb = 1'b0;
+
+        for (i = 0; i < max_cycles; i = i + 1) begin
+            #(`TB_CYCLE * 1);
+            found_display = found_display | u_CHIPSET.u_PERIPHERALS.video_display_active;
+            found_fetch = found_fetch | u_CHIPSET.u_PERIPHERALS.EGA_FETCH_EN;
+            found_rgb = found_rgb | (|{VGA_R, VGA_G, VGA_B});
+        end
+
+        TASK_EXPECT_TRUE("EGA display path became active", found_display);
+        TASK_EXPECT_TRUE("EGA generated at least one fetch", found_fetch);
+        TASK_EXPECT_TRUE("EGA drove non-zero RGB", found_rgb);
+    end
+    endtask
+
+    task TASK_EGA_CHIPSET_SMOKE();
+    begin
+        $display("***** INTEGRATED EGA SMOKE ***** at %d", tb_cycle_counter);
+        #(`TB_CYCLE * 8);
+
+        // Minimal graphics setup: map all planes, select graphics mode, and
+        // use the A0000h aperture before writing a visible planar pattern.
+        TASK_WRITE_IO_PORT(20'h003C4, 8'h02);
+        TASK_WRITE_IO_PORT(20'h003C5, 8'h0F);
+        TASK_WRITE_IO_PORT(20'h003CE, 8'h05);
+        TASK_WRITE_IO_PORT(20'h003CF, 8'h00);
+        TASK_WRITE_IO_PORT(20'h003CE, 8'h06);
+        TASK_WRITE_IO_PORT(20'h003CF, 8'h05);
+        TASK_WRITE_IO_PORT(20'h003DA, 8'h00);
+        TASK_WRITE_IO_PORT(20'h003C0, 8'h20);
+
+        TASK_WRITE_MEMORY(20'hA0000, 8'hFF);
+        TASK_WRITE_MEMORY(20'hA0001, 8'h81);
+        TASK_WRITE_MEMORY(20'hA0002, 8'h42);
+        TASK_READ_MEMORY(20'hA0000);
+
+        TASK_WAIT_EGA_DISPLAY(4096);
+        TASK_EXPECT_TRUE(
+            "EGA memory cycles do not hold processor_ready low",
+            processor_ready
+        );
+    end
+    endtask
+`endif
 
     //
     // Task : Send keybord Serial
@@ -491,6 +669,10 @@ module CHIPSET_tm();
         TASK_READ_MEMORY(20'hB8000);
         TASK_READ_MEMORY(20'hB8001);
 
+`ifdef EGA_CHIPSET_SMOKE
+        TASK_EGA_CHIPSET_SMOKE();
+`endif
+
         $display("***** KEYBORD INPUT TEST ***** at %d", tb_cycle_counter);
         TASK_SEND_KEYBORD_SERIAL(11'b0_1010_1010_1_1);
         TASK_INTERRUPT_ACKNOWLEDGE();
@@ -498,6 +680,13 @@ module CHIPSET_tm();
         TASK_WRITE_IO_PORT(20'h00061, 8'b00000000);
 
         #(`TB_CYCLE * 12);
+
+        if (tb_failures != 0) begin
+            $display("***** CHIPSET TB FAILED: %0d failures *****", tb_failures);
+            $fatal(1);
+        end else begin
+            $display("***** CHIPSET TB PASSED *****");
+        end
 
         // End of simulation
 `ifdef IVERILOG
