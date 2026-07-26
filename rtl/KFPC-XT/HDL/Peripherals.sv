@@ -145,11 +145,6 @@ module PERIPHERALS #(
     logic mcga_mode13_active_sync1;
     logic mcga_mode13_active_sync2;
     wire mcga_mode13_active_sys = mcga_mode13_active_sync2;
-    logic mcga_mode13_osd_sync1;
-    logic mcga_mode13_osd_sync2;
-    logic mcga_mode13_osd_q;
-    wire mcga_mode13_osd_set = mcga_mode13_osd_sync2 & ~mcga_mode13_osd_q;
-    wire mcga_mode13_osd_clear = ~mcga_mode13_osd_sync2 & mcga_mode13_osd_q;
     assign mcga_mode13_active_out = mcga_mode13_active_video;
 
     // Assert reset immediately, but release it in the clock domain that
@@ -171,21 +166,6 @@ module PERIPHERALS #(
             video_reset_video_sync <= 2'b11;
         else
             video_reset_video_sync <= {video_reset_video_sync[0], 1'b0};
-    end
-
-    // The OSD state is asynchronous to clk_video.  Convert its changes into
-    // one-cycle requests, so the OSD can enter and leave mode 13h without
-    // changing the normal BIOS control path.
-    always_ff @(posedge clk_video or posedge video_reset) begin
-        if (video_reset) begin
-            mcga_mode13_osd_sync1 <= 1'b0;
-            mcga_mode13_osd_sync2 <= 1'b0;
-            mcga_mode13_osd_q <= 1'b0;
-        end else begin
-            mcga_mode13_osd_sync1 <= mcga_mode13_osd;
-            mcga_mode13_osd_sync2 <= mcga_mode13_osd_sync1;
-            mcga_mode13_osd_q <= mcga_mode13_osd_sync2;
-        end
     end
 
     wire [1:0] ega_mem_map_sel_cfg;
@@ -1179,8 +1159,9 @@ end
         .thin_font                  (thin_font),
         .scandouble_en              (video_scandoubler_en),
         .ega_enabled                (1'b1),
-        .mcga_mode13_set            (mcga_mode13_osd_set),
-        .mcga_mode13_clear          (mcga_mode13_osd_clear),
+        .mcga_enabled               (mcga_mode13_osd),
+        .mcga_mode13_set            (1'b0),
+        .mcga_mode13_clear          (1'b0),
         .mcga_mode13_active_out     (mcga_mode13_active_video),
         .crt_h_offset               (crt_h_offset),
         .crt_v_offset               (crt_v_offset),

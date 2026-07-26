@@ -2,85 +2,74 @@
 
 PCXT port for MiSTer by [@spark2k06](https://github.com/spark2k06/).
 
-Discussion and evolution of the core in the following misterfpga forum section:
-
-https://misterfpga.org/viewforum.php?f=40
+Discussion and development of the core take place in the
+[MiSTerFPGA PCXT forum section](https://misterfpga.org/viewforum.php?f=40).
 
 ![Splash](splash.jpg)
 
 ## Description
 
-The purpose of this core is to implement a PCXT as reliable as possible. For this purpose, the [MCL86 core](https://github.com/MicroCoreLabs/Projects/tree/master/MCL86) from [@MicroCoreLabs](https://github.com/MicroCoreLabs/) and [KFPC-XT](https://github.com/kitune-san/KFPC-XT) from [@kitune-san](https://github.com/kitune-san) are used.
+The goal of this core is to provide a reliable IBM PC/XT-compatible machine for MiSTer. It builds on the [MCL86 core](https://github.com/MicroCoreLabs/Projects/tree/master/MCL86) from [@MicroCoreLabs](https://github.com/MicroCoreLabs/) and [KFPC-XT](https://github.com/kitune-san/KFPC-XT) from [@kitune-san](https://github.com/kitune-san).
 
-The [Graphics Gremlin project](https://github.com/schlae/graphics-gremlin) from TubeTimeUS ([@schlae](https://github.com/schlae)) has also been integrated in this first stage.
+The project also acknowledges [Graphics Gremlin](https://github.com/schlae/graphics-gremlin) from TubeTimeUS ([@schlae](https://github.com/schlae)).
 
-[JTOPL](https://github.com/jotego/jtopl) by Jose Tejada (@jotego) was integrated for AdLib sound.
+[JTOPL](https://github.com/jotego/jtopl) by Jose Tejada ([@jotego](https://github.com/jotego)) provides AdLib sound.
 
 ## Key features
 
-* 8088 CPU with these speed settings: 4.77 MHz, 7.16 MHz, 9.54 MHz cycle accurate, and PC/AT 286 at 3.5MHz equivalent (max. speed)
-* Support for IBM PCXT 5160 and clones with an EGA-centered video model
-* Main memory 640Kb + 384Kb UMB memory
-* IBM EGA video path with CGA-compatible text and graphics behavior implemented inside EGA
+* 8088 CPU speed settings: 4.77 MHz, 7.16 MHz, 9.54 MHz, and PC/AT 3.5 MHz equivalent (maximum speed)
+* IBM PC/XT 5160 and compatible systems with an EGA-centered video path
+* CGA-compatible text and graphics behavior implemented through EGA
+* Optional MCGA mode 13h (320x200x256), controlled from the OSD and disabled by default
+* 640 KiB conventional memory plus 384 KiB UMB
 * EGA BIOS option ROM support
-* EMS memory up to 2Mb
+* EMS memory up to 2 MiB
 * XTIDE support
-* Audio: Adlib, C/MS & speaker
-* Joystick support
-* Mouse support into COM1 serial port, this works like any Microsoft mouse... you just need a driver to configure it, like CTMOUSE 1.9 (available into hdd folder)
-* 2nd SD card support
+* Audio: AdLib, C/MS and PC speaker
+* Joystick support and serial mouse on COM1 (for example, with CTMOUSE 1.9 in `hdd/`)
+* Second SD card support
+* EGA graphical boot splash, configurable from the OSD
 
-## Build configuration (config.tcl)
+## Current configuration
 
-This branch is an EGA clean-core configuration. EGA is the only active video
-hardware model; CGA-compatible software behavior is handled by the EGA path
-instead of a separate CGA adapter. Standalone CGA, HGC, Tandy video, Tandy
-audio, and Tandy keyboard variants are not preserved as active hardware
-selection paths in this branch.
+EGA is the active video hardware model. CGA-compatible software behavior is
+handled by the EGA path rather than by a separate CGA adapter. Standalone CGA,
+HGC, Tandy video, Tandy audio and Tandy keyboard variants are not active
+hardware-selection paths in this configuration.
 
-* System/ROM set to PCXT
-* EGA video always active
-* CGA-compatible text/graphics behavior through EGA
+* System/ROM set to PC/XT
+* EGA video active at boot
+* CGA-compatible text and graphics behavior through EGA
+* Optional MCGA mode 13h, enabled only from the OSD
 * OPL2 enabled for common DOS FM audio
 * CMS enabled
 * EMS enabled for expanded memory
 
-The clean-core refactor is described in `EGA_CLEAN_CORE_SPEC.md` and
-`EGA_CLEAN_CORE_PLAN.md`.
-
-## Resource profile
-
-The old resource table for selectable CGA/HGC/Tandy builds is no longer a
-current description of this branch. Regenerate resource numbers from a fresh
-Quartus build after the clean-core refactor is closed.
-
 ## Quick Start
 
-* Copy the contents of `games/PCXT` to your MiSTer SD Card and uncompress `hd_image.zip`. It contains a FreeDOS image ( http://www.freedos.org/ )
+* Copy the contents of `games/PCXT` to your MiSTer SD card and extract `hd_image.zip`. It contains a [FreeDOS](https://www.freedos.org/) image.
 * Select the core from Computers/PCXT.
-* Press WinKey + F12 on your keyboard.
+* Press Win + F12 on your keyboard.
   * Model: IBM PCXT.
   * CPU Speed: PC/AT 3.5MHz (Max speed)
   * FDD & HDD -> HDD Image: FreeDOS_HD.img
-  * BIOS -> PCXT BIOS: pcxt_micro8088.rom
+  * BIOS -> PCXT BIOS: choose a compatible system BIOS, such as `bios-micro8088-xtide.rom` from `SW/8088_bios/binaries/`.
 * Choose Reset & apply settings.
 
 ## ROM Instructions
 
-ROMs should be provided initially from the BIOS section of the OSD menu. The core has a single BIOS slot; on subsequent boots it is not necessary to provide them unless you want to use others. Original and copyrighted ROMs can be generated on the fly using the python scripts available in the SW folder of this repository:
+ROMs are loaded from the **System & BIOS** section of the OSD. It provides slots for the main system BIOS, an optional XTIDE ROM at `EC00h`, and the EGA BIOS. Once loaded, a ROM remains available on subsequent boots until it is replaced. Original and copyrighted system ROMs can be prepared with the Python scripts in `SW/ROMs/`:
 
-* `make_rom_with_ibm5160.py`: A valid ROM is created for the PCXT core (pcxt.rom) based on the original IBM 5160 ROM, requires the XTIDE BIOS at address EC00h to work with HD images.
-* `make_rom_with_jukost.py`: A valid ROM is created for the PCXT core (pcxt.rom) based on the original Juko ST ROM, and with the XTIDE BIOS embedded at address F000h.
+* `SW/ROMs/make_rom_with_ibm5160.py`: creates `pcxt.rom` from the original IBM 5160 ROM. It requires an XTIDE BIOS at `EC00h` to use hard-disk images.
+* `SW/ROMs/make_rom_with_jukost.py`: creates `pcxt.rom` from the Juko ST ROM with the XTIDE BIOS embedded at `F000h`.
 
-From the same BIOS section of the OSD it is possible to specify an XTIDE ROM of up to 16Kb to work at address EC00h. It is also provided in this repository.
+The same OSD section accepts an XTIDE ROM of up to 16 KiB at `EC00h`; one is included in this repository.
 
 Other Open Source ROMs are available in the same folder:
 
-* `pcxt_pcxt31.rom`: This ROM already has the XTIDE BIOS embedded at address F000h. ([Source Code](https://github.com/virtualxt/pcxtbios))
-* `pcxt_micro8088.rom`: This ROM already has the XTIDE BIOS embedded at address F000h. ([Source Code](https://github.com/skiselev/8088_bios))
-* `ide_xtl.rom`: This ROM corresponds to the XTIDE BIOS, it must be maintained for some scripts to work, it can also be upgraded to a newer version. ([Source Code](https://www.xtideuniversalbios.org/))
-
-Note: Not all ROMs work with MDA video: (IBM5160, Yuko ST and pcxt31 works)
+* `pcxt_pcxt31.rom`: includes the XTIDE BIOS at `F000h`. ([source code](https://github.com/virtualxt/pcxtbios))
+* `bios-micro8088-xtide.rom`: Micro8088 BIOS with XTIDE support, built from the [8088 BIOS source code](https://github.com/skiselev/8088_bios).
+* `ide_xtl.rom`: XTIDE BIOS used by some scripts and upgradeable from its [upstream project](https://www.xtideuniversalbios.org/).
 
 ## Other BIOSes
 
@@ -90,14 +79,14 @@ Note: Not all ROMs work with MDA video: (IBM5160, Yuko ST and pcxt31 works)
 
 The floppy disk image size must be compatible with the BIOS, for example:
 
-* On IBM 5160 only 360Kb images work well.
-* On Micro8088 only 720Kb and 1.44Mb images work properly.
+* On IBM 5160 only 360 KiB images work well.
+* On Micro8088 only 720 KiB and 1.44 MiB images work properly.
 * Other BIOS may not be compatible, such as OpenXT by Ja'akov Miles and Jon Petroski.
 
-It is possible to use images smaller than the size supported by the BIOS, but only pre-formatted images, as it will not be possible to format them from MS-Dos.
+It is possible to use images smaller than the size supported by the BIOS, but only pre-formatted images, as it will not be possible to format them from MS-DOS.
 
 ## Developers
 
-Any contribution and pull request, please carry it out on the prerelease branch. Periodically they will be reviewed, moved and merged into the main branch, together with the corresponding release.
+Please send contributions and pull requests to the prerelease branch. They are reviewed periodically and merged into the main branch as part of releases.
 
 Thank you!
