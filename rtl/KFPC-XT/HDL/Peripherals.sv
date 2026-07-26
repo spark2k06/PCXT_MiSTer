@@ -874,18 +874,6 @@ end
     logic          ega_mem_select_2;
     logic          ega_mem_write_1;
     logic          ega_mem_write_2;
-    localparam int SPLASH_COPY_SIZE = 4000;
-    localparam [11:0] SPLASH_COPY_LAST = SPLASH_COPY_SIZE - 1;
-    logic         splashscreen_ff = 1'b0;
-    logic         splash_copy_active = 1'b0;
-    logic         splash_copy_dest_ega = 1'b0;
-    logic [11:0]  splash_copy_addr = 12'd0;
-    wire          splash_copy_start = splashscreen & ~splashscreen_ff;
-    wire  [7:0]   splash_rom_data;
-    wire          ega_splash_copy_active = splash_copy_active & splash_copy_dest_ega;
-    wire          splash_ega_selected = 1'b1;
-    wire          video_splash_copy_progress = 1'b1;
-
     always_ff @(posedge clock)
     begin
         if (~io_write_n | ~io_read_n)
@@ -921,50 +909,6 @@ end
         end else begin
             mcga_mode13_active_sync1 <= mcga_mode13_active_video;
             mcga_mode13_active_sync2 <= mcga_mode13_active_sync1;
-        end
-    end
-
-    always_ff @(posedge clock)
-    begin
-        if (video_reset_clock)
-        begin
-            splashscreen_ff <= 1'b0;
-            splash_copy_active <= 1'b0;
-            splash_copy_dest_ega <= 1'b0;
-            splash_copy_addr <= 12'd0;
-        end
-        else
-        begin
-            splashscreen_ff <= splashscreen;
-
-            if (splash_copy_start)
-            begin
-                splash_copy_active <= 1'b1;
-                splash_copy_dest_ega <= splash_ega_selected;
-                splash_copy_addr   <= 12'd0;
-            end
-            else if (splash_copy_active)
-            begin
-                if (video_splash_copy_progress)
-                begin
-                    if (splash_copy_addr == SPLASH_COPY_LAST)
-                    begin
-                        splash_copy_active <= 1'b0;
-                        splash_copy_dest_ega <= 1'b0;
-                        splash_copy_addr   <= 12'd0;
-                    end
-                    else
-                    begin
-                        splash_copy_addr <= splash_copy_addr + 12'd1;
-                    end
-                end
-            end
-            else
-            begin
-                splash_copy_active <= 1'b0;
-                splash_copy_dest_ega <= 1'b0;
-                splash_copy_addr   <= 12'd0;
-            end
         end
     end
 
@@ -1190,33 +1134,6 @@ end
     wire        ega_vram_cpu_ready;
     wire        mcga_vram_cpu_cycle;
     wire        mcga_vram_cpu_ready;
-    wire        ega_splash_text_we = ega_splash_copy_active;
-    wire [10:0] ega_splash_text_addr = splash_copy_addr[11:1];
-    wire        ega_splash_text_attr = splash_copy_addr[0];
-    wire [7:0]  ega_splash_text_data = splash_rom_data;
-    wire [11:0] ega_splash_read_char_addr;
-    wire [11:0] ega_splash_read_attr_addr;
-    wire [7:0]  ega_splash_read_char_data;
-    wire [7:0]  ega_splash_read_attr_data;
-
-    splash_rom splash_rom_inst
-    (
-        .addr       (splash_copy_addr),
-        .data       (splash_rom_data)
-    );
-
-    splash_rom splash_text_char_rom_inst
-    (
-        .addr       (ega_splash_read_char_addr),
-        .data       (ega_splash_read_char_data)
-    );
-
-    splash_rom splash_text_attr_rom_inst
-    (
-        .addr       (ega_splash_read_attr_addr),
-        .data       (ega_splash_read_attr_data)
-    );
-
     ega_vram_bram_frontend ega_vram_frontend
     (
         .clock                      (clock),
@@ -1240,19 +1157,10 @@ end
         .text_cell_addr             (EGA_TEXT_CELL_ADDR),
         .text_font_addr             (EGA_TEXT_FONT_ADDR),
         .text_fetch_en              (EGA_TEXT_FETCH_EN & video_display_active),
-        .splash_text_active         (splashscreen),
-        .splash_text_char_addr      (ega_splash_read_char_addr),
-        .splash_text_attr_addr      (ega_splash_read_attr_addr),
-        .splash_text_char_data      (ega_splash_read_char_data),
-        .splash_text_attr_data      (ega_splash_read_attr_data),
         .text_char                  (EGA_TEXT_CHAR),
         .text_attr                  (EGA_TEXT_ATTR),
         .text_glyph                 (EGA_TEXT_GLYPH),
         .text_data_valid            (EGA_TEXT_DATA_VALID),
-        .splash_text_we             (ega_splash_text_we),
-        .splash_text_addr           (ega_splash_text_addr),
-        .splash_text_attr           (ega_splash_text_attr),
-        .splash_text_data           (ega_splash_text_data),
         .cfg_toggle                 (ega_cfg_toggle),
         .plane_write_mask           (ega_plane_write_mask_cfg),
         .odd_even_mode              (ega_odd_even_mode_cfg),

@@ -29,7 +29,6 @@ module ega_text (
     input  wire [7:0]  text_attr_in,
     input  wire [7:0]  text_glyph_in,
     input  wire        text_data_valid,
-    input  wire        splash_font_enable,
     output reg  [15:0] text_cell_addr,
     output reg  [15:0] text_font_addr,
     output reg         text_fetch_en,
@@ -48,16 +47,10 @@ module ega_text (
     reg [3:0] pan_cache = 4'd0;
     reg [31:0] pan_history = 32'h00000000;
     reg [1:0] fetch_state = 2'd0;
-    reg [7:0] splash_glyph_latch = 8'h00;
-    reg [7:0] splash_char_rom[0:4095];
-
-    initial begin
-        $readmemh("ega.hex", splash_char_rom, 0, 4095);
-    end
 
     wire       start_cell = display_enable && fetch_tick;
     wire [1:0] pending_font_bank = text_attr_in[3] ? char_map_b : char_map_a;
-    wire [7:0] active_text_glyph = splash_font_enable ? splash_glyph_latch : text_glyph_in;
+    wire [7:0] active_text_glyph = text_glyph_in;
     wire       glyph_pixel = glyph_shift[8];
     wire       pending_line_graphics_char = (char_pending[7:5] == 3'b110);
     wire       pending_ninth_dot = char_9dot && line_graphics_enable &&
@@ -146,7 +139,6 @@ module ega_text (
             pan_cache <= 4'd0;
             pan_history <= 32'h00000000;
             fetch_state <= 2'd0;
-            splash_glyph_latch <= 8'h00;
             text_cell_addr <= 16'h0000;
             text_font_addr <= 16'h0000;
             text_fetch_en <= 1'b0;
@@ -162,9 +154,6 @@ module ega_text (
                     text_font_addr <= {pending_font_bank, 14'b00000000000000} +
                                       {3'b000, text_char_in, 5'b00000} +
                                       {11'd0, scanline};
-                    splash_glyph_latch <= (scanline < 5'd8) ?
-                                          splash_char_rom[{1'b1, text_char_in, scanline[2:0]}] :
-                                          8'h00;
                     text_fetch_en <= 1'b1;
                     fetch_state <= 2'd2;
                 end else if (fetch_state == 2'd2) begin

@@ -238,11 +238,15 @@ module ega_top(
     wire ega_graphics_pixel_valid;
     wire [3:0] ega_text_plane_index;
     wire ega_text_pixel_valid;
+    wire [3:0] ega_splash_pixel_index;
+    wire ega_splash_pixel_valid;
     wire ega_graphics_mode_active = ega_splash_active ? 1'b0 : ega_graphics_mode;
     wire ega_dot_clock_div2_active = ega_splash_active ? 1'b0 : ega_dot_clock_div2;
     wire ega_char_9dot_active = ega_splash_active ? 1'b0 : ega_char_9dot;
-    wire [3:0] ega_plane_index = ega_graphics_mode_active ? ega_graphics_plane_index : ega_text_plane_index;
-    wire ega_pixel_valid = ega_graphics_mode_active ? ega_graphics_pixel_valid : ega_text_pixel_valid;
+    wire [3:0] ega_plane_index = ega_splash_active ? ega_splash_pixel_index :
+                                 ega_graphics_mode_active ? ega_graphics_plane_index : ega_text_plane_index;
+    wire ega_pixel_valid = ega_splash_active ? ega_splash_pixel_valid :
+                           ega_graphics_mode_active ? ega_graphics_pixel_valid : ega_text_pixel_valid;
     wire [1:0] ega_render_mode_debug_unused;
     wire ega_hres_mode_int = ~ega_dot_clock_div2_active;
     wire ega_attr_blink_enable;
@@ -361,8 +365,8 @@ module ega_top(
         .hres_mode(ega_hres_mode_int)
     );
 
-    // Reset to an 80-column text base so the pre-BIOS splash can be shown
-    // through EGA VRAM before the EGA BIOS programs its final mode timings.
+    // Reset to an 80-column text base so the pre-BIOS graphical splash has
+    // stable EGA-compatible sync before BIOS programs its final mode timings.
     defparam ega_crtc.H_TOTAL = 8'd112;
     defparam ega_crtc.H_DISP = 8'd80;
     defparam ega_crtc.H_SYNCPOS = 8'd90;
@@ -371,7 +375,7 @@ module ega_top(
     defparam ega_crtc.V_TOTALADJ = 5'd6;
     // EGA extended timing uses R7 as overflow bits, R6 as vertical-total low,
     // and R18/R16 as display-end and sync-start low bytes. Seed a 262-line,
-    // 200-visible-line text frame so the splash has sane sync before BIOS.
+    // 200-visible-line frame for the splash before BIOS programs the CRTC.
     defparam ega_crtc.V_DISP = 8'd4;
     defparam ega_crtc.V_SYNCPOS = 7'd1;
     defparam ega_crtc.V_MAXSCAN = 5'd7;
@@ -451,7 +455,7 @@ module ega_top(
         .reset(reset),
         .ce_pix(ce_pix),
         .fetch_tick(ega_crtc_fetch_tick),
-        .display_enable(ega_text_mode_active ? ega_display_enable_render : 1'b0),
+        .display_enable((ega_text_mode_active && !ega_splash_active) ? ega_display_enable_render : 1'b0),
         .dot_clock_div2(ega_dot_clock_div2_active),
         .char_9dot(ega_char_9dot_active),
         .h_pixel_pan(4'd0),
@@ -469,12 +473,22 @@ module ega_top(
         .text_attr_in(ega_text_attr),
         .text_glyph_in(ega_text_glyph),
         .text_data_valid(ega_text_data_valid),
-        .splash_font_enable(ega_splash_active),
         .text_cell_addr(ega_text_cell_addr),
         .text_font_addr(ega_text_font_addr),
         .text_fetch_en(ega_text_fetch_en_raw),
         .plane_index(ega_text_plane_index),
         .pixel_valid(ega_text_pixel_valid)
+    );
+
+    ega_splash_renderer ega_splash_renderer_inst (
+        .clk            (clk),
+        .reset          (reset),
+        .ce_pix         (ce_pix),
+        .enable         (ega_splash_active),
+        .display_enable (ega_display_enable_visible),
+        .scanline       (ega_scanline_addr),
+        .pixel_index    (ega_splash_pixel_index),
+        .pixel_valid    (ega_splash_pixel_valid)
     );
 
     ega_attrib_ctrl ega_attr (
@@ -719,14 +733,10 @@ module ega_top(
     // Match 86Box more closely: writes to CRTC start address update the
     // latch immediately, but the visible fetch base only changes for the
     // next frame after vertical blank has completed.
-    wire [4:0] ega_splash_text_row = ega_scanline_addr[7:3];
-    wire [15:0] ega_splash_text_addr =
-        {5'd0, ega_splash_text_row, 6'd0} +
-        {7'd0, ega_splash_text_row, 4'd0} +
-        {8'd0, ega_char_col};
-    assign ega_fetch_addr = ega_splash_active ? ega_splash_text_addr : ega_crtc_addr_full;
+    assign ega_fetch_addr = ega_crtc_addr_full;
     assign ega_fetch_en = (!mcga_mode13_active && ega_display_sel) ? (ega_graphics_mode_active & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
-    assign ega_text_fetch_en = !mcga_mode13_active & ega_display_sel & ega_text_mode_active & ega_text_fetch_en_raw;
+    assign ega_text_fetch_en = !mcga_mode13_active & ega_display_sel & ega_text_mode_active &
+                               !ega_splash_active & ega_text_fetch_en_raw;
     assign ega_plane_write_mask_out = ega_plane_write_mask;
     assign ega_odd_even_mode_out = ega_odd_even_mode;
     assign ega_cpu_access_slot_out = ega_ce_cpu_access_unused;
