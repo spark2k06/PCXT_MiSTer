@@ -11,9 +11,13 @@ Discussion and development of the core take place in the
 
 The goal of this core is to provide a reliable IBM PC/XT-compatible machine for MiSTer. It builds on the [MCL86 core](https://github.com/MicroCoreLabs/Projects/tree/master/MCL86) from [@MicroCoreLabs](https://github.com/MicroCoreLabs/) and [KFPC-XT](https://github.com/kitune-san/KFPC-XT) from [@kitune-san](https://github.com/kitune-san).
 
-The project also acknowledges [Graphics Gremlin](https://github.com/schlae/graphics-gremlin) from TubeTimeUS ([@schlae](https://github.com/schlae)).
+The EGA and optional MCGA mode 13h implementation is based on the video
+emulation code in [86Box](https://github.com/86box/86box).
 
 [JTOPL](https://github.com/jotego/jtopl) by Jose Tejada ([@jotego](https://github.com/jotego)) provides AdLib sound.
+
+For an architectural overview, current configuration and possible future
+improvements, see the [PCXT technical report](https://aitorgomez.net/pcxt-ega/core-report).
 
 ## Key features
 
