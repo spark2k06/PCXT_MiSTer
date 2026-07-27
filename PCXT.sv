@@ -1386,6 +1386,14 @@ module emu
         video_pause_core        <= video_pause_core_buf;
     end
 
+    wire LHBL = (ega_scandouble_active || mcga_video_direct) ? HBlank : ~de_o;
+    wire LVBL = VBlank;
+
+    wire haux_video, vaux_video, hbaux_video, vbaux_video;
+
+    // Sync and blanking go through the converter with the colour so they come
+    // out of it with the same delay.  Mode 13h takes the undelayed pair below,
+    // the same way it bypasses the converter for the colour.
     video_monochrome_converter video_mono
 	(
 		.clk_vid(CLK_VIDEO_PIPELINE),
@@ -1395,16 +1403,22 @@ module emu
 		.G({g, 2'b00}),
 		.B({b, 2'b00}),
 
+		.HSync(HSync),
+		.VSync(VSync),
+		.HBlank(LHBL),
+		.VBlank(LVBL),
+
 		.gfx_mode(screen_mode_video_ff),
 
 		.R_OUT(raux_video),
 		.G_OUT(gaux_video),
-		.B_OUT(baux_video)
+		.B_OUT(baux_video),
+
+		.HSync_OUT(haux_video),
+		.VSync_OUT(vaux_video),
+		.HBlank_OUT(hbaux_video),
+		.VBlank_OUT(vbaux_video)
 	);
-
-
-    wire LHBL = (ega_scandouble_active || mcga_video_direct) ? HBlank : ~de_o;
-    wire LVBL = VBlank;
 
     wire       pre2x_LHBL, pre2x_LVBL;
     wire [7:0] pre2x_r, pre2x_g, pre2x_b;
@@ -1412,6 +1426,10 @@ module emu
     wire [7:0] video_mixer_r = mcga_video_direct ? {r, r[5:4]} : raux_video;
     wire [7:0] video_mixer_g = mcga_video_direct ? {g, g[5:4]} : gaux_video;
     wire [7:0] video_mixer_b = mcga_video_direct ? {b, b[5:4]} : baux_video;
+    wire video_mixer_hs = mcga_video_direct ? HSync : haux_video;
+    wire video_mixer_vs = mcga_video_direct ? VSync : vaux_video;
+    wire video_mixer_hb = mcga_video_direct ? LHBL  : hbaux_video;
+    wire video_mixer_vb = mcga_video_direct ? LVBL  : vbaux_video;
 	 
 
 	video_mixer #(.GAMMA(1)) video_mixer_main
@@ -1428,10 +1446,10 @@ module emu
 		.G(video_mixer_g),
 		.B(video_mixer_b),
 
-		.HBlank(LHBL),
-		.VBlank(LVBL),
-		.HSync(HSync),
-		.VSync(VSync),
+		.HBlank(video_mixer_hb),
+		.VBlank(video_mixer_vb),
+		.HSync(video_mixer_hs),
+		.VSync(video_mixer_vs),
 
 		.scandoubler(1'b0),
 		.hq2x(scale_video_ff==1),

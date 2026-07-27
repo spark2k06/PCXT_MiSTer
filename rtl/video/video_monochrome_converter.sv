@@ -7,6 +7,11 @@
 
 `timescale 1ns / 1ps
 
+// The colour is registered twice on ce_pix here.  Sync and blanking are
+// carried through the same two stages, the way gamma_corr does it, because the
+// video mixer builds its active window out of the blanking: if only the colour
+// were delayed, the picture would sit two pixels inside its own window and the
+// edge columns would never reach the output.
 module video_monochrome_converter
 (
 	input      clk_vid,
@@ -18,10 +23,20 @@ module video_monochrome_converter
 	input      [7:0] G,
 	input      [7:0] B,
 
+	input      HSync,
+	input      VSync,
+	input      HBlank,
+	input      VBlank,
+
 	// video output signals
 	output reg [7:0] R_OUT,
 	output reg [7:0] G_OUT,
-	output reg [7:0] B_OUT
+	output reg [7:0] B_OUT,
+
+	output reg HSync_OUT,
+	output reg VSync_OUT,
+	output reg HBlank_OUT,
+	output reg VBlank_OUT
 	
 );
   
@@ -84,6 +99,8 @@ module video_monochrome_converter
   reg ce_pix_d;
   wire ce_pix_rise = ce_pix & ~ce_pix_d;
 
+  reg hs, vs, hb, vb;
+
   always @(posedge clk_vid) begin
 	ce_pix_d <= ce_pix;
 	if(ce_pix_rise) begin
@@ -91,6 +108,18 @@ module video_monochrome_converter
 		r <= R;
 		g <= G;
 		b <= B;
+		
+		// Sync and blanking take the same two stages as the colour, before
+		// the gfx_mode case so every mode gets them.
+		hs <= HSync;
+		vs <= VSync;
+		hb <= HBlank;
+		vb <= VBlank;
+
+		HSync_OUT  <= hs;
+		VSync_OUT  <= vs;
+		HBlank_OUT <= hb;
+		VBlank_OUT <= vb;
 		
 		case(gfx_mode[2:0])
 			// Green monitor mode
