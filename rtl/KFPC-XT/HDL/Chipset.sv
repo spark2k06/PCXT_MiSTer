@@ -156,6 +156,10 @@ module CHIPSET #(
         // Others
         output  logic           pause_core,
         input   logic           video_scandoubler_en,
+        // EGA dot clock status, clk_video domain
+        output  logic           ega_dot_toggle,
+        output  logic           ega_dot_clock_sel,
+        output  logic           ega_scandouble_active,
         input   logic   [3:0]   crt_h_offset,
         input   logic   [2:0]   crt_v_offset,
         input   logic   [2:0]   vsync_width_osd,
@@ -374,6 +378,9 @@ module CHIPSET #(
         .xtctl                              (xtctl),
         .pause_core                         (pause_core),
         .video_scandoubler_en                  (video_scandoubler_en),
+        .ega_dot_toggle                     (ega_dot_toggle),
+        .ega_dot_clock_sel                  (ega_dot_clock_sel),
+        .ega_scandouble_active_out          (ega_scandouble_active),
         .mcga_mode13_osd                    (mcga_mode13_osd),
         .mcga_mode13_active_out             (mcga_mode13_active_out),
         .crt_h_offset                       (crt_h_offset),

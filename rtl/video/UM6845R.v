@@ -22,6 +22,11 @@ module UM6845R
 	input            CLOCK,
 	input            CLKEN,
 	input            nCLKEN,
+	// Dot clock enable.  The HSYNC delay and width shaping below are measured
+	// in dots, not in CLOCK cycles: the EGA dot clock is not a fixed fraction
+	// of CLOCK, so counting raw cycles would move HSYNC with respect to the
+	// pixel stream from line to line.
+	input            PIXEL_CE,
 	input            nRESET,
 	input            CRTC_TYPE,
 
@@ -481,27 +486,28 @@ always @(posedge CLOCK) begin
 		hsync_fixed_cnt <= 0;
 		hsync_shaped <= 0;
 	end else if (hsync_rising) begin
-		hsync_fixed_cnt <= {hsync_width_osd, 4'b0} - 1'd1; // N * 16 pixel clocks
+		hsync_fixed_cnt <= {1'b0, hsync_width_osd, 3'b0} - 1'd1; // N * 8 dots
 		hsync_shaped <= 1;
-	end else if (|hsync_fixed_cnt) begin
-		hsync_fixed_cnt <= hsync_fixed_cnt - 1'd1;
-	end else begin
-		hsync_shaped <= 0;
+	end else if (PIXEL_CE) begin
+		if (|hsync_fixed_cnt) hsync_fixed_cnt <= hsync_fixed_cnt - 1'd1;
+		else hsync_shaped <= 0;
 	end
 end
 
 // Use reshaped HSYNC only in low-res (40-col) mode when OSD override is active.
 wire hsync_effective = (|hsync_width_osd & ~hres_mode) ? hsync_shaped : hsync_raw;
 
-reg [121:0] hsync_delay_line;
-wire [6:0] hsync_delay_index = (hres_mode ? 7'd60 : 7'd120) -
-                               ({3'd0, crt_h_offset} << (hres_mode ? 2'd2 : 2'd3));
+// Same delay as before in the 14.318 MHz modes, where one dot was two CLOCK
+// cycles, but now expressed in dots so it tracks the selected dot clock.
+reg [63:0] hsync_delay_line;
+wire [5:0] hsync_delay_index = (hres_mode ? 6'd30 : 6'd60) -
+                               ({2'd0, crt_h_offset} << (hres_mode ? 2'd1 : 2'd2));
 always @(posedge CLOCK) begin
     if(~nRESET) begin
-        hsync_delay_line <= 122'd0;
+        hsync_delay_line <= 64'd0;
         HSYNC <= 1'b0;
-    end else begin
-        hsync_delay_line <= {hsync_delay_line[120:0], hsync_effective};
+    end else if (PIXEL_CE) begin
+        hsync_delay_line <= {hsync_delay_line[62:0], hsync_effective};
         HSYNC <= hsync_delay_line[hsync_delay_index];
     end
 end
@@ -620,11 +626,24 @@ reg [8:0] vsync_delay_line;
 wire [3:0] ega_crt_v_offset_sum = {1'b0, crt_v_offset} + 4'd2;
 wire [2:0] eff_crt_v_offset = ega_crtc_semantics ? (ega_crt_v_offset_sum[3] ? 3'd7 : ega_crt_v_offset_sum[2:0]) : crt_v_offset;
 wire [3:0] vsync_delay_index = 4'd7 - {1'b0, eff_crt_v_offset};
-always @(posedge HSYNC) begin
+
+// This used to be clocked by HSYNC itself, an unconstrained derived clock
+// whose phase against CLOCK was fixed only while the dot clock was a uniform
+// divide by two.  Advance it on the dot where HSYNC rises instead, so VSYNC
+// changes on a dot boundary and keeps a fixed relationship with DE.  That
+// matters in the 350 line modes, whose vertical front porch is zero.
+reg hsync_dot_q;
+wire hsync_dot_rise = PIXEL_CE & HSYNC & ~hsync_dot_q;
+always @(posedge CLOCK) begin
+    if(~nRESET) hsync_dot_q <= 1'b0;
+    else if (PIXEL_CE) hsync_dot_q <= HSYNC;
+end
+
+always @(posedge CLOCK) begin
     if(~nRESET) begin
         vsync_delay_line <= 9'd0;
         VSYNC <= 1'b0;
-    end else begin
+    end else if (hsync_dot_rise) begin
         vsync_delay_line <= {vsync_delay_line[7:0], vsync_raw};
         VSYNC <= vsync_delay_line[vsync_delay_index];
     end

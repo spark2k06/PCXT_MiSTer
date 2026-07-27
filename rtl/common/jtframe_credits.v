@@ -79,6 +79,12 @@ wire [7:0]        font_data;
 reg  [MSGW-1:0]   scan_addr;
 wire [9:0]        font_addr = {scan_data[6:0],
                         rotate==2'b11 ? (~vdump[2:0]+3'd1) : vdump[2:0] };
+// PCXT local deviation from JTFRAME: CE_PIXEL in this core is not uniform.
+// At the EGA 16.257 MHz dot clock consecutive pxl_cen pulses can be two clk
+// cycles apart, while the scan_addr -> scan_data -> font_addr -> font_data
+// RAM chain takes three.  Read one character ahead and keep the result until
+// its normal consume point; hscan is 10 bits, so this also wraps correctly.
+wire [HPOSW-1:0]  hscan_next = hscan + 10'd8;
 wire              visible = vrender < MAXVISIBLE;
 reg               last_toggle, last_enable;
 reg               show, hide;
@@ -120,6 +126,8 @@ localparam MULTIPAGE = MSGW > 11;
 wire hb = BLKPOL ? HB : ~HB;
 wire vb = BLKPOL ? VB : ~VB;
 reg [7:0] pxl_data;
+reg [1:0] pal_next;
+reg [7:0] pxl_data_next;
 wire tate      = rotate[0],
      tate_flip = rotate==2'b11;
 
@@ -171,16 +179,24 @@ always @(posedge clk) begin
         //if( /*tate || hn[2:0]==3'd0 || hb || vb ) begin
             scan_addr <= tate ?
                 { rotate[1] ? vidx_flip : vdump[VPOSW-1:3], vrender[7:3]^{5{~rotate[1]}} } :
-                { vdump[VPOSW-1:3], hscan[8:3] };
+                { vdump[VPOSW-1:3], hscan_next[8:3] };
         //end
         // Draw
         if( tate ) begin
             pxl <= { scan_data[8:7], font_data[ vrender[2:0] ^{3{rotate[1]}} ] };
         end else begin
             pxl <= { pal, pxl_data[7] };
+            // The address for this character was issued at the previous
+            // character's hscan[2:0]==0.  Capture at six: even with the
+            // minimum two-clk pixel gap it has six pixel times (12 clk) to
+            // settle, and it is held until the unchanged load at one.
+            if( hscan[2:0]==3'd6 ) begin
+                pal_next      <= scan_data[8:7];
+                pxl_data_next <= font_data;
+            end
             if( hscan[2:0]==3'd1 ) begin
-                pal      <= scan_data[8:7];
-                pxl_data <= font_data;
+                pal      <= pal_next;
+                pxl_data <= pxl_data_next;
             end else begin
                 pxl_data <= pxl_data << 1;
             end

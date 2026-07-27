@@ -24,6 +24,7 @@ improvements, see the [PCXT technical report](https://aitorgomez.net/pcxt-ega/co
 * 8088 CPU speed settings: 4.77 MHz, 7.16 MHz, 9.54 MHz, and PC/AT 3.5 MHz equivalent (maximum speed)
 * IBM PC/XT 5160 and compatible systems with an EGA-centered video path
 * CGA-compatible text and graphics behavior implemented through EGA
+* Dual EGA dot clock, 14.318181 MHz and 16.257 MHz, selected per mode as on real hardware
 * Optional MCGA mode 13h (320x200x256), controlled from the OSD and disabled by default
 * 640 KiB conventional memory plus 384 KiB UMB
 * EGA BIOS option ROM support

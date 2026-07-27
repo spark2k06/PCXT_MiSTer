@@ -132,6 +132,10 @@ module PERIPHERALS #(
         // Others
         output  logic           pause_core,
         input   logic           video_scandoubler_en,
+        // EGA dot clock status, clk_video domain
+        output  logic           ega_dot_toggle,
+        output  logic           ega_dot_clock_sel,
+        output  logic           ega_scandouble_active_out,
         input   logic           mcga_mode13_osd,
         output  logic           mcga_mode13_active_out,
         input   logic   [3:0]   crt_h_offset,
@@ -966,6 +970,7 @@ end
     wire       hsync_ega_raw;
     wire       hsync_ega_sd;
     wire       video_display_active;
+    wire       ega_scandouble_active;
 
     assign VGA_R = R_EGA;
     assign VGA_G = G_EGA;
@@ -977,7 +982,8 @@ end
     assign VGA_VBlank = VBLANK_EGA;
 
     assign de_o = de_o_ega;
-    assign HSYNC_EGA = video_scandoubler_en ? hsync_ega_sd : hsync_ega_raw;
+    assign HSYNC_EGA = ega_scandouble_active ? hsync_ega_sd : hsync_ega_raw;
+    assign ega_scandouble_active_out = ega_scandouble_active;
 
     wire        EGA_IO_OE;
     logic       EGA_IO_OE_SYNC1;
@@ -1099,6 +1105,9 @@ end
         .ega_green                  (G_EGA),
         .ega_blue                   (B_EGA),
         .ega_display_sel_out        (video_display_active),
+        .ega_dot_toggle_out         (ega_dot_toggle),
+        .ega_dot_clock_sel_out      (ega_dot_clock_sel),
+        .ega_scandouble_active_out  (ega_scandouble_active),
         .splashscreen               (splashscreen),
         .thin_font                  (thin_font),
         .scandouble_en              (video_scandoubler_en),

@@ -287,6 +287,9 @@ module emu
 
     wire forced_scandoubler;
     wire mcga_mode13_active_video;
+    wire ega_dot_toggle;
+    wire ega_dot_clock_sel;
+    wire ega_scandouble_active;
     wire [1:0] buttons;
     wire [63:0] status;
     wire mcga_mode13_osd = status[29];
@@ -462,8 +465,7 @@ module emu
     // TODO: messy, use a single clock domain at least
     always @(posedge clk_28_636)
     begin
-        clk_14_318 <= ~clk_14_318;  // 14.318Mhz
-        ce_pixel_14 <= clk_14_318;	//keep the 14.318 MHz pixel enable registered in this clock domain
+        clk_14_318 <= ~clk_14_318;  // 14.318Mhz, UART reference and splash timebase
     end
 
     //////////////////////////////////////////////////////////////////
@@ -1070,6 +1072,9 @@ module emu
 		.ram_write_wait_cycle               (ram_write_wait_cycle),
 		.pause_core                         (pause_core),
 		.video_scandoubler_en                  (video_scandoubler_en),
+		.ega_dot_toggle                     (ega_dot_toggle),
+		.ega_dot_clock_sel                  (ega_dot_clock_sel),
+		.ega_scandouble_active              (ega_scandouble_active),
 		.crt_h_offset                       (status[49:46]),
 		.crt_v_offset                       (status[52:50]),
 		.vsync_width_osd                    (vsync_width_osd),
@@ -1300,7 +1305,6 @@ module emu
     wire HSync;
     wire VBlank;
     wire VSync;
-    reg  ce_pixel_14 = 1'b0;
     wire de_o;
     wire [5:0] r, g, b;
     reg [7:0] raux_video, gaux_video, baux_video;
@@ -1318,7 +1322,25 @@ module emu
     wire        CE_PIXEL_video;
     reg         ce_pixel_28 = 1'b0;
     wire        mcga_video_direct = mcga_mode13_active_video;
-    wire        ce_pixel_video = (video_scandoubler_en || mcga_video_direct) ? ce_pixel_28 : ce_pixel_14;
+
+    // The EGA dot rate is no longer a fixed 14.318 MHz: in the 16.257 MHz
+    // modes consecutive dots can land on adjacent clk_28_636 edges, which in
+    // this domain would be a single wide level with only one rising edge.  The
+    // EGA exports a toggle instead, one flip per dot.  Exactly one
+    // synchroniser stage before the XOR: both clocks come from pll_system with
+    // a 2:1 ratio and no phase shift, and a second stage would push the enable
+    // past the end of the short dots of the 16.257 MHz pattern.
+    reg         ega_dot_toggle_d = 1'b0;
+    reg         ega_dot_toggle_dd = 1'b0;
+
+    always @(posedge clk_57_272)
+    begin
+        ega_dot_toggle_d  <= ega_dot_toggle;
+        ega_dot_toggle_dd <= ega_dot_toggle_d;
+    end
+
+    wire        ce_pixel_dot = ega_dot_toggle_d ^ ega_dot_toggle_dd;
+    wire        ce_pixel_video = (ega_scandouble_active || mcga_video_direct) ? ce_pixel_28 : ce_pixel_dot;
 
     reg  [7:0]  VGA_R_video_src = 8'd0;
     reg  [7:0]  VGA_G_video_src = 8'd0;
@@ -1381,7 +1403,7 @@ module emu
 	);
 
 
-    wire LHBL = (video_scandoubler_en || mcga_video_direct) ? HBlank : ~de_o;
+    wire LHBL = (ega_scandouble_active || mcga_video_direct) ? HBlank : ~de_o;
     wire LVBL = VBlank;
 
     wire       pre2x_LHBL, pre2x_LVBL;

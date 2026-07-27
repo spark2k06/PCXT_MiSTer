@@ -69,6 +69,9 @@ module ega_top(
     output [5:0] ega_green,
     output [5:0] ega_blue,
     output ega_display_sel_out,
+    output ega_dot_toggle_out,
+    output ega_dot_clock_sel_out,
+    output ega_scandouble_active_out,
     input splashscreen,
     input thin_font,
     input scandouble_en,
@@ -91,22 +94,31 @@ module ega_top(
     localparam [3:0] EGA_STD_HSYNC_W_HI = 4'd10;
     localparam [3:0] EGA_STD_HSYNC_W_LO = 4'd5;
 
-    reg [4:0] ega_clkdiv = 5'd0;
+    // Dot clock selected by Miscellaneous Output bit 2, as on a real EGA:
+    // 0 = 14.318181 MHz (CGA compatible modes), 1 = 16.257 MHz (350 line
+    // modes and MDA compatible mode 7).
+    wire ce_pix;
+    wire ce_pix_early;
+    wire ce_pix_2x;
+    wire ega_dot_toggle;
+    wire ega_hifreq_mode;
 
-    always @(posedge clk or posedge reset) begin
-        if (reset)
-            ega_clkdiv <= 5'd0;
-        else
-            ega_clkdiv <= ega_clkdiv + 5'd1;
-    end
+    ega_dot_clock ega_dot_clock_inst (
+        .clk            (clk),
+        .reset          (reset),
+        .clock_select   (ega_hifreq_mode),
+        .ce_dot         (ce_pix),
+        .ce_dot_early   (ce_pix_early),
+        .ce_dot_2x      (ce_pix_2x),
+        .dot_toggle     (ega_dot_toggle)
+    );
 
-
-    wire ce_pix = ega_clkdiv[0];
     wire [15:0] ega_io_addr = {1'b0, bus_a};
     wire ega_io_we = ~bus_iow_l & ~bus_aen & ega_enabled;
     wire ega_io_re = ~bus_ior_l & ~bus_aen & ega_enabled;
     reg [7:0] ega_misc_output_reg = 8'h63;
     wire ega_color_io_select = ega_misc_output_reg[0];
+    assign ega_hifreq_mode = ega_misc_output_reg[2];
     wire ega_color_crtc_cs = (bus_a[14:1] == (15'h03D4 >> 1));
     wire ega_mono_crtc_cs = (bus_a[14:1] == (15'h03B4 >> 1));
     wire ega_color_status_cs = (bus_a == 15'h03DA);
@@ -200,6 +212,7 @@ module ega_top(
     wire ega_chain2_write;
     wire ega_extended_memory;
     wire ega_ce_crt_fetch;
+    wire ega_ce_crt_fetch_early;
     wire ega_ce_cpu_access_unused;
     wire ega_dot_clock_div2;
     wire [7:0] ega_gfx_data_out;
@@ -320,6 +333,7 @@ module ega_top(
     UM6845R ega_crtc (
         .CLOCK(clk),
         .CLKEN(ega_crtc_fetch_tick),
+        .PIXEL_CE(ce_pix),
         .nRESET(~reset),
         .CRTC_TYPE(1'b1),
         .ENABLE(1'b1),
@@ -390,6 +404,7 @@ module ega_top(
         .clk(clk),
         .reset(reset),
         .ce_pix(ce_pix),
+        .ce_pix_early(ce_pix_early),
         .io_addr(ega_io_addr),
         .io_data_in(bus_d),
         .io_data_out(ega_seq_data_out),
@@ -399,6 +414,7 @@ module ega_top(
         .chain2_write(ega_chain2_write),
         .extended_memory(ega_extended_memory),
         .ce_crt_fetch(ega_ce_crt_fetch),
+        .ce_crt_fetch_early(ega_ce_crt_fetch_early),
         .ce_cpu_access(ega_ce_cpu_access_unused),
         .dot_clock_div2(ega_dot_clock_div2),
         .char_9dot(ega_char_9dot),
@@ -564,11 +580,18 @@ module ega_top(
     wire ega_vblank_sd;
     wire ega_display_enable_sd;
     wire ega_visible_vblank = ~ega_vertical_display_enable_crtc;
+
+    // The line doubler needs an output enable at exactly twice the dot rate.
+    // 2 x 16.257 MHz cannot be produced from the 28.636 MHz video clock, and
+    // the 16.257 MHz modes scan at 18.4 - 21.9 kHz, well above the 15.7 kHz
+    // that made doubling useful in the first place, so it is bypassed there.
+    wire ega_scandouble_active = scandouble_en & ~ega_hifreq_mode;
+
     video_scandoubler #(.PIXEL_WIDTH(6), .H_TOTAL_MAX(912)) ega_scandoubler (
         .clk(clk),
         .ce_pix(ce_pix),
-        .ce_2x(1'b1),
-        .scandouble_en(scandouble_en),
+        .ce_2x(ce_pix_2x),
+        .scandouble_en(ega_scandouble_active),
         .pixel_in(ega_color_raw),
         .hsync_in(ega_hsync_int),
         .vsync_in(ega_vsync_l),
@@ -582,7 +605,7 @@ module ega_top(
     );
 
     wire ega_vsync = ~ega_vsync_l;
-    wire [5:0] ega_video_selected = scandouble_en ? ega_dbl_color : ega_color_raw;
+    wire [5:0] ega_video_selected = ega_scandouble_active ? ega_dbl_color : ega_color_raw;
     wire ega_vblank_rise = ~ega_vblank_q & ega_visible_vblank;
 
     ega_vgaport ega_rgb_conv (
@@ -734,7 +757,11 @@ module ega_top(
     // latch immediately, but the visible fetch base only changes for the
     // next frame after vertical blank has completed.
     assign ega_fetch_addr = ega_crtc_addr_full;
-    assign ega_fetch_en = (!mcga_mode13_active && ega_display_sel) ? (ega_graphics_mode_active & ega_ce_crt_fetch & ega_display_enable_render) : 1'b0;
+    // Issued one clock ahead of the character dot: the plane data has a fixed
+    // two clock latency, and on the 16.257 MHz enable the next dot can be one
+    // clock away, in which case data launched on the tick itself would arrive
+    // a dot late and shift that character by one pixel.
+    assign ega_fetch_en = (!mcga_mode13_active && ega_display_sel) ? (ega_graphics_mode_active & ega_ce_crt_fetch_early & ega_display_enable_render) : 1'b0;
     assign ega_text_fetch_en = !mcga_mode13_active & ega_display_sel & ega_text_mode_active &
                                !ega_splash_active & ega_text_fetch_en_raw;
     assign ega_plane_write_mask_out = ega_plane_write_mask;
@@ -767,13 +794,17 @@ module ega_top(
     assign ega_blue = mcga_mode13_active ? mcga_blue : ega_blue_compat;
     assign hsync = ega_enabled ? (mcga_mode13_active ? mcga_hsync : ega_hsync_int) : 1'b1;
     assign dbl_hsync = ega_enabled ? (mcga_mode13_active ? mcga_hsync : ega_dbl_hsync) : 1'b1;
-    assign hblank = ega_enabled ? (mcga_mode13_active ? mcga_hblank : (scandouble_en ? ~ega_display_enable_sd : ega_hblank_crtc)) : 1'b1;
-    assign vsync = ega_enabled ? (mcga_mode13_active ? mcga_vsync : (scandouble_en ? ~ega_vsync_sd_l : ega_vsync)) : 1'b1;
-    assign vblank = ega_enabled ? (mcga_mode13_active ? mcga_vblank : (scandouble_en ? ega_vblank_sd : ega_visible_vblank)) : 1'b1;
-    assign vblank_border = ega_enabled ? (mcga_mode13_active ? mcga_vblank : (scandouble_en ? ega_vblank_sd : ega_vblank_crtc)) : 1'b1;
+    assign hblank = ega_enabled ? (mcga_mode13_active ? mcga_hblank : (ega_scandouble_active ? ~ega_display_enable_sd : ega_hblank_crtc)) : 1'b1;
+    assign vsync = ega_enabled ? (mcga_mode13_active ? mcga_vsync : (ega_scandouble_active ? ~ega_vsync_sd_l : ega_vsync)) : 1'b1;
+    assign vblank = ega_enabled ? (mcga_mode13_active ? mcga_vblank : (ega_scandouble_active ? ega_vblank_sd : ega_visible_vblank)) : 1'b1;
+    assign vblank_border = ega_enabled ? (mcga_mode13_active ? mcga_vblank : (ega_scandouble_active ? ega_vblank_sd : ega_vblank_crtc)) : 1'b1;
     assign std_hsyncwidth = ega_enabled
                           ? (ega_hsync_width_crtc == (ega_dot_clock_div2_active ? EGA_STD_HSYNC_W_LO : EGA_STD_HSYNC_W_HI))
                           : 1'b0;
     assign de_o = mcga_mode13_active ? mcga_de :
-                  (ega_display_sel ? (scandouble_en ? ega_display_enable_sd : ega_display_enable_raw) : 1'b0);
+                  (ega_display_sel ? (ega_scandouble_active ? ega_display_enable_sd : ega_display_enable_raw) : 1'b0);
+
+    assign ega_dot_toggle_out = ega_dot_toggle;
+    assign ega_dot_clock_sel_out = ega_hifreq_mode;
+    assign ega_scandouble_active_out = ega_scandouble_active;
 endmodule
