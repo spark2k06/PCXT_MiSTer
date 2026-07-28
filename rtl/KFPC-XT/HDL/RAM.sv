@@ -4,6 +4,10 @@
 //
 // Based on KFPC-XT written by @kitune-san
 //
+`ifndef ENABLE_EMS
+`define ENABLE_EMS 0
+`endif
+
 module RAM (
     input   logic           clock,
     input   logic           reset,
@@ -63,11 +67,16 @@ module RAM (
     logic   [1:0]   write_wait_count;
     logic           access_ready;
 
+    wire ems_bank_select = ems_b1 | ems_b2 | ems_b3 | ems_b4;
+    wire ems_page_frame  = `ENABLE_EMS && (address[19:16] == 4'b1101);
+
     //
-    // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xFFFFF)
+    // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xFFFFF).
+    // D0000-DFFFF is reserved for EMS and only responds for a mapped bank.
     //
     assign ram_address_select_n = ~(enable_sdram && ~(address[19:16] == 4'b1011) &&  // B0000h reserved for VRAM
-	                               ~(~enable_a000h && address[19:16] == 4'b1010));    // A0000h is optional
+	                               ~(~enable_a000h && address[19:16] == 4'b1010) &&  // A0000h is optional
+	                               (~ems_page_frame || ems_bank_select));
 	 
 
     //
