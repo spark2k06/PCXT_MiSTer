@@ -43,8 +43,6 @@ module RAM (
      input   logic           ems_b4,
      // BIOS
      input  logic    [2:0]  bios_protect_flag,
-    // Optional flags
-    input  logic           enable_a000h,
     // Wait mode
     input   logic           wait_count_clk_en,
     input   logic   [1:0]   ram_read_wait_cycle,
@@ -71,11 +69,11 @@ module RAM (
     wire ems_page_frame  = `ENABLE_EMS && (address[19:16] == 4'b1101);
 
     //
-    // RAM Address Select (0x00000-0xAFFFF and 0xC0000-0xFFFFF).
+    // RAM Address Select (0x00000-0x9FFFF and 0xC0000-0xFFFFF).
+    // A0000-BFFFF is reserved for video.
     // D0000-DFFFF is reserved for EMS and only responds for a mapped bank.
     //
-    assign ram_address_select_n = ~(enable_sdram && ~(address[19:16] == 4'b1011) &&  // B0000h reserved for VRAM
-	                               ~(~enable_a000h && address[19:16] == 4'b1010) &&  // A0000h is optional
+    assign ram_address_select_n = ~(enable_sdram && ~(address[19:17] == 3'b101) &&
 	                               (~ems_page_frame || ems_bank_select));
 	 
 

@@ -19,9 +19,6 @@
 `ifndef CONF_STR_SYSTEM
 `define CONF_STR_SYSTEM "PCXT;UART115200:115200;"
 `endif
-`ifndef ENABLE_A000_UMB
-`define ENABLE_A000_UMB 0
-`endif
 `ifndef ENABLE_OPL2
 `define ENABLE_OPL2 0
 `endif
@@ -228,7 +225,6 @@ module emu
     localparam CONF_STR_CMS = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
     localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
     localparam CONF_STR_EMS = (`ENABLE_EMS ? "P3OB,Lo-tech 2MB EMS,Enabled,Disabled;P3-;" : "");
-    localparam CONF_STR_A000 = (`ENABLE_A000_UMB ? "P3o9,A000 UMB,Enabled,Disabled;P3-;" : "");
 
     localparam CONF_STR = {
 		`CONF_STR_SYSTEM,
@@ -273,7 +269,6 @@ module emu
 		"P3,Hardware;",
 		"P3-;",
 		CONF_STR_EMS,
-		CONF_STR_A000,
 		"P3ONO,Joystick 1, Analog, Digital, Disabled;",
 		"P3OPQ,Joystick 2, Analog, Digital, Disabled;",
 		"P3OR,Sync Joy to CPU Speed,No,Yes;",
@@ -1066,7 +1061,6 @@ module emu
 		.fdd_request                        (mgmt_req[7:6]),
 		.ide0_request                       (mgmt_req[2:0]),
 		.xtctl                              (xtctl),
-		.enable_a000h                       (1'b0),
 		.wait_count_clk_en                  (cpu_ce_negedge),
 		.ram_read_wait_cycle                (ram_read_wait_cycle),
 		.ram_write_wait_cycle               (ram_write_wait_cycle),

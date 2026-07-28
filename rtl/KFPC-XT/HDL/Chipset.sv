@@ -147,8 +147,6 @@ module CHIPSET #(
         output  logic   [2:0]   ide0_request,
         // XTCTL DATA
         output  logic   [7:0]   xtctl,
-        // Optional flags
-        input   logic           enable_a000h,
         // RAM wait mode
         input   logic           wait_count_clk_en,
         input   logic   [1:0]   ram_read_wait_cycle,
@@ -421,7 +419,6 @@ module CHIPSET #(
         .ems_b3                             (ems_b3),
         .ems_b4                             (ems_b4),
         .bios_protect_flag                  (bios_protect_flag),
-        .enable_a000h                       (enable_a000h),
         .wait_count_clk_en                  (wait_count_clk_en),
         .ram_read_wait_cycle                (ram_read_wait_cycle),
         .ram_write_wait_cycle               (ram_write_wait_cycle)
