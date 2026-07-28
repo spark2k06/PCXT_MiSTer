@@ -227,7 +227,7 @@ module emu
     localparam CONF_STR_ROM = "P1FC0,ROM,PCXT BIOS:;";
     localparam CONF_STR_CMS = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
     localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
-    localparam CONF_STR_EMS = (`ENABLE_EMS ? "P3OB,Lo-tech 2MB EMS,Enabled,Disabled;P3OCD,EMS Frame,C000,D000,E000;P3-;" : "");
+    localparam CONF_STR_EMS = (`ENABLE_EMS ? "P3OB,Lo-tech 2MB EMS,Enabled,Disabled;P3-;" : "");
     localparam CONF_STR_A000 = (`ENABLE_A000_UMB ? "P3o9,A000 UMB,Enabled,Disabled;P3-;" : "");
 
     localparam CONF_STR = {
@@ -934,7 +934,7 @@ module emu
 
 
     wire ems_enabled_sel = `ENABLE_EMS ? ~status[11] : 1'b0;
-    wire [1:0] ems_address_sel = `ENABLE_EMS ? status[13:12] : 2'b00;
+    wire [1:0] ems_address_sel = 2'b01; // Fixed D000 page frame avoids EGA and XT-IDE ROM conflicts.
 
     always @(posedge clk_chipset)
     begin
