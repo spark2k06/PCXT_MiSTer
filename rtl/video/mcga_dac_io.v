@@ -7,7 +7,8 @@
 module mcga_dac_io(
     input  wire        clock,
     input  wire        reset,
-    input  wire        reset_palette,
+    input  wire        load_defaults,
+    input  wire        invalidate,
 
     input  wire        read_index_write,
     input  wire        write_index_write,
@@ -24,7 +25,8 @@ module mcga_dac_io(
     output wire [5:0]  sample_blue,
     output wire [7:0]  sample_red_8,
     output wire [7:0]  sample_green_8,
-    output wire [7:0]  sample_blue_8
+    output wire [7:0]  sample_blue_8,
+    output wire        sample_valid
 );
 
     reg [7:0] write_index = 8'h00;
@@ -50,7 +52,8 @@ module mcga_dac_io(
     mcga_dac dac (
         .clock                  (clock),
         .reset                  (reset),
-        .reset_palette          (reset_palette),
+        .load_defaults          (load_defaults),
+        .invalidate             (invalidate),
         .write_en               (1'b0),
         .write_index            (8'h00),
         .write_red              (6'h00),
@@ -67,6 +70,7 @@ module mcga_dac_io(
         .sample_red_8           (sample_red_8),
         .sample_green_8         (sample_green_8),
         .sample_blue_8          (sample_blue_8),
+        .sample_valid           (sample_valid),
         .port_index             (read_index),
         .port_red               (port_red),
         .port_green             (port_green),
@@ -95,7 +99,7 @@ module mcga_dac_io(
         end else begin
             data_read_q <= data_read;
 
-            if (reset_palette) begin
+            if (load_defaults) begin
                 write_index <= 8'h00;
                 read_index <= 8'h00;
                 write_component <= 2'd0;

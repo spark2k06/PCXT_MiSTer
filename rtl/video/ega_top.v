@@ -150,6 +150,8 @@ module ega_top(
     wire mcga_mode13_exit = mcga_mode13_clear | mcga_mode13_bios_clear;
     wire [7:0] mcga_dac_io_data_out;
     wire [7:0] mcga_dac_sample_index;
+    wire [7:0] mcga_renderer_dac_index;
+    wire       mcga_dac_sample_valid;
     wire [5:0] mcga_dac_sample_red;
     wire [5:0] mcga_dac_sample_green;
     wire [5:0] mcga_dac_sample_blue;
@@ -543,7 +545,8 @@ module ega_top(
     mcga_dac_io mcga_dac_io_inst (
         .clock              (clk),
         .reset              (reset),
-        .reset_palette      (mcga_mode13_enter),
+        .load_defaults      (mcga_mode13_enter),
+        .invalidate         (mcga_mode13_exit),
         .read_index_write   (mcga_dac_read_index_write_evt),
         .write_index_write  (mcga_dac_write_index_write_evt),
         .data_write         (mcga_dac_data_write_evt),
@@ -558,8 +561,18 @@ module ega_top(
         .sample_blue        (mcga_dac_sample_blue),
         .sample_red_8       (mcga_dac_sample_red_8),
         .sample_green_8     (mcga_dac_sample_green_8),
-        .sample_blue_8      (mcga_dac_sample_blue_8)
+        .sample_blue_8      (mcga_dac_sample_blue_8),
+        .sample_valid       (mcga_dac_sample_valid)
     );
+
+    // MCGA mode 13h renders through its own dedicated index into the shared
+    // DAC; every other mode reuses the same 256-entry DAC to let a VGA-aware
+    // EGA program page its 16/256-colour palette through the same ports,
+    // falling back to the classic EGA DAC-less palette (ega_vgaport) for any
+    // entry the program never touched. See docs/mcga-vga-palette.md. The mux
+    // source for the non-mode13h case (ega_video_selected) is only available
+    // after the scandoubler below, so this wire is driven further down.
+    wire ega_dac_hit = mcga_enabled & ~mcga_mode13_active & mcga_dac_sample_valid;
 
     mcga_mode13_renderer mcga_renderer (
         .clock                  (clk),
@@ -569,7 +582,7 @@ module ega_top(
         .framebuffer_read_en    (mcga_framebuffer_read_en),
         .framebuffer_pixel      (mcga_framebuffer_pixel),
         .framebuffer_data_valid (mcga_framebuffer_data_valid),
-        .dac_index              (mcga_dac_sample_index),
+        .dac_index              (mcga_renderer_dac_index),
         .dac_red                (mcga_dac_sample_red),
         .dac_green              (mcga_dac_sample_green),
         .dac_blue               (mcga_dac_sample_blue),
@@ -616,6 +629,8 @@ module ega_top(
     wire ega_vsync = ~ega_vsync_l;
     wire [5:0] ega_video_selected = ega_scandouble_active ? ega_dbl_color : ega_color_raw;
     wire ega_vblank_rise = ~ega_vblank_q & ega_visible_vblank;
+    assign mcga_dac_sample_index = mcga_mode13_active ? mcga_renderer_dac_index
+                                                       : {2'b00, ega_video_selected};
 
     ega_vgaport ega_rgb_conv (
         .color(ega_video_selected),
@@ -801,9 +816,12 @@ module ega_top(
 
     assign bus_out = ega_bus_out_mux;
     assign bus_dir = ega_enabled ? ega_bus_dir_sel : 1'b0;
-    assign ega_red = mcga_mode13_active ? mcga_red : ega_red_compat;
-    assign ega_green = mcga_mode13_active ? mcga_green : ega_green_compat;
-    assign ega_blue = mcga_mode13_active ? mcga_blue : ega_blue_compat;
+    assign ega_red   = mcga_mode13_active ? mcga_red
+                     : ega_dac_hit        ? mcga_dac_sample_red   : ega_red_compat;
+    assign ega_green = mcga_mode13_active ? mcga_green
+                     : ega_dac_hit        ? mcga_dac_sample_green : ega_green_compat;
+    assign ega_blue  = mcga_mode13_active ? mcga_blue
+                     : ega_dac_hit        ? mcga_dac_sample_blue  : ega_blue_compat;
     assign hsync = ega_enabled ? (mcga_mode13_active ? mcga_hsync : ega_hsync_int) : 1'b1;
     assign dbl_hsync = ega_enabled ? (mcga_mode13_active ? mcga_hsync : ega_dbl_hsync) : 1'b1;
     assign hblank = ega_enabled ? (mcga_mode13_active ? mcga_hblank : (ega_scandouble_active ? ~ega_display_enable_sd : ega_hblank_crtc)) : 1'b1;

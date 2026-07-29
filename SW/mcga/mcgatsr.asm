@@ -67,7 +67,14 @@ start:
 int10_hook:
     cmp ah, 00h
     jne .check_get_mode
+    ; Bit 7 of AL is the standard "do not clear video memory" flag, part of
+    ; the mode number on any VGA BIOS; games do use AL=93h to re-enter mode
+    ; 13h without a flash. Mask it only for the compare, so AX keeps flowing
+    ; into set_mode13/clear_and_chain exactly as the caller passed it.
+    push ax
+    and al, 7Fh
     cmp al, 13h
+    pop ax
     jne .clear_and_chain
     push ax
     call mcga_available
@@ -144,7 +151,15 @@ int10_hook:
 .check_palette:
     cmp ah, 10h
     jne .chain
-    cmp byte [cs:current_mode], 13h
+    ; The DAC subfunctions (AL=10h/12h/15h/17h) are VGA-only: the EGA BIOS
+    ; underneath does not implement them and drops them silently. The core's
+    ; DAC now feeds every mode, not just mode 13h (see ega_dac_hit in
+    ; ega_top.v), so serve these in any mode, gated only on MCGA being
+    ; available, matching how a real VGA answers this call regardless of
+    ; the current video mode.
+    push ax
+    call mcga_available
+    pop ax
     jne .chain
     cmp al, 10h
     je .set_one_dac

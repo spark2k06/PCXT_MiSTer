@@ -7,7 +7,8 @@
 module mcga_dac(
     input  wire        clock,
     input  wire        reset,
-    input  wire        reset_palette,
+    input  wire        load_defaults,
+    input  wire        invalidate,
 
     input  wire        write_en,
     input  wire [7:0]  write_index,
@@ -27,6 +28,7 @@ module mcga_dac(
     output wire [7:0]  sample_red_8,
     output wire [7:0]  sample_green_8,
     output wire [7:0]  sample_blue_8,
+    output wire        sample_valid,
 
     input  wire [7:0]  port_index,
     output wire [5:0]  port_red,
@@ -37,6 +39,13 @@ module mcga_dac(
     reg [5:0] red_ram[0:255];
     reg [5:0] green_ram[0:255];
     reg [5:0] blue_ram[0:255];
+    // Set for every index loaded by load_defaults (i.e. while MCGA mode 13h
+    // is active) or explicitly written through the DAC ports; cleared by
+    // invalidate (a mode set to anything other than mode 13h). Lets the EGA
+    // path fall back to its own palette for any entry a VGA-unaware EGA
+    // program never touched, instead of guessing a single default table that
+    // cannot serve both the VGA and EGA 200-line attribute code conventions.
+    reg [255:0] entry_valid;
 
     integer reset_index;
 
@@ -279,16 +288,21 @@ module mcga_dac(
                 green_ram[reset_index] <= default_component(reset_index[7:0], 2'd1);
                 blue_ram[reset_index] <= default_component(reset_index[7:0], 2'd2);
             end
-        end else if (reset_palette) begin
+            entry_valid <= 256'd0;
+        end else if (load_defaults) begin
             for (reset_index = 0; reset_index < 256; reset_index = reset_index + 1) begin
                 red_ram[reset_index] <= default_component(reset_index[7:0], 2'd0);
                 green_ram[reset_index] <= default_component(reset_index[7:0], 2'd1);
                 blue_ram[reset_index] <= default_component(reset_index[7:0], 2'd2);
             end
+            entry_valid <= {256{1'b1}};
+        end else if (invalidate) begin
+            entry_valid <= 256'd0;
         end else if (write_en) begin
             red_ram[write_index] <= write_red;
             green_ram[write_index] <= write_green;
             blue_ram[write_index] <= write_blue;
+            entry_valid[write_index] <= 1'b1;
         end else if (component_write_en) begin
             case (component_select)
                 2'd0: red_ram[component_write_index] <= component_data;
@@ -297,6 +311,7 @@ module mcga_dac(
                 default: begin
                 end
             endcase
+            entry_valid[component_write_index] <= 1'b1;
         end
     end
 
@@ -306,6 +321,7 @@ module mcga_dac(
     assign sample_red_8 = {sample_red, sample_red[5:4]};
     assign sample_green_8 = {sample_green, sample_green[5:4]};
     assign sample_blue_8 = {sample_blue, sample_blue[5:4]};
+    assign sample_valid = entry_valid[sample_index];
     assign port_red = red_ram[port_index];
     assign port_green = green_ram[port_index];
     assign port_blue = blue_ram[port_index];
