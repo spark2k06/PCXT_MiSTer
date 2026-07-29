@@ -116,6 +116,22 @@ module ega_top(
     wire [15:0] ega_io_addr = {1'b0, bus_a};
     wire ega_io_we = ~bus_iow_l & ~bus_aen & ega_enabled;
     wire ega_io_re = ~bus_ior_l & ~bus_aen & ega_enabled;
+
+    // bus_a, bus_d and the strobes reach this module through independent
+    // two-stage synchronisers (Peripherals.sv), one per bit, so they do not
+    // all resolve on the same video clock. While an address changes, the
+    // decoders below can see an address that was never on the bus: 0x3C5 ->
+    // 0x3CF, a pair the BIOS and every EGA program write constantly, passes
+    // through 0x3CD when bit 3 lands a cycle before bit 1. Ports whose writes
+    // have side effects have to ignore those transients, so qualify them with
+    // two identical consecutive samples. A real I/O cycle holds the bus for
+    // far longer than one video clock, so nothing legitimate is lost.
+    reg [14:0] bus_a_q = 15'd0;
+    reg [7:0]  bus_d_q = 8'd0;
+    reg        bus_iow_l_q = 1'b1;
+    reg        bus_aen_q = 1'b0;
+    wire bus_settled = (bus_a == bus_a_q) & (bus_d == bus_d_q)
+                     & (bus_iow_l == bus_iow_l_q) & (bus_aen == bus_aen_q);
     reg [7:0] ega_misc_output_reg = 8'h63;
     wire ega_color_io_select = ega_misc_output_reg[0];
     assign ega_hifreq_mode = ega_misc_output_reg[2];
@@ -144,8 +160,8 @@ module ega_top(
     // OSD has MCGA mode 13h available, and must not claim VGA on a machine that
     // will never render it. 0x13 echoes the value used to enter the mode.
     wire [7:0] mcga_mode13_status = mcga_enabled ? 8'h13 : 8'h00;
-    wire mcga_mode13_bios_set = mcga_mode13_bios_ctrl_cs & ega_io_we & (bus_d == 8'h13);
-    wire mcga_mode13_bios_clear = mcga_mode13_bios_ctrl_cs & ega_io_we & (bus_d != 8'h13);
+    wire mcga_mode13_bios_set = mcga_mode13_bios_ctrl_cs & ega_io_we & bus_settled & (bus_d == 8'h13);
+    wire mcga_mode13_bios_clear = mcga_mode13_bios_ctrl_cs & ega_io_we & bus_settled & (bus_d != 8'h13);
     wire mcga_mode13_enter = mcga_mode13_set | mcga_mode13_bios_set;
     wire mcga_mode13_exit = mcga_mode13_clear | mcga_mode13_bios_clear;
     wire [7:0] mcga_dac_io_data_out;
@@ -158,9 +174,12 @@ module ega_top(
     wire [7:0] mcga_dac_sample_red_8;
     wire [7:0] mcga_dac_sample_green_8;
     wire [7:0] mcga_dac_sample_blue_8;
-    wire mcga_dac_read_index_write_raw = ega_dac_read_index_cs & ega_io_we;
-    wire mcga_dac_write_index_write_raw = ega_dac_write_index_cs & ega_io_we;
-    wire mcga_dac_data_write_raw = ega_dac_data_cs & ega_io_we;
+    // Same transient-address exposure as the control port above: a momentary
+    // 0x3C8 would reseat the write index and smear the rest of a palette load
+    // across the wrong entries, so these take the settled qualifier too.
+    wire mcga_dac_read_index_write_raw = ega_dac_read_index_cs & ega_io_we & bus_settled;
+    wire mcga_dac_write_index_write_raw = ega_dac_write_index_cs & ega_io_we & bus_settled;
+    wire mcga_dac_data_write_raw = ega_dac_data_cs & ega_io_we & bus_settled;
     wire mcga_dac_read_index_read_raw = ega_dac_read_index_cs & ega_io_re;
     wire mcga_dac_write_index_read_raw = ega_dac_write_index_cs & ega_io_re;
     wire mcga_dac_data_read_raw = ega_dac_data_cs & ega_io_re;
@@ -706,9 +725,17 @@ module ega_top(
             mcga_dac_read_index_write_q <= 1'b0;
             mcga_dac_write_index_write_q <= 1'b0;
             mcga_dac_data_write_q <= 1'b0;
+            bus_a_q <= 15'd0;
+            bus_d_q <= 8'd0;
+            bus_iow_l_q <= 1'b1;
+            bus_aen_q <= 1'b0;
             ega_text_fetch_phase <= 5'd0;
             ega_display_enable_delay <= 26'd0;
         end else begin
+            bus_a_q <= bus_a;
+            bus_d_q <= bus_d;
+            bus_iow_l_q <= bus_iow_l;
+            bus_aen_q <= bus_aen;
             if (ce_pix) begin
                 if (ega_text_fetch_phase == ega_text_fetch_phase_last) begin
                     ega_text_fetch_phase <= 5'd0;

@@ -13,7 +13,15 @@ BIOS calls live also exposed **RC8**, a register-preservation bug in
 `read_one_dac` that hung every fade; fixed, awaiting a hardware run.
 
 **RC9** below was that same exposure hitting the readback path, and it was the
-one that actually broke the fades.
+one that actually broke the fades. **RC10** is a separate CDC hazard on the
+`3CDh` control port that this work turned from harmless into destructive.
+
+Still open, and **not** caused by this work: the build does not close timing.
+`clk_100`, the `ascal` scaler domain, was at −1.564 ns / −150.066 ns TNS before
+any of these changes and is at −1.671 ns / −155.022 ns after — the same domain,
+which none of this logic is in. See RC7 in
+[max-speed-stability.md](max-speed-stability.md); it needs fixing on its own
+merits before any residual video glitch can honestly be blamed on anything here.
 Scope: `status[29]` (OSD *MCGA Mode 13h*), `rtl/video/*`, `SW/mcga/mcgatsr.asm`
 Branch at time of writing: `ega-test` (`13b3093`)
 
@@ -293,6 +301,58 @@ also sidesteps a real ordering trap: the TSR writes `3CDh` *before* it chains
 to the video BIOS, so at that instant Miscellaneous Output bit 7 — and with it
 `palette_64_mode` — still describes the mode being left, not the one being
 entered. A live fallback always uses the current rule.
+
+### RC10 — A transient address can hit port `3CDh` **[verified]**
+
+Reported after RC9 landed: the core became unstable. BIOS text often came up
+with wrong attributes or a broken 80-column mode and needed several resets,
+and in Titus the palette would be correct and then snap back to the EGA
+default mid-game.
+
+`ega_top` receives `bus_a`, `bus_d` and the strobes through **independent
+per-bit two-stage synchronisers** ([Peripherals.sv:928-950](../rtl/KFPC-XT/HDL/Peripherals.sv#L928)).
+Bits of a multi-bit bus do not all resolve on the same video clock, so while
+an address changes the decoders can observe an address that was **never on the
+bus**. The damaging case needs no exotic sequence:
+
+```
+0x3C5  sequencer data          0b011_1100_0101
+0x3CF  graphics controller     0b011_1100_1111   XOR = bits 1 and 3
+0x3CD  MCGA control port       0b011_1100_1101   = 0x3C5 with bit 3 early
+```
+
+The BIOS and every EGA program write that pair constantly, and `bus_iow_l` is
+still low across the transition, so the decode reads as a write to `3CDh`.
+
+Both outcomes are harmful, and they map one to one onto the two symptoms:
+
+* **Transient data is not `13h`** → `mcga_mode13_exit` → since RC1 this
+  invalidates all 256 DAC entries, so the game's palette vanishes and the
+  screen reverts to `ega_vgaport` colours. **This is new**: before, clearing
+  mode 13h while it was already clear was a no-op, which is why the hazard
+  went unnoticed for so long.
+* **Transient data happens to be `13h`** → `mcga_mode13_enter` → the core
+  switches to the MCGA timing generator behind the BIOS's back and stays
+  there, which is what wrecks text mode until a reset. **This one predates
+  all of this work**, but `mcga_mode13_ctrl` gates entry on `mcga_enabled`
+  ([mcga_mode13_ctrl.v:19-21](../rtl/video/mcga_mode13_ctrl.v#L19)), and the
+  OSD option ships disabled — so it only becomes reachable once the option is
+  left on, which is exactly what testing this work required.
+
+Both reproduced in simulation against `ega_top` by injecting a single-clock
+`0x3CD` on a `3C5 -> 3CF` transition: the palette went from 16 valid entries
+to 0, and a second injection carrying `13h` entered mode 13h from text mode.
+
+Fixed by qualifying the side-effecting MCGA decodes with `bus_settled`, which
+requires two identical consecutive samples of address, data, strobe and AEN.
+A real I/O cycle holds the bus for far longer than one video clock, so nothing
+legitimate is lost, and the same qualifier now guards the DAC index and data
+ports, where a transient `0x3C8` would have reseated the write index and
+smeared the rest of a palette load across the wrong entries.
+
+Not addressed here: the same transient-address exposure applies to the older
+EGA decodes (`3C0`, `3C5`, `3CF`, CRTC). Those have always been this way and
+are outside the scope of this work, but they are worth the same treatment.
 
 ### RC7 — What the two games actually do **[hypothesis]**
 
