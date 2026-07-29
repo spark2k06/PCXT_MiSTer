@@ -922,7 +922,12 @@ module emu
     wire    [5:0]   sw_base;
     wire    [1:0]   sw_floppy;
 
-    assign  sw_base = 6'b101101;
+    // sw_base[5:4] is the motherboard video switch pair the BIOS copies into bits
+    // 5:4 of the equipment word at 40:10. 2'b00 means "adapter with its own option
+    // ROM" (EGA), 2'b10 means CGA 80x25. Loading the EGA BIOS is what installs the
+    // card, so track it: otherwise the equipment word claims CGA and software that
+    // trusts it, such as Titus The Fox, picks the CGA path and renders nothing.
+    assign  sw_base = ega_bios_loaded ? 6'b001101 : 6'b101101;
     assign  sw_floppy = fdd_present[1] ? 2'b01 : 2'b00;
     assign  sw = {sw_floppy, sw_base}; // DIP switches (video adapter and floppy count)
     assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
