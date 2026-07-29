@@ -114,24 +114,37 @@ module ega_top(
     );
 
     wire [15:0] ega_io_addr = {1'b0, bus_a};
-    wire ega_io_we = ~bus_iow_l & ~bus_aen & ega_enabled;
-    wire ega_io_re = ~bus_ior_l & ~bus_aen & ega_enabled;
 
     // bus_a, bus_d and the strobes reach this module through independent
     // two-stage synchronisers (Peripherals.sv), one per bit, so they do not
     // all resolve on the same video clock. While an address changes, the
     // decoders below can see an address that was never on the bus: 0x3C5 ->
     // 0x3CF, a pair the BIOS and every EGA program write constantly, passes
-    // through 0x3CD when bit 3 lands a cycle before bit 1. Ports whose writes
-    // have side effects have to ignore those transients, so qualify them with
-    // two identical consecutive samples. A real I/O cycle holds the bus for
-    // far longer than one video clock, so nothing legitimate is lost.
+    // through 0x3CD when bit 3 lands a cycle before bit 1, and 0x3C5 -> 0x3C2
+    // passes through 0x3C0 and 0x3C7. Landing on the wrong register is bad
+    // enough in the attribute controller; on Miscellaneous Output it changes
+    // the dot clock out from under the CRTC.
+    //
+    // Qualifying with two identical consecutive samples makes every decode
+    // below immune: a transient lasts one video clock, a real I/O cycle holds
+    // the bus for the best part of a microsecond. The cost is that a strobe
+    // starts one clock late, which the sequencer and graphics controller do
+    // not care about (they write by level, so it is idempotent) and the
+    // attribute controller does not either (it already edge-detects).
     reg [14:0] bus_a_q = 15'd0;
     reg [7:0]  bus_d_q = 8'd0;
     reg        bus_iow_l_q = 1'b1;
+    reg        bus_ior_l_q = 1'b1;
     reg        bus_aen_q = 1'b0;
     wire bus_settled = (bus_a == bus_a_q) & (bus_d == bus_d_q)
-                     & (bus_iow_l == bus_iow_l_q) & (bus_aen == bus_aen_q);
+                     & (bus_iow_l == bus_iow_l_q) & (bus_ior_l == bus_ior_l_q)
+                     & (bus_aen == bus_aen_q);
+
+    // Everything derived from these two carries the qualifier, so the
+    // sequencer, graphics controller, attribute controller, Miscellaneous
+    // Output, the CRTC and the DAC are all covered at once.
+    wire ega_io_we = ~bus_iow_l & ~bus_aen & ega_enabled & bus_settled;
+    wire ega_io_re = ~bus_ior_l & ~bus_aen & ega_enabled & bus_settled;
     reg [7:0] ega_misc_output_reg = 8'h63;
     wire ega_color_io_select = ega_misc_output_reg[0];
     assign ega_hifreq_mode = ega_misc_output_reg[2];
@@ -139,7 +152,11 @@ module ega_top(
     wire ega_mono_crtc_cs = (bus_a[14:1] == (15'h03B4 >> 1));
     wire ega_color_status_cs = (bus_a == 15'h03DA);
     wire ega_mono_status_cs = (bus_a == 15'h03BA);
-    wire ega_crtc_cs = (ega_color_io_select ? ega_color_crtc_cs : ega_mono_crtc_cs) & ~bus_aen & ega_enabled;
+    // The CRTC takes its own chip select rather than ega_io_we, and a stray
+    // write here reprograms the display timing, so it needs the qualifier
+    // directly. Reads go through the same select and simply start a clock
+    // later, which the bus cycle has ample room for.
+    wire ega_crtc_cs = (ega_color_io_select ? ega_color_crtc_cs : ega_mono_crtc_cs) & ~bus_aen & ega_enabled & bus_settled;
     wire ega_status_cs = (ega_color_io_select ? ega_color_status_cs : ega_mono_status_cs) & ~bus_aen & ega_enabled;
     wire ega_seq_data_cs = ((bus_a == 15'h03C5) || (bus_a == 15'h02C5)) & ~bus_aen & ega_enabled;
     wire ega_attr_read_cs = ((bus_a == 15'h03C1) || (bus_a == 15'h02C1)) & ~bus_aen & ega_enabled;
@@ -160,8 +177,8 @@ module ega_top(
     // OSD has MCGA mode 13h available, and must not claim VGA on a machine that
     // will never render it. 0x13 echoes the value used to enter the mode.
     wire [7:0] mcga_mode13_status = mcga_enabled ? 8'h13 : 8'h00;
-    wire mcga_mode13_bios_set = mcga_mode13_bios_ctrl_cs & ega_io_we & bus_settled & (bus_d == 8'h13);
-    wire mcga_mode13_bios_clear = mcga_mode13_bios_ctrl_cs & ega_io_we & bus_settled & (bus_d != 8'h13);
+    wire mcga_mode13_bios_set = mcga_mode13_bios_ctrl_cs & ega_io_we & (bus_d == 8'h13);
+    wire mcga_mode13_bios_clear = mcga_mode13_bios_ctrl_cs & ega_io_we & (bus_d != 8'h13);
     wire mcga_mode13_enter = mcga_mode13_set | mcga_mode13_bios_set;
     wire mcga_mode13_exit = mcga_mode13_clear | mcga_mode13_bios_clear;
     wire [7:0] mcga_dac_io_data_out;
@@ -174,12 +191,12 @@ module ega_top(
     wire [7:0] mcga_dac_sample_red_8;
     wire [7:0] mcga_dac_sample_green_8;
     wire [7:0] mcga_dac_sample_blue_8;
-    // Same transient-address exposure as the control port above: a momentary
-    // 0x3C8 would reseat the write index and smear the rest of a palette load
-    // across the wrong entries, so these take the settled qualifier too.
-    wire mcga_dac_read_index_write_raw = ega_dac_read_index_cs & ega_io_we & bus_settled;
-    wire mcga_dac_write_index_write_raw = ega_dac_write_index_cs & ega_io_we & bus_settled;
-    wire mcga_dac_data_write_raw = ega_dac_data_cs & ega_io_we & bus_settled;
+    // Covered by the qualifier on ega_io_we: without it a momentary 0x3C8
+    // would reseat the write index and smear the rest of a palette load across
+    // the wrong entries.
+    wire mcga_dac_read_index_write_raw = ega_dac_read_index_cs & ega_io_we;
+    wire mcga_dac_write_index_write_raw = ega_dac_write_index_cs & ega_io_we;
+    wire mcga_dac_data_write_raw = ega_dac_data_cs & ega_io_we;
     wire mcga_dac_read_index_read_raw = ega_dac_read_index_cs & ega_io_re;
     wire mcga_dac_write_index_read_raw = ega_dac_write_index_cs & ega_io_re;
     wire mcga_dac_data_read_raw = ega_dac_data_cs & ega_io_re;
@@ -346,7 +363,13 @@ module ega_top(
     reg [1:0]  ega_status_toggle = 2'b00;
     reg        ega_vblank_crtc_q = 1'b0;
     reg [6:0]  ega_blink_counter = 7'h00;
-    wire       ega_status_read = ega_status_cs & ~bus_ior_l;
+    // Reading the status register is what resets the attribute controller's
+    // address/data flip-flop, so it is a read with a side effect. A transient
+    // decode landing here between an ATC index write and its data write turns
+    // the data write into an index write, which is one way attributes come out
+    // wrong. The bus_out mux keeps using the unqualified select, so only the
+    // side effect moves, never the read data.
+    wire       ega_status_read = ega_status_cs & ~bus_ior_l & bus_settled;
     wire       ega_blink_advance = ega_crtc_fetch_tick & ega_vert_blank_active_crtc & ~ega_vblank_crtc_q;
     wire       ega_blink_state = ega_blink_counter[4];
     wire [7:0] ega_status_reg = {2'b00, ega_status_toggle, ega_status_vretrace_active, 2'b00, ega_blanking_active};
@@ -728,6 +751,7 @@ module ega_top(
             bus_a_q <= 15'd0;
             bus_d_q <= 8'd0;
             bus_iow_l_q <= 1'b1;
+            bus_ior_l_q <= 1'b1;
             bus_aen_q <= 1'b0;
             ega_text_fetch_phase <= 5'd0;
             ega_display_enable_delay <= 26'd0;
@@ -735,6 +759,7 @@ module ega_top(
             bus_a_q <= bus_a;
             bus_d_q <= bus_d;
             bus_iow_l_q <= bus_iow_l;
+            bus_ior_l_q <= bus_ior_l;
             bus_aen_q <= bus_aen;
             if (ce_pix) begin
                 if (ega_text_fetch_phase == ega_text_fetch_phase_last) begin

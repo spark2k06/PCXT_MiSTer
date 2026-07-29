@@ -350,9 +350,34 @@ legitimate is lost, and the same qualifier now guards the DAC index and data
 ports, where a transient `0x3C8` would have reseated the write index and
 smeared the rest of a palette load across the wrong entries.
 
-Not addressed here: the same transient-address exposure applies to the older
-EGA decodes (`3C0`, `3C5`, `3CF`, CRTC). Those have always been this way and
-are outside the scope of this work, but they are worth the same treatment.
+**Extended to the older EGA decodes in a follow-up**, once the MCGA fix was
+confirmed on hardware to help. Those had always taken the raw synchronised bus,
+and they are exposed to the same thing — `0x3C5 -> 0x3C2` passes through
+`0x3C0`, `0x3C1`, `0x3C3`, `0x3C4`, `0x3C6` and `0x3C7`. The worst landing spot
+is **Miscellaneous Output at `0x3C2`**, whose bit 2 selects the dot clock and
+bit 7 the palette rule: a stray write there retimes the whole display, which is
+the other half of the "80-column mode comes up wrong" report. Reproduced —
+against the previous commit a one-clock `0x3C2` transient during a `3C0` write
+reprogrammed Miscellaneous Output from `63h` to `A5h`, turning on the
+16.257 MHz dot clock behind the CRTC's back.
+
+Rather than qualify each decode, the qualifier moved to the two roots,
+`ega_io_we` and `ega_io_re`, so the sequencer, graphics controller, attribute
+controller, Miscellaneous Output and the DAC are all covered at once. The CRTC
+select and the status-register read carry it directly, since neither derives
+from those. Cost: a strobe starts one clock late. The sequencer and graphics
+controller write by level so it is idempotent, the attribute controller already
+edge-detects, and a real cycle holds the bus for the best part of a microsecond
+against a 35 ns clock. Verified end to end through `ega_top` that attribute,
+sequencer and graphics-controller writes still land and that reads still return
+data with the strobes qualified.
+
+Reading the status register is a read *with a side effect* — it resets the
+attribute controller's address/data flip-flop — so it is qualified too. A
+transient landing there between an ATC index write and its data write turns the
+data write into an index write, which is one way attributes come out wrong. The
+`bus_out` mux keeps the unqualified select, so only the side effect moves,
+never the read data.
 
 ### RC7 — What the two games actually do **[hypothesis]**
 
