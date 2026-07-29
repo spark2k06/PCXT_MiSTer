@@ -17,6 +17,7 @@ module READY (
     input   logic           io_read_n,
     input   logic           io_write_n,
     input   logic           memory_read_n,
+    input   logic           memory_write_n,
     input   logic           dma0_acknowledge_n,
     input   logic           address_enable_n
 );
@@ -30,7 +31,14 @@ module READY (
     logic   ready_n_or_wait_Qn;
     logic   prev_ready_n_or_wait;
 
-    wire    bus_state = ~io_read_n | ~io_write_n | (dma0_acknowledge_n & ~memory_read_n & address_enable_n);
+    // Memory writes must arm the wait/ready flip-flop at the start of the
+    // cycle exactly like reads and I/O do. Without this term a write could
+    // be told to wait only after its command pulse has already closed
+    // (see docs/max-speed-stability.md, RC2), which is what corrupts RAM
+    // and floppy/IDE transfers at the fastest CPU speed setting.
+    wire    bus_state = ~io_read_n | ~io_write_n
+                      | (dma0_acknowledge_n & ~memory_read_n  & address_enable_n)
+                      | (dma0_acknowledge_n & ~memory_write_n & address_enable_n);
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)

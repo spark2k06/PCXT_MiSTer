@@ -193,6 +193,44 @@ module CHIPSET #(
     logic           ems_b4;
     logic           fdd_dma_req;
 
+    //
+    // I/O settle guard
+    //
+    // io_channel_ready is currently wired to a constant '1' at the top
+    // level: no I/O device (FDC, XT2IDE, KFMMC, UART, RTC, OPL2, ...) can
+    // request a wait state of its own. Their response pipelines are a fixed
+    // number of chipset clocks long, sized against the roomy I/O cycle at
+    // the slower CPU speeds. At the fastest CPU speed setting that cycle
+    // shrinks to a couple of chipset clocks, so add back a small, speed
+    // dependent floor of extra wait at the start of every I/O cycle -- the
+    // same role the 5160's one I/O wait state plays on real hardware.
+    logic   [2:0]   io_settle_count;
+    logic           prev_io_active;
+    wire            io_active = ~io_read_n | ~io_write_n;
+
+    function automatic logic [2:0] io_settle_ticks(input logic [1:0] sel);
+        case (sel)
+            2'b11:   io_settle_ticks = 3'd4;
+            default: io_settle_ticks = 3'd0;
+        endcase
+    endfunction
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset) begin
+            prev_io_active  <= 1'b0;
+            io_settle_count <= 3'd0;
+        end
+        else begin
+            prev_io_active <= io_active;
+            if (io_active && ~prev_io_active)
+                io_settle_count <= io_settle_ticks(clk_select);
+            else if (io_settle_count != 3'd0)
+                io_settle_count <= io_settle_count - 3'd1;
+        end
+    end
+
+    wire    io_settle_ready = (io_settle_count == 3'd0);
+
 
     always_ff @(posedge clock)
     begin
@@ -223,10 +261,11 @@ module CHIPSET #(
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
         .dma_wait_n                         (dma_wait_n),
-        .io_channel_ready                   (io_channel_ready & memory_access_ready & video_memory_access_ready),
+        .io_channel_ready                   (io_channel_ready & memory_access_ready & video_memory_access_ready & io_settle_ready),
         .io_read_n                          (io_read_n),
         .io_write_n                         (io_write_n),
         .memory_read_n                      (memory_read_n),
+        .memory_write_n                     (memory_write_n),
         .dma0_acknowledge_n                 (dma_acknowledge_n[0]),
         .address_enable_n                   (address_enable_n)
     );

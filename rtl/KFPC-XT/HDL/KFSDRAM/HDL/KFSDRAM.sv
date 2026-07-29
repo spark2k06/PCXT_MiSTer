@@ -107,8 +107,8 @@ module KFSDRAM #(
                     next_state = WRITE;
                 else if (read_request)
                     next_state = READ;
-                else if ((~sdram_no_refresh) && 
-                    ((enable_refresh) && (refresh_counter >= sdram_refresh_cycle)) || (refresh_counter == sdram_force_refresh))
+                else if ((~sdram_no_refresh) &&
+                    (((enable_refresh) && (refresh_counter >= sdram_refresh_cycle)) || (refresh_counter == sdram_force_refresh)))
                     next_state = REFRESH_PALL;
             end
             WRITE: begin

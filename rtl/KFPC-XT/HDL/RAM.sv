@@ -103,10 +103,15 @@ module RAM (
     end
 
     // Data
+    // Freeze the write byte once the access leaves IDLE, instead of tracking
+    // the live data bus for the whole transaction. Otherwise a bus turnaround
+    // that happens to land inside RAM_WRITE_1/2 (most likely at the fastest
+    // CPU speed setting, where the write command pulse is only a few chipset
+    // clocks wide) can commit the wrong byte to SDRAM.
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             latch_data      <= 0;
-        else
+        else if (state == IDLE)
             latch_data      <= internal_data_bus;
     end
 
@@ -326,19 +331,24 @@ module RAM (
     //
     // Ready/Wait Signal
     //
+    // access_ready used to stay high through the whole access unless a
+    // refresh happened to already be in progress when the command was
+    // decoded. That makes RAM readiness effectively open-loop: at the
+    // fastest CPU speed setting the write command pulse (~2 CPU clocks) can
+    // close before the SDRAM controller has actually issued the write,
+    // silently dropping it (see docs/max-speed-stability.md, RC2). Track
+    // the access state machine directly instead: not ready as soon as a
+    // command is decoded in IDLE, ready again only once COMPLETE_RAM_RW is
+    // reached, i.e. after the SDRAM side has actually finished.
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             access_ready <= 1'b0;
         else if (state == COMPLETE_RAM_RW)
             access_ready <= 1'b1;
         else if (state == IDLE)
-            access_ready <= idle;
-        else if ((write_command) && (refresh_mode))
-            access_ready <= 1'b0;
-        else if ((read_command)  && (refresh_mode))
-            access_ready <= 1'b0;
+            access_ready <= idle & ~(write_command | read_command);
         else
-            access_ready <= access_ready;
+            access_ready <= 1'b0;
     end
 
     always_ff @(posedge clock, posedge reset) begin
