@@ -30,6 +30,22 @@ org 100h
 start:
     push cs
     pop ds
+
+    ; Refuse to install when the OSD has MCGA mode 13h switched off. The hook
+    ; below answers "VGA present" to INT 10h AH=1Ah, and on a machine that will
+    ; never render mode 13h that answer sends games down a path which leaves the
+    ; screen black. The core reports 13h on the control port when it is enabled.
+    mov dx, MCGA_CTRL_PORT
+    in al, dx
+    cmp al, 13h
+    je .install
+    mov dx, msg_disabled
+    mov ah, 09h
+    int 21h
+    mov ax, 4C01h
+    int 21h
+
+.install:
     mov ax, 3510h
     int 21h
     mov [old10_off], bx
@@ -39,10 +55,12 @@ start:
     mov ax, 2510h
     int 21h
 
-    ; INT 21h/AH=31h counts paragraphs from the PSP. 40h paragraphs keep the
-    ; 100h-byte PSP plus the resident hook. Keep this conservative: if the hook
-    ; grows past the retained block, DOS can overwrite the INT 10h handler.
-    mov dx, 40h
+    ; INT 21h/AH=31h counts paragraphs from the PSP, which is where this segment
+    ; starts, so resident_end doubles as the byte count. Derive the paragraph
+    ; count from it rather than hardcoding one: a hardcoded value silently stops
+    ; covering the hook as soon as the code grows, and DOS then hands the tail of
+    ; the INT 10h handler out to the next allocation.
+    mov dx, (resident_end - $$ + 100h + 15) / 16
     mov ax, 3100h
     int 21h
 
@@ -50,8 +68,16 @@ int10_hook:
     cmp ah, 00h
     jne .check_get_mode
     cmp al, 13h
+    jne .clear_and_chain
+    push ax
+    call mcga_available
+    pop ax
     je .set_mode13
+    ; MCGA was switched off in the OSD after we went resident. Treat the request
+    ; like any other mode set and let the video BIOS reject it, so the caller
+    ; falls back instead of drawing into a mode nothing will display.
 
+.clear_and_chain:
     push ax
     push dx
     mov dx, MCGA_CTRL_PORT
@@ -77,6 +103,10 @@ int10_hook:
     jne .check_display_combination
     cmp bl, 10h
     jne .chain
+    push ax
+    call mcga_available
+    pop ax
+    jne .chain
     xor bh, bh
     mov bl, 03h
     mov cx, 0009h
@@ -86,6 +116,10 @@ int10_hook:
     cmp ah, 1Ah
     jne .check_write_pixel
     or al, al
+    jne .chain
+    push ax
+    call mcga_available
+    pop ax
     jne .chain
     mov ax, 001Ah
     mov bx, 0008h
@@ -169,6 +203,17 @@ int10_hook:
 
 .chain:
     jmp far [cs:old10_off]
+
+; Returns ZF=1 when the core reports MCGA mode 13h available. Checked on every
+; call rather than cached, because the OSD option can be toggled while resident.
+; Clobbers AL; POP and RET leave the compare flags intact.
+mcga_available:
+    push dx
+    mov dx, MCGA_CTRL_PORT
+    in al, dx
+    cmp al, 13h
+    pop dx
+    ret
 
 write_pixel:
     or bh, bh
@@ -369,3 +414,6 @@ old10_seg:      dw 0
 current_mode:   db 0
 
 resident_end:
+
+; Only reached before going resident, so keep it outside the retained block.
+msg_disabled:   db 'MCGA mode 13h is disabled in the OSD; TSR not installed.', 13, 10, '$'

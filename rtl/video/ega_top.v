@@ -135,6 +135,10 @@ module ega_top(
     wire ega_dac_write_index_cs = ((bus_a == 15'h03C8) || (bus_a == 15'h02C8)) & ~bus_aen & ega_enabled;
     wire ega_dac_data_cs = ((bus_a == 15'h03C9) || (bus_a == 15'h02C9)) & ~bus_aen & ega_enabled;
     wire mcga_mode13_bios_ctrl_cs = (bus_a == 15'h03CD) & ~bus_aen & ega_enabled;
+    // Readback on the same port: guest software cannot otherwise tell whether the
+    // OSD has MCGA mode 13h available, and must not claim VGA on a machine that
+    // will never render it. 0x13 echoes the value used to enter the mode.
+    wire [7:0] mcga_mode13_status = mcga_enabled ? 8'h13 : 8'h00;
     wire mcga_mode13_bios_set = mcga_mode13_bios_ctrl_cs & ega_io_we & (bus_d == 8'h13);
     wire mcga_mode13_bios_clear = mcga_mode13_bios_ctrl_cs & ega_io_we & (bus_d != 8'h13);
     wire mcga_mode13_enter = mcga_mode13_set | mcga_mode13_bios_set;
@@ -637,6 +641,7 @@ module ega_top(
                          | (ega_dac_read_index_cs & ~bus_ior_l)
                          | (ega_dac_write_index_cs & ~bus_ior_l)
                          | (ega_dac_data_cs & ~bus_ior_l)
+                         | (mcga_mode13_bios_ctrl_cs & ~bus_ior_l)
                          | (ega_crtc_cs & ~bus_ior_l & bus_a[0]);
 
     always @(*) begin
@@ -654,6 +659,8 @@ module ega_top(
             ega_bus_out_mux = ega_gfx_data_out;
         else if ((ega_dac_read_index_cs | ega_dac_write_index_cs | ega_dac_data_cs) & ~bus_ior_l)
             ega_bus_out_mux = mcga_dac_io_data_out;
+        else if (mcga_mode13_bios_ctrl_cs & ~bus_ior_l)
+            ega_bus_out_mux = mcga_mode13_status;
         else if (ega_crtc_cs & ~bus_ior_l & bus_a[0])
             ega_bus_out_mux = ega_crtc_data_out;
         else
