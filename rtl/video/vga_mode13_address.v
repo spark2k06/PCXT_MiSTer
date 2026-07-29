@@ -1,10 +1,10 @@
 //============================================================================
 //
-//  MCGA mode 13h visible pixel to packed framebuffer address
+//  VGA mode 13h visible pixel to packed framebuffer address
 //
 //============================================================================
 
-module mcga_mode13_address(
+module vga_mode13_address(
     input  wire [9:0] pixel_x,
     input  wire [9:0] pixel_y,
     output wire [15:0] framebuffer_addr,

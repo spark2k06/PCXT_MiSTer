@@ -1,10 +1,10 @@
 //============================================================================
 //
-//  MCGA/VGA DAC I/O port frontend
+//  VGA/VGA DAC I/O port frontend
 //
 //============================================================================
 
-module mcga_dac_io(
+module vga_dac_io(
     input  wire        clock,
     input  wire        reset,
     input  wire        load_defaults,
@@ -82,7 +82,7 @@ module mcga_dac_io(
     wire [1:0] component_select = write_component;
     wire [5:0] component_data = io_data_in[5:0];
 
-    mcga_dac dac (
+    vga_dac dac (
         .clock                  (clock),
         .reset                  (reset),
         .load_defaults          (load_defaults),

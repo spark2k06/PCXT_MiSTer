@@ -2,20 +2,20 @@ cpu 8086
 bits 16
 org 100h
 
-; MCGA mode 13h development TSR for PCXT_MiSTer.
+; VGA mode 13h development TSR for PCXT_MiSTer.
 ;
 ; Build:
-;   nasm -O9 -f bin -o mcgatsr.com mcgatsr.asm
+;   nasm -O9 -f bin -o vgatsr.com vgatsr.asm
 ;
 ; Installs an INT 10h hook. AX=0013h updates the BIOS Data Area and writes
-; 13h to the temporary MCGA control port 03CDh. While mode 13h is active, the
+; 13h to the temporary VGA control port 03CDh. While mode 13h is active, the
 ; hook provides the minimal BIOS calls needed by bring-up software. Any other
-; INT 10h AH=00h mode set clears the MCGA control port and chains to the
+; INT 10h AH=00h mode set clears the VGA control port and chains to the
 ; existing video BIOS, normally the IBM EGA ROM.
 
 %define INT10_VECTOR      10h
-%define MCGA_CTRL_PORT    03CDh
-%define MCGA_FB_SEG       0A000h
+%define VGA_CTRL_PORT    03CDh
+%define VGA_FB_SEG       0A000h
 %define VGA_DAC_READ      03C7h
 %define VGA_DAC_WRITE     03C8h
 %define VGA_DAC_DATA      03C9h
@@ -31,11 +31,11 @@ start:
     push cs
     pop ds
 
-    ; Refuse to install when the OSD has MCGA mode 13h switched off. The hook
+    ; Refuse to install when the OSD has VGA mode 13h switched off. The hook
     ; below answers "VGA present" to INT 10h AH=1Ah, and on a machine that will
     ; never render mode 13h that answer sends games down a path which leaves the
     ; screen black. The core reports 13h on the control port when it is enabled.
-    mov dx, MCGA_CTRL_PORT
+    mov dx, VGA_CTRL_PORT
     in al, dx
     cmp al, 13h
     je .install
@@ -77,17 +77,17 @@ int10_hook:
     pop ax
     jne .clear_and_chain
     push ax
-    call mcga_available
+    call vga_available
     pop ax
     je .set_mode13
-    ; MCGA was switched off in the OSD after we went resident. Treat the request
+    ; VGA was switched off in the OSD after we went resident. Treat the request
     ; like any other mode set and let the video BIOS reject it, so the caller
     ; falls back instead of drawing into a mode nothing will display.
 
 .clear_and_chain:
     push ax
     push dx
-    mov dx, MCGA_CTRL_PORT
+    mov dx, VGA_CTRL_PORT
     xor al, al
     out dx, al
     mov byte [cs:current_mode], 00h
@@ -111,7 +111,7 @@ int10_hook:
     cmp bl, 10h
     jne .chain
     push ax
-    call mcga_available
+    call vga_available
     pop ax
     jne .chain
     xor bh, bh
@@ -125,7 +125,7 @@ int10_hook:
     or al, al
     jne .chain
     push ax
-    call mcga_available
+    call vga_available
     pop ax
     jne .chain
     mov ax, 001Ah
@@ -154,11 +154,11 @@ int10_hook:
     ; The DAC subfunctions (AL=10h/12h/15h/17h) are VGA-only: the EGA BIOS
     ; underneath does not implement them and drops them silently. The core's
     ; DAC now feeds every mode, not just mode 13h (see ega_dac_hit in
-    ; ega_top.v), so serve these in any mode, gated only on MCGA being
+    ; ega_top.v), so serve these in any mode, gated only on VGA being
     ; available, matching how a real VGA answers this call regardless of
     ; the current video mode.
     push ax
-    call mcga_available
+    call vga_available
     pop ax
     jne .chain
     cmp al, 10h
@@ -193,7 +193,7 @@ int10_hook:
     push dx
     push ds
 
-    mov dx, MCGA_CTRL_PORT
+    mov dx, VGA_CTRL_PORT
     mov al, 13h
     out dx, al
 
@@ -221,12 +221,12 @@ int10_hook:
 .chain:
     jmp far [cs:old10_off]
 
-; Returns ZF=1 when the core reports MCGA mode 13h available. Checked on every
+; Returns ZF=1 when the core reports VGA mode 13h available. Checked on every
 ; call rather than cached, because the OSD option can be toggled while resident.
 ; Clobbers AL; POP and RET leave the compare flags intact.
-mcga_available:
+vga_available:
     push dx
-    mov dx, MCGA_CTRL_PORT
+    mov dx, VGA_CTRL_PORT
     in al, dx
     cmp al, 13h
     pop dx
@@ -267,7 +267,7 @@ write_pixel:
     shl di, 1
     add di, si
     add di, cx
-    mov ax, MCGA_FB_SEG
+    mov ax, VGA_FB_SEG
     mov es, ax
     mov [es:di], bl
 
@@ -315,7 +315,7 @@ read_pixel:
     shl di, 1
     add di, si
     add di, cx
-    mov ax, MCGA_FB_SEG
+    mov ax, VGA_FB_SEG
     mov es, ax
     mov al, [es:di]
 
@@ -444,4 +444,4 @@ current_mode:   db 0
 resident_end:
 
 ; Only reached before going resident, so keep it outside the retained block.
-msg_disabled:   db 'MCGA mode 13h is disabled in the OSD; TSR not installed.', 13, 10, '$'
+msg_disabled:   db 'VGA mode 13h is disabled in the OSD; TSR not installed.', 13, 10, '$'

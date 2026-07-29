@@ -1,10 +1,10 @@
 //============================================================================
 //
-//  MCGA mode 13h A0000h packed framebuffer CPU frontend
+//  VGA mode 13h A0000h packed framebuffer CPU frontend
 //
 //============================================================================
 
-module mcga_a000_cpu_frontend(
+module vga_a000_cpu_frontend(
     input  wire        clock,
     input  wire        reset,
     input  wire        clk_video,
@@ -38,7 +38,7 @@ module mcga_a000_cpu_frontend(
     assign cpu_cycle = cpu_read | cpu_write;
     assign cpu_ready = cpu_cycle ? framebuffer_ready : 1'b1;
 
-    mcga_framebuffer framebuffer (
+    vga_framebuffer framebuffer (
         .clk_cpu            (clock),
         .reset_cpu          (reset),
         .cpu_addr           (address[15:0]),

@@ -1,4 +1,14 @@
-# Specification: VGA-style palette handling under the MCGA mode 13h option
+# Specification: VGA-style palette handling under the VGA mode 13h option
+
+Naming note: this option and every identifier behind it (`vga_dac.v`,
+`vgatsr.asm`, `vga_mode13_*`, ...) were called "MCGA" until this was written.
+86Box, whose code this core is modelled on, has no MCGA emulation at all —
+even its one historically-MCGA machine (the PS/1 2011) is emulated as a VGA
+variant. Real MCGA hardware does not have EGA's 16-colour planar graphics
+modes (`0Dh`/`0Eh`/`10h`) at all, so a real MCGA could never run the mode
+`0Dh` gameplay this document is about in the first place — that behaviour,
+the DAC augmenting the EGA modes this core already had, is VGA, not MCGA.
+Renamed throughout for accuracy; no logic changed.
 
 Status: **Stages 1 and 2 implemented** (see §4 and §5). RTL: the 256-entry DAC
 now feeds every mode, not just mode 13h, gated by a per-entry valid bit so the
@@ -22,7 +32,7 @@ any of these changes and is at −1.671 ns / −155.022 ns after — the same do
 which none of this logic is in. See RC7 in
 [max-speed-stability.md](max-speed-stability.md); it needs fixing on its own
 merits before any residual video glitch can honestly be blamed on anything here.
-Scope: `status[29]` (OSD *MCGA Mode 13h*), `rtl/video/*`, `SW/mcga/mcgatsr.asm`
+Scope: `status[29]` (OSD *VGA Mode 13h*), `rtl/video/*`, `SW/vga/vgatsr.asm`
 Branch at time of writing: `ega-test` (`13b3093`)
 
 Findings are labelled **[verified]** when they follow directly from the RTL or
@@ -33,7 +43,7 @@ plausible mechanism that still needs a run on hardware to confirm.
 
 ## 1. Problem statement
 
-With the OSD option *MCGA Mode 13h* on and `mcgatsr.com` resident, some games
+With the OSD option *VGA Mode 13h* on and `vgatsr.com` resident, some games
 that detect a VGA and then use it only partially come out with the wrong
 colours:
 
@@ -73,21 +83,21 @@ the current behaviour **bit-for-bit identical when the option is off**.
 So on the EGA path the palette is **six bits wide and there is no DAC at all**.
 That is correct for an IBM EGA: its palette lives in the attribute controller.
 
-### 2.2 The MCGA mode 13h path **[verified]**
+### 2.2 The VGA mode 13h path **[verified]**
 
-`mcga_mode13_renderer` reads the packed framebuffer and uses the pixel byte
-directly as an index into `mcga_dac` (256 entries × 6 bits per gun), whose
-ports `3C7h/3C8h/3C9h` are decoded in `ega_top` and gated on `mcga_enabled`
+`vga_mode13_renderer` reads the packed framebuffer and uses the pixel byte
+directly as an index into `vga_dac` (256 entries × 6 bits per gun), whose
+ports `3C7h/3C8h/3C9h` are decoded in `ega_top` and gated on `vga_enabled`
 ([ega_top.v:139-141](../rtl/video/ega_top.v#L139)). Entering mode 13h
 (`out 3CDh, 13h` from the TSR) pulses `reset_palette`, which reloads the
 standard 256-colour VGA default table.
 
-The two paths meet only at the very end, in a mux on `mcga_mode13_active`
+The two paths meet only at the very end, in a mux on `vga_mode13_active`
 ([ega_top.v:804-806](../rtl/video/ega_top.v#L804)).
 
 ### 2.3 What software sees
 
-With `mcgatsr.com` resident the machine answers **"VGA present"** to
+With `vgatsr.com` resident the machine answers **"VGA present"** to
 `INT 10h AH=1Ah` and reports colour EGA to `AH=12h/BL=10h`. Ports
 `3C7h-3C9h` answer. Everything else — the video BIOS underneath, the CRTC,
 the attribute controller — is an EGA.
@@ -101,8 +111,8 @@ uses VGA facilities in modes where this core still behaves exactly like an EGA.
 
 ### RC1 — The DAC is wired only to the mode 13h renderer **[verified]** — main cause
 
-`mcga_dac` has a single sample port and it is consumed by
-`mcga_mode13_renderer` alone. In any other mode the DAC contents are written,
+`vga_dac` has a single sample port and it is consumed by
+`vga_mode13_renderer` alone. In any other mode the DAC contents are written,
 stored and then completely ignored: `ega_red/green/blue` come from
 `ega_vgaport`.
 
@@ -132,7 +142,7 @@ place where the DAC *is* in the path — looks right.
 ### RC2 — The TSR only serves the DAC BIOS calls while mode 13h is active **[verified]**
 
 `int10_hook` gates the whole `AH=10h` group on `current_mode == 13h`
-([mcgatsr.asm:144-157](../SW/mcga/mcgatsr.asm#L144)). Outside mode 13h the
+([vgatsr.asm:144-157](../SW/vga/vgatsr.asm#L144)). Outside mode 13h the
 call is chained to the EGA BIOS, which does not implement the DAC
 subfunctions at all (`AL=10h/12h/15h/17h` are VGA additions). So
 `INT 10h AX=1012h` — the single most common way for a game to load 16 palette
@@ -191,7 +201,7 @@ RGB output (`src/video/vid_svga.c:342`).
 
 * Reading `3C7h` returns the read index; a real VGA returns the **DAC state**
   register (`0` = write mode, `3` = read mode) (`src/video/vid_svga.c:556`).
-* `mcga_dac_io` keeps **separate** read and write index counters; a VGA has one
+* `vga_dac_io` keeps **separate** read and write index counters; a VGA has one
   shared `dac_addr`, where writing `3C7h` loads `val + 1` and reads at `3C9h`
   return entry `dac_addr - 1` (`src/video/vid_svga.c:344-348`).
 
@@ -201,7 +211,7 @@ work either way, so this is fidelity, not a known break.
 ### RC6 — `AX=0093h` drops out of mode 13h **[verified, robustness]**
 
 `int10_hook` compares the full `AL` against `13h`
-([mcgatsr.asm:70-71](../SW/mcga/mcgatsr.asm#L70)). Bit 7 of `AL` is the
+([vgatsr.asm:70-71](../SW/vga/vgatsr.asm#L70)). Bit 7 of `AL` is the
 standard "do not clear video memory" flag, so a game re-entering mode 13h with
 `AX=0093h` is treated as *some other mode*: the TSR clears `3CDh`, the core
 leaves mode 13h and the screen goes black.
@@ -318,7 +328,7 @@ bus**. The damaging case needs no exotic sequence:
 ```
 0x3C5  sequencer data          0b011_1100_0101
 0x3CF  graphics controller     0b011_1100_1111   XOR = bits 1 and 3
-0x3CD  MCGA control port       0b011_1100_1101   = 0x3C5 with bit 3 early
+0x3CD  VGA control port       0b011_1100_1101   = 0x3C5 with bit 3 early
 ```
 
 The BIOS and every EGA program write that pair constantly, and `bus_iow_l` is
@@ -326,16 +336,16 @@ still low across the transition, so the decode reads as a write to `3CDh`.
 
 Both outcomes are harmful, and they map one to one onto the two symptoms:
 
-* **Transient data is not `13h`** → `mcga_mode13_exit` → since RC1 this
+* **Transient data is not `13h`** → `vga_mode13_exit` → since RC1 this
   invalidates all 256 DAC entries, so the game's palette vanishes and the
   screen reverts to `ega_vgaport` colours. **This is new**: before, clearing
   mode 13h while it was already clear was a no-op, which is why the hazard
   went unnoticed for so long.
-* **Transient data happens to be `13h`** → `mcga_mode13_enter` → the core
-  switches to the MCGA timing generator behind the BIOS's back and stays
+* **Transient data happens to be `13h`** → `vga_mode13_enter` → the core
+  switches to the VGA timing generator behind the BIOS's back and stays
   there, which is what wrecks text mode until a reset. **This one predates
-  all of this work**, but `mcga_mode13_ctrl` gates entry on `mcga_enabled`
-  ([mcga_mode13_ctrl.v:19-21](../rtl/video/mcga_mode13_ctrl.v#L19)), and the
+  all of this work**, but `vga_mode13_ctrl` gates entry on `vga_enabled`
+  ([vga_mode13_ctrl.v:19-21](../rtl/video/vga_mode13_ctrl.v#L19)), and the
   OSD option ships disabled — so it only becomes reachable once the option is
   left on, which is exactly what testing this work required.
 
@@ -343,14 +353,14 @@ Both reproduced in simulation against `ega_top` by injecting a single-clock
 `0x3CD` on a `3C5 -> 3CF` transition: the palette went from 16 valid entries
 to 0, and a second injection carrying `13h` entered mode 13h from text mode.
 
-Fixed by qualifying the side-effecting MCGA decodes with `bus_settled`, which
+Fixed by qualifying the side-effecting VGA decodes with `bus_settled`, which
 requires two identical consecutive samples of address, data, strobe and AEN.
 A real I/O cycle holds the bus for far longer than one video clock, so nothing
 legitimate is lost, and the same qualifier now guards the DAC index and data
 ports, where a transient `0x3C8` would have reseated the write index and
 smeared the rest of a palette load across the wrong entries.
 
-**Extended to the older EGA decodes in a follow-up**, once the MCGA fix was
+**Extended to the older EGA decodes in a follow-up**, once the VGA fix was
 confirmed on hardware to help. Those had always taken the raw synchronised bus,
 and they are exposed to the same thing — `0x3C5 -> 0x3C2` passes through
 `0x3C0`, `0x3C1`, `0x3C3`, `0x3C4`, `0x3C6` and `0x3C7`. The worst landing spot
@@ -391,7 +401,7 @@ The evidence says gameplay is **not** in mode 13h:
   both cases.
 * The two screenshots have different active-area geometry, consistent with a
   switch between the mode 13h timing generator (640×200 active, `H_TOTAL` 912,
-  `V_TOTAL` 449, [mcga_mode13_timing.v:22-32](../rtl/video/mcga_mode13_timing.v#L22))
+  `V_TOTAL` 449, [vga_mode13_timing.v:22-32](../rtl/video/vga_mode13_timing.v#L22))
   and the EGA CRTC.
 
 So the working theory is: **256-colour title in mode 13h, then mode `0Dh` for
@@ -408,11 +418,11 @@ itself.
 
 > With the OSD option off, output must be bit-for-bit what it is today.
 
-The design gets this for free: with `mcga_enabled == 0` the DAC ports do not
+The design gets this for free: with `vga_enabled == 0` the DAC ports do not
 decode ([ega_top.v:139-141](../rtl/video/ega_top.v#L139)), so no DAC entry can
 ever be written, so every entry stays *invalid* and the EGA path keeps using
 `ega_vgaport` exactly as now. The new mux is additionally qualified with
-`mcga_enabled`.
+`vga_enabled`.
 
 ### 4.2 Key idea — per-entry validity
 
@@ -453,7 +463,7 @@ a DAC that already costs ~4600 flip-flops.
 
 ### Stage 0 — Confirm RC7 before writing RTL (no code, ~10 min)
 
-1. Run Titus the Fox **without** `mcgatsr.com` (pure EGA). Expected: the EGA
+1. Run Titus the Fox **without** `vgatsr.com` (pure EGA). Expected: the EGA
    title screen appears and **gameplay colours are correct**. That alone
    proves the EGA rendering path is fine and that the regression is entirely
    in the "we told it we are a VGA" path.
@@ -462,7 +472,7 @@ a DAC that already costs ~4600 flip-flops.
 ### Stage 0b — Optional: mode trace in the TSR (~40 lines of asm)
 
 If §5.0 is not conclusive, make the resident hook record `AL` of every
-`INT 10h AH=00h` into a 16-byte ring buffer, and make `mcgatsr.com`, when run
+`INT 10h AH=00h` into a 16-byte ring buffer, and make `vgatsr.com`, when run
 a second time and finding itself already installed, print that buffer instead
 of refusing. A trace of `03 13 0D ...` confirms RC7 outright; a trace of
 `03 13 13 ...` refutes it and the investigation moves to what the game does to
@@ -470,7 +480,7 @@ the DAC *inside* mode 13h.
 
 ### Stage 1 — Put the DAC in the EGA path (the actual fix)
 
-**`rtl/video/mcga_dac.v`**
+**`rtl/video/vga_dac.v`**
 
 * Rename `reset_palette` → `load_defaults` (same behaviour: load the 256-entry
   VGA table) and add `invalidate`.
@@ -501,40 +511,40 @@ assign sample_valid = entry_valid[sample_index];
   Note the ordering: `invalidate` must lose to `load_defaults`, because
   entering mode 13h asserts the enter event only.
 
-**`rtl/video/mcga_dac_io.v`**
+**`rtl/video/vga_dac_io.v`**
 
 * Pass `invalidate` through, expose `sample_valid`.
 * Leave the index/component counters untouched on `invalidate`: a VGA mode set
   does not reset the DAC address pointer.
 
-**`rtl/video/mcga_mode13_renderer.v`**
+**`rtl/video/vga_mode13_renderer.v`**
 
 * Nothing to change inside the module. In `ega_top` its `.dac_index` port moves
-  from driving `mcga_dac_sample_index` directly to driving a new
-  `mcga_renderer_dac_index` wire, and `mcga_dac_sample_index` becomes an
+  from driving `vga_dac_sample_index` directly to driving a new
+  `vga_renderer_dac_index` wire, and `vga_dac_sample_index` becomes an
   `assign`.
 
 **`rtl/video/ega_top.v`**
 
 ```verilog
-wire [7:0] mcga_renderer_dac_index;   // was driven straight into the DAC
+wire [7:0] vga_renderer_dac_index;   // was driven straight into the DAC
 
 // One sample port, muxed: the two renderers are mutually exclusive.
-assign mcga_dac_sample_index = mcga_mode13_active ? mcga_renderer_dac_index
+assign vga_dac_sample_index = vga_mode13_active ? vga_renderer_dac_index
                                                   : {2'b00, ega_video_selected};
 
-wire ega_dac_hit = mcga_enabled & ~mcga_mode13_active & mcga_dac_sample_valid;
+wire ega_dac_hit = vga_enabled & ~vga_mode13_active & vga_dac_sample_valid;
 
-assign ega_red   = mcga_mode13_active ? mcga_red
-                 : ega_dac_hit        ? mcga_dac_sample_red   : ega_red_compat;
-assign ega_green = mcga_mode13_active ? mcga_green
-                 : ega_dac_hit        ? mcga_dac_sample_green : ega_green_compat;
-assign ega_blue  = mcga_mode13_active ? mcga_blue
-                 : ega_dac_hit        ? mcga_dac_sample_blue  : ega_blue_compat;
+assign ega_red   = vga_mode13_active ? vga_red
+                 : ega_dac_hit        ? vga_dac_sample_red   : ega_red_compat;
+assign ega_green = vga_mode13_active ? vga_green
+                 : ega_dac_hit        ? vga_dac_sample_green : ega_green_compat;
+assign ega_blue  = vga_mode13_active ? vga_blue
+                 : ega_dac_hit        ? vga_dac_sample_blue  : ega_blue_compat;
 ```
 
-  and wire `.invalidate (mcga_mode13_exit)` on `mcga_dac_io_inst`
-  (`mcga_mode13_exit` already exists and is exactly "the TSR reported a mode
+  and wire `.invalidate (vga_mode13_exit)` on `vga_dac_io_inst`
+  (`vga_mode13_exit` already exists and is exactly "the TSR reported a mode
   set that is not 13h").
 
   `ega_video_selected` is the post-scandoubler 6-bit colour
@@ -552,7 +562,7 @@ at the cost of duplicating part of the output mux.
 
 ### Stage 2 — TSR: serve the DAC BIOS calls in every mode
 
-**`SW/mcga/mcgatsr.asm`**, in `.check_palette`, replace the
+**`SW/vga/vgatsr.asm`**, in `.check_palette`, replace the
 `cmp byte [cs:current_mode], 13h` gate with an availability check:
 
 ```asm
@@ -564,7 +574,7 @@ at the cost of duplicating part of the output mux.
     ; just 13h, so 16-colour modes on a machine that answers "VGA" to AH=1Ah
     ; can actually load a palette.
     push ax
-    call mcga_available
+    call vga_available
     pop ax
     jne .chain
     cmp al, 10h
@@ -591,7 +601,7 @@ int10_hook:
     jne .clear_and_chain
 ```
 
-(`POP` does not disturb the compare flags, the same assumption `mcga_available`
+(`POP` does not disturb the compare flags, the same assumption `vga_available`
 already documents.)
 
 Stages 1 + 2 are the whole fix if the games use the identity attribute palette,
@@ -602,7 +612,7 @@ which is the usual idiom.
 Each item is independent; build only what the Stage 4 results ask for.
 
 1. **PEL mask, `3C6h`** (RC4). 8-bit register, resets to `FFh`, decoded next to
-   `3C7h-3C9h` and gated on `mcga_enabled`; AND it into the DAC index in both
+   `3C7h-3C9h` and gated on `vga_enabled`; AND it into the DAC index in both
    paths, not into the RGB. ~10 flip-flops, fixes fades and one common VGA
    presence test.
 2. **Attribute palette normalisation** (RC3). After chaining a mode set for
@@ -677,15 +687,15 @@ TSR still gives the untouched EGA behaviour.
 
 | Stage | Files | Rough size | Risk |
 |-------|-------|-----------|------|
-| 0 / 0b | — / `mcgatsr.asm` | 0 / ~40 lines asm | none |
-| 1 | `mcga_dac.v`, `mcga_dac_io.v`, `ega_top.v` | ~40 lines RTL, +256 FF | low — structurally inert when the option is off; watch fMAX |
-| 2 | `mcgatsr.asm` | ~12 lines asm | low |
-| 3.1 PEL mask | `ega_top.v`, `mcga_dac_io.v` | ~20 lines | low |
-| 3.2 ATC normalisation | `mcgatsr.asm`, `mcga_dac.v` | ~50 lines | **medium — changes EGA colour interpretation while resident** |
+| 0 / 0b | — / `vgatsr.asm` | 0 / ~40 lines asm | none |
+| 1 | `vga_dac.v`, `vga_dac_io.v`, `ega_top.v` | ~40 lines RTL, +256 FF | low — structurally inert when the option is off; watch fMAX |
+| 2 | `vgatsr.asm` | ~12 lines asm | low |
+| 3.1 PEL mask | `ega_top.v`, `vga_dac_io.v` | ~20 lines | low |
+| 3.2 ATC normalisation | `vgatsr.asm`, `vga_dac.v` | ~50 lines | **medium — changes EGA colour interpretation while resident** |
 | 3.3 Colour Select | `ega_attrib_ctrl.v`, `ega_top.v`, `video_scandoubler.v` | ~25 lines | low-medium (touches the pixel path width) |
 | 3.4-3.7 | various | small | low |
 
-Footnote on area: `mcga_dac`'s reset/default loop assigns all 256 entries in a
+Footnote on area: `vga_dac`'s reset/default loop assigns all 256 entries in a
 single cycle, which forces Quartus to infer flip-flops (~4600 of them) rather
 than memory. If area ever gets tight, loading the defaults from a small
 sequential state machine over 256 cycles would let the palette live in MLAB/M10K

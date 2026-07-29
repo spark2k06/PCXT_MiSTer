@@ -1,10 +1,10 @@
 //============================================================================
 //
-//  MCGA mode 13h packed-pixel renderer
+//  VGA mode 13h packed-pixel renderer
 //
 //============================================================================
 
-module mcga_mode13_renderer(
+module vga_mode13_renderer(
     input  wire        clock,
     input  wire        reset,
     input  wire        enable,
@@ -40,7 +40,7 @@ module mcga_mode13_renderer(
 
     reg render_en_q = 1'b0;
 
-    mcga_mode13_timing timing (
+    vga_mode13_timing timing (
         .clock          (clock),
         .reset          (reset),
         .enable         (enable),
@@ -55,7 +55,7 @@ module mcga_mode13_renderer(
         .frame_start    ()
     );
 
-    mcga_mode13_address address (
+    vga_mode13_address address (
         .pixel_x            (pixel_x),
         .pixel_y            (pixel_y),
         .framebuffer_addr   (framebuffer_addr),

@@ -1,10 +1,10 @@
 //============================================================================
 //
-//  MCGA packed 8bpp framebuffer
+//  VGA packed 8bpp framebuffer
 //
 //============================================================================
 
-module mcga_framebuffer(
+module vga_framebuffer(
     input  wire        clk_cpu,
     input  wire        reset_cpu,
     input  wire [15:0] cpu_addr,

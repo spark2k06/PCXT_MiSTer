@@ -1,10 +1,10 @@
 //============================================================================
 //
-//  MCGA/VGA-compatible 256-entry DAC palette
+//  VGA/VGA-compatible 256-entry DAC palette
 //
 //============================================================================
 
-module mcga_dac(
+module vga_dac(
     input  wire        clock,
     input  wire        reset,
     input  wire        load_defaults,
@@ -40,7 +40,7 @@ module mcga_dac(
     reg [5:0] red_ram[0:255];
     reg [5:0] green_ram[0:255];
     reg [5:0] blue_ram[0:255];
-    // Set for every index loaded by load_defaults (i.e. while MCGA mode 13h
+    // Set for every index loaded by load_defaults (i.e. while VGA mode 13h
     // is active) or explicitly written through the DAC ports; cleared by
     // invalidate (a mode set to anything other than mode 13h). Lets the EGA
     // path fall back to its own palette for any entry a VGA-unaware EGA

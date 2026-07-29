@@ -1,10 +1,10 @@
 //============================================================================
 //
-//  MCGA mode 13h 320x200 timing, output as 640x200 scan
+//  VGA mode 13h 320x200 timing, output as 640x200 scan
 //
 //============================================================================
 
-module mcga_mode13_timing(
+module vga_mode13_timing(
     input  wire        clock,
     input  wire        reset,
     input  wire        enable,

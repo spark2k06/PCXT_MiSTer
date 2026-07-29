@@ -197,7 +197,7 @@ register writes, PC-speaker routines, floppy/copy-protection timing loops —
 has no defined behaviour at this setting. This is the most likely explanation
 for symptom 3 in *specific scenes* (as opposed to random artefacts).
 
-### RC5 — EGA/MCGA VRAM mixed-port read-during-write is undefined **[verified]**
+### RC5 — EGA/VGA VRAM mixed-port read-during-write is undefined **[verified]**
 
 [rtl/video/ega_vram.v](../rtl/video/ega_vram.v) instantiates four M10K
 `altsyncram` blocks with `clock0 = clk` (chipset) and `clock1 = clk_vram`, and:

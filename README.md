@@ -11,7 +11,7 @@ Discussion and development of the core take place in the
 
 The goal of this core is to provide a reliable IBM PC/XT-compatible machine for MiSTer. It builds on the [MCL86 core](https://github.com/MicroCoreLabs/Projects/tree/master/MCL86) from [@MicroCoreLabs](https://github.com/MicroCoreLabs/) and [KFPC-XT](https://github.com/kitune-san/KFPC-XT) from [@kitune-san](https://github.com/kitune-san).
 
-The EGA and optional MCGA mode 13h implementation is based on the video
+The EGA and optional VGA mode 13h implementation is based on the video
 emulation code in [86Box](https://github.com/86box/86box).
 
 [JTOPL](https://github.com/jotego/jtopl) by Jose Tejada ([@jotego](https://github.com/jotego)) provides AdLib sound.
@@ -25,7 +25,7 @@ improvements, see the [PCXT technical report](https://aitorgomez.net/pcxt-ega/co
 * IBM PC/XT 5160 and compatible systems with an EGA-centered video path
 * CGA-compatible text and graphics behavior implemented through EGA
 * Dual EGA dot clock, 14.318181 MHz and 16.257 MHz, selected per mode as on real hardware
-* Optional MCGA mode 13h (320x200x256), controlled from the OSD and disabled by default
+* Optional VGA mode 13h (320x200x256), controlled from the OSD and disabled by default
 * 640 KiB conventional memory plus 384 KiB UMB
 * EGA BIOS option ROM support
 * EMS memory up to 2 MiB
@@ -45,7 +45,7 @@ hardware-selection paths in this configuration.
 * System/ROM set to PC/XT
 * EGA video active at boot
 * CGA-compatible text and graphics behavior through EGA
-* Optional MCGA mode 13h, enabled only from the OSD
+* Optional VGA mode 13h, enabled only from the OSD
 * OPL2 enabled for common DOS FM audio
 * CMS enabled
 * EMS enabled for expanded memory
