@@ -33,7 +33,8 @@ module mcga_dac(
     input  wire [7:0]  port_index,
     output wire [5:0]  port_red,
     output wire [5:0]  port_green,
-    output wire [5:0]  port_blue
+    output wire [5:0]  port_blue,
+    output wire        port_valid
 );
 
     reg [5:0] red_ram[0:255];
@@ -325,5 +326,6 @@ module mcga_dac(
     assign port_red = red_ram[port_index];
     assign port_green = green_ram[port_index];
     assign port_blue = blue_ram[port_index];
+    assign port_valid = entry_valid[port_index];
 
 endmodule

@@ -213,7 +213,9 @@ int10_hook:
     mov byte [cs:current_mode], 13h
     mov al, 13h
     mov ah, 40
-    xor bh, bh
+    ; No "xor bh, bh" here: AH=00h has no BH return value, and a mode set is
+    ; called often enough that zeroing a caller's register is a real hazard.
+    ; The page number in BH belongs to AH=0Fh, which sets it above.
     iret
 
 .chain:
@@ -377,8 +379,16 @@ set_dac_block:
     pop ax
     ret
 
+; AL=15h returns DH=red, CH=green, CL=blue and nothing else: a real VGA BIOS
+; leaves BX and DL alone. BH is only borrowed to hold red across the reads, so
+; it has to be restored, and DX has to be put back before DH is loaded. Getting
+; this wrong hangs fade loops that keep their step counter in BH, which is the
+; usual place for it - every call would overwrite the counter with a colour
+; component and the fade would never reach its last step.
 read_one_dac:
     push ax
+    push bx
+    push dx
     mov dx, VGA_DAC_READ
     mov al, bl
     out dx, al
@@ -389,7 +399,10 @@ read_one_dac:
     mov ch, al
     in al, dx
     mov cl, al
-    mov dh, bh
+    mov al, bh
+    pop dx
+    mov dh, al
+    pop bx
     pop ax
     ret
 

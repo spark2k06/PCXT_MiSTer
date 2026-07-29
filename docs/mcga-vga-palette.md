@@ -5,8 +5,15 @@ now feeds every mode, not just mode 13h, gated by a per-entry valid bit so the
 option-off path is unchanged by construction. TSR: the DAC BIOS calls
 (`INT 10h AH=10h AL=10h/12h/15h/17h`) are served in any mode, and `AL=93h` no
 longer drops mode 13h on re-entry (RC6). Stage 3 items are unimplemented and
-optional — build only what §6.2 asks for once this is confirmed on Titus the
-Fox / Prehistorik 2.
+optional — build only what §6.2 asks for.
+
+Confirmed on hardware: Titus the Fox gameplay now renders in the game's own
+palette, which settles RC7 in favour of the mode `0Dh` theory. Making the DAC
+BIOS calls live also exposed **RC8**, a register-preservation bug in
+`read_one_dac` that hung every fade; fixed, awaiting a hardware run.
+
+**RC9** below was that same exposure hitting the readback path, and it was the
+one that actually broke the fades.
 Scope: `status[29]` (OSD *MCGA Mode 13h*), `rtl/video/*`, `SW/mcga/mcgatsr.asm`
 Branch at time of writing: `ega-test` (`13b3093`)
 
@@ -193,6 +200,99 @@ leaves mode 13h and the screen goes black.
 
 Related: nothing clears the mode 13h framebuffer on a mode set, so `AX=0013h`
 leaves the previous image behind — the opposite deviation.
+
+### RC8 — `AX=1015h` destroys BH, which hangs fade loops **[verified]**
+
+Found after Stage 2 landed: with the DAC subfunctions reachable outside mode
+13h, Titus the Fox stopped completing its fades — the logo fades forever and
+the game never proceeds. Forcing the fade off (`MTF /v /f`) avoided it.
+
+`read_one_dac` pushed only `AX`:
+
+```asm
+read_one_dac:
+    push ax
+    ...
+    mov bh, al        ; red, never restored
+    ...
+    mov dh, bh
+    pop ax
+```
+
+`INT 10h AX=1015h` returns `DH`/`CH`/`CL` and nothing else; a real VGA BIOS
+leaves `BX` and `DL` untouched. Borrowing `BH` as scratch and never putting it
+back overwrites the caller's register with a colour component on every call.
+A fade loop that keeps its step counter in `BH` — the usual place for it —
+then never reaches its last step:
+
+```asm
+    mov bh, 64
+step:
+    mov bl, 0
+colour:
+    mov ax, 1015h
+    int 10h           ; BH = red value, counter gone
+    ...
+    dec bh            ; never reaches zero
+    jnz step
+```
+
+The other three handlers (`set_one_dac`, `set_dac_block`, `read_dac_block`)
+already save and restore everything they touch; `read_one_dac` was the only
+one that did not, which is why this never showed up while the group was
+gated to mode 13h.
+
+Fixed by pushing `BX` and `DX`, carrying red through `AL` across the `pop dx`
+so `DL` survives, and restoring both. `.set_mode13` had the same class of bug
+in a milder form — a gratuitous `xor bh, bh` on a call (`AH=00h`) that has no
+`BH` return value — and lost it in the same pass. The two remaining
+`xor bh, bh` sites, `AH=0Fh` and `AH=12h/BL=10h`, are documented outputs and
+stay.
+
+**Rule for this file:** an `INT 10h` handler preserves every register that is
+not a documented output. There is no VGA BIOS underneath to paper over a slip.
+
+### RC9 — Readback and the picture disagreed, which *is* the gradient **[verified]**
+
+RC8 was real but was not the whole story: fades still misbehaved after it.
+
+The valid-bit design (§4.2) deliberately does not reload the DAC RAM on a mode
+set — that is what keeps the EGA path untouched. The consequence is that after
+`invalidate` the RAM still holds the **256-colour VGA default table** from the
+last mode 13h entry, while the screen shows `ega_vgaport` colours. The two
+disagree, and the first version of this document dismissed that as harmless
+because the normal order is write-then-read.
+
+It is not harmless, because the usual way to fade is exactly the other order:
+
+```
+read all 256 entries  ->  scale them  ->  write them back
+```
+
+Before Stage 2, that read was a no-op in a 16-colour mode and the game's own
+buffer carried the fade. With the DAC calls live, the read now returns the VGA
+default table — whose entries 0x10-0x1F are a **greyscale ramp** and whose
+entries 0x20-0xF7 are a **hue ring**. The game scales that and writes it back,
+which marks every entry valid, and the display promptly picks it up. A gradient
+appears on a 16-colour screen out of nowhere, and a loop that expects the
+palette to converge on something it recognises never terminates.
+
+Confirmed in simulation: straight after a mode 13h default load, entry 20 reads
+back `0E 0E 0E` — a step of the greyscale ramp.
+
+The fix restores the invariant a real VGA has, that palette RAM and picture
+always agree, by giving the **read** port the same fallback the display already
+had: an entry that was never written reads back the colour `ega_vgaport` is
+putting on screen for that code, under the live `palette_64_mode` rule.
+Entries at or above `0x40` read back black, matching a VGA BIOS, which fills
+only `0x00-0x3F` for 16-colour modes. Written entries keep winning, so nothing
+about mode 13h or about a game that loads its palette first changes.
+
+Doing it on the read port rather than by loading a table at `invalidate` time
+also sidesteps a real ordering trap: the TSR writes `3CDh` *before* it chains
+to the video BIOS, so at that instant Miscellaneous Output bit 7 — and with it
+`palette_64_mode` — still describes the mode being left, not the one being
+entered. A live fallback always uses the current rule.
 
 ### RC7 — What the two games actually do **[hypothesis]**
 
@@ -476,6 +576,8 @@ Run Titus the Fox and Prehistorik 2 with the TSR after Stages 1 + 2:
 | Only brown/colour 6 wrong | Same, limited to the `06h`/`14h` collision | Stage 3 item 2 |
 | Nothing changes at all | The game neither writes the DAC ports nor calls `AX=1012h` in that mode | Re-run Stage 0b; the palette is going somewhere else (attribute controller with `rgbRGB` codes, or Colour Select paging → Stage 3 item 3) |
 | Colours change but flicker or reset each level | A mode set is invalidating a palette the game does not reload | Stage 3 item 4 |
+| A fade never finishes and the game hangs | A handler is clobbering a caller register the fade uses as a counter | Audit register preservation, as in RC8 |
+| A gradient the game never drew appears during a fade | Readback is handing out DAC RAM the picture does not use | RC9 — readback must take the display's fallback |
 
 ### 6.3 Regression sweep for Stage 3 item 2, if built
 

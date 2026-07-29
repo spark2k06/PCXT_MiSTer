@@ -547,6 +547,7 @@ module ega_top(
         .reset              (reset),
         .load_defaults      (mcga_mode13_enter),
         .invalidate         (mcga_mode13_exit),
+        .palette_64_mode    (ega_misc_output_reg[7]),
         .read_index_write   (mcga_dac_read_index_write_evt),
         .write_index_write  (mcga_dac_write_index_write_evt),
         .data_write         (mcga_dac_data_write_evt),
