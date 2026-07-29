@@ -74,8 +74,14 @@ module ega_attrib_ctrl (
 
     always @(posedge clk or posedge reset) begin
         if (reset) begin
+            // Power-on palette must be the IBM EGA 200-line/CGA-compatible set:
+            // 0x00-0x07 for 0-7, 0x10-0x17 for 8-15. In the 16-colour DAC path
+            // ega_vgaport uses bit 4 as the shared intensity and ignores bit 3,
+            // so a plain identity mapping would render 8-15 exactly like 0-7.
+            // Index 6 stays 0x06 to keep ega_vgaport's brown special case.
             for (palette_index = 0; palette_index < 16; palette_index = palette_index + 1)
-                raw_palette[palette_index] <= palette_index[5:0];
+                raw_palette[palette_index] <= (palette_index < 8) ? palette_index[5:0]
+                                                                  : {3'b010, palette_index[2:0]};
             attr_index <= 5'h00;
             address_phase <= 1'b1;
             video_enable_reg <= 1'b1;
