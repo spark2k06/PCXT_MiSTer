@@ -131,9 +131,14 @@ module ega_top(
     wire ega_switch_sense_cs = ((bus_a == 15'h03C2) || (bus_a == 15'h02C2)) & ~bus_aen & ega_enabled;
     wire ega_misc_read_cs = ((bus_a == 15'h03CC) || (bus_a == 15'h02CC)) & ~bus_aen & ega_enabled;
     wire ega_gfx_data_cs = ((bus_a == 15'h03CF) || (bus_a == 15'h02CF)) & ~bus_aen & ega_enabled;
-    wire ega_dac_read_index_cs = ((bus_a == 15'h03C7) || (bus_a == 15'h02C7)) & ~bus_aen & ega_enabled;
-    wire ega_dac_write_index_cs = ((bus_a == 15'h03C8) || (bus_a == 15'h02C8)) & ~bus_aen & ega_enabled;
-    wire ega_dac_data_cs = ((bus_a == 15'h03C9) || (bus_a == 15'h02C9)) & ~bus_aen & ega_enabled;
+    // 3C7-3C9 belong to the MCGA mode 13h DAC, which a real IBM EGA does not have
+    // at all: its palette lives in the attribute controller. Leaving them answering
+    // with mode 13h switched off makes the card read as a VGA to anything probing
+    // the DAC, so gate them on the OSD option. Gate on mcga_enabled rather than
+    // mode13_active, so software can still load the palette before setting the mode.
+    wire ega_dac_read_index_cs = ((bus_a == 15'h03C7) || (bus_a == 15'h02C7)) & ~bus_aen & ega_enabled & mcga_enabled;
+    wire ega_dac_write_index_cs = ((bus_a == 15'h03C8) || (bus_a == 15'h02C8)) & ~bus_aen & ega_enabled & mcga_enabled;
+    wire ega_dac_data_cs = ((bus_a == 15'h03C9) || (bus_a == 15'h02C9)) & ~bus_aen & ega_enabled & mcga_enabled;
     wire mcga_mode13_bios_ctrl_cs = (bus_a == 15'h03CD) & ~bus_aen & ega_enabled;
     // Readback on the same port: guest software cannot otherwise tell whether the
     // OSD has MCGA mode 13h available, and must not claim VGA on a machine that
