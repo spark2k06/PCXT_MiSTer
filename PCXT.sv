@@ -1867,7 +1867,6 @@ module emu
     assign VGA_B_AUX  =  swap_video_eff ? VGA_B_hgc_56   : VGA_B_cga_hdmi;
     assign VGA_HS =  swap_video_eff ? VGA_HS_hgc_56 : VGA_HS_cga_hdmi;
     assign VGA_VS =  swap_video_eff ? VGA_VS_hgc_56 : VGA_VS_cga_hdmi;
-    assign VGA_DE =  swap_video_eff ? VGA_DE_hgc_56 : VGA_DE_cga_hdmi;
     assign gamma_bus =  swap_video_eff ? gamma_bus_hgc : gamma_bus_cga;
     assign CE_PIXEL  =  swap_video_eff ? CE_PIXEL_hgc_hdmi : CE_PIXEL_cga_hdmi;
     assign CE_PIXEL_CREDITS = swap_video_eff ? CE_PIXEL_hgc_hdmi : CE_PIXEL_cga_hdmi;
@@ -1905,5 +1904,19 @@ module emu
         .rgb_out    ( {VGA_R, VGA_G, VGA_B } )
     );
 
+    // The credits block registers RGB once on CE_PIXEL, even while its overlay
+    // is disabled. Register the already-processed DE on that same event; using
+    // the selected CGA/HGC DE directly opens the active window one pixel before
+    // the corresponding RGB output sample and clips the last pixel instead.
+    reg VGA_DE_credits = 1'b0;
+    wire VGA_DE_selected = swap_video_eff ? VGA_DE_hgc_56 : VGA_DE_cga_hdmi;
+    always @(posedge clk_video_out_ps or posedge video_retime_reset) begin
+        if (video_retime_reset)
+            VGA_DE_credits <= 1'b0;
+        else if (CE_PIXEL_CREDITS)
+            VGA_DE_credits <= VGA_DE_selected;
+    end
+
+    assign VGA_DE = VGA_DE_credits;
 
 endmodule
