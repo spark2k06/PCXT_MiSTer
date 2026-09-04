@@ -1578,6 +1578,15 @@ module emu
         video_pause_core        <= video_pause_core_buf;
     end
 
+    wire LHBL = cga_scandouble_en ? HBlank :
+                ((border_video_ff) ? (swap_video_eff ? HBlank_fixed_hgc : HBlank_fixed) : HBlank_VGA);
+    wire LVBL = cga_scandouble_en ? VBlank :
+                ((border_video_ff) ? (std_hsyncwidth ? VGA_VBlank_border : VBlank) : VBlank);
+    wire VSync_hgc = VSync_line[MDA_VSYNC_DELAY];
+
+    wire haux_cga, vaux_cga, hbaux_cga, vbaux_cga;
+    wire haux_hgc, vaux_hgc, hbaux_hgc, vbaux_hgc;
+
     video_monochrome_converter video_mono_cga 
 	(
 		.clk_vid(CLK_VIDEO_CGA),
@@ -1587,11 +1596,21 @@ module emu
 		.G({g, 2'b00}),
 		.B({b, 2'b00}),
 
+		.HSync(HSync),
+		.VSync(VSync),
+		.HBlank(LHBL),
+		.VBlank(LVBL),
+
 		.gfx_mode(screen_mode_video_ff),
 
 		.R_OUT(raux_cga),
 		.G_OUT(gaux_cga),
-		.B_OUT(baux_cga)
+		.B_OUT(baux_cga),
+
+		.HSync_OUT(haux_cga),
+		.VSync_OUT(vaux_cga),
+		.HBlank_OUT(hbaux_cga),
+		.VBlank_OUT(vbaux_cga)
 	);
 
     video_monochrome_converter video_mono_hgc
@@ -1603,11 +1622,21 @@ module emu
 		.G({hgc_g_sync, 2'b00}),
 		.B({hgc_b_sync, 2'b00}),
 
+		.HSync(hgc_hs_sync),
+		.VSync(hgc_vs_sync),
+		.HBlank(hgc_hb_sync),
+		.VBlank(hgc_vb_sync),
+
 		.gfx_mode(screen_mode_video_ff),
 
 		.R_OUT(raux_hgc),
 		.G_OUT(gaux_hgc),
-		.B_OUT(baux_hgc)
+		.B_OUT(baux_hgc),
+
+		.HSync_OUT(haux_hgc),
+		.VSync_OUT(vaux_hgc),
+		.HBlank_OUT(hbaux_hgc),
+		.VBlank_OUT(vbaux_hgc)
 	);
 
     /*
@@ -1619,12 +1648,6 @@ module emu
     assign VGA_DE = ~(HBlank | VBlank);
     assign CE_PIXEL = ce_pixel;
     */
-
-    wire LHBL = cga_scandouble_en ? HBlank :
-                ((border_video_ff) ? (swap_video_eff ? HBlank_fixed_hgc : HBlank_fixed) : HBlank_VGA);
-    wire LVBL = cga_scandouble_en ? VBlank :
-                ((border_video_ff) ? (std_hsyncwidth ? VGA_VBlank_border : VBlank) : VBlank);
-    wire VSync_hgc = VSync_line[MDA_VSYNC_DELAY];
 
     wire       pre2x_LHBL, pre2x_LVBL;
     wire [7:0] pre2x_r, pre2x_g, pre2x_b;
@@ -1644,10 +1667,10 @@ module emu
 		.G(gaux_cga),
 		.B(baux_cga),
 
-		.HBlank(LHBL),
-		.VBlank(LVBL),
-		.HSync(HSync),
-		.VSync(VSync),
+		.HBlank(hbaux_cga),
+		.VBlank(vbaux_cga),
+		.HSync(haux_cga),
+		.VSync(vaux_cga),
 
 		.scandoubler(1'b0),
 		.hq2x(scale_video_ff==1),
@@ -1764,10 +1787,10 @@ module emu
 		.G(gaux_hgc),
 		.B(baux_hgc),
 
-		.HBlank(hgc_hb_sync),
-		.VBlank(hgc_vb_sync),
-		.HSync(hgc_hs_sync),
-		.VSync(hgc_vs_sync),
+		.HBlank(hbaux_hgc),
+		.VBlank(vbaux_hgc),
+		.HSync(haux_hgc),
+		.VSync(vaux_hgc),
 
 		.scandoubler(scandoubler),
 		.hq2x(scale_video_ff==1),
