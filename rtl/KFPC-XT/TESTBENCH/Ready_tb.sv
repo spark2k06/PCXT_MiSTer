@@ -71,6 +71,7 @@ module READY_TEST_tm();
     logic           dma0_acknowledge_n;
     logic           memory_read_n;
     logic           memory_write_n;
+    logic           cga_memory_write_wait;
     logic           address_enable_n;   // AENBRD
     logic           io_channel_ready;
     logic           dma_wait_n;
@@ -134,6 +135,7 @@ module READY_TEST_tm();
         dma0_acknowledge_n  = 1'b1;
         memory_read_n       = 1'b1;
         memory_write_n      = 1'b1;
+        cga_memory_write_wait = 1'b0;
         address_enable_n    = 1'b1;
         io_channel_ready    = 1'b1;
         dma_wait_n          = 1'b1;
@@ -278,6 +280,19 @@ module READY_TEST_tm();
             cycle_waits(1'b0, write_waited);
             check($sformatf("clk_select %0d: a memory write does not wait", sel),
                   write_waited, 1'b0);
+        end
+
+        // CGA VRAM is an ISA byte target and must add one Tw even at the
+        // normal XT speeds. This uses READY's existing one-wait handshake;
+        // it must not depend on an arbitrary CGA sequencer phase.
+        for (int unsigned sel = 0; sel < 3; sel++) begin
+            clk_select = sel[1:0];
+            cga_memory_write_wait = 1'b1;
+            #(`TB_CYCLE * 4);
+            cycle_waits(1'b0, write_waited);
+            check($sformatf("clk_select %0d: a CGA write waits once", sel),
+                  write_waited, 1'b1);
+            cga_memory_write_wait = 1'b0;
         end
 
         // I/O must arm the flip-flop at every setting - the gate is on the

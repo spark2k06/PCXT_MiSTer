@@ -70,6 +70,8 @@ module PERIPHERALS #(
         output  logic           VGA_HBlank,
         output  logic           VGA_VBlank,
         output  logic           VGA_VBlank_border,
+        output  logic           cga_memory_ready,
+        output  logic           cga_memory_write_wait,
         // I/O Ports
         input   logic   [19:0]  address,
         output  logic   [19:0]  latch_address,
@@ -259,6 +261,30 @@ module PERIPHERALS #(
     wire    tandy_page_chip_select  = `ENABLE_TANDY_VIDEO ? (tandy_video_en && iorq && ~address_enable_n && address[15:0] == 16'h03DF) : 1'b0;
     wire    xtctl_chip_select       = (iorq && ~address_enable_n && address[15:0] == 16'h8888);
     wire    rtc_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h02C0 >> 1)); // 0x2C0 .. 0x2C1
+
+    // Every CGA byte write carries the Tw marked "+WS" in cycle-counted
+    // software.  CGA_BUS_WAIT also ties completion to the next of the two
+    // free VRAM windows.  Using both windows is important: selecting only one
+    // can hold a polygon write for nearly a complete 32-dot turn and starve
+    // its PC-speaker updates, while an unphased fixed Tw breaks Kefrens.
+    assign cga_memory_write_wait = `ENABLE_CGA ? cga_mem_select : 1'b0;
+
+    generate
+        if (`ENABLE_CGA) begin : CGA_MEMORY_WAIT
+            CGA_BUS_WAIT u_CGA_BUS_WAIT (
+                .clock              (clk_vga_cga),
+                .reset              (reset),
+                .sequencer_phase    (clkdiv),
+                .memory_select      (cga_mem_select),
+                .memory_read_n      (memory_read_n),
+                .memory_write_n     (memory_write_n),
+                .ready              (cga_memory_ready)
+            );
+        end
+        else begin : NO_CGA_MEMORY_WAIT
+            assign cga_memory_ready = 1'b1;
+        end
+    endgenerate
 
     wire    [3:0] ems_page_address  = (ems_address == 2'b00) ? 4'b1100 : (ems_address == 2'b01) ? 4'b1101 : 4'b1110;
     wire    ems_chip_select         = `ENABLE_EMS ? (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260)) : 1'b0;          // 260h..263h

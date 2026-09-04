@@ -205,6 +205,8 @@ module CHIPSET #(
     logic           dma_chip_select_n;
     logic           dma_page_chip_select_n;
     logic           memory_access_ready;
+    logic           cga_memory_ready;
+    logic           cga_memory_write_wait;
     logic           ram_address_select_n;
     logic   [7:0]   internal_data_bus;
     logic   [7:0]   internal_data_bus_ext;
@@ -257,11 +259,12 @@ module CHIPSET #(
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
         .dma_wait_n                         (dma_wait_n),
-        .io_channel_ready                   (io_channel_ready & memory_access_ready & tandy_snd_rdy),
+        .io_channel_ready                   (io_channel_ready & memory_access_ready & tandy_snd_rdy & cga_memory_ready),
         .io_read_n                          (io_read_n),
         .io_write_n                         (io_write_n),
         .memory_read_n                      (memory_read_n),
         .memory_write_n                     (memory_write_n),
+        .cga_memory_write_wait              (cga_memory_write_wait),
         .dma0_acknowledge_n                 (dma_acknowledge_n[0]),
         .address_enable_n                   (address_enable_n),
         .clk_select                         (clk_select)
@@ -342,7 +345,9 @@ module CHIPSET #(
         .VGA_VSYNC                          (VGA_VSYNC),
         .VGA_HBlank                         (VGA_HBlank),
         .VGA_VBlank                         (VGA_VBlank),
-        .VGA_VBlank_border                  (VGA_VBlank_border),		  
+        .VGA_VBlank_border                  (VGA_VBlank_border),
+        .cga_memory_ready                   (cga_memory_ready),
+        .cga_memory_write_wait              (cga_memory_write_wait),
         .address                            (address),
 	    .latch_address                      (latch_address),
         .internal_data_bus                  (internal_data_bus),
@@ -522,4 +527,3 @@ module CHIPSET #(
     end
 
 endmodule
-

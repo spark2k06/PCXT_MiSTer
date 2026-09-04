@@ -199,47 +199,10 @@ module cga(
     //assign bus_dir = (crtc_cs | status_cs);
     assign bus_out = bus_int_out;
 
-    // Wait state generator
-    // Optional for operation but required to run timing-sensitive demos
-    // e.g. 8088MPH.
-    /*
-    if (USE_BUS_WAIT == 0) begin
-        assign bus_rdy = 1;
-    end else begin
-        assign bus_rdy = bus_rdy_latch;
-    end
-    */
-
-/*
-    assign cpu_memsel = bus_mem_cs & (~bus_memr_l | ~bus_memw_l);
-
-    always @ (posedge clk)
-    begin
-        if (cpu_memsel) begin
-            case (wait_state)
-                2'b00: begin
-                    if (clkdiv == 5'd17) wait_state <= 2'b01;
-                    bus_rdy_latch <= 0;
-                end
-                2'b01: begin
-                    if (clkdiv == 5'd20) wait_state <= 2'b10;
-                    bus_rdy_latch <= 0;
-                end
-                2'b10: begin
-                    wait_state <= 2'b10;
-                    bus_rdy_latch <= 1;
-                end
-                default: begin
-                    wait_state <= 2'b00;
-                    bus_rdy_latch <= 0;
-                end
-            endcase
-        end else begin
-            wait_state <= 2'b00;
-            bus_rdy_latch <= 1;
-        end
-    end
-*/
+    // VRAM lives outside this module in the MiSTer port, so its READY timing
+    // is generated at the chipset boundary by CGA_BUS_WAIT. Keep this legacy
+    // pin benign; it is not connected by the MiSTer integration.
+    assign bus_rdy = 1'b1;
 
     // status register (read only at 3BA)
     // FIXME: vsync_l should be delayed/synced to HCLK.

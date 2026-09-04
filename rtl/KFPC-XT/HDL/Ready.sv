@@ -18,6 +18,7 @@ module READY (
     input   logic           io_write_n,
     input   logic           memory_read_n,
     input   logic           memory_write_n,
+    input   logic           cga_memory_write_wait,
     input   logic           dma0_acknowledge_n,
     input   logic           address_enable_n,
     // CPU speed setting (0 - 4.77MHz, 1 - 7.16MHz, 2 - 9.54MHz, 3 - max)
@@ -49,7 +50,8 @@ module READY (
 
     wire    bus_state = ~io_read_n | ~io_write_n
                       | (dma0_acknowledge_n & ~memory_read_n  & address_enable_n)
-                      | (strict_ready & dma0_acknowledge_n & ~memory_write_n & address_enable_n);
+                      | ((strict_ready | cga_memory_write_wait)
+                         & dma0_acknowledge_n & ~memory_write_n & address_enable_n);
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)

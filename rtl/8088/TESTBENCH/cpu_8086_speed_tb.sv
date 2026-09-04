@@ -130,7 +130,8 @@ module cpu_8086_speed_tb;
         .processor_ready(processor_ready), .dma_ready(), .dma_wait_n(1'b1),
         .io_channel_ready(memory_access_ready), .io_read_n(1'b1),
         .io_write_n(1'b1), .memory_read_n(memory_read_n),
-        .memory_write_n(memory_write_n), .dma0_acknowledge_n(1'b1),
+        .memory_write_n(memory_write_n), .cga_memory_write_wait(1'b0),
+        .dma0_acknowledge_n(1'b1),
         .address_enable_n(1'b1), .clk_select(selected_clk)
     );
     assign data_bus_word = ram_data_out_word;

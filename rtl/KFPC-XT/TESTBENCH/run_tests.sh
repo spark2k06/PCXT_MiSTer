@@ -54,6 +54,7 @@ declare -A SOURCES=(
     [ram_refresh_collision_tb]="HDL/RAM.sv HDL/KFSDRAM/HDL/KFSDRAM.sv"
     [ram_lookahead_tb]="HDL/RAM.sv HDL/KFSDRAM/HDL/KFSDRAM.sv"
     [Ready_tb]="HDL/Ready.sv"
+    [CGA_Bus_Wait_tb]="HDL/CGA_Bus_Wait.sv"
     [Bus_Arbiter_Hold_tb]="HDL/Bus_Arbiter.sv"
     [KF8253_tb]="HDL/KF8253/HDL/KF8253.sv HDL/KF8253/HDL/KF8253_Counter.sv HDL/KF8253/HDL/KF8253_Control_Logic.sv"
     [KF8255_tb]="HDL/KF8255/HDL/KF8255.sv HDL/KF8255/HDL/KF8255_Group.sv HDL/KF8255/HDL/KF8255_Port.sv HDL/KF8255/HDL/KF8255_Port_C.sv HDL/KF8255/HDL/KF8255_Control_Logic.sv"
