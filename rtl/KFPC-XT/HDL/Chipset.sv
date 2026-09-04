@@ -118,6 +118,10 @@ module CHIPSET #(
         input   logic           uart2_dsr_n,
         output  logic           uart2_rts_n,
         output  logic           uart2_dtr_n,
+        // MPU-401 (MIDI / MT32-pi)
+        input   logic           clk_midi,
+        input   logic           midi_rx,
+        output  logic           midi_tx,
         // SDRAM
         input   logic           enable_sdram,
         output  logic           initilized_sdram,
@@ -370,6 +374,9 @@ module CHIPSET #(
         .uart2_dsr_n                        (uart2_dsr_n),
         .uart2_rts_n                        (uart2_rts_n),
         .uart2_dtr_n                        (uart2_dtr_n),
+        .clk_midi                          (clk_midi),
+        .midi_rx                           (midi_rx),
+        .midi_tx                           (midi_tx),
         .ems_enabled                       (ems_enabled),
         .ems_address                       (ems_address),
         .map_ems                           (map_ems),

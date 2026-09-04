@@ -57,7 +57,9 @@ entity uart_16750 is
         DCDN        : in std_logic;                             -- DCD input
         RIN         : in std_logic;                             -- RI input
         SIN         : in std_logic;                             -- Receiver input
-        SOUT        : out std_logic                             -- Transmitter output
+        SOUT        : out std_logic;                            -- Transmitter output
+        LSR_DR      : out std_logic;                            -- LSR: Data ready (register-independent)
+        LSR_THRE    : out std_logic                             -- LSR: Transmitter holding register empty (register-independent)
     );
 end uart_16750;
 
@@ -685,6 +687,9 @@ begin
     iLSR(7)         <= '1' when iFCR_FIFOEnable = '1' and iLSR_FIFOERR = '1' else '0';
     iLSR_DR         <= '1' when iRXFIFOEmpty = '0' or iRXFIFOWrite = '1' else '0';
     iLSR_THRE       <= '1' when iTXFIFOEmpty = '1' else '0';
+
+    LSR_DR          <= iLSR_DR;
+    LSR_THRE        <= iLSR_THRE;
     iLSR_TEMT       <= '1' when iTXRunning = '0' and iLSR_THRE = '1' else '0';
 
     -- Modem status register
