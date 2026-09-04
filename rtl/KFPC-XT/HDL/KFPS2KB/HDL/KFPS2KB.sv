@@ -215,9 +215,18 @@ module KFPS2KB #(
     //
     // Make keycode
     //
+    // swap_video has a data-dependent reset value, so load it synchronously.
+    // This prevents the asynchronous reset from being synthesized as a latch
+    // clock while preserving the selected adapter after reset.
+    always_ff @(posedge clock) begin
+        if (reset)
+            swap_video <= tandy_video ? 1'b0 : video_output;
+        else if (recieved_flag && register == 8'h78 && break_flag)
+            swap_video <= ~swap_video;
+    end
+
     always_ff @(posedge clock, posedge reset) begin
         if (reset) begin
-            swap_video  <= tandy_video ? 1'b0 : video_output;
             irq         <= 1'b0;
             keycode     <= 8'h00;
             break_flag  <= 1'b0;
@@ -257,7 +266,6 @@ module KFPS2KB #(
                 irq         <= 1'b0;
                 keycode     <= 8'h00;
                 break_flag  <= 1'b0;
-                swap_video <= break_flag ? ~swap_video : swap_video;
             end
             else if (register == 8'h07) begin
                 // F12 -> Pause core and credits

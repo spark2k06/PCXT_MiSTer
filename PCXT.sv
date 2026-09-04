@@ -364,16 +364,23 @@ module emu
     wire [2:0] vsync_width_osd = status[56:54];  // 0=Auto (use register), 1-7=override
     wire [2:0] hsync_width_osd = status[59:57];  // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
 
-    reg [1:0]   scale_video_ff;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] scale_video_meta = 2'b00;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] scale_video_ff = 2'b00;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [2:0] screen_mode_video_meta = 3'b000;
     reg         hgc_mode_video_ff;
-    reg [2:0]   screen_mode_video_ff;
-    reg         border_video_ff;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [2:0] screen_mode_video_ff = 3'b000;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg border_video_meta = 1'b0;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg border_video_ff = 1'b0;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] scale_cga_meta = 2'b00;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] scale_cga_ff = 2'b00;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [2:0] screen_mode_cga_meta = 3'b000;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [2:0] screen_mode_cga_ff = 3'b000;
     reg         cga_hw;
     wire        video_scandoubler_en = (scale_video_ff > 0) || forced_scandoubler;
-    wire        cga_scandouble_en = video_scandoubler_en;
+    wire        cga_scandouble_en = (scale_cga_ff > 0) || forced_scandoubler;
     reg         hercules_hw;
     // bit0=status[5]; bit3 exposes the MT32-pi options when detected.
-    wire [15:0] status_menumask = {12'd0, (`ENABLE_MIDI & mt32_available), 2'b00, status[5]};
+    wire [15:0] status_menumask = {12'd0, ((`ENABLE_MIDI != 0) && mt32_available), 2'b00, status[5]};
 
     wire VGA_VBlank_border;
     wire std_hsyncwidth;
@@ -383,13 +390,23 @@ module emu
 
     always @(posedge clk_57_272)
     begin
-        scale_video_ff          <= scale;
-        screen_mode_video_ff    <= screen_mode;
-        border_video_ff         <= border;
+        scale_video_meta        <= scale;
+        scale_video_ff          <= scale_video_meta;
+        screen_mode_video_meta  <= screen_mode;
+        screen_mode_video_ff    <= screen_mode_video_meta;
+        border_video_meta       <= border;
+        border_video_ff         <= border_video_meta;
         cga_hw                  <= `ENABLE_CGA ? (~status[44] | tandy_video_mode) : 1'b0;
         hercules_hw             <= `ENABLE_HGC ? (`ENABLE_CGA ? ~status[45] : 1'b1) : 1'b0;
-        VIDEO_ARX               <= (!ar) ? 12'd4 : (ar - 1'd1);
-        VIDEO_ARY               <= (!ar) ? 12'd3 : 12'd0;
+    end
+
+    // Keep static CGA configuration local to the exact CGA clock domain.
+    always @(posedge clk_28_636)
+    begin
+        scale_cga_meta          <= scale;
+        scale_cga_ff            <= scale_cga_meta;
+        screen_mode_cga_meta    <= screen_mode;
+        screen_mode_cga_ff      <= screen_mode_cga_meta;
     end
 
     always @(posedge clk_chipset)
@@ -503,6 +520,17 @@ module emu
 
     wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked  | splashscreen | splash_reset_hold | splash_pending;
     wire video_retime_reset = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked | splash_pending;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) logic [1:0] video_retime_reset_sync = 2'b11;
+    wire video_retime_reset_local = video_retime_reset_sync[1];
+
+    // The output retime registers assert reset immediately, but release it
+    // only on their own phase-shifted video clock.
+    always_ff @(posedge clk_video_out_ps or posedge video_retime_reset) begin
+        if (video_retime_reset)
+            video_retime_reset_sync <= 2'b11;
+        else
+            video_retime_reset_sync <= {video_retime_reset_sync[0], 1'b0};
+    end
     wire reset_sdram_wire = RESET | !pll_locked;
 
     //////////////////////////////////////////////////////////////////
@@ -610,11 +638,16 @@ module emu
     localparam tandy_video_mode = `ENABLE_TANDY_VIDEO;
     reg hgc_mode = 0;
 
+    // hgc_mode is sampled while reset is active. Keeping the data-dependent
+    // load synchronous avoids synthesis turning reset into a latch clock.
+    always @(negedge clk_chipset)
+        if (reset)
+            hgc_mode <= `ENABLE_HGC ? (`ENABLE_CGA ? status[4] : 1'b1) : 1'b0;
+
     always @(negedge clk_chipset, posedge reset)
     begin
         if (reset)
         begin
-            hgc_mode <= `ENABLE_HGC ? (`ENABLE_CGA ? status[4] : 1'b1) : 1'b0;
             reset_cpu <= 1'b1;
             reset_cpu_count <= 16'h0000;
         end
@@ -870,8 +903,8 @@ module emu
     reg status0_sync_prev = 0;
     wire status0_clear_pulse = status0_sync2 & ~status0_sync_prev;
     reg splash_reset_hold = 0;
-    reg [16:0] splash_reset_cnt = 17'd0;
-    localparam [16:0] SPLASH_RESET_HOLD = 17'd131072;
+    reg [17:0] splash_reset_cnt = 18'd0;
+    localparam [17:0] SPLASH_RESET_HOLD = 18'd131072;
     reg phys_reset_hold = 0;
     reg [23:0] phys_reset_cnt = 24'd0;
     localparam [23:0] PHYS_RESET_HOLD = 24'd2863600;
@@ -945,14 +978,14 @@ module emu
         if (splashscreen_sync_prev && ~splashscreen_sync2)
         begin
             splash_reset_hold <= 1'b1;
-            splash_reset_cnt  <= 17'd0;
+            splash_reset_cnt  <= 18'd0;
         end
         else if (splash_reset_hold)
         begin
             if (splash_reset_cnt == SPLASH_RESET_HOLD)
                 splash_reset_hold <= 1'b0;
             else
-                splash_reset_cnt <= splash_reset_cnt + 17'd1;
+                splash_reset_cnt <= splash_reset_cnt + 18'd1;
         end
     end
 
@@ -1261,7 +1294,9 @@ module emu
     wire [15:0] jtopl2_snd_e;
     wire [16:0] jtopl2_snd = {jtopl2_snd_e[15], jtopl2_snd_e};
     wire [10:0] tandy_snd_e;
-    wire [16:0] tandy_snd = `ENABLE_TANDY_AUDIO ? {{{2{tandy_snd_e[10]}}, {4{tandy_snd_e[10]}}, tandy_snd_e} << status[35:34], 2'b00} : 17'd0;
+    wire [16:0] tandy_snd_base = {{6{tandy_snd_e[10]}}, tandy_snd_e};
+    wire [16:0] tandy_snd = `ENABLE_TANDY_AUDIO ?
+                            (tandy_snd_base << ({1'b0, status[35:34]} + 3'd2)) : 17'd0;
     wire [16:0] spk_vol =  {2'b00, {3'b000,~speaker_out} << status[33:32], 11'd0};
     wire        speaker_out;
 
@@ -1687,8 +1722,8 @@ module emu
     reg [10:0] HBlank_counter_hgc = 0;
     reg HBlank_fixed = 1'b1;
     reg HBlank_fixed_hgc = 1'b1;
-    reg [1:0] HSync_del = 1'b11;
-    reg [1:0] HSync_del_hgc = 1'b11;
+    reg [1:0] HSync_del = 2'b11;
+    reg [1:0] HSync_del_hgc = 2'b11;
     localparam integer MDA_VSYNC_DELAY = 19;
     reg [MDA_VSYNC_DELAY:0] VSync_line;
     reg        video_pause_core_buf;
@@ -1706,22 +1741,25 @@ module emu
             HBlank_VGA = HBlank_del[5];
     end
 
-    always @ (posedge ce_pixel_cga)
+    always @(posedge clk_28_636)
     begin
+        // This enable is the same edge that previously clocked the block via
+        // ce_pixel_cga, without promoting a data signal to a clock network.
+        if (clk_14_318) begin
+            HSync_del <= {HSync_del[0], HSync};
 
-        HSync_del <= {HSync_del[0], HSync};
-
-        if (HSync_del == 2'b01)
-        begin
-            HBlank_counter <= 0;
-            HBlank_fixed <= 1'b1;
-        end
-        else
-        begin
-            if (HBlank_counter == (std_hsyncwidth ? 120 : 143))
-                HBlank_fixed <= 1'b0;
+            if (HSync_del == 2'b01)
+            begin
+                HBlank_counter <= 0;
+                HBlank_fixed <= 1'b1;
+            end
             else
-                HBlank_counter <= HBlank_counter + 1;
+            begin
+                if (HBlank_counter == (std_hsyncwidth ? 120 : 143))
+                    HBlank_fixed <= 1'b0;
+                else
+                    HBlank_counter <= HBlank_counter + 1;
+            end
         end
     end
 
@@ -1775,7 +1813,7 @@ module emu
 		.HBlank(LHBL),
 		.VBlank(LVBL),
 
-		.gfx_mode(screen_mode_video_ff),
+		.gfx_mode(screen_mode_cga_ff),
 
 		.R_OUT(raux_cga),
 		.G_OUT(gaux_cga),
@@ -1847,7 +1885,7 @@ module emu
 		.VSync(vaux_cga),
 
 		.scandoubler(1'b0),
-		.hq2x(scale_video_ff==1),
+		.hq2x(scale_cga_ff==1),
 		.gamma_bus(gamma_bus_cga),
 
 		.VGA_R(VGA_R_cga),
@@ -1873,9 +1911,9 @@ module emu
     end
 
     // Retimes the exact-frequency CGA output onto a phase-shifted sibling clock.
-    always @(posedge clk_video_out_ps or posedge video_retime_reset)
+    always @(posedge clk_video_out_ps or posedge video_retime_reset_local)
     begin
-        if (video_retime_reset)
+        if (video_retime_reset_local)
         begin
             VGA_R_cga_ps <= 8'd0;
             VGA_G_cga_ps <= 8'd0;
@@ -2009,9 +2047,9 @@ module emu
 
     // Retimes the HGC mixer output by exploiting the exact 2:1 relation between
     // clk_114_544 and the phase-shifted clk_video_out_ps.
-    always @(posedge clk_video_out_ps or posedge video_retime_reset)
+    always @(posedge clk_video_out_ps or posedge video_retime_reset_local)
     begin
-        if (video_retime_reset)
+        if (video_retime_reset_local)
         begin
             VGA_R_hgc_ps <= 8'd0;
             VGA_G_hgc_ps <= 8'd0;
@@ -2059,17 +2097,38 @@ module emu
         end
     end
 
-    assign VGA_R_AUX  =  swap_video_eff ? VGA_R_hgc_56   : VGA_R_cga_hdmi;
-    assign VGA_G_AUX  =  swap_video_eff ? VGA_G_hgc_56   : VGA_G_cga_hdmi;
-    assign VGA_B_AUX  =  swap_video_eff ? VGA_B_hgc_56   : VGA_B_cga_hdmi;
-    assign VGA_HS =  swap_video_eff ? VGA_HS_hgc_56 : VGA_HS_cga_hdmi;
-    assign VGA_VS =  swap_video_eff ? VGA_VS_hgc_56 : VGA_VS_cga_hdmi;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] ar_video_out_meta = 2'b00;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] ar_video_out_ff = 2'b00;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg swap_video_out_meta = 1'b0;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg swap_video_out_ff = 1'b0;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg border_video_out_meta = 1'b0;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg border_video_out_ff = 1'b0;
+
+    // Aspect ratio and adapter selection are static controls. Synchronize them
+    // into the final video domain instead of timing them against PLL phase.
+    always @(posedge clk_video_out_ps)
+    begin
+        ar_video_out_meta     <= ar;
+        ar_video_out_ff       <= ar_video_out_meta;
+        swap_video_out_meta   <= swap_video_eff;
+        swap_video_out_ff     <= swap_video_out_meta;
+        border_video_out_meta <= border_video_ff;
+        border_video_out_ff   <= border_video_out_meta;
+        VIDEO_ARX             <= (!ar_video_out_ff) ? 13'd4 : {11'd0, ar_video_out_ff - 1'd1};
+        VIDEO_ARY             <= (!ar_video_out_ff) ? 13'd3 : 13'd0;
+    end
+
+    assign VGA_R_AUX  =  swap_video_out_ff ? VGA_R_hgc_56   : VGA_R_cga_hdmi;
+    assign VGA_G_AUX  =  swap_video_out_ff ? VGA_G_hgc_56   : VGA_G_cga_hdmi;
+    assign VGA_B_AUX  =  swap_video_out_ff ? VGA_B_hgc_56   : VGA_B_cga_hdmi;
+    assign VGA_HS =  swap_video_out_ff ? VGA_HS_hgc_56 : VGA_HS_cga_hdmi;
+    assign VGA_VS =  swap_video_out_ff ? VGA_VS_hgc_56 : VGA_VS_cga_hdmi;
     assign gamma_bus =  swap_video_eff ? gamma_bus_hgc : gamma_bus_cga;
-    assign CE_PIXEL  =  swap_video_eff ? CE_PIXEL_hgc_hdmi : CE_PIXEL_cga_hdmi;
-    assign CE_PIXEL_CREDITS = swap_video_eff ? CE_PIXEL_hgc_hdmi : CE_PIXEL_cga_hdmi;
-    wire credits_hb = swap_video_eff ? LHBL_hgc_56 : LHBL_cga_hdmi;
-    wire credits_vb = swap_video_eff ? credits_vb_hgc_56 : LVBL_cga_hdmi;
-    wire credits_border = swap_video_eff ? 1'b0 : border_video_ff;
+    assign CE_PIXEL  =  swap_video_out_ff ? CE_PIXEL_hgc_hdmi : CE_PIXEL_cga_hdmi;
+    assign CE_PIXEL_CREDITS = swap_video_out_ff ? CE_PIXEL_hgc_hdmi : CE_PIXEL_cga_hdmi;
+    wire credits_hb = swap_video_out_ff ? LHBL_hgc_56 : LHBL_cga_hdmi;
+    wire credits_vb = swap_video_out_ff ? credits_vb_hgc_56 : LVBL_cga_hdmi;
+    wire credits_border = swap_video_out_ff ? 1'b0 : border_video_out_ff;
     jtframe_credits #(
         .PAGES  (4),
         .COLW   (8),
@@ -2106,9 +2165,9 @@ module emu
     // the selected CGA/HGC DE directly opens the active window one pixel before
     // the corresponding RGB output sample and clips the last pixel instead.
     reg VGA_DE_credits = 1'b0;
-    wire VGA_DE_selected = swap_video_eff ? VGA_DE_hgc_56 : VGA_DE_cga_hdmi;
-    always @(posedge clk_video_out_ps or posedge video_retime_reset) begin
-        if (video_retime_reset)
+    wire VGA_DE_selected = swap_video_out_ff ? VGA_DE_hgc_56 : VGA_DE_cga_hdmi;
+    always @(posedge clk_video_out_ps or posedge video_retime_reset_local) begin
+        if (video_retime_reset_local)
             VGA_DE_credits <= 1'b0;
         else if (CE_PIXEL_CREDITS)
             VGA_DE_credits <= VGA_DE_selected;
