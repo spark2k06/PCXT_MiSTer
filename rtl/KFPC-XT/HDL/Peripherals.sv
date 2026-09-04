@@ -187,6 +187,28 @@ module PERIPHERALS #(
     wire [3:0] composite_border_color;
     wire composite_phase;
 
+    // video_reset is generated outside the CGA/HGC clock domains. Assert it
+    // immediately, but release it only on the clock that consumes it so the
+    // video state machines cannot leave reset close to an active edge.
+    (* ASYNC_REG = "TRUE" *) logic [1:0] video_reset_cga_sync = 2'b11;
+    (* ASYNC_REG = "TRUE" *) logic [1:0] video_reset_hgc_sync = 2'b11;
+    wire video_reset_cga = video_reset_cga_sync[1];
+    wire video_reset_hgc = video_reset_hgc_sync[1];
+
+    always_ff @(posedge clk_vga_cga or posedge video_reset) begin
+        if (video_reset)
+            video_reset_cga_sync <= 2'b11;
+        else
+            video_reset_cga_sync <= {video_reset_cga_sync[0], 1'b0};
+    end
+
+    always_ff @(posedge clk_vga_hgc or posedge video_reset) begin
+        if (video_reset)
+            video_reset_hgc_sync <= 2'b11;
+        else
+            video_reset_hgc_sync <= {video_reset_hgc_sync[0], 1'b0};
+    end
+
     wire tandy_video_en = `ENABLE_TANDY_VIDEO ? tandy_video : 1'b0;
     wire tandy_audio_en = `ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0;
     wire tandy_kbd_en = `ENABLE_TANDY_KBD ? 1'b1 : 1'b0;
@@ -618,10 +640,16 @@ module PERIPHERALS #(
             ps2_clock_out = ~(keybord_irq | ~ps2_send_clock | ~ps2_reset_n);
     end
 
-    always_ff @(posedge clk_vga_hgc)
+    always_ff @(posedge clk_vga_hgc or posedge video_reset_hgc)
     begin
-        swap_video_buffer_2 <= swap_video_buffer_1;
-        swap_video          <= swap_video_buffer_2;
+        if (video_reset_hgc) begin
+            swap_video_buffer_2 <= 1'b0;
+            swap_video          <= 1'b0;
+        end
+        else begin
+            swap_video_buffer_2 <= swap_video_buffer_1;
+            swap_video          <= swap_video_buffer_2;
+        end
     end
 
 
@@ -1125,9 +1153,24 @@ end
         end
     end
 
-    always_ff @(posedge clk_vga_hgc)
+    always_ff @(posedge clk_vga_hgc or posedge video_reset_hgc)
     begin
-        if (`ENABLE_HGC)
+        if (video_reset_hgc)
+        begin
+            hgc_io_address_1        <= 15'd0;
+            hgc_io_address_2        <= 15'd0;
+            hgc_io_data_1           <= 8'd0;
+            hgc_io_data_2           <= 8'd0;
+            hgc_io_write_n_1        <= 1'b1;
+            hgc_io_write_n_2        <= 1'b1;
+            hgc_io_write_n_3        <= 1'b1;
+            hgc_io_read_n_1         <= 1'b1;
+            hgc_io_read_n_2         <= 1'b1;
+            hgc_io_read_n_3         <= 1'b1;
+            hgc_address_enable_n_1  <= 1'b1;
+            hgc_address_enable_n_2  <= 1'b1;
+        end
+        else if (`ENABLE_HGC)
         begin
             hgc_io_address_1        <= video_io_address;
             hgc_io_address_2        <= hgc_io_address_1;
@@ -1406,7 +1449,7 @@ end
     cga cga1 
     (
         .clk                        (clk_vga_cga),
-        .reset                      (video_reset),
+        .reset                      (video_reset_cga),
         .clkdiv                     (clkdiv),
         .bus_a                      (cga_io_address_2),
         .bus_ior_l                  (cga_io_read_n_2),

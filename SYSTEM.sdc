@@ -78,6 +78,8 @@ set_max_delay -from [get_clocks $CLOCK_HDMI] -to [get_clocks $CLOCK_H2F] $VIDEO_
 set_false_path -from [get_registers {pll_hdmi_adj:pll_hdmi_adj|i_vss_delay}] \
               -to   [get_registers {pll_hdmi_adj:pll_hdmi_adj|ivss}]
 set_false_path -to [get_registers {emu:emu|video_retime_reset_sync[*]}]
+set_false_path -to [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_reset_cga_sync[*] \
+                                   emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_reset_hgc_sync[*]}]
 set_false_path -to [get_registers {ascal:ascal|i_reset_na \
                                    ascal:ascal|o_reset_na \
                                    ascal:ascal|avl_reset_na}]
