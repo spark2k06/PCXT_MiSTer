@@ -71,6 +71,10 @@ module XT_CE_Generator (
                 cpu_edge_den = 9'd55;
                 clock_cycle_counter_division_ratio = 8'd10 - 8'd1;
                 clock_cycle_counter_decrement_value = 8'd21;
+                // Keep the 9.54 MHz cycle profile, but sample read data on the
+                // later edge. The earlier edge is marginal with RAM lookahead
+                // on real hardware, particularly during 8086 queue refills.
+                shift_read_timing = 1'b1;
             end
 
             2'b11:

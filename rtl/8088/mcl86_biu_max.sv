@@ -52,9 +52,10 @@
 //   real bus clock and the external bus still sees authentic 8088 timing. States
 //   that must land on a bus edge re-enter themselves until that edge arrives.
 //
-// Bus cycle: 8088 has an 8-bit data bus, so a WORD access is run as two
-//   back-to-back byte cycles (byte_num 0 then 1, offset incremented between).
-//   State 0x50 is the hop back to 0x01 for the second byte.
+// Bus cycle: an 8088 WORD, an odd-offset 8086 WORD, and any word outside SDRAM
+//   run as two back-to-back byte cycles (byte_num 0 then 1, offset incremented
+//   between). An even 8086 SDRAM word uses one private wide cycle. State 0x50
+//   is the hop back to 0x01 for a split second byte.
 //
 // EU command codes (eu_biu_req_code, EU_BIU_COMMAND[8:4]):
 //   0x08 IO byte read     0x0C mem byte read     0x16 interrupt acknowledge
@@ -69,10 +70,23 @@
 //   000 INTA        010 I/O write    100 code fetch    110 memory write
 //   001 I/O read    011 halt         101 memory read   111 passive (idle)
 //
-// Prefetch queue: four bytes (the 8088's depth; the 8086 has six). pfq_addr_in
-//   and pfq_addr_out are the full 16-bit fetch and instruction pointers - the low
-//   two bits select the entry, and bit 2 is the wrap bit that separates full from
-//   empty. pfq_addr_out doubles as IP and is handed back to the EU.
+// Prefetch queue: four bytes as an 8088, six as an 8086, selected by IS8086.
+//   pfq_addr_in and pfq_addr_out are the full 16-bit fetch and instruction
+//   pointers; pfq_addr_out doubles as IP and is handed back to the EU.
+//
+//   There are eight physical entries and the low three bits of the pointer
+//   select one. Depth is enforced separately, by how many bytes the queue is
+//   allowed to hold, so six works without six being a power of two - which the
+//   original scheme could not do. It selected the entry with the low two bits
+//   and told full from empty with bit 2 as a wrap bit, and that only works when
+//   the depth is exactly the index modulus.
+//
+//   Full and empty come from the difference between the pointers instead. It is
+//   always between zero and the depth - the read pointer only advances when the
+//   queue is not empty and the write pointer only when it is not full, and a
+//   jump sets both to the same value - so the low four bits of the subtraction
+//   are the true count even across the 16-bit wrap. Two live bytes can never
+//   share an entry either, since their pointers differ by less than eight.
 //
 // Turbo mode: clock_cycle_counter is loaded by microcode with the instruction's
 //   nominal 8088 cycle count and counted down; the EU stalls until it reaches
@@ -145,7 +159,22 @@ module mcl86_biu_max
         // Turbo mode - scales the cycle-accuracy counter (see header)
         input  wire   [7:0] clock_cycle_counter_division_ratio,  // Core clocks per counter tick
         input  wire   [7:0] clock_cycle_counter_decrement_value, // Amount subtracted per tick
-        input  wire         shift_read_timing       // Sample read data on CLK falling edge instead of rising
+        input  wire         shift_read_timing,      // Sample read data on CLK falling edge instead of rising
+
+        // CPU type. 0 = 8088, 1 = 8086. It selects queue depth, word-aligned
+        // prefetch and the suppressed split for eligible data words.
+        input  wire         IS8086,
+
+        // Private 16-bit SDRAM path (docs/8086-adaptation.md, steps 4 and 5).
+        // Prefetch decides from its static safe range before dispatch. Data
+        // words request the wide path speculatively when their offset is even;
+        // WORD_ACCESS_POSSIBLE, valid after T1 has latched the address, decides
+        // whether the split may actually be suppressed.
+        output logic        WORD_READ_REQUEST,
+        output logic        WORD_WRITE_REQUEST,
+        output logic [15:0] DATA_BUS_WORD_OUT,
+        input  wire  [15:0] DATA_BUS_WORD,
+        input  wire         WORD_ACCESS_POSSIBLE
     );
 
     //--------------------------------------------------------------------------
@@ -158,6 +187,16 @@ module mcl86_biu_max
     reg         byte_num;               // Which half of a word cycle is in flight (0 = low)
     reg         biu_done_int;           // Completion pulse back to the EU
     reg         biu_lock_n_int;         // BIU-generated lock (INTA); OR'd with the LOCK prefix
+
+    // Word-aligned prefetch (step 4). Decided once, at dispatch, alongside
+    // s_bits/word_cycle/byte_num, and held stable for the whole cycle the same
+    // way those are - nothing below re-reads IS8086 or the queue pointers
+    // mid-cycle.
+    reg         fetch_word;             // This fetch is a wide one: both bytes arrive together
+    reg  [15:0] latched_word_in;        // DATA_BUS_WORD, captured at the sampling edge
+    reg         data_word_read;          // Even 8086 memory word read: ask RAM for a wide cycle
+    reg         data_word_write;         // Even 8086 memory word write: likewise
+    reg         wide_data_cycle;         // Address decode accepted the requested wide data cycle
 
     //--------------------------------------------------------------------------
     // Internal Signals - 8088 CLK Edge Detect
@@ -225,20 +264,19 @@ module mcl86_biu_max
     //--------------------------------------------------------------------------
     // Internal Signals - Prefetch Queue
     //--------------------------------------------------------------------------
-    // Four bytes. addr_in / addr_out are full 16-bit pointers: [1:0] picks the
-    // entry, [2] is the wrap bit that tells full from empty, and addr_out is IP.
-    reg  [ 7:0] pfq_entry0;             // Queue byte 0
-    reg  [ 7:0] pfq_entry1;             // Queue byte 1
-    reg  [ 7:0] pfq_entry2;             // Queue byte 2
-    reg  [ 7:0] pfq_entry3;             // Queue byte 3
+    // Eight physical entries, [2:0] of the pointer picks one; depth is enforced
+    // separately so it need not be a power of two. See the header.
+    reg  [ 7:0] pfq_entry [0:7];        // Queue bytes
     reg  [15:0] pfq_addr_in;            // Fetch pointer - where the next code byte lands
     reg  [15:0] pfq_addr_out;           // Instruction pointer - where the EU is reading
     reg  [15:0] pfq_addr_out_d1;        // IP, registered out to the EU
-    wire [ 7:0] pfq_top_byte_int;       // Entry selected by pfq_addr_out[1:0]
+    wire [ 7:0] pfq_top_byte_int;       // Entry selected by pfq_addr_out[2:0]
     reg  [ 7:0] pfq_top_byte_int_d1;    // Top byte, registered out to the EU
     reg         pfq_write;              // Write strobe for a freshly fetched code byte
-    wire        pfq_full;               // Wrap bit differs, index equal
-    wire        pfq_empty;              // Wrap bit equal, index equal
+    wire [ 3:0] pfq_depth;              // 4 as an 8088, 6 as an 8086
+    wire [ 3:0] pfq_used;               // Bytes currently held
+    wire        pfq_full;               // Holding as many as the depth allows
+    wire        pfq_empty;              // Holding none
 
     //--------------------------------------------------------------------------
     // Internal Signals - Interrupts, Ready, Lock
@@ -257,6 +295,7 @@ module mcl86_biu_max
     //--------------------------------------------------------------------------
     // Internal Signals - Cycle Accuracy Counter
     //--------------------------------------------------------------------------
+    integer     pfq_reset_i;            // Reset loop index over the queue entries
     reg  [12:0] clock_cycle_counter;    // 8088 cycles still owed for this instruction
     reg  [ 7:0] clock_cycle_counter_div;// Prescaler - core clocks per counter tick
 
@@ -296,17 +335,53 @@ module mcl86_biu_max
                                (biu_segment == 2'b10) ? biu_register_cs :
                                                         biu_register_ds ;
 
+    // pfq_addr_in + 1, as a plain variable so it can be a queue-write index -
+    // Icarus rejects a bit-select on a parenthesized expression as an lvalue
+    // index, and this reads the same either way.
+    wire [15:0] pfq_addr_in_p1 = pfq_addr_in + 16'd1;
+
     // Steer the Prefetch Queue to the EU
-    assign pfq_top_byte_int = (pfq_addr_out[1:0] == 2'b00) ? pfq_entry0 :
-                              (pfq_addr_out[1:0] == 2'b01) ? pfq_entry1 :
-                              (pfq_addr_out[1:0] == 2'b10) ? pfq_entry2 :
-                                                             pfq_entry3 ;
+    assign pfq_top_byte_int = pfq_entry[pfq_addr_out[2:0]];
 
     assign PFQ_TOP_BYTE = pfq_top_byte_int_d1;
 
     // Generate the Prefetch Queue Flags
-    assign pfq_full  = ((pfq_addr_in[2] != pfq_addr_out[2]) && (pfq_addr_in[1:0] == pfq_addr_out[1:0])) ? 1'b1 : 1'b0;
-    assign pfq_empty = ((pfq_addr_in[2] == pfq_addr_out[2]) && (pfq_addr_in[1:0] == pfq_addr_out[1:0])) ? 1'b1 : 1'b0;
+    assign pfq_depth = IS8086 ? 4'd6 : 4'd4;
+    assign pfq_used  = pfq_addr_in[3:0] - pfq_addr_out[3:0];
+    assign pfq_full  = (pfq_used >= pfq_depth) ? 1'b1 : 1'b0;
+    assign pfq_empty = (pfq_used == 4'd0)      ? 1'b1 : 1'b0;
+
+    // Whether the NEXT prefetch may be issued as one wide cycle instead of two
+    // byte cycles, and where the data comes back on.
+    //
+    // The address is the candidate fetch address computed from registers the
+    // BIU already holds - CS and the fetch pointer - available combinationally
+    // well before dispatch, which is what makes checking it here possible at
+    // all. The alternative, asking Chipset's own memory-map decode, answers
+    // for the address latched one bus cycle ago, not the one about to be
+    // fetched, and using it would mean gating a bus cycle on a round trip that
+    // cannot complete before that cycle has to be shaped.
+    //
+    // word_fetch_ok is deliberately a static range rather than a live decode
+    // of enable_sdram/enable_a000h/EMS mapping, which is a Chipset-side
+    // ram_address_select_n. Wiring that here would mean a wide fetch racing
+    // against the same three runtime-configurable signals it would need to be
+    // read a cycle in advance of - exactly the kind of hazard a static range
+    // has none of. The cost is that 0A0000-0EFFFF - video memory, optional UMB
+    // and the EMS page-frame window - always splits, even when SDRAM
+    // is actually what answers there today. Executing code from inside that
+    // range is already the unusual case (a UMB-resident TSR, or the old
+    // copy-protection trick of running from video memory); it costs those a
+    // byte-at-a-time fetch, same as an 8088 pays everywhere. Ordinary
+    // conventional-memory and BIOS-ROM code gets the benefit.
+    wire [19:0] next_fetch_addr = {biu_register_cs[15:0], 4'h0}
+                                 + {4'h0, pfq_addr_in[15:0]};
+    wire        word_fetch_ok   = (next_fetch_addr < 20'hA0000)
+                                 | (next_fetch_addr >= 20'hF0000);
+
+    assign WORD_READ_REQUEST  = fetch_word | data_word_read;
+    assign WORD_WRITE_REQUEST = data_word_write;
+    assign DATA_BUS_WORD_OUT  = EU_BIU_DATAOUT;
 
     // Instruction cycle accuracy counter. This can be tied to '1' to disable x86 cycle compatibiliy.
     assign BIU_CLK_COUNTER_ZERO = (clock_cycle_counter == 13'h0000) ? 1'b1 : 1'b0;
@@ -337,10 +412,8 @@ module mcl86_biu_max
             biu_register_reg     <= 'h0;
             clock_cycle_counter  <= 'h0;
             pfq_addr_out         <= 'h0;
-            pfq_entry0           <= 'h0;
-            pfq_entry1           <= 'h0;
-            pfq_entry2           <= 'h0;
-            pfq_entry3           <= 'h0;
+            for (pfq_reset_i = 0; pfq_reset_i < 8; pfq_reset_i = pfq_reset_i + 1)
+                pfq_entry[pfq_reset_i] <= 'h0;
             biu_state            <= 8'hD0;
             S2_S0_OUT            <= 'b111;
             s2_s0_out_int        <= 'b111;
@@ -362,6 +435,11 @@ module mcl86_biu_max
             AD_OUT               <= 'h0;
             word_cycle           <= 1'b0;
             byte_num             <= 1'b0;
+            fetch_word           <= 1'b0;
+            latched_word_in      <= 16'h0000;
+            data_word_read       <= 1'b0;
+            data_word_write      <= 1'b0;
+            wide_data_cycle      <= 1'b0;
             ad_in_int            <= 'h0;
             BIU_INTR             <= 'h0;
             eu_prefix_lock_d1    <= 'h0;
@@ -498,18 +576,20 @@ module mcl86_biu_max
                 pfq_addr_in <= eu_register_r3_d; // Update the prefetch queue to the new address.
             end
             else if (pfq_write == 1'b1) begin
-                pfq_addr_in <= pfq_addr_in + 1;
+                pfq_addr_in <= pfq_addr_in + (fetch_word ? 16'd2 : 16'd1);
             end
 
-            // Write to the selected prefetch queue entry.
+            // Write to the selected prefetch queue entry, or entries: a wide
+            // fetch fills the one the pointer names and the one after it, in
+            // the same cycle the pointer itself advances by two.
             if (pfq_write == 1'b1) begin
-                case (pfq_addr_in[1:0])  // synthesis parallel_case
-                    2'b00: pfq_entry0 <= latched_data_in[7:0];
-                    2'b01: pfq_entry1 <= latched_data_in[7:0];
-                    2'b10: pfq_entry2 <= latched_data_in[7:0];
-                    2'b11: pfq_entry3 <= latched_data_in[7:0];
-                    default:;
-                endcase
+                if (fetch_word) begin
+                    pfq_entry[pfq_addr_in[2:0]]    <= latched_word_in[7:0];
+                    pfq_entry[pfq_addr_in_p1[2:0]] <= latched_word_in[15:8];
+                end
+                else begin
+                    pfq_entry[pfq_addr_in[2:0]] <= latched_data_in[7:0];
+                end
             end
 
             // 8088 BIU State Machine
@@ -544,6 +624,10 @@ module mcl86_biu_max
                     S6_3_MUX       <= 1'b0;
                     byte_num       <= 1'b0;
                     word_cycle     <= 1'b0;
+                    fetch_word     <= 1'b0;
+                    data_word_read <= 1'b0;
+                    data_word_write <= 1'b0;
+                    wide_data_cycle <= 1'b0;
 
                     if (eu_biu_req_caught == 1'b1) begin
                         case (eu_biu_req_code)  // synthesis parallel_case
@@ -612,6 +696,7 @@ module mcl86_biu_max
                                 addr_out_temp_base   <= {biu_muxed_segment[15:0], 4'h0};
                                 addr_out_temp_offset <= eu_register_r3_d[15:0];
                                 word_cycle           <= 1'b1;
+                                data_word_read        <= IS8086 & ~eu_register_r3_d[0];
                                 s_bits               <= 3'b101;
                                 biu_state            <= 8'h01;
                             end
@@ -621,6 +706,7 @@ module mcl86_biu_max
                                 addr_out_temp_base   <= {biu_register_ss[15:0], 4'h0};
                                 addr_out_temp_offset <= eu_register_r3_d[15:0];
                                 word_cycle           <= 1'b1;
+                                data_word_read        <= IS8086 & ~eu_register_r3_d[0];
                                 s_bits               <= 3'b101;
                                 biu_state            <= 8'h01;
                             end
@@ -630,6 +716,7 @@ module mcl86_biu_max
                                 addr_out_temp_base   <= {4'h0, eu_register_r3_d[15:0]};
                                 addr_out_temp_offset <= 'h0;
                                 word_cycle           <= 1'b1;
+                                data_word_read        <= IS8086 & ~eu_register_r3_d[0];
                                 s_bits               <= 3'b101;
                                 biu_state            <= 8'h01;
                             end
@@ -647,6 +734,7 @@ module mcl86_biu_max
                                 addr_out_temp_base   <= {biu_muxed_segment[15:0], 4'h0};
                                 addr_out_temp_offset <= eu_register_r3_d[15:0];
                                 word_cycle           <= 1'b1;
+                                data_word_write       <= IS8086 & ~eu_register_r3_d[0];
                                 s_bits               <= 3'b110;
                                 biu_state            <= 8'h01;
                             end
@@ -656,6 +744,7 @@ module mcl86_biu_max
                                 addr_out_temp_base   <= {biu_register_ss[15:0], 4'h0};
                                 addr_out_temp_offset <= eu_register_r3_d[15:0];
                                 word_cycle           <= 1'b1;
+                                data_word_write       <= IS8086 & ~eu_register_r3_d[0];
                                 s_bits               <= 3'b110;
                                 biu_state            <= 8'h01;
                             end
@@ -674,6 +763,15 @@ module mcl86_biu_max
                         addr_out_temp_offset <= pfq_addr_in[15:0];
                         s_bits               <= 3'b100;
                         biu_state            <= 8'h01;
+
+                        // Even fetch pointer, in range, and room for both bytes
+                        // this cycle would bring back - not merely "not full",
+                        // which only promises room for one. An odd pointer,
+                        // reached after a jump to an odd target, fetches a
+                        // single byte here and is even again for the next one:
+                        // the same realignment vx0_biu.c does for fetch_word.
+                        fetch_word <= IS8086 & ~pfq_addr_in[0] & word_fetch_ok
+                                    & (pfq_used <= (pfq_depth - 4'd2));
                     end
                     else begin
                         biu_state <= 8'h00;
@@ -755,13 +853,24 @@ module mcl86_biu_max
                     end
                     else begin
                         s2_s0_out_int <= 3'b111;
+                        // The memory-map decode is valid now that T1 has
+                        // latched the address. RAM has already seen the
+                        // candidate request; this decides whether the BIU may
+                        // finish with that one cycle or must run byte two.
+                        wide_data_cycle <= (data_word_read | data_word_write)
+                                         & WORD_ACCESS_POSSIBLE;
                     end
                 end
 
                 // On the next CLK edge, sample the data.
                 8'h06: begin
                     if ((~shift_read_timing & clk_posedge) || (shift_read_timing & clk_negedge)) begin
-                        latched_data_in <= ad_in_int;
+                        if (fetch_word || (wide_data_cycle && (s_bits == 3'b101))) begin
+                            latched_word_in <= DATA_BUS_WORD;
+                        end
+                        else begin
+                            latched_data_in <= ad_in_int;
+                        end
 
                         // If a code fetch, then write data to the prefetch queue
                         if (s_bits == 3'b100) begin
@@ -780,7 +889,10 @@ module mcl86_biu_max
 
                 //  Steer the data
                 8'h09: begin
-                    if (s_bits != 3'b000 && (word_cycle == 1'b1 && byte_num == 1'b1)) begin
+                    if (wide_data_cycle && (s_bits == 3'b101)) begin
+                        biu_return_data_int[15:0] <= latched_word_in;
+                    end
+                    else if (s_bits != 3'b000 && (word_cycle == 1'b1 && byte_num == 1'b1)) begin
                         biu_return_data_int[15:8] <= latched_data_in[7:0];
                     end
                     else begin
@@ -793,8 +905,13 @@ module mcl86_biu_max
                     if (shift_read_timing | clk_negedge) begin
                         addr_out_temp_offset[15:0] <= addr_out_temp_offset[15:0] + 1;
 
-                        if (word_cycle == 1'b1 && byte_num == 1'b0) begin
+                        if (word_cycle == 1'b1 && byte_num == 1'b0 && !wide_data_cycle) begin
                             byte_num  <= 1'b1;
+                            // A rejected wide candidate falls back to the
+                            // original high-byte cycle. Never present that
+                            // odd second address to RAM as another word.
+                            data_word_read  <= 1'b0;
+                            data_word_write <= 1'b0;
                             biu_state <= 8'h50;
                         end
                         else begin

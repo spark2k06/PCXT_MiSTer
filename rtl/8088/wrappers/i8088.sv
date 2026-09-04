@@ -107,7 +107,14 @@ module i8088
         input  wire         cycle_accrate,                        // Enable cycle-accurate timing (1=accurate, 0=fast)
         input  wire   [7:0] clock_cycle_counter_division_ratio,   // Clock division ratio for timing
         input  wire   [7:0] clock_cycle_counter_decrement_value,  // Clock decrement value for fine timing
-        input  wire         shift_read_timing                     // Shift read timing for slow memory (1=delayed)
+        input  wire         shift_read_timing,                    // Shift read timing for slow memory (1=delayed)
+        input  wire         is8086,                               // CPU type: 0 = 8088, 1 = 8086
+        // Private 16-bit SDRAM path (steps 4 and 5)
+        output logic         word_read_request,
+        output logic         word_write_request,
+        output logic  [15:0] data_bus_word_out,
+        input  wire   [15:0] data_bus_word,
+        input  wire          word_access_possible
     );
 
     //--------------------------------------------------------------------------
@@ -185,7 +192,13 @@ module i8088
         // Maximum Mode Configuration Inputs
         .clock_cycle_counter_division_ratio  ( clock_cycle_counter_division_ratio  ),
         .clock_cycle_counter_decrement_value ( clock_cycle_counter_decrement_value ),
-        .shift_read_timing                   ( shift_read_timing                   )
+        .shift_read_timing                   ( shift_read_timing                   ),
+        .IS8086                              ( is8086                              ),
+        .WORD_READ_REQUEST                   ( word_read_request                   ),
+        .WORD_WRITE_REQUEST                  ( word_write_request                  ),
+        .DATA_BUS_WORD_OUT                   ( data_bus_word_out                   ),
+        .DATA_BUS_WORD                       ( data_bus_word                       ),
+        .WORD_ACCESS_POSSIBLE                ( word_access_possible                )
     );
 
     //--------------------------------------------------------------------------

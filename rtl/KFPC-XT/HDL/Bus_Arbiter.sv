@@ -84,7 +84,16 @@ module BUS_ARBITER (
             hold_request_ff_2 <= hold_request_ff_2;
     end
 
-    assign  hold_acknowledge = (hold_request) ? hold_request_ff_2 : 1'b0;
+    // hold_request_ff_1 is captured on the CPU rising edge, once the CPU is
+    // passive and can release the bus. Let the 8237 observe that decision on
+    // the immediately following falling edge. Waiting exclusively for the
+    // falling-edge copy (hold_request_ff_2) keeps the DMA controller in S0 for
+    // one extra complete CPU clock on every transfer; in particular every PIT1
+    // DRAM-refresh request steals one clock too many, at every CPU speed.
+    //
+    // Keep ff_2 in the expression so deassertion stays aligned with the falling
+    // edge and the existing bus-release sequencing is unchanged.
+    assign  hold_acknowledge = (hold_request) ? (hold_request_ff_1 | hold_request_ff_2) : 1'b0;
 
 
     //
@@ -210,16 +219,20 @@ module BUS_ARBITER (
     //
     // 74xx670 (DMA Page Register)
     //
-    logic   [1:0]   bit_select[4] = '{ 2'b00, 2'b01, 2'b10, 2'b11 };
     logic   [3:0]   dma_page_register[4];
 
     genvar dma_page_i;
     generate
     for (dma_page_i = 0; dma_page_i < 4; dma_page_i = dma_page_i + 1) begin : DMA_PAGE_REGISTERS
+        // The select value is the loop index itself. Spelling it as a
+        // localparam instead of indexing an initialised array keeps this
+        // module elaborable by Icarus, which cannot assign a whole array.
+        localparam logic [1:0] DMA_PAGE_INDEX = dma_page_i;
+
         always_ff @(posedge clock, posedge reset) begin
             if (reset)
                 dma_page_register[dma_page_i] <= 0;
-            else if ((~dma_page_chip_select_n) && (~io_write_n) && (bit_select[dma_page_i] == address[1:0]))
+            else if ((~dma_page_chip_select_n) && (~io_write_n) && (DMA_PAGE_INDEX == address[1:0]))
                 dma_page_register[dma_page_i] <= internal_data_bus[3:0];
             else
                 dma_page_register[dma_page_i] <= dma_page_register[dma_page_i];

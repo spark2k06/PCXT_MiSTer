@@ -18,7 +18,8 @@ The [Graphics Gremlin project](https://github.com/schlae/graphics-gremlin) from 
 
 ## Key features
 
-* 8088 CPU with these speed settings: 4.77 MHz, 7.16 MHz, 9.54 MHz cycle accurate, and PC/AT 286 at 3.5MHz equivalent (max. speed)
+* Selectable 8088 or 8086 bus mode, applied safely with Reset & apply settings
+* CPU speed settings: 4.77 MHz, 7.16 MHz and 9.54 MHz cycle accurate, plus **Max**. Max is the unthrottled performance profile shared by 8088 and 8086; it is neither a historical CPU grade nor cycle-accurate.
 * Support for IBM PCXT 5160 and clones (CGA graphics)
 * Main memory 640Kb + 384Kb UMB memory
 * Simulated Composite Video (CGA)
@@ -75,10 +76,13 @@ Default configuration (current `config.tcl` and `output_files/PCXT.fit.summary`)
 * Select the core from Computers/PCXT.
 * Press WinKey + F12 on your keyboard.
   * Model: IBM PCXT.
-  * CPU Speed: PC/AT 3.5MHz (Max speed)
+  * CPU Speed: Max
+  * System & BIOS -> CPU Type: 8088 (compatible default) or 8086
   * FDD & HDD -> HDD Image: FreeDOS_HD.img
   * BIOS -> PCXT BIOS: pcxt_micro8088.rom
 * Choose Reset & apply settings.
+
+The 8086 mode uses a six-byte prefetch queue and transfers aligned SDRAM words over its private 16-bit path. Odd words and the XT-class video and peripheral buses remain split into byte cycles. The fixed 4.77/7.16/9.54 MHz settings keep the existing MCL86 instruction timing; Max bypasses the nominal timing counter and exposes the full bus benefit.
 
 ## ROM Instructions
 
