@@ -9,6 +9,7 @@
 `default_nettype wire
 module cga_sequencer(
     input clk,
+    input reset,
     output[4:0] clk_seq,
     output vram_read,
     output vram_read_a0,
@@ -29,9 +30,11 @@ module cga_sequencer(
     reg[4:0] clkdiv = 5'b0;
 
     // Sequencer: times internal operations
-    always @ (posedge clk)
+    always @ (posedge clk or posedge reset)
     begin
-        if (clkdiv == 5'd31) begin
+        if (reset) begin
+            clkdiv <= 5'd0;
+        end else if (clkdiv == 5'd31) begin
             clkdiv <= 5'd0;
         end else begin
             clkdiv <= clkdiv + 1'b1;

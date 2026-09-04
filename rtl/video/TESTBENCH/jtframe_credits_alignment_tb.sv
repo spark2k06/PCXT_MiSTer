@@ -37,7 +37,7 @@ module jtframe_credits_alignment_tb;
     reg [23:0] rgb_src = 24'd0;
     reg de_src = 1'b0;
 
-    // Model the final retimer in PCXT-EGA.sv. Its CE and data change on this
+    // Model the final video retimer. Its CE and data change on this
     // same edge, while jtframe_credits observes their preceding values.
     reg ce_hdmi = 1'b0;
     reg [23:0] rgb_hdmi = 24'd0;

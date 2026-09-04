@@ -45,6 +45,10 @@ module UM6845R
 	output    [13:0] MA,
 	output     [4:0] RA,
 	output    [3:0] hsync_width,
+	// 8088 MPH uses a one-dot CRTC timing change (R0=72 then R0=71)
+	// to select the other composite colour-burst phase. The value is
+	// latched here because R0 ends at 71 after the switch.
+	output           composite_phase,
 
 	input      [3:0] crt_h_offset,
 	input      [2:0] crt_v_offset,
@@ -72,6 +76,7 @@ assign FIELD = ~field & interlace[0];
 assign MA = row_addr_r;
 assign RA = line | (field & interlace[0]);
 assign hsync_width = R3_h_sync_width;
+assign composite_phase = composite_phase_reg;
 
 assign DE = de[R8_skew & ~{2{CRTC_TYPE}}];
 
@@ -80,6 +85,7 @@ assign vblank = ~vde;
 assign line_reset = hcc_last;
 
 reg [7:0] R0_h_total = H_TOTAL;
+reg       composite_phase_reg = 1'b0;
 reg [7:0] R1_h_displayed = H_DISP;
 reg [7:0] R2_h_sync_pos = H_SYNCPOS;
 reg [3:0] R3_v_sync_width;
@@ -129,7 +135,15 @@ always @(posedge CLOCK) begin
 		if (~RS) addr <= DI[4:0];
 		else begin
 			case (addr)
-				00: R0_h_total <= DI;
+				00: begin
+					// The calibration program changes R0 from the normal odd
+					// total (71h) to an even total (72h), then writes 71h back.
+					// Count the even write once so the setting survives the
+					// write-back; another switch toggles it again.
+					if ((R0_h_total == 8'h71) && (DI == 8'h72))
+						composite_phase_reg <= ~composite_phase_reg;
+					R0_h_total <= DI;
+				end
 				01: R1_h_displayed <= DI;
 				02: R2_h_sync_pos <= DI;
 				03: {R3_v_sync_width,R3_h_sync_width} <= DI;

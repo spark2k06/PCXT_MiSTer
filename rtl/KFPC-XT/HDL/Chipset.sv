@@ -29,6 +29,7 @@ module CHIPSET #(
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
+        input   logic           video_reset,
         input   logic           video_output,
         input   logic           clk_vga_cga,
         input   logic           enable_cga,
@@ -331,6 +332,7 @@ module CHIPSET #(
         .status0_clear                      (status0_clear),
         .std_hsyncwidth                     (std_hsyncwidth),
         .composite                          (composite),
+        .video_reset                        (video_reset),
         .video_output                       (video_output),
         .clk_vga_cga                        (clk_vga_cga),
         .enable_cga                         (enable_cga),

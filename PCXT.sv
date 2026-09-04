@@ -508,8 +508,13 @@ module emu
 
     wire pll_system_locked;
 
+    // Keep the CGA/video PLL phase-related to the chipset clock.  The XT
+    // CPU/PIT and the real CGA card share the 14.31818 MHz source; using the
+    // board oscillator independently here leaves the two PLL lock phases
+    // unrelated and makes cycle-locked effects such as 8088 MPH depend on
+    // power-up phase.  The video frequencies themselves are unchanged.
     pll_system pll_system_inst (
-        .refclk(CLK_50M),
+        .refclk(clk_chipset),
         .rst(0),
         .outclk_0(clk_28_636),
         .outclk_1(clk_57_272),
@@ -538,7 +543,9 @@ module emu
     // TODO: messy, use a single clock domain at least
     always @(posedge clk_28_636)
     begin
-        HBlank_del <= {HBlank_del[13], HBlank_del[12], HBlank_del[11], HBlank_del[10], HBlank_del[9],
+        HBlank_del <= {HBlank_del[23], HBlank_del[22], HBlank_del[21], HBlank_del[20], HBlank_del[19],
+                       HBlank_del[18], HBlank_del[17], HBlank_del[16], HBlank_del[15], HBlank_del[14],
+                       HBlank_del[13], HBlank_del[12], HBlank_del[11], HBlank_del[10], HBlank_del[9],
                        HBlank_del[8], HBlank_del[7], HBlank_del[6], HBlank_del[5], HBlank_del[4],
                        HBlank_del[3], HBlank_del[2], HBlank_del[1], HBlank_del[0], HBlank};
         clk_14_318 <= ~clk_14_318;  // 14.318Mhz
@@ -1102,6 +1109,7 @@ module emu
 		.status0_clear                      (status0_clear_pulse),
 		.std_hsyncwidth                     (std_hsyncwidth),
 		.composite                          (composite),
+		.video_reset                        (video_retime_reset),
 		.video_output                       (video_output_sel),
 		.clk_vga_cga                        (clk_28_636),
 		.enable_cga                         (`ENABLE_CGA),
@@ -1710,7 +1718,7 @@ module emu
 
     wire   scandoubler = video_scandoubler_en;
 
-    reg [14:0] HBlank_del;
+    reg [24:0] HBlank_del;
     reg [24:0] HBlank_del_hgc;
     wire tandy_16_gfx;
     wire tandy_color_16;
@@ -1733,6 +1741,14 @@ module emu
     begin
         if (swap_video_eff)
             HBlank_VGA = HBlank_del_hgc[24];
+        else if (composite && !cga_scandouble_en)
+            // The composite decoder has a multi-sample filter/pixel latency.
+            // Keep its electrical input on raw CRTC blanking, while keeping
+            // the active aperture at the shortest delay that preserves the
+            // first source column.  The decoder clamps the transition
+            // residue internally; delaying this edge to [24] crops real
+            // 80/40-column content.
+            HBlank_VGA = HBlank_del[22] | HBlank_del[2];
         else if (tandy_color_16)
             HBlank_VGA = HBlank_del[11];
         else if (tandy_16_gfx)

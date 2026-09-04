@@ -36,7 +36,7 @@ module cga_pixel(
     input[3:0] tandy_bordercol,
 	 input tandy_color_4,
 	 input tandy_color_16,
-    output[3:0] video
+    output logic[3:0] video
     );
 
     reg[7:0] attr_byte;
@@ -53,7 +53,25 @@ module cga_pixel(
     reg[3:0] tandy_bits;
 	 reg overscan;
 	 
-    reg[3:0] tandy_palette[0:15] = '{ 4'h0, 4'h1, 4'h2, 4'h3, 4'h4, 4'h5, 4'h6, 4'h7, 4'h8, 4'h9, 4'ha, 4'hb, 4'hc, 4'hd, 4'he, 4'hf };  
+    reg[3:0] tandy_palette[0:15];
+    initial begin
+        tandy_palette[0]  = 4'h0;
+        tandy_palette[1]  = 4'h1;
+        tandy_palette[2]  = 4'h2;
+        tandy_palette[3]  = 4'h3;
+        tandy_palette[4]  = 4'h4;
+        tandy_palette[5]  = 4'h5;
+        tandy_palette[6]  = 4'h6;
+        tandy_palette[7]  = 4'h7;
+        tandy_palette[8]  = 4'h8;
+        tandy_palette[9]  = 4'h9;
+        tandy_palette[10] = 4'ha;
+        tandy_palette[11] = 4'hb;
+        tandy_palette[12] = 4'hc;
+        tandy_palette[13] = 4'hd;
+        tandy_palette[14] = 4'he;
+        tandy_palette[15] = 4'hf;
+    end
 	 
     wire pix_640;
     wire[10:0] rom_addr;
@@ -180,9 +198,12 @@ module cga_pixel(
 
     // In 640x200 mode, alternate between the two bits from
     // the shift register outputs at specific times in the sequence
-    wire[2:0] tmp_clk_seq;
-    assign tmp_clk_seq = clk_seq + 3'd7;
-    assign pix_640 = tmp_clk_seq[1] ? pix_bits[0] : pix_bits[1];
+    // A 640-dot CGA pixel is one bit held for two master-clock cycles.
+    // pix_bits is ordered as {first_bit, second_bit}; select the first bit
+    // for clk_seq[1:0]=00/01 and the second for 10/11.  The previous
+    // +7 phase offset emitted {second, first, first, second}, shifting every
+    // artifact transition by one half-pixel.
+    assign pix_640 = clk_seq[1] ? pix_bits[0] : pix_bits[1];
 	 
 	 // In Tandy 320x200x16 and 160x200x16 modes, concatenate two adjacent pixels
     wire temp;

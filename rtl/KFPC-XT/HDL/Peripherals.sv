@@ -55,6 +55,7 @@ module PERIPHERALS #(
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
+        input   logic           video_reset,
         input   logic           video_output,
         input   logic           clk_vga_cga,
         input   logic           enable_cga,
@@ -180,6 +181,11 @@ module PERIPHERALS #(
     wire [4:0] clkdiv;
     wire grph_mode;
     wire hres_mode;
+    wire bw_mode;
+    wire mode_640;
+    wire [3:0] composite_hsync_width;
+    wire [3:0] composite_border_color;
+    wire composite_phase;
 
     wire tandy_video_en = `ENABLE_TANDY_VIDEO ? tandy_video : 1'b0;
     wire tandy_audio_en = `ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0;
@@ -1193,11 +1199,23 @@ end
     wire          VBLANK_CGA;
     wire          de_o_cga;
 
-    wire [3:0] video_cga;
     wire       hsync_cga_raw;
+    wire       hsync_cga_rgbi_sd;
+    wire       vsync_cga_raw;
+    wire       vblank_cga_raw;
+    wire       hblank_cga_raw;
+    wire       de_o_cga_raw;
     wire       hsync_cga_sd;
+    wire       vsync_cga_sd;
+    wire       hblank_cga_sd;
+    wire       vblank_cga_sd;
+    wire       de_o_cga_sd;
     wire [3:0] video_cga_raw;
     wire [3:0] video_cga_sd;
+    wire [5:0] R_CGA_native;
+    wire [5:0] G_CGA_native;
+    wire [5:0] B_CGA_native;
+    wire [17:0] cga_rgb_sd;
     reg   [5:0]   R_HGC;
     reg   [5:0]   G_HGC;
     reg   [5:0]   B_HGC;
@@ -1221,7 +1239,14 @@ end
 
     assign de_o = swap_video_sel ? de_o_hgc : (`ENABLE_CGA ? de_o_cga : 1'b0);
     assign HSYNC_CGA = cga_scandouble_en ? hsync_cga_sd : hsync_cga_raw;
-    assign video_cga = cga_scandouble_en ? video_cga_sd : video_cga_raw;
+    assign VSYNC_CGA = cga_scandouble_en ? vsync_cga_sd : vsync_cga_raw;
+    assign HBLANK_CGA = cga_scandouble_en ? hblank_cga_sd : hblank_cga_raw;
+    assign VBLANK_CGA = cga_scandouble_en ? vblank_cga_sd : vblank_cga_raw;
+    assign de_o_cga = cga_scandouble_en ? de_o_cga_sd : de_o_cga_raw;
+
+    assign R_CGA = cga_scandouble_en ? cga_rgb_sd[5:0]   : R_CGA_native;
+    assign G_CGA = cga_scandouble_en ? cga_rgb_sd[11:6]  : G_CGA_native;
+    assign B_CGA = cga_scandouble_en ? cga_rgb_sd[17:12] : B_CGA_native;
 
     wire HGC_VRAM_ENABLE;
     wire [18:0] HGC_VRAM_ADDR;
@@ -1337,17 +1362,51 @@ end
     (
         .clk(clk_vga_cga),
         .clkdiv(clkdiv),
-        .video(video_cga),
-        .hblank(HBLANK_CGA),
+        // Composite decoding must see the native CGA dot stream.  The
+        // scan-doubled RGBI stream has a different time base and loses the
+        // phase relationship used by 8088 MPH colour effects.
+        .video(video_cga_raw),
+        .hblank(hblank_cga_raw),
         .composite(composite_cga),
-        .red(R_CGA),
-        .green(G_CGA),
-        .blue(B_CGA)
+        .bw_mode(bw_mode),
+        .hres_mode(hres_mode),
+        .grph_mode(grph_mode),
+        .hsync_width(composite_hsync_width),
+        .border_color(composite_border_color),
+        .phase(composite_phase),
+        .scandouble(1'b0),
+        .red(R_CGA_native),
+        .green(G_CGA_native),
+        .blue(B_CGA_native)
+    );
+
+    // The decoder above runs at the native CGA rate.  Only the decoded RGB
+    // stream is doubled for the digital output, preserving the original line
+    // sample sequence and its carrier phase.
+    video_scandoubler #(
+        .PIXEL_WIDTH(18),
+        .H_TOTAL_MAX(912)
+    ) cga_rgb_scandoubler (
+        .clk(clk_vga_cga),
+        .ce_pix(clkdiv[0]),
+        .ce_2x(1'b1),
+        .scandouble_en(cga_scandouble_en),
+        .pixel_in({B_CGA_native, G_CGA_native, R_CGA_native}),
+        .hsync_in(hsync_cga_raw),
+        .vsync_in(vsync_cga_raw),
+        .vblank_in(vblank_cga_raw),
+        .display_enable_in(de_o_cga_raw),
+        .pixel_out(cga_rgb_sd),
+        .hsync_out(hsync_cga_sd),
+        .vsync_out(vsync_cga_sd),
+        .vblank_out(vblank_cga_sd),
+        .display_enable_out(de_o_cga_sd)
     );
 
     cga cga1 
     (
         .clk                        (clk_vga_cga),
+        .reset                      (video_reset),
         .clkdiv                     (clkdiv),
         .bus_a                      (cga_io_address_2),
         .bus_ior_l                  (cga_io_read_n_2),
@@ -1362,13 +1421,15 @@ end
         .ram_a                      (CGA_VRAM_ADDR),
         .ram_d                      (CGA_VRAM_DOUT),
         .hsync                      (hsync_cga_raw),
-        .dbl_hsync                  (hsync_cga_sd),
-        .hblank                     (HBLANK_CGA),
-        .vsync                      (VSYNC_CGA),
-        .vblank                     (VBLANK_CGA),
+        .dbl_hsync                  (hsync_cga_rgbi_sd),
+        .hblank                     (),
+        .raw_hblank                 (hblank_cga_raw),
+        .vsync                      (vsync_cga_raw),
+        .vblank                     (vblank_cga_raw),
         .vblank_border              (VGA_VBlank_border_raw),
         .std_hsyncwidth             (std_hsyncwidth_raw),
-        .de_o                       (de_o_cga),
+        .de_o                       (),
+        .raw_de_o                   (de_o_cga_raw),
         .video                      (video_cga_raw),
         .dbl_video                  (video_cga_sd),
         .splashscreen               (splashscreen),
@@ -1377,6 +1438,11 @@ end
         .scandouble_en              (cga_scandouble_en),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
+        .bw_mode                    (bw_mode),
+        .mode_640                   (mode_640),
+        .composite_hsync_width       (composite_hsync_width),
+        .composite_border_color      (composite_border_color),
+        .composite_phase             (composite_phase),
         .tandy_color_16             (tandy_color_16_raw),
         .cga_hw                     (cga_hw),
         .crt_h_offset               (crt_h_offset),
