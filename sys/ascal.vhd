@@ -1877,6 +1877,12 @@ BEGIN
 			o_readlev<=0;
 			o_copylev<=0;
 			o_hsp<='0';
+			o_readack_sync<='0';
+			o_readack_sync2<='0';
+			o_readack<='0';
+			o_readdataack_sync<='0';
+			o_readdataack_sync2<='0';
+			o_readdataack<='0';
 
 		ELSIF rising_edge(o_clk) THEN
 			------------------------------------------------------
@@ -2363,6 +2369,16 @@ BEGIN
 				o_lastv(2)<=last_v;
 				o_bibv (2)<=bib_v;
 				o_off  (2)<=off_v;
+			END IF;
+
+			-- o_clk can pause during PLL reconfiguration. Recover the output
+			-- state machine at the next vertical sync instead of remaining stuck.
+			IF o_vsv(1)='1' AND o_vsv(0)='0' THEN
+				o_copy<=sWAIT;
+				o_state<=sDISP;
+				o_readlev<=0;
+				o_copylev<=0;
+				o_hsp<='0';
 			END IF;
 
 			------------------------------------------------------

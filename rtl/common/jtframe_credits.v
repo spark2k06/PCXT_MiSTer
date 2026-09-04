@@ -399,7 +399,11 @@ always @(posedge clk, posedge rst) begin
         last_toggle <= 0;
         last_enable <= 0;
     end else begin
-        last_enable <= enable;
+        // last_enable is the reference for the scroll re-seed, and that
+        // re-seed only runs on a pixel enable. Updating it on every clk made
+        // the window one clk wide inside a four clk pixel, so a pause almost
+        // never restarted the credits from the top.
+        if( pxl_cen ) last_enable <= enable;
         last_toggle <= toggle;
         if( enable ) begin
             if( vram_mode ) begin

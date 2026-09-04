@@ -17,8 +17,12 @@ module READY (
     input   logic           io_read_n,
     input   logic           io_write_n,
     input   logic           memory_read_n,
+    input   logic           memory_write_n,
+    input   logic           cga_memory_write_wait,
     input   logic           dma0_acknowledge_n,
-    input   logic           address_enable_n
+    input   logic           address_enable_n,
+    // CPU speed setting (0 - 4.77MHz, 1 - 7.16MHz, 2 - 9.54MHz, 3 - max)
+    input   logic   [1:0]   clk_select
 );
 
 
@@ -30,7 +34,24 @@ module READY (
     logic   ready_n_or_wait_Qn;
     logic   prev_ready_n_or_wait;
 
-    wire    bus_state = ~io_read_n | ~io_write_n | (dma0_acknowledge_n & ~memory_read_n & address_enable_n);
+    // Memory writes must arm the wait/ready flip-flop at the start of the
+    // cycle exactly like reads and I/O do. Without this term a write could
+    // be told to wait only after its command pulse has already closed
+    // at the fastest CPU speed setting, which is what can corrupt RAM and
+    // floppy/IDE transfers there.
+    //
+    // Only at that setting, though. The race needs a command pulse of about
+    // two CPU clocks; at 9.54MHz and below the pulse is three to five times
+    // longer than the SDRAM transaction and arming the flip-flop buys nothing
+    // but a wait state on every write. Measured against the parent core, that
+    // wait state costs about 17% of a write-heavy loop at 4.77MHz.
+    // RAM.sv picks its readiness policy on the same condition.
+    wire    strict_ready = (clk_select == 2'b11);
+
+    wire    bus_state = ~io_read_n | ~io_write_n
+                      | (dma0_acknowledge_n & ~memory_read_n  & address_enable_n)
+                      | ((strict_ready | cga_memory_write_wait)
+                         & dma0_acknowledge_n & ~memory_write_n & address_enable_n);
 
     always_ff @(posedge clock, posedge reset) begin
         if (reset)

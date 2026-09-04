@@ -14,6 +14,7 @@
 module cga(
     // Clocks
     input clk,
+    input reset,
     output [4:0] clkdiv,
 
     // ISA bus
@@ -36,29 +37,48 @@ module cga(
     // Video outputs
     output hsync,
     output hblank,
+    output raw_hblank,
     output dbl_hsync,
     output vsync,
     output vblank,
     output vblank_border,
     output std_hsyncwidth,
     output de_o,
+    output raw_de_o,
     output[3:0] video,
     output[3:0] dbl_video,
     output[6:0] comp_video,
 
     input splashscreen,
+    input composite,
     input thin_font,
     input tandy_video,     
     input scandouble_en,
     output grph_mode,
     output hres_mode,
+    output bw_mode,
+    output mode_640,
+    output [3:0] composite_hsync_width,
+    output [3:0] composite_border_color,
+    output composite_phase,
     output tandy_color_16,
     input cga_hw,
     input[3:0] crt_h_offset,
     input[2:0] crt_v_offset,
     input[2:0] vsync_width_osd,
     input[2:0] hsync_width_osd
-    );
+);
+
+    // Keep the carrier/CRTC relationship independent of the boot-time clock
+    // phase, while synchronizing reset release to the CGA clock domain.
+    reg [1:0] video_reset_sync = 2'b11;
+    always @(posedge clk or posedge reset) begin
+        if (reset)
+            video_reset_sync <= 2'b11;
+        else
+            video_reset_sync <= {video_reset_sync[0], 1'b0};
+    end
+    wire video_reset_local = video_reset_sync[1];
 
     parameter MDA_70HZ = 0;
     parameter BLINK_MAX = 0;
@@ -91,8 +111,6 @@ module cga(
     reg[4:0] tandy_modesel = 5'b00000;
     reg tandy_palette_set = 1'b0;
 
-    wire bw_mode;
-    wire mode_640;
     wire tandy_16_mode = `ENABLE_TANDY_VIDEO ? tandy_video : 1'b0;
     wire video_enabled;
     wire blink_enabled;
@@ -110,6 +128,7 @@ module cga(
     wire display_enable;
     wire display_enable_sd;
     wire [3:0] hsync_width_crtc;
+    wire composite_phase_crtc;
 
     // Two different clocks from the sequencer
     wire hclk;
@@ -145,6 +164,10 @@ module cga(
 
     assign de_o = scandouble_en ? display_enable_sd : display_enable;
     assign hblank = scandouble_en ? ~display_enable_sd : hblank_crtc;
+    // Keep the unmodified CRTC timing available to consumers that must
+    // decode the native 14.318 MHz CGA stream before scan doubling.
+    assign raw_hblank = hblank_crtc;
+    assign raw_de_o = display_enable;
     
     assign ram_a = {4'h0, pixel_addr14, pixel_addr13, crtc_addr[11:0],
                     vram_read_a0};
@@ -199,47 +222,10 @@ module cga(
     //assign bus_dir = (crtc_cs | status_cs);
     assign bus_out = bus_int_out;
 
-    // Wait state generator
-    // Optional for operation but required to run timing-sensitive demos
-    // e.g. 8088MPH.
-    /*
-    if (USE_BUS_WAIT == 0) begin
-        assign bus_rdy = 1;
-    end else begin
-        assign bus_rdy = bus_rdy_latch;
-    end
-    */
-
-/*
-    assign cpu_memsel = bus_mem_cs & (~bus_memr_l | ~bus_memw_l);
-
-    always @ (posedge clk)
-    begin
-        if (cpu_memsel) begin
-            case (wait_state)
-                2'b00: begin
-                    if (clkdiv == 5'd17) wait_state <= 2'b01;
-                    bus_rdy_latch <= 0;
-                end
-                2'b01: begin
-                    if (clkdiv == 5'd20) wait_state <= 2'b10;
-                    bus_rdy_latch <= 0;
-                end
-                2'b10: begin
-                    wait_state <= 2'b10;
-                    bus_rdy_latch <= 1;
-                end
-                default: begin
-                    wait_state <= 2'b00;
-                    bus_rdy_latch <= 0;
-                end
-            endcase
-        end else begin
-            wait_state <= 2'b00;
-            bus_rdy_latch <= 1;
-        end
-    end
-*/
+    // VRAM lives outside this module in the MiSTer port, so its READY timing
+    // is generated at the chipset boundary by CGA_BUS_WAIT. Keep this legacy
+    // pin benign; it is not connected by the MiSTer integration.
+    assign bus_rdy = 1'b1;
 
     // status register (read only at 3BA)
     // FIXME: vsync_l should be delayed/synced to HCLK.
@@ -250,6 +236,9 @@ module cga(
     assign hres_mode = cga_control_reg[0]; // 1=80x25,0=40x25
     assign grph_mode = cga_control_reg[1]; // 1=graphics, 0=text
     assign bw_mode = cga_control_reg[2]; // 1=b&w, 0=color
+    assign composite_hsync_width = hsync_width_crtc;
+    assign composite_border_color = cga_color_reg[3:0];
+    assign composite_phase = composite_phase_crtc;
 
     assign video_enabled = NO_DISPLAY_DISABLE ? 1'b1 : cga_control_reg[3];
      
@@ -290,7 +279,7 @@ module cga(
         .CLOCK(clk),
 		  .CLKEN(crtc_clk), 
 		  // .nCLKEN(),
-		  .nRESET(1'b1),
+        .nRESET(~video_reset_local),
 		  .CRTC_TYPE(1'b1),
 		  
 		  .ENABLE(1'b1),
@@ -313,6 +302,7 @@ module cga(
 		  .MA(crtc_addr),
 		  .RA(row_addr),
 		  .hsync_width(hsync_width_crtc),
+		  .composite_phase(composite_phase_crtc),
 		  
 		  .crt_h_offset(crt_h_offset),
 		  .crt_v_offset(crt_v_offset),
@@ -347,6 +337,7 @@ module cga(
     // Sequencer state machine
     cga_sequencer sequencer (
         .clk(clk),
+        .reset(video_reset_local),
         .clk_seq(clkdiv),
         .vram_read(vram_read),
         .vram_read_a0(vram_read_a0),
@@ -362,6 +353,9 @@ module cga(
         .tandy_16_gfx(tandy_16_gfx),
 		  .tandy_color_16(tandy_color_16)
     );
+
+    wire [3:0] video_core;
+    wire [3:0] splash_video;
 
     // Pixel pusher
     cga_pixel pixel (
@@ -393,8 +387,25 @@ module cga(
         .tandy_bordercol(tandy_bordercol),
         .tandy_color_4(tandy_color_4),
         .tandy_color_16(tandy_color_16),
-        .video(video)
+        .video(video_core)
     );
+
+    // The graphical boot splash replaces only the native RGBI stream.  The
+    // existing scandoubler and cga_vgaport remain downstream, so both RGB
+    // and composite output use the same timing and analogue model as normal
+    // CGA video.
+    cga_splash_renderer splash_renderer (
+        .clk(clk),
+        .reset(video_reset_local),
+        .enable(splashscreen),
+        .clkdiv(clkdiv),
+        .display_enable(display_enable),
+        .vblank(vblank_crtc),
+        .composite(composite),
+        .pixel_index(splash_video)
+    );
+
+    assign video = splashscreen ? splash_video : video_core;
 
     // Generate blink signal for cursor and character
     always @ (posedge clk)

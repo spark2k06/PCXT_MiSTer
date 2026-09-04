@@ -11,3 +11,4 @@ set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) uart_inter
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) uart_receiver.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) uart_transmitter.vhd ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) uart.v ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) mpu401.sv ]

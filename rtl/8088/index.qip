@@ -1,0 +1,16 @@
+# ==============================================================================
+# Quartus Prime QIP Index File
+# Generated automatically by make-qip
+# ==============================================================================
+set_global_assignment -library "mcl86" -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "mcl86_adder.sv"]
+set_global_assignment -library "mcl86" -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "mcl86_biu_max.sv"]
+set_global_assignment -library "mcl86" -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "mcl86_biu_min.sv"]
+set_global_assignment -library "mcl86" -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "mcl86_eu_core.sv"]
+set_global_assignment -library "mcl86" -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "mcl86_ucode.sv"]
+set_global_assignment -library "mcl86" -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "cpu_type_latch.sv"]
+
+# ==============================================================================
+# WRAPPERS
+# ==============================================================================
+set_global_assignment -library "mcl86" -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "wrappers/i8088.sv"]
+set_global_assignment -library "mcl86" -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "wrappers/i8088_min.sv"]

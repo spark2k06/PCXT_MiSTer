@@ -45,6 +45,10 @@ module UM6845R
 	output    [13:0] MA,
 	output     [4:0] RA,
 	output    [3:0] hsync_width,
+	// 8088 MPH uses a one-dot CRTC timing change (R0=72 then R0=71)
+	// to select the other composite colour-burst phase. The value is
+	// latched here because R0 ends at 71 after the switch.
+	output           composite_phase,
 
 	input      [3:0] crt_h_offset,
 	input      [2:0] crt_v_offset,
@@ -72,6 +76,7 @@ assign FIELD = ~field & interlace[0];
 assign MA = row_addr_r;
 assign RA = line | (field & interlace[0]);
 assign hsync_width = R3_h_sync_width;
+assign composite_phase = composite_phase_reg;
 
 assign DE = de[R8_skew & ~{2{CRTC_TYPE}}];
 
@@ -80,6 +85,7 @@ assign vblank = ~vde;
 assign line_reset = hcc_last;
 
 reg [7:0] R0_h_total = H_TOTAL;
+reg       composite_phase_reg = 1'b0;
 reg [7:0] R1_h_displayed = H_DISP;
 reg [7:0] R2_h_sync_pos = H_SYNCPOS;
 reg [3:0] R3_v_sync_width;
@@ -129,7 +135,15 @@ always @(posedge CLOCK) begin
 		if (~RS) addr <= DI[4:0];
 		else begin
 			case (addr)
-				00: R0_h_total <= DI;
+				00: begin
+					// The calibration program changes R0 from the normal odd
+					// total (71h) to an even total (72h), then writes 71h back.
+					// Count the even write once so the setting survives the
+					// write-back; another switch toggles it again.
+					if ((R0_h_total == 8'h71) && (DI == 8'h72))
+						composite_phase_reg <= ~composite_phase_reg;
+					R0_h_total <= DI;
+				end
 				01: R1_h_displayed <= DI;
 				02: R2_h_sync_pos <= DI;
 				03: {R3_v_sync_width,R3_h_sync_width} <= DI;
@@ -294,16 +308,17 @@ end
 wire hsync_effective = (|hsync_width_osd & ~hres_mode) ? hsync_shaped : hsync_raw;
 
 reg [121:0] hsync_delay_line;
+wire [6:0] hsync_delay_index = hres_mode ?
+                               (7'd60  - {crt_h_offset, 2'b00}) :
+                               (7'd120 - {crt_h_offset, 3'b000});
 always @(posedge CLOCK) begin
     hsync_delay_line <= {hsync_delay_line[120:0], hsync_effective};
-    HSYNC <= hsync_delay_line[(hres_mode ? 60 : 120) - (crt_h_offset << (hres_mode ? 2 : 3))];
+    HSYNC <= hsync_delay_line[hsync_delay_index];
 end
 
-reg vsync_raw;
 // vertical output
 reg vde, vde_r;
 reg VSYNC_r;
-always @(posedge CLOCK) vsync_raw <= VSYNC_r; // delay the same as HSYNC to not confuse the GA
 always @(posedge CLOCK) begin
 	reg  [3:0] vsc;
 	reg        vsync_allow;
@@ -364,10 +379,29 @@ always @(posedge CLOCK) begin
 	end
 end
 
-reg [8:0] vsync_delay_line;
-always @(posedge HSYNC) begin
-    vsync_delay_line <= {vsync_delay_line[7:0], vsync_raw};
-    VSYNC <= vsync_delay_line[7 - crt_v_offset];
+reg [8:0] vsync_delay_line = 9'd0;
+wire hsync_next = hsync_delay_line[hsync_delay_index];
+always @(posedge CLOCK) begin
+    if (~nRESET) begin
+        vsync_delay_line <= 9'd0;
+        VSYNC <= 1'b0;
+    end
+    else if (~HSYNC && hsync_next) begin
+        // Shift on the same CLOCK edge that raises the delayed HSYNC output.
+        // Sample the same VSYNC value that belongs to this delayed line edge.
+        vsync_delay_line <= {vsync_delay_line[7:0], VSYNC_r};
+        case (crt_v_offset)
+            3'd0: VSYNC <= vsync_delay_line[7];
+            3'd1: VSYNC <= vsync_delay_line[6];
+            3'd2: VSYNC <= vsync_delay_line[5];
+            3'd3: VSYNC <= vsync_delay_line[4];
+            3'd4: VSYNC <= vsync_delay_line[3];
+            3'd5: VSYNC <= vsync_delay_line[2];
+            3'd6: VSYNC <= vsync_delay_line[1];
+            3'd7: VSYNC <= vsync_delay_line[0];
+            default: VSYNC <= vsync_delay_line[7];
+        endcase
+    end
 end
 
 wire [3:0] de = {1'b0, dde[1:0], hde & vde & vde_r};

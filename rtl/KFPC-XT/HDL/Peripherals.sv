@@ -28,6 +28,9 @@
 `ifndef ENABLE_EMS
 `define ENABLE_EMS 0
 `endif
+`ifndef ENABLE_MIDI
+`define ENABLE_MIDI 1
+`endif
 
 module PERIPHERALS #(
         parameter ps2_over_time = 16'd1000,
@@ -48,10 +51,10 @@ module PERIPHERALS #(
         output  logic           dma_page_chip_select_n,
         // SplashScreen
         input   logic           splashscreen,
-        input   logic           status0_clear,
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
+        input   logic           video_reset,
         input   logic           video_output,
         input   logic           clk_vga_cga,
         input   logic           enable_cga,
@@ -67,6 +70,8 @@ module PERIPHERALS #(
         output  logic           VGA_HBlank,
         output  logic           VGA_VBlank,
         output  logic           VGA_VBlank_border,
+        output  logic           cga_memory_ready,
+        output  logic           cga_memory_write_wait,
         // I/O Ports
         input   logic   [19:0]  address,
         output  logic   [19:0]  latch_address,
@@ -125,6 +130,10 @@ module PERIPHERALS #(
         input   logic           uart2_dsr_n,
         output  logic           uart2_rts_n,
         output  logic           uart2_dtr_n,
+        // MPU-401 (MIDI / MT32-pi)
+        input   logic           clk_midi,
+        input   logic           midi_rx,
+        output  logic           midi_tx,
         // EMS
         input   logic           ems_enabled,
         input   logic   [1:0]   ems_address,
@@ -171,6 +180,33 @@ module PERIPHERALS #(
     wire [4:0] clkdiv;
     wire grph_mode;
     wire hres_mode;
+    wire bw_mode;
+    wire mode_640;
+    wire [3:0] composite_hsync_width;
+    wire [3:0] composite_border_color;
+    wire composite_phase;
+
+    // video_reset is generated outside the CGA/HGC clock domains. Assert it
+    // immediately, but release it only on the clock that consumes it so the
+    // video state machines cannot leave reset close to an active edge.
+    (* ASYNC_REG = "TRUE" *) logic [1:0] video_reset_cga_sync = 2'b11;
+    (* ASYNC_REG = "TRUE" *) logic [1:0] video_reset_hgc_sync = 2'b11;
+    wire video_reset_cga = video_reset_cga_sync[1];
+    wire video_reset_hgc = video_reset_hgc_sync[1];
+
+    always_ff @(posedge clk_vga_cga or posedge video_reset) begin
+        if (video_reset)
+            video_reset_cga_sync <= 2'b11;
+        else
+            video_reset_cga_sync <= {video_reset_cga_sync[0], 1'b0};
+    end
+
+    always_ff @(posedge clk_vga_hgc or posedge video_reset) begin
+        if (video_reset)
+            video_reset_hgc_sync <= 2'b11;
+        else
+            video_reset_hgc_sync <= {video_reset_hgc_sync[0], 1'b0};
+    end
 
     wire tandy_video_en = `ENABLE_TANDY_VIDEO ? tandy_video : 1'b0;
     wire tandy_audio_en = `ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0;
@@ -242,11 +278,40 @@ module PERIPHERALS #(
     wire    hgc_mem_select          = `ENABLE_HGC ? (~iorq && ~address_enable_n && hgc_enable & (address[19:15] == {5'b1011, hgc_grph_page})) : 1'b0; // B0000 - BFFFF (32KB / 64 KB)
     wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
     wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
+    // NOTE: deliberately no `iorq` term here, matching uart_chip_select above.
+    // This select is qualified by iorq_uart, which pulses on the *trailing* edge
+    // of io_write_n - by then iorq has already dropped, so including it would
+    // gate away every write.
+    wire    mpu401_chip_select      = `ENABLE_MIDI ? (~address_enable_n && address[15:1] == (16'h0330 >> 1)) : 1'b0; // 0x330 .. 0x331 (MPU-401 UART mode)
     wire    lpt_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h0378 >> 1)); // 0x378 ... 0x379
 	 wire    lpt_ctrl_select         = (iorq && ~address_enable_n && address[15:0] == 16'h037A); // 0x37A
     wire    tandy_page_chip_select  = `ENABLE_TANDY_VIDEO ? (tandy_video_en && iorq && ~address_enable_n && address[15:0] == 16'h03DF) : 1'b0;
     wire    xtctl_chip_select       = (iorq && ~address_enable_n && address[15:0] == 16'h8888);
     wire    rtc_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h02C0 >> 1)); // 0x2C0 .. 0x2C1
+
+    // Every CGA byte write carries the Tw marked "+WS" in cycle-counted
+    // software.  CGA_BUS_WAIT also ties completion to the next of the two
+    // free VRAM windows.  Using both windows is important: selecting only one
+    // can hold a polygon write for nearly a complete 32-dot turn and starve
+    // its PC-speaker updates, while an unphased fixed Tw breaks Kefrens.
+    assign cga_memory_write_wait = `ENABLE_CGA ? cga_mem_select : 1'b0;
+
+    generate
+        if (`ENABLE_CGA) begin : CGA_MEMORY_WAIT
+            CGA_BUS_WAIT u_CGA_BUS_WAIT (
+                .clock              (clk_vga_cga),
+                .reset              (reset),
+                .sequencer_phase    (clkdiv),
+                .memory_select      (cga_mem_select),
+                .memory_read_n      (memory_read_n),
+                .memory_write_n     (memory_write_n),
+                .ready              (cga_memory_ready)
+            );
+        end
+        else begin : NO_CGA_MEMORY_WAIT
+            assign cga_memory_ready = 1'b1;
+        end
+    endgenerate
 
     wire    [3:0] ems_page_address  = (ems_address == 2'b00) ? 4'b1100 : (ems_address == 2'b01) ? 4'b1101 : 4'b1110;
     wire    ems_chip_select         = `ENABLE_EMS ? (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260)) : 1'b0;          // 260h..263h
@@ -321,6 +386,7 @@ module PERIPHERALS #(
     logic           uart_interrupt;
     logic           fdd_interrupt;
     logic           uart2_interrupt;
+    logic           mpu_interrupt;
     logic   [7:0]   interrupt_data_bus_out;
     logic           interrupt_to_cpu_buf;
 
@@ -350,7 +416,7 @@ module PERIPHERALS #(
                                         interrupt_request[5],
                                         uart_interrupt,
                                         uart2_interrupt,
-                                        interrupt_request[2],
+                                        mpu_interrupt,
                                         keybord_interrupt,
                                         timer_interrupt})
     );
@@ -447,6 +513,7 @@ module PERIPHERALS #(
     logic           keybord_irq;
     logic           uart_irq;
     logic           uart2_irq;
+    logic           mpu_irq;
     logic   [7:0]   keycode_buf;
     logic   [7:0]   keycode;
     logic   [7:0]   tandy_keycode_conv;
@@ -572,10 +639,16 @@ module PERIPHERALS #(
             ps2_clock_out = ~(keybord_irq | ~ps2_send_clock | ~ps2_reset_n);
     end
 
-    always_ff @(posedge clk_vga_hgc)
+    always_ff @(posedge clk_vga_hgc or posedge video_reset_hgc)
     begin
-        swap_video_buffer_2 <= swap_video_buffer_1;
-        swap_video          <= swap_video_buffer_2;
+        if (video_reset_hgc) begin
+            swap_video_buffer_2 <= 1'b0;
+            swap_video          <= 1'b0;
+        end
+        else begin
+            swap_video_buffer_2 <= swap_video_buffer_1;
+            swap_video          <= swap_video_buffer_2;
+        end
     end
 
 
@@ -737,6 +810,7 @@ end
     logic   keybord_interrupt_ff;
     logic   uart_interrupt_ff;
     logic   uart2_interrupt_ff;
+    logic   mpu_interrupt_ff;
     always_ff @(posedge clock, posedge reset)
     begin
         if (reset)
@@ -747,6 +821,8 @@ end
             uart_interrupt          <= 1'b0;
             uart2_interrupt_ff      <= 1'b0;
             uart2_interrupt         <= 1'b0;
+            mpu_interrupt_ff        <= 1'b0;
+            mpu_interrupt           <= 1'b0;
         end
         else
         begin
@@ -754,6 +830,8 @@ end
             keybord_interrupt       <= keybord_interrupt_ff;
             uart_interrupt_ff       <= uart_irq;
             uart_interrupt          <= uart_interrupt_ff;
+            mpu_interrupt_ff        <= mpu_irq;
+            mpu_interrupt           <= mpu_interrupt_ff;
             uart2_interrupt_ff      <= uart2_irq;
             uart2_interrupt         <= uart2_interrupt_ff;
         end
@@ -763,10 +841,13 @@ end
     logic prev_io_write_n;
     logic [7:0] write_to_uart;
     logic [7:0] write_to_uart2;
+    logic [7:0] write_to_mpu401;
     logic [7:0] uart_readdata_1;
     logic [7:0] uart_readdata;
     logic [7:0] uart2_readdata_1;
     logic [7:0] uart2_readdata;
+    logic [7:0] mpu401_readdata_1;
+    logic [7:0] mpu401_readdata;
 
     always_ff @(posedge clock)
     begin
@@ -807,11 +888,13 @@ end
             begin
                 write_to_uart <= internal_data_bus;
                 write_to_uart2 <= internal_data_bus;
+                write_to_mpu401 <= internal_data_bus;
             end
             else
             begin
                 write_to_uart <= write_to_uart;
                 write_to_uart2 <= write_to_uart2;
+                write_to_mpu401 <= write_to_mpu401;
             end
 
             if ((lpt_chip_select) && (~io_write_n) && ~address[0])
@@ -885,8 +968,29 @@ end
 
         .irq               (uart2_irq)
     );
-	 
-    MSMouseWrapper MSMouseWrapper_inst 
+
+    mpu401 mpu401_inst
+    (
+        .clk               (clock),
+        .reset             (reset),
+
+        .baudce            (clk_midi),
+
+        .address           (address[0]),
+        .writedata         (write_to_mpu401),
+        .read              (~io_read_n  & prev_io_read_n),
+        .write             (io_write_n & ~prev_io_write_n),
+        .readdata          (mpu401_readdata_1),
+        .cs                (mpu401_chip_select & iorq_uart),
+
+        .midi_tx           (midi_tx),
+        .midi_rx           (midi_rx),
+
+        .irq               (mpu_irq)
+    );
+
+
+    MSMouseWrapper MSMouseWrapper_inst
     (
         .clk(clock),
         .ps2dta_in(ps2_mousedat_in),
@@ -904,11 +1008,13 @@ end
         begin
             uart_readdata <= uart_readdata_1;
             uart2_readdata <= uart2_readdata_1;
+            mpu401_readdata <= mpu401_readdata_1;
         end
         else
         begin
             uart_readdata <= uart_readdata;
             uart2_readdata <= uart2_readdata;
+            mpu401_readdata <= mpu401_readdata;
         end
     end
 
@@ -946,23 +1052,6 @@ end
     logic          cga_io_read_n_2;
     logic          cga_address_enable_n_1;
     logic          cga_address_enable_n_2;
-    localparam int SPLASH_COPY_SIZE = 4000;
-    localparam int TEXT_CLEAR_SIZE = 131072;
-    localparam [11:0] SPLASH_COPY_LAST = SPLASH_COPY_SIZE - 1;
-    localparam [16:0] TEXT_CLEAR_LAST = TEXT_CLEAR_SIZE - 1;
-    logic         splashscreen_ff = 1'b0;
-    logic         splash_copy_active = 1'b0;
-    logic [11:0]  splash_copy_addr = 12'd0;
-    logic         splash_clear_active = 1'b0;
-    logic         splash_clear_pending = 1'b0;
-    logic [16:0]  splash_clear_addr = 17'd0;
-    wire          splash_copy_start = splashscreen & ~splashscreen_ff;
-    wire          splash_clear_start = ~splashscreen & splashscreen_ff;
-    wire          status0_clear_start = status0_clear;
-    wire  [7:0]   splash_rom_data;
-    wire          cga_vram_copy = splash_copy_active | splash_clear_active;
-    wire  [7:0]   splash_clear_data = 8'h00;
-
     always_ff @(posedge clock)
     begin
         if (~io_write_n | ~io_read_n)
@@ -991,64 +1080,24 @@ end
         video_address_enable_n  <= address_enable_n;
     end
 
-    always_ff @(posedge clock)
+    always_ff @(posedge clk_vga_hgc or posedge video_reset_hgc)
     begin
-        splashscreen_ff <= splashscreen;
-
-        if (splash_copy_start)
+        if (video_reset_hgc)
         begin
-            splash_copy_active <= 1'b1;
-            splash_copy_addr   <= 12'd0;
+            hgc_io_address_1        <= 15'd0;
+            hgc_io_address_2        <= 15'd0;
+            hgc_io_data_1           <= 8'd0;
+            hgc_io_data_2           <= 8'd0;
+            hgc_io_write_n_1        <= 1'b1;
+            hgc_io_write_n_2        <= 1'b1;
+            hgc_io_write_n_3        <= 1'b1;
+            hgc_io_read_n_1         <= 1'b1;
+            hgc_io_read_n_2         <= 1'b1;
+            hgc_io_read_n_3         <= 1'b1;
+            hgc_address_enable_n_1  <= 1'b1;
+            hgc_address_enable_n_2  <= 1'b1;
         end
-        else if (splash_copy_active)
-        begin
-            if (splash_copy_addr == SPLASH_COPY_LAST)
-            begin
-                splash_copy_active <= 1'b0;
-                splash_copy_addr   <= 12'd0;
-            end
-            else
-            begin
-                splash_copy_addr <= splash_copy_addr + 12'd1;
-            end
-        end
-        else
-        begin
-            splash_copy_active <= 1'b0;
-            splash_copy_addr   <= 12'd0;
-        end
-
-        if (splash_clear_start || status0_clear_start)
-            splash_clear_pending <= 1'b1;
-
-        if (~splash_copy_active && splash_clear_pending && ~splash_clear_active && ~splashscreen)
-        begin
-            splash_clear_active  <= 1'b1;
-            splash_clear_pending <= 1'b0;
-            splash_clear_addr    <= 17'd0;
-        end
-        else if (splash_clear_active)
-        begin
-            if (splash_clear_addr == TEXT_CLEAR_LAST)
-            begin
-                splash_clear_active <= 1'b0;
-                splash_clear_addr   <= 17'd0;
-            end
-            else
-            begin
-                splash_clear_addr <= splash_clear_addr + 17'd1;
-            end
-        end
-        else
-        begin
-            splash_clear_active <= 1'b0;
-            splash_clear_addr   <= 17'd0;
-        end
-    end
-
-    always_ff @(posedge clk_vga_hgc)
-    begin
-        if (`ENABLE_HGC)
+        else if (`ENABLE_HGC)
         begin
             hgc_io_address_1        <= video_io_address;
             hgc_io_address_2        <= hgc_io_address_1;
@@ -1120,11 +1169,23 @@ end
     wire          VBLANK_CGA;
     wire          de_o_cga;
 
-    wire [3:0] video_cga;
     wire       hsync_cga_raw;
+    wire       hsync_cga_rgbi_sd;
+    wire       vsync_cga_raw;
+    wire       vblank_cga_raw;
+    wire       hblank_cga_raw;
+    wire       de_o_cga_raw;
     wire       hsync_cga_sd;
+    wire       vsync_cga_sd;
+    wire       hblank_cga_sd;
+    wire       vblank_cga_sd;
+    wire       de_o_cga_sd;
     wire [3:0] video_cga_raw;
     wire [3:0] video_cga_sd;
+    wire [5:0] R_CGA_native;
+    wire [5:0] G_CGA_native;
+    wire [5:0] B_CGA_native;
+    wire [17:0] cga_rgb_sd;
     reg   [5:0]   R_HGC;
     reg   [5:0]   G_HGC;
     reg   [5:0]   B_HGC;
@@ -1135,7 +1196,11 @@ end
     reg           de_o_hgc;
     wire          video_hgc;
 
-    wire swap_video_sel = `ENABLE_HGC ? (`ENABLE_CGA ? (swap_video & ~tandy_video_en) : ~tandy_video_en) : 1'b0;
+    // The boot artwork is generated by the CGA raster path.  Do not let the
+    // normal HGC/MDA source select the shared stream while that raster is on
+    // screen; HGC/MDA resumes as soon as the splash is dismissed.
+    wire swap_video_sel = splashscreen ? 1'b0 :
+                          (`ENABLE_HGC ? (`ENABLE_CGA ? (swap_video & ~tandy_video_en) : ~tandy_video_en) : 1'b0);
 
     assign VGA_R = swap_video_sel ? R_HGC : (`ENABLE_CGA ? R_CGA : 6'd0);
     assign VGA_G = swap_video_sel ? G_HGC : (`ENABLE_CGA ? G_CGA : 6'd0);
@@ -1148,7 +1213,14 @@ end
 
     assign de_o = swap_video_sel ? de_o_hgc : (`ENABLE_CGA ? de_o_cga : 1'b0);
     assign HSYNC_CGA = cga_scandouble_en ? hsync_cga_sd : hsync_cga_raw;
-    assign video_cga = cga_scandouble_en ? video_cga_sd : video_cga_raw;
+    assign VSYNC_CGA = cga_scandouble_en ? vsync_cga_sd : vsync_cga_raw;
+    assign HBLANK_CGA = cga_scandouble_en ? hblank_cga_sd : hblank_cga_raw;
+    assign VBLANK_CGA = cga_scandouble_en ? vblank_cga_sd : vblank_cga_raw;
+    assign de_o_cga = cga_scandouble_en ? de_o_cga_sd : de_o_cga_raw;
+
+    assign R_CGA = cga_scandouble_en ? cga_rgb_sd[5:0]   : R_CGA_native;
+    assign G_CGA = cga_scandouble_en ? cga_rgb_sd[11:6]  : G_CGA_native;
+    assign B_CGA = cga_scandouble_en ? cga_rgb_sd[17:12] : B_CGA_native;
 
     wire HGC_VRAM_ENABLE;
     wire [18:0] HGC_VRAM_ADDR;
@@ -1254,6 +1326,14 @@ end
 
     wire composite_cga = tandy_video_en ? (swap_video ? ~composite : composite) : composite;
 
+    // The boot artwork is a native 320x200x4 CGA signal.  Keep the CRTC
+    // timing unchanged, but make the analogue decoder use the graphics-mode
+    // colour/burst convention while the splash is active.
+    wire cga_video_bw_mode   = splashscreen ? 1'b0 : bw_mode;
+    wire cga_video_hres_mode = splashscreen ? 1'b0 : hres_mode;
+    wire cga_video_grph_mode = splashscreen ? 1'b1 : grph_mode;
+    wire [3:0] cga_video_border_color = splashscreen ? 4'h0 : composite_border_color;
+
     assign VGA_VBlank_border = `ENABLE_CGA ? VGA_VBlank_border_raw : (`ENABLE_HGC ? vblank_border_hgc : 1'b0);
     assign std_hsyncwidth = `ENABLE_CGA ? std_hsyncwidth_raw : (`ENABLE_HGC ? std_hsyncwidth_hgc : 1'b0);
     assign tandy_color_16 = `ENABLE_CGA ? tandy_color_16_raw : 1'b0;
@@ -1264,17 +1344,51 @@ end
     (
         .clk(clk_vga_cga),
         .clkdiv(clkdiv),
-        .video(video_cga),
-        .hblank(HBLANK_CGA),
+        // Composite decoding must see the native CGA dot stream.  The
+        // scan-doubled RGBI stream has a different time base and loses the
+        // phase relationship used by 8088 MPH colour effects.
+        .video(video_cga_raw),
+        .hblank(hblank_cga_raw),
         .composite(composite_cga),
-        .red(R_CGA),
-        .green(G_CGA),
-        .blue(B_CGA)
+        .bw_mode(cga_video_bw_mode),
+        .hres_mode(cga_video_hres_mode),
+        .grph_mode(cga_video_grph_mode),
+        .hsync_width(composite_hsync_width),
+        .border_color(cga_video_border_color),
+        .phase(composite_phase),
+        .scandouble(1'b0),
+        .red(R_CGA_native),
+        .green(G_CGA_native),
+        .blue(B_CGA_native)
+    );
+
+    // The decoder above runs at the native CGA rate.  Only the decoded RGB
+    // stream is doubled for the digital output, preserving the original line
+    // sample sequence and its carrier phase.
+    video_scandoubler #(
+        .PIXEL_WIDTH(18),
+        .H_TOTAL_MAX(912)
+    ) cga_rgb_scandoubler (
+        .clk(clk_vga_cga),
+        .ce_pix(clkdiv[0]),
+        .ce_2x(1'b1),
+        .scandouble_en(cga_scandouble_en),
+        .pixel_in({B_CGA_native, G_CGA_native, R_CGA_native}),
+        .hsync_in(hsync_cga_raw),
+        .vsync_in(vsync_cga_raw),
+        .vblank_in(vblank_cga_raw),
+        .display_enable_in(de_o_cga_raw),
+        .pixel_out(cga_rgb_sd),
+        .hsync_out(hsync_cga_sd),
+        .vsync_out(vsync_cga_sd),
+        .vblank_out(vblank_cga_sd),
+        .display_enable_out(de_o_cga_sd)
     );
 
     cga cga1 
     (
         .clk                        (clk_vga_cga),
+        .reset                      (video_reset_cga),
         .clkdiv                     (clkdiv),
         .bus_a                      (cga_io_address_2),
         .bus_ior_l                  (cga_io_read_n_2),
@@ -1289,21 +1403,29 @@ end
         .ram_a                      (CGA_VRAM_ADDR),
         .ram_d                      (CGA_VRAM_DOUT),
         .hsync                      (hsync_cga_raw),
-        .dbl_hsync                  (hsync_cga_sd),
-        .hblank                     (HBLANK_CGA),
-        .vsync                      (VSYNC_CGA),
-        .vblank                     (VBLANK_CGA),
+        .dbl_hsync                  (hsync_cga_rgbi_sd),
+        .hblank                     (),
+        .raw_hblank                 (hblank_cga_raw),
+        .vsync                      (vsync_cga_raw),
+        .vblank                     (vblank_cga_raw),
         .vblank_border              (VGA_VBlank_border_raw),
         .std_hsyncwidth             (std_hsyncwidth_raw),
-        .de_o                       (de_o_cga),
+        .de_o                       (),
+        .raw_de_o                   (de_o_cga_raw),
         .video                      (video_cga_raw),
         .dbl_video                  (video_cga_sd),
         .splashscreen               (splashscreen),
+        .composite                  (composite_cga),
         .thin_font                  (thin_font),
         .tandy_video                (tandy_video_en),
         .scandouble_en              (cga_scandouble_en),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
+        .bw_mode                    (bw_mode),
+        .mode_640                   (mode_640),
+        .composite_hsync_width       (composite_hsync_width),
+        .composite_border_color      (composite_border_color),
+        .composite_phase             (composite_phase),
         .tandy_color_16             (tandy_color_16_raw),
         .cga_hw                     (cga_hw),
         .crt_h_offset               (crt_h_offset),
@@ -1336,24 +1458,16 @@ end
     wire [7:0] cga_vram_cpu_dout;
     wire [7:0] hgc_vram_cpu_dout;
 
-    splash_rom splash_rom_inst
-    (
-        .addr       (splash_copy_addr),
-        .data       (splash_rom_data)
-    );
-
-    wire [16:0] cga_copy_addr  = splash_copy_active ? {5'd0, splash_copy_addr} : splash_clear_addr;
-    wire [7:0]  cga_copy_data  = splash_copy_active ? splash_rom_data : splash_clear_data;
-    wire [16:0] cga_vram_addra = `ENABLE_CGA ? (cga_vram_copy ? cga_copy_addr :
+    wire [16:0] cga_vram_addra = `ENABLE_CGA ?
                                  (tandy_video_en ? (video_mem_select_1 ? video_ram_address :
                                  (tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} :
-                                 {tandy_page_data[5:4], video_ram_address[14:0]})) : {3'b000, video_ram_address[13:0]})) : 17'd0;
+                                 {tandy_page_data[5:4], video_ram_address[14:0]})) : {3'b000, video_ram_address[13:0]}) : 17'd0;
     wire [16:0] cga_vram_addrb = `ENABLE_CGA ? (tandy_video_en ?
                                  ((grph_mode & hres_mode) ? {tandy_page_data[2:1], CGA_VRAM_ADDR[14:0]} :
                                  {tandy_page_data[2:0], CGA_VRAM_ADDR[13:0]}) : {3'b000, CGA_VRAM_ADDR[13:0]}) : 17'd0;
-    wire [7:0]  cga_vram_dina  = cga_vram_copy ? cga_copy_data : video_ram_data;
-    wire        cga_vram_ena   = `ENABLE_CGA ? (cga_vram_copy ? 1'b1 : (cga_mem_select_1 || video_mem_select_1)) : 1'b0;
-    wire        cga_vram_wea   = `ENABLE_CGA ? (cga_vram_copy ? 1'b1 : (~video_memory_write_n & memory_write_n)) : 1'b0;
+    wire [7:0]  cga_vram_dina  = video_ram_data;
+    wire        cga_vram_ena   = `ENABLE_CGA ? (cga_mem_select_1 || video_mem_select_1) : 1'b0;
+    wire        cga_vram_wea   = `ENABLE_CGA ? (~video_memory_write_n & memory_write_n) : 1'b0;
     wire        cga_vram_enb   = `ENABLE_CGA ? CGA_VRAM_ENABLE : 1'b0;
 
     vram #(.AW(17)) cga_vram
@@ -1804,6 +1918,11 @@ end
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= uart2_readdata;
+        end
+        else if ((mpu401_chip_select) && (~io_read_n))
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= mpu401_readdata;
         end
         else if (`ENABLE_EMS && (ems_chip_select) && (~io_read_n))
         begin

@@ -7,6 +7,11 @@
 
 `timescale 1ns / 1ps
 
+// Colour passes through r/g/b and R/G/B_OUT. The video mixer samples these
+// outputs on the same edge, adding another effective stage. Sync and blanking
+// therefore need only this output register here: wiring them straight to the
+// mixer is one pixel early, while duplicating the colour's two registers is one
+// pixel late.
 module video_monochrome_converter
 (
 	input      clk_vid,
@@ -18,11 +23,21 @@ module video_monochrome_converter
 	input      [7:0] G,
 	input      [7:0] B,
 
+	input      HSync,
+	input      VSync,
+	input      HBlank,
+	input      VBlank,
+
 	// video output signals
 	output reg [7:0] R_OUT,
 	output reg [7:0] G_OUT,
-	output reg [7:0] B_OUT
-	
+	output reg [7:0] B_OUT,
+
+	output reg HSync_OUT,
+	output reg VSync_OUT,
+	output reg HBlank_OUT,
+	output reg VBlank_OUT
+
 );
   
   reg [7:0] r, g, b;	
@@ -91,7 +106,12 @@ module video_monochrome_converter
 		r <= R;
 		g <= G;
 		b <= B;
-		
+
+		HSync_OUT  <= HSync;
+		VSync_OUT  <= VSync;
+		HBlank_OUT <= HBlank;
+		VBlank_OUT <= VBlank;
+
 		case(gfx_mode[2:0])
 			// Green monitor mode
 			3'b001	: begin

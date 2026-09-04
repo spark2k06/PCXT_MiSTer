@@ -41,8 +41,6 @@ module CHIPSET_tm();
             # (`TB_CYCLE * 10)
         reset = 1'b0;
     end
-    logic status0_clear = 1'b0;
-
     //
     // Cycle counter
     //
@@ -139,6 +137,16 @@ module CHIPSET_tm();
     logic           sdram_dq_io;
     logic           sdram_ldqm;
     logic           sdram_udqm;
+
+    // The 8086 wide read path, declared because CHIPSET is connected with .*
+    // and the bench has to stay consistent with the module.
+    //
+    // The decode this path depends on is covered in ram_lookahead_tb.
+    logic           word_read_request = 1'b0;
+    logic           word_write_request = 1'b0;
+    logic  [15:0]   data_bus_word_in = 16'h0000;
+    wire   [15:0]   data_bus_word;
+    wire            word_read_possible;
 
     CHIPSET u_CHIPSET (.*);
 

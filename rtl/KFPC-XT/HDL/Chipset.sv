@@ -25,10 +25,10 @@ module CHIPSET #(
         output  logic           interrupt_to_cpu,
         // SplashScreen
         input   logic           splashscreen,
-        input   logic           status0_clear,
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
+        input   logic           video_reset,
         input   logic           video_output,
         input   logic           clk_vga_cga,
         input   logic           enable_cga,
@@ -49,6 +49,23 @@ module CHIPSET #(
         input   logic   [19:0]  address_ext,
         output  logic           address_direction,
         output  logic   [7:0]   data_bus,
+        // The private 16-bit SDRAM path, for an 8086 bus cycle. Steps 2 and 5 of
+        // docs/8086-adaptation.md. It runs beside the 8-bit bus rather than
+        // widening it: everything on the expansion side - video memory, the
+        // BIOS ROM, every peripheral - stays eight bits wide, which is what an
+        // XT-class expansion bus was and what an 8086 XT-clone's steering
+        // logic presented to software anyway.
+        //
+        // Only SDRAM answers it. word_read_possible (the historical signal
+        // name, now used for either direction) says so for the address
+        // currently latched, and it is about the memory map alone - the CPU
+        // side still has to check that the access is a word at an even
+        // address, which is the half of the question it is the one that knows.
+        input   logic           word_read_request,
+        input   logic           word_write_request,
+        input   logic   [15:0]  data_bus_word_in,
+        output  logic   [15:0]  data_bus_word,
+        output  logic           word_read_possible,
         input   logic   [7:0]   data_bus_ext,
         output  logic           data_bus_direction,
         output  logic           address_latch_enable,
@@ -118,6 +135,10 @@ module CHIPSET #(
         input   logic           uart2_dsr_n,
         output  logic           uart2_rts_n,
         output  logic           uart2_dtr_n,
+        // MPU-401 (MIDI / MT32-pi)
+        input   logic           clk_midi,
+        input   logic           midi_rx,
+        output  logic           midi_tx,
         // SDRAM
         input   logic           enable_sdram,
         output  logic           initilized_sdram,
@@ -184,11 +205,14 @@ module CHIPSET #(
     logic           dma_chip_select_n;
     logic           dma_page_chip_select_n;
     logic           memory_access_ready;
+    logic           cga_memory_ready;
+    logic           cga_memory_write_wait;
     logic           ram_address_select_n;
     logic   [7:0]   internal_data_bus;
     logic   [7:0]   internal_data_bus_ext;
     logic   [7:0]   internal_data_bus_chipset;
     logic   [7:0]   internal_data_bus_ram;
+    logic   [15:0]  internal_data_bus_ram_word;
     logic           data_bus_out_from_chipset;
     logic           internal_data_bus_direction;
     logic           no_command_state;
@@ -235,12 +259,15 @@ module CHIPSET #(
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
         .dma_wait_n                         (dma_wait_n),
-        .io_channel_ready                   (io_channel_ready & memory_access_ready & tandy_snd_rdy),
+        .io_channel_ready                   (io_channel_ready & memory_access_ready & tandy_snd_rdy & cga_memory_ready),
         .io_read_n                          (io_read_n),
         .io_write_n                         (io_write_n),
         .memory_read_n                      (memory_read_n),
+        .memory_write_n                     (memory_write_n),
+        .cga_memory_write_wait              (cga_memory_write_wait),
         .dma0_acknowledge_n                 (dma_acknowledge_n[0]),
-        .address_enable_n                   (address_enable_n)
+        .address_enable_n                   (address_enable_n),
+        .clk_select                         (clk_select)
     );
 
     BUS_ARBITER u_BUS_ARBITER 
@@ -301,9 +328,9 @@ module CHIPSET #(
         .dma_chip_select_n                  (dma_chip_select_n),
         .dma_page_chip_select_n             (dma_page_chip_select_n),
         .splashscreen                       (splashscreen),
-        .status0_clear                      (status0_clear),
         .std_hsyncwidth                     (std_hsyncwidth),
         .composite                          (composite),
+        .video_reset                        (video_reset),
         .video_output                       (video_output),
         .clk_vga_cga                        (clk_vga_cga),
         .enable_cga                         (enable_cga),
@@ -318,7 +345,9 @@ module CHIPSET #(
         .VGA_VSYNC                          (VGA_VSYNC),
         .VGA_HBlank                         (VGA_HBlank),
         .VGA_VBlank                         (VGA_VBlank),
-        .VGA_VBlank_border                  (VGA_VBlank_border),		  
+        .VGA_VBlank_border                  (VGA_VBlank_border),
+        .cga_memory_ready                   (cga_memory_ready),
+        .cga_memory_write_wait              (cga_memory_write_wait),
         .address                            (address),
 	    .latch_address                      (latch_address),
         .internal_data_bus                  (internal_data_bus),
@@ -370,6 +399,9 @@ module CHIPSET #(
         .uart2_dsr_n                        (uart2_dsr_n),
         .uart2_rts_n                        (uart2_rts_n),
         .uart2_dtr_n                        (uart2_dtr_n),
+        .clk_midi                          (clk_midi),
+        .midi_rx                           (midi_rx),
+        .midi_tx                           (midi_tx),
         .ems_enabled                       (ems_enabled),
         .ems_address                       (ems_address),
         .map_ems                           (map_ems),
@@ -416,6 +448,10 @@ module CHIPSET #(
         .address                            (latch_address),
         .internal_data_bus                  (internal_data_bus),
         .data_bus_out                       (internal_data_bus_ram),
+        .word_read_request                  (word_read_request),
+        .word_write_request                 (word_write_request),
+        .data_bus_in_word                   (data_bus_word_in),
+        .data_bus_out_word                  (internal_data_bus_ram_word),
         .memory_read_n                      (memory_read_n),
         .memory_write_n                     (memory_write_n),
         .no_command_state                   (no_command_state),
@@ -443,10 +479,25 @@ module CHIPSET #(
         .enable_a000h                       (enable_a000h),
         .wait_count_clk_en                  (wait_count_clk_en),
         .ram_read_wait_cycle                (ram_read_wait_cycle),
-        .ram_write_wait_cycle               (ram_write_wait_cycle)
+        .ram_write_wait_cycle               (ram_write_wait_cycle),
+        .clk_select                         (clk_select)
     );
 
     assign  data_bus = internal_data_bus;
+
+    // The word never joins the byte multiplexer below. It has one source and
+    // one destination, it is only meaningful for the cycle the CPU asked a
+    // word for, and putting it through the same arbitration would mean giving
+    // every other device a 16-bit port it has nothing to put on.
+    assign  data_bus_word = internal_data_bus_ram_word;
+
+    // ram_address_select_n is combinational on the latched address, so this
+    // settles as soon as the address does and is available to the CPU well
+    // before it has to commit to a wide cycle. It covers the decode holes -
+    // video memory, an unmapped EMS frame, the UMB window when it is off -
+    // because those are the places a wide read would come back with whatever
+    // RAM.sv happened to be holding.
+    assign  word_read_possible = ~ram_address_select_n;
 
     always_comb
     begin
@@ -476,4 +527,3 @@ module CHIPSET #(
     end
 
 endmodule
-

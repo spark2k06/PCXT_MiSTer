@@ -72,9 +72,6 @@ module video_scandoubler #(
     wire de_posedge = ce_pix && ~de_pix_r && display_enable_in;
     wire de_negedge = ce_pix && de_pix_r && ~display_enable_in;
 
-    // Two line buffers with M10K preference.
-    (* ramstyle = "M10K, no_rw_check" *) reg [PIXEL_WIDTH-1:0] linebuf[0:1][0:H_TOTAL_MAX-1];
-
     reg                    buf_wr = 1'b0;
     reg [PTR_W-1:0]        hcount_slow = {PTR_W{1'b0}};
     reg [PTR_W-1:0]        hcount_fast = {PTR_W{1'b0}};
@@ -84,7 +81,28 @@ module video_scandoubler #(
     reg [PTR_W:0]          de_start = {(PTR_W+1){1'b0}};
     reg [PTR_W:0]          de_end = {(PTR_W+1){1'b0}};
 
-    reg [PIXEL_WIDTH-1:0]  pixel_sd = {PIXEL_WIDTH{1'b0}};
+    // The two line buffers are exposed as one dual-port synchronous RAM.
+    // Using an explicit clocked read is important here: an asynchronous
+    // array read makes Quartus implement the RGB (18-bit) buffer in logic
+    // instead of M10K blocks.
+    wire [PIXEL_WIDTH-1:0] pixel_rd;
+
+    jtframe_dual_ram #(
+        .dw(PIXEL_WIDTH),
+        .aw(PTR_W + 1)
+    ) linebuffer (
+        .clk0  (clk),
+        .data0 (pixel_in),
+        .addr0 ({buf_wr, hcount_slow}),
+        .we0   (ce_pix),
+        .q0    (),
+        .clk1  (clk),
+        .data1 ({PIXEL_WIDTH{1'b0}}),
+        .addr1 ({~buf_wr, hcount_fast}),
+        .we1   (1'b0),
+        .q1    (pixel_rd)
+    );
+
     reg                    hsync_sd = 1'b0;
     reg                    vsync_sd = 1'b0;
     reg                    vblank_sd = 1'b0;
@@ -131,7 +149,6 @@ module video_scandoubler #(
             de_start <= {(PTR_W+1){1'b0}};
             de_end <= {(PTR_W+1){1'b0}};
 
-            pixel_sd <= {PIXEL_WIDTH{1'b0}};
             hsync_sd <= 1'b0;
             vsync_sd <= 1'b0;
             vblank_sd <= 1'b0;
@@ -154,9 +171,6 @@ module video_scandoubler #(
                     hcount_slow <= hcount_slow + 1'b1;
             end
 
-            if (ce_pix)
-                linebuf[buf_wr][hcount_slow] <= pixel_in;
-
             if (de_posedge)
                 de_start <= {1'b0, hcount_slow};
 
@@ -178,7 +192,6 @@ module video_scandoubler #(
                     hcount_fast <= {PTR_W{1'b0}};
                 end
 
-                pixel_sd <= linebuf[~buf_wr][hcount_fast];
                 hsync_sd <= hs_active;
                 de_sd <= de_active;
                 vsync_sd <= vsync_in;
@@ -190,7 +203,7 @@ module video_scandoubler #(
     // Bypass mux: zero additional latency when scandoubler is disabled.
     always @(*) begin
         if (scandouble_en) begin
-            pixel_out          = pixel_sd;
+            pixel_out          = pixel_rd;
             hsync_out          = hsync_sd;
             vsync_out          = vsync_sd;
             vblank_out         = vblank_sd;
