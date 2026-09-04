@@ -2,121 +2,250 @@
 
 PCXT port for MiSTer by [@spark2k06](https://github.com/spark2k06/).
 
-Discussion and evolution of the core in the following misterfpga forum section:
+Discussion and development take place in the
+[MiSTerFPGA PCXT forum section](https://misterfpga.org/viewforum.php?f=40).
 
-https://misterfpga.org/viewforum.php?f=40
-
-![Splash](splash.jpg)
+![PCXT MiSTer CGA/MDA splash](splash.jpg)
 
 ## Description
 
-The purpose of this core is to implement a PCXT as reliable as possible. For this purpose, the [MCL86 core](https://github.com/MicroCoreLabs/Projects/tree/master/MCL86) from [@MicroCoreLabs](https://github.com/MicroCoreLabs/) and [KFPC-XT](https://github.com/kitune-san/KFPC-XT) from [@kitune-san](https://github.com/kitune-san) are used.
+This core recreates an IBM PC/XT-compatible machine as RTL running on MiSTer.
+The design is built around the [MCL86 CPU](https://github.com/MicroCoreLabs/Projects/tree/master/MCL86),
+the [KFPC-XT chipset](https://github.com/kitune-san/KFPC-XT), and the MiSTer
+framework. The aim is a practical, observable PC/XT: real bus transactions,
+chipset timing, memory windows, video I/O and peripherals are represented in
+the FPGA rather than emulated by a host operating system.
 
-The [Graphics Gremlin project](https://github.com/schlae/graphics-gremlin) from TubeTimeUS ([@schlae](https://github.com/schlae)) has also been integrated in this first stage.
+The video subsystem contains independent CGA and Hercules-compatible paths.
+CGA provides the native 200-line colour/composite raster; HGC/MDA provides the
+monochrome text and graphics raster. Both can be present at the same time, and
+the OSD or F11 can select which connector path is shown. HGC/MDA's 350-line
+timing can optionally be converted to a 15 kHz television raster without
+changing the video hardware seen by DOS software.
 
-[JTOPL](https://github.com/jotego/jtopl) by Jose Tejada (@jotego) was integrated for AdLib sound.
+AdLib sound uses [JTOPL](https://github.com/jotego/jtopl) by Jose Tejada
+([@jotego](https://github.com/jotego)). The project also integrates C/MS,
+the OPL2-compatible FM path, optional Tandy audio, PC speaker and MIDI/MT32-pi
+support.
+
+For the implementation notes behind the CPU and bus work, see
+[`docs/8086-adaptation.md`](docs/8086-adaptation.md). 
+
+For an architectural overview and possible future improvements, see the
+[PCXT technical report](https://aitorgomez.net/pcxt-cga/core-report) (source in
+[`docs/report/`](docs/report/CORE_REPORT.html)).
 
 ## Key features
 
-* Selectable 8088 or 8086 bus mode, applied safely with Reset & apply settings
-* CPU speed settings: 4.77 MHz, 7.16 MHz and 9.54 MHz cycle accurate, plus **Max**. Max is the unthrottled performance profile shared by 8088 and 8086; it is neither a historical CPU grade nor cycle-accurate.
-* Support for IBM PCXT 5160 and clones (CGA graphics)
-* Main memory 640Kb + 384Kb UMB memory
-* Simulated Composite Video (CGA)
-* Simultaneous video Hercules Graphics Card, F11 -> Swap Video Output with CGA
-* Enable/Disable of CGA and Hercules I/O ports
-* 1st Graphics Card selection from System & BIOS
-* EMS memory up to 2Mb
-* XTIDE support
-* Audio: Adlib, C/MS & speaker
-* Joystick support
-* Mouse support into COM1 serial port, this works like any Microsoft mouse... you just need a driver to configure it, like CTMOUSE 1.9 (available into hdd folder)
-* 2nd SD card support
+* Selectable 8088 or 8086 bus mode, applied safely with **Reset & apply settings**
+* CPU speeds of 4.77 MHz, 7.16 MHz, 9.54 MHz and **Max**; Max is an unthrottled performance profile, not a historical CPU grade
+* Optional **Fake 286 FLAGS** compatibility behaviour for software that probes reserved FLAGS bits
+* IBM PC/XT 5160-compatible chipset, BIOS, DMA, IRQ, PIT, keyboard and disk services
+* 640 KiB conventional memory, optional A0000h UMB, and EMS up to 2 MiB
+* Native CGA text/graphics modes with simulated composite colour and selectable display tint
+* Hercules-compatible monochrome text and graphics modes through the HGC/MDA path
+* CGA and HGC/MDA available together, with OSD selection and **F11** video-output swap
+* HGC/MDA 350-line conversion to **480i 15 kHz** or **240p 15 kHz**; CGA bypasses this converter
+* A single 320×200, four-colour CGA graphical boot splash, also used while HGC/MDA is selected
+* **F12** pause and credits on the splash as well as after the machine starts
+* Startup hold with an on-screen notice when no PCXT BIOS is loaded
+* XTIDE option-ROM support and two SD-backed storage targets
+* AdLib OPL2, C/MS, optional Tandy audio, PC speaker and MIDI/MT32-pi
+* Joystick support and serial mouse support on COM1
 
-## Build configuration (config.tcl)
+## Video architecture
 
-The default configuration focuses on broad PC/XT compatibility:
+### CGA
 
-* System/ROM set to PCXT
-* CGA + HGC enabled for widest video support
-* OPL2 enabled for common DOS FM audio
-* CMS enabled
-* EMS + A000 UMB enabled for expanded memory
-* Tandy-specific video/audio/keyboard by default
+CGA is implemented as a real 6845-style raster path with its own VRAM,
+sequencer, attribute logic and composite decoder. The graphical splash is a
+320×200×4 image stored in `rtl/video/splash_cga_320x200.hex`; it is rendered
+through the CGA RGBI stream so the same timing and composite colour behaviour
+apply to the splash and to normal CGA software.
 
-This default maximizes software compatibility while keeping the feature set coherent for a PC/XT target. You can edit `config.tcl` to enable or disable any macro and rebuild for a different profile.
+The **Composite video** OSD option enables the simulated NTSC colour decoder.
+**Display** selects the RGBI presentation (full colour, green, amber, B&W,
+red, blue, fuchsia or purple), while **Border** exposes the active border.
 
-## Resource profile
+### HGC/MDA
 
-Video options dominate resource usage. CGA uses 282/553 RAM blocks and HGC/MDA uses 270/553, so the default PCXT profile (CGA+HGC) is heavier than either single video build. Enabling all features reaches 553/553. The device budget is 553 RAM blocks and 5,662,720 block memory bits.
+The HGC path implements the B0000h/B8000h video apertures, monochrome text,
+Hercules graphics and the corresponding CRTC/sequencer timing. It is available
+alongside CGA when both build macros are enabled. **PCXT 1st Video** selects
+which card the BIOS should treat as the first display; **F11** swaps the
+MiSTer output between the two live video paths.
 
-Columns are separate builds: Base (all features off), single-feature builds, CGA+TandyVideo (CGA + Tandy video, included for comparison), and All (everything enabled). Values are from recent synthesis runs and can be regenerated by rebuilding with different `config.tcl` settings.
+HGC/MDA's native 350-line raster is not a 15 kHz progressive television mode.
+When **350-line CRT** is set to `480i 15 kHz` or `240p 15 kHz`, the core captures
+a complete HGC/MDA frame in DDRAM and reads it back on a television-compatible
+raster. `480i` displays all source lines across two fields; `240p` is steady
+and progressive but reduces the active vertical detail. `Native` leaves the
+card's original raster untouched. CGA never enters this framebuffer path.
 
-| Resource           | Max       | Base   | CGA    | CGA+TandyVideo | HGC/MDA | TandyAudio | TandyKBD | OPL2  | CMS   | EMS   | A000_UMB | All   |
-|--------------------|-----------|--------|--------|----------------|---------|------------|----------|-------|-------|-------|----------|-------|
-| ALMs               | 110,000   | 12,551 | 14,229 | 14,442         | 13,546  | 12,802     | 12,549   | 13,266| 13,505| 12,599| 12,648   | 17,605|
-| Registers          | ~220,000  | 17,861 | 19,755 | 20,081         | 19,680  | 17,974     | 17,883   | 18,509| 18,815| 17,776| 17,739   | 24,311|
-| Block memory bits  | 5,662,720 | 945,035| 2,124,705| 3,042,209    | 2,026,404| 945,035   | 945,035  | 952,077| 945,035| 945,035| 945,035  | 4,313,183|
-| RAM blocks (M10K)  | 553       | 138    | 282    | 394            | 270     | 138        | 138      | 147   | 138   | 138   | 138      | 553   |
-| DSP blocks         | 112       | 33     | 35     | 35             | 33      | 33         | 33       | 34    | 37    | 33    | 33       | 40    |
+The conversion is deliberately outside the emulated card: the CRTC registers,
+display-enable timing, retrace bits and software-visible memory remain HGC/MDA
+timing in every setting. `CRT H offset` and `CRT V offset` centre the converted
+television raster; `Native` is intended for a display or scaler that accepts
+the original 350-line output.
 
-Default configuration (current `config.tcl` and `output_files/PCXT.fit.summary`) resource usage, shown as percent of the Max column above:
+### Splash and credits
 
-| Resource           | Used     | % of Max |
-|--------------------|----------|----------|
-| ALMs               | 17,111   | 15.6%    |
-| Registers          | 23,913   | 10.9%    |
-| Block memory bits  | 3,397,414 | 60.0%    |
-| RAM blocks (M10K)  | 449      | 81.2%    |
-| DSP blocks         | 40       | 35.7%    |
+The splash is always generated by the CGA renderer. This keeps the startup
+picture stable and colour-capable even if HGC/MDA is the selected first video;
+the selected HGC/MDA path is restored when the splash has finished. If the
+required PCXT BIOS is absent, the core holds the splash and reports the exact
+OSD section to use instead of releasing the CPU into an empty F0000h region.
 
-## Quick Start
+F12 pauses the splash countdown and shows the credits. Press F12 again to
+resume. The same credits module is used after boot when the machine is paused.
 
-* Copy the contents of `games/PCXT` to your MiSTer SD Card and uncompress `hd_image.zip`. It contains a FreeDOS image ( http://www.freedos.org/ )
-* Select the core from Computers/PCXT.
-* Press WinKey + F12 on your keyboard.
-  * Model: IBM PCXT.
-  * CPU Speed: Max
-  * System & BIOS -> CPU Type: 8088 (compatible default) or 8086
-  * FDD & HDD -> HDD Image: FreeDOS_HD.img
-  * BIOS -> PCXT BIOS: pcxt_micro8088.rom
-* Choose Reset & apply settings.
+## Memory map
 
-The 8086 mode uses a six-byte prefetch queue and transfers aligned SDRAM words over its private 16-bit path. Odd words and the XT-class video and peripheral buses remain split into byte cycles. The fixed 4.77/7.16/9.54 MHz settings keep the existing MCL86 instruction timing; Max bypasses the nominal timing counter and exposes the full bus benefit.
+The CPU exposes a 1 MiB physical address space. The active overlays depend on
+the enabled build features, the selected video card and the OSD settings.
 
-## ROM Instructions
+| Address range | Core assignment |
+| --- | --- |
+| `00000h–9FFFFh` | 640 KiB conventional SDRAM |
+| `A0000h–AFFFFh` | Optional SDRAM-backed A000 UMB; disabled by default in a minimal build |
+| `B0000h–B7FFFh` | HGC/MDA video aperture when the Hercules page is selected |
+| `B8000h–BFFFFh` | CGA colour/text aperture, or HGC/MDA page 1 |
+| `C0000h–EFFFFh` | EMS page-frame overlay when enabled; the OSD selects C000h, D000h or E000h |
+| `EC000h–EFFFFh` | XTIDE ROM window when an EC00 BIOS is loaded and not overlaid by EMS |
+| `F0000h–FFFFFh` | PCXT system BIOS |
 
-ROMs should be provided initially from the BIOS section of the OSD menu. The core has a single BIOS slot; on subsequent boots it is not necessary to provide them unless you want to use others. Original and copyrighted ROMs can be generated on the fly using the python scripts available in the SW folder of this repository:
+The video apertures are not conventional memory. EMS maps four 16 KiB banks
+through its selected page frame and is controlled at I/O ports `260h–263h`.
+Because EMS and option ROMs can occupy the same upper-memory ranges, DOS
+configuration must match the selected EMS frame; see the supplied files under
+`hdd/` and the notes in [`docs/`](docs/).
 
-* `make_rom_with_ibm5160.py`: A valid ROM is created for the PCXT core (pcxt.rom) based on the original IBM 5160 ROM, requires the XTIDE BIOS at address EC00h to work with HD images.
-* `make_rom_with_jukost.py`: A valid ROM is created for the PCXT core (pcxt.rom) based on the original Juko ST ROM, and with the XTIDE BIOS embedded at address F000h.
+## OSD configuration
 
-From the same BIOS section of the OSD it is possible to specify an XTIDE ROM of up to 16Kb to work at address EC00h. It is also provided in this repository.
+The default `config.tcl` build enables CGA, HGC, OPL2, C/MS, EMS, the A000 UMB
+and MIDI. Tandy video, Tandy keyboard and Tandy audio are disabled in this
+profile; they remain available as build-time variants where the source supports
+them.
 
-Other Open Source ROMs are available in the same folder:
+The main OSD groups are:
 
-* `pcxt_pcxt31.rom`: This ROM already has the XTIDE BIOS embedded at address F000h. ([Source Code](https://github.com/virtualxt/pcxtbios))
-* `pcxt_micro8088.rom`: This ROM already has the XTIDE BIOS embedded at address F000h. ([Source Code](https://github.com/skiselev/8088_bios))
-* `ide_xtl.rom`: This ROM corresponds to the XTIDE BIOS, it must be maintained for some scripts to work, it can also be upgraded to a newer version. ([Source Code](https://www.xtideuniversalbios.org/))
+| Group | Options of interest |
+| --- | --- |
+| Disks | Floppy A/B, write protection, IDE images and second SD card |
+| CPU | 4.77 MHz, 7.16 MHz, 9.54 MHz, Max |
+| System & BIOS | CGA/HGC enable, first video, splash, CPU type, Fake 286 FLAGS, PCXT BIOS, EC00 ROM and BIOS write protection |
+| Audio & Video | OPL2/CMS, speaker and audio boost, mixing, CRT offsets, sync widths, scaler effect, aspect ratio, border, composite and display tint |
+| Audio & Video | HGC/MDA `350-line CRT`: Native, 480i 15 kHz or 240p 15 kHz |
+| Hardware | EMS enable and page frame, A000 UMB, joysticks, joystick swap and CPU-speed synchronisation |
+| User I/O | MIDI, COM2 and MT32-pi options when `ENABLE_MIDI` is built |
 
-Note: Not all ROMs work with MDA video: (IBM5160, Yuko ST and pcxt31 works)
+Settings that affect CPU bus width, first-video reset state or other startup
+hardware should be followed by **Reset & apply settings**. The CPU type is
+latched during reset; Fake 286 FLAGS is a live compatibility control.
 
-## Other BIOSes
+## Quick start
 
-* https://github.com/640-KB/GLaBIOS
+1. Copy the contents of `games/PCXT` to the MiSTer SD card and extract the
+   included `hd_image.zip` if present.
+2. Select **Computers / PCXT**.
+3. Open the OSD with **Win + F12**.
+4. Select a PCXT model, a CPU speed and either 8088 or 8086 under **System & BIOS**.
+5. Mount a floppy or hard-disk image.
+6. Load a compatible image into **System & BIOS → PCXT BIOS**.
+7. Select **Reset & apply settings**.
 
-## Mounting the FDD image
+For the first test, the Micro8088 BIOS and the included FreeDOS hard-disk image
+are a practical combination. If no PCXT BIOS is selected, the splash remains
+visible and the OSD notice identifies the missing slot; this is expected and
+does not require an HDMI display to recover.
 
-The floppy disk image size must be compatible with the BIOS, for example:
+The default splash timeout is approximately five seconds. **Boot Splash
+Screen → No** dismisses it, and **F12** pauses it while showing the credits.
 
-* On IBM 5160 only 360Kb images work well.
-* On Micro8088 only 720Kb and 1.44Mb images work properly.
-* Other BIOS may not be compatible, such as OpenXT by Ja'akov Miles and Jon Petroski.
+## ROM instructions
 
-It is possible to use images smaller than the size supported by the BIOS, but only pre-formatted images, as it will not be possible to format them from MS-Dos.
+ROMs are loaded from the **System & BIOS** section of the OSD. The PCXT BIOS
+slot is required. The EC00 slot accepts an XTIDE option ROM of up to 16 KiB;
+some system BIOS images already contain XTIDE at F0000h and do not need the
+additional slot.
+
+Open or redistributable BIOS choices in the repository include:
+
+* `pcxt_pcxt31.rom`, from [virtualxt/pcxtbios](https://github.com/virtualxt/pcxtbios)
+* `pcxt_micro8088.rom`, from [skiselev/8088_bios](https://github.com/skiselev/8088_bios)
+* `ide_xtl.rom`, from the [XTIDE Universal BIOS project](https://www.xtideuniversalbios.org/)
+
+The scripts in `SW/ROMs/` prepare compatible images from the IBM 5160 and Juko
+ST sources. Original copyrighted ROM dumps are not distributed by this
+repository. Not every BIOS has the same floppy geometry or video assumptions;
+IBM 5160 commonly uses 360 KiB media, while Micro8088 commonly uses 720 KiB or
+1.44 MiB media.
+
+## Audio, input and storage
+
+* **OPL2 / AdLib:** selectable at `388h`, or Sound Blaster FM-compatible `228h` when built and selected.
+* **C/MS:** enabled at `220h–22Fh` when `ENABLE_CMS=1`.
+* **FM-compatible address:** OPL2 can use the AdLib address `388h` or the Sound Blaster FM-compatible address `228h`, as selected in the OSD.
+* **Tandy audio:** optional SN76489-compatible audio at the classic Tandy I/O range; this does not imply Tandy video or keyboard are enabled.
+* **MIDI / MT32-pi:** MPU-401 UART at `330h–331h`, with MiSTer USER I/O and HPS USB MIDI options when enabled.
+* **Mouse:** a serial mouse can be used on COM1 with a DOS driver such as CTMOUSE.
+* **Joysticks:** two configurable analog or digital joystick inputs.
+* **Storage:** floppy A/B, IDE-backed hard-disk images and an optional second SD target.
+
+## Building
+
+The standard Quartus project is `PCXT.qsf`. The feature profile is controlled
+by `config.tcl`. From WSL, the containerised build used by the project is:
+
+```sh
+docker run --rm -v "$(pwd):/build" -w /build raetro/quartus:mister \
+  quartus_sh --flow compile PCXT.qsf
+```
+
+The repository includes focused RTL testbenches under
+`rtl/video/TESTBENCH/` and `rtl/KFPC-XT/TESTBENCH/`. The latter covers, among
+other things, the CPU bus, memory refresh collisions, splash pause handling
+and the missing-BIOS startup hold.
+
+## Repository layout
+
+* `PCXT.sv`, `config.tcl`, `PCXT.qsf` — MiSTer top level, feature profile and Quartus project
+* `rtl/video/` — CGA, HGC/MDA, composite, scandoubler and 15 kHz framebuffer paths
+* `rtl/KFPC-XT/` — chipset, CPU-facing bus, memory, peripherals and testbenches
+* `rtl/common/` — MiSTer/common support, credits and shared memory blocks
+* `rtl/sound/` — OPL2 and C/MS/Tandy-related sound cores
+* `SW/ROMs/` — BIOS and XTIDE preparation scripts
+* `SW/8088_bios/` — Micro8088 BIOS sources and build instructions
+* `SW/XTCTL/` — legacy runtime-control utility and its port-level notes
+* `credits/` — source text and converter for the JTFrame credits image
+* `docs/` — implementation notes, documentation index and technical report
+
+## Known scope
+
+This is a PC/XT core with CGA and HGC/MDA video paths. It does not claim to be
+a complete VGA, SVGA or general-purpose PC emulator. The `Max` CPU setting is
+intentionally a throughput mode, and exact cycle behaviour should be expected
+only from the named clock profiles. BIOS compatibility also varies by ROM and
+media geometry.
+
+## Credits and licence
+
+MiSTer integration and continuing development by **Aitor Gómez García
+(spark2k06)**, with contributions from the MCL86, KFPC-XT, JTFrame, JTOPL,
+Graphics Gremlin, MS mouse, sound and MiSTer communities, including
+**BoogerMann** among the project developers and collaborators. See
+[`credits/msg`](credits/msg) for the in-core credits list.
+
+BoogerMann contributed to the integration of the newer SystemVerilog MCL86
+organisation: separate BIU and EU implementations, microcode support and
+8088 wrappers. The integration also preserves the instruction-boundary
+`INTR` sampling fix (`intr_delay`), making maskable interrupt recognition
+deterministic across instruction timing and CPU speed profiles.
+
+The repository is distributed under the GNU General Public License. Individual
+integrated components retain their own copyright notices and licence terms.
 
 ## Developers
 
-Any contribution and pull request, please carry it out on the prerelease branch. Periodically they will be reviewed, moved and merged into the main branch, together with the corresponding release.
-
-Thank you!
+Please send contributions and pull requests to the prerelease branch. They are
+reviewed periodically and merged into the main branch as part of releases.
