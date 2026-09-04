@@ -72,9 +72,6 @@ module emu
     assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
     //assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
     assign SDRAM_CLK = clk_chipset;
-    assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;
-
-    assign VGA_F1 = 0;
     assign VGA_SCALER = 0;
     assign VGA_DISABLE = 0;
     assign HDMI_FREEZE = 0;
@@ -104,6 +101,10 @@ module emu
     localparam CONF_STR_CMS = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
     localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
     localparam CONF_STR_TANDY_AUDIO = (`ENABLE_TANDY_AUDIO ? "P2o23,Tandy Volume,1,2,3,4;" : "");
+    // P2o23 occupies status[35:34].  It is shared with Tandy Volume in the
+    // optional Tandy-audio build, so keep the CRT converter out of that
+    // mutually exclusive configuration rather than aliasing two controls.
+    localparam CONF_STR_CRT = (`ENABLE_TANDY_AUDIO ? "" : "P2o23,350-line CRT,Native,480i 15 kHz,240p 15 kHz;");
     localparam CONF_STR_EMS = (`ENABLE_EMS ? "P3OB,Lo-tech 2MB EMS,Enabled,Disabled;P3OCD,EMS Frame,C000,D000,E000;P3-;" : "");
     localparam CONF_STR_A000 = (`ENABLE_A000_UMB ? "P3o9,A000 UMB,Enabled,Disabled;P3-;" : "");
     localparam CONF_STR_MIDI = (`ENABLE_MIDI ? "P3O6,USER I/O,MIDI,COM2;P3-;h3P4,MT32-pi;h3P4-;h3P4OD,Use MT32-pi,Yes,No;h3P4-;h3P4o9,MT32-pi Mode,MT-32,General MIDI;h3P4O34,MT32-pi ROM,MT-32 v1,MT-32 v2,CM-32L,Reserved;h3P4oSU,MT32-pi SoundFont,#0,#1,#2,#3,#4,#5,#6,#7;h3P4-;h3P4r8,Reset Hanging Notes;h3P4-;" : "");
@@ -161,6 +162,7 @@ module emu
 		"P2OT,Border,No,Yes;",
 		"P2o8,Composite video,Off,On;",
 		"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
+		CONF_STR_CRT,
 		"P2-;",
 		"P3,Hardware;",
 		"P3-;",
@@ -232,6 +234,9 @@ module emu
     wire a000h = `ENABLE_A000_UMB ? (~status[41] & ~xtctl[6]) : 1'b0;
     wire [2:0] vsync_width_osd = status[56:54];  // 0=Auto (use register), 1-7=override
     wire [2:0] hsync_width_osd = status[59:57];  // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
+    wire [1:0] crt480i_mode = status[35:34];     // 0=native, 1=480i, 2=240p
+    wire       crt480i_osd  = |crt480i_mode;
+    wire       crt480i_prog = crt480i_mode[1];
 
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] scale_video_meta = 2'b00;
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] scale_video_ff = 2'b00;
@@ -403,6 +408,12 @@ module emu
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) logic [1:0] video_retime_reset_sync = 2'b11;
     wire video_retime_reset_local = video_retime_reset_sync[1];
 
+    // The 350-line HGC framebuffer has its own video clock domain.  Keep the
+    // reset assertion immediate, but release it synchronously there so the
+    // framebuffer state machines do not time the global reset as data.
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) logic [1:0] video_retime_hgc_sync = 2'b11;
+    wire video_retime_reset_hgc = video_retime_hgc_sync[1];
+
     // The output retime registers assert reset immediately, but release it
     // only on their own phase-shifted video clock.
     always_ff @(posedge clk_video_out_ps or posedge video_retime_reset) begin
@@ -410,6 +421,13 @@ module emu
             video_retime_reset_sync <= 2'b11;
         else
             video_retime_reset_sync <= {video_retime_reset_sync[0], 1'b0};
+    end
+
+    always_ff @(posedge CLK_VIDEO_HGC or posedge video_retime_reset) begin
+        if (video_retime_reset)
+            video_retime_hgc_sync <= 2'b11;
+        else
+            video_retime_hgc_sync <= {video_retime_hgc_sync[0], 1'b0};
     end
     wire reset_sdram_wire = RESET | !pll_locked;
 
@@ -1578,6 +1596,7 @@ module emu
     wire [21:0] gamma_bus_hgc;
     wire        CE_PIXEL_hgc;
     reg  [1:0]  ce_pixel_hgc_div = 2'b0;
+    reg         ce_pixel_hgc_raw_d = 1'b0;
     reg  [5:0]  hgc_r_meta, hgc_g_meta, hgc_b_meta;
     reg  [5:0]  hgc_r_sync, hgc_g_sync, hgc_b_sync;
     reg         hgc_hs_meta, hgc_vs_meta;
@@ -1636,11 +1655,20 @@ module emu
     reg         VGA_HS_hgc_56 = 1'b0, VGA_VS_hgc_56 = 1'b0, VGA_DE_hgc_56 = 1'b0;
     reg         LHBL_hgc_56 = 1'b1, credits_vb_hgc_56 = 1'b1;
     reg         CE_PIXEL_hgc_hdmi = 1'b0;
+    reg         vga_f1_hgc_ps1 = 1'b0, vga_f1_hgc_ps2 = 1'b0;
 
     assign CLK_VIDEO = clk_video_out_ps;
     assign CLK_VIDEO_HGC = clk_114_544;
     assign CLK_VIDEO_CGA = clk_57_272;
     assign ce_pixel_hgc_raw = ce_pixel_hgc_div[1];
+    // ce_pixel_hgc_raw is deliberately a two-clock level for the existing
+    // HGC mixer.  The framebuffer needs one event per converted pixel, after
+    // the converter has registered the new colour, so sample the second half
+    // of that level as a single-cycle enable.
+    wire ce_pixel_hgc_fb = ce_pixel_hgc_raw & ce_pixel_hgc_raw_d;
+
+    always @(posedge clk_114_544)
+        ce_pixel_hgc_raw_d <= ce_pixel_hgc_raw;
 
     always @(posedge clk_114_544)
         if (`ENABLE_HGC)
@@ -1806,6 +1834,197 @@ module emu
 		.VBlank_OUT(vbaux_hgc)
 	);
 
+    ///////////////////  HGC/MDA 350-LINE CRT OUTPUT  ///////////////////
+    //
+    // HGC/MDA's native 350-line raster is above the progressive limit of a
+    // 15 kHz television.  Capture only this path into DDRAM and read it back
+    // as either 480i or 240p.  CGA never enters this block: its calibrated
+    // native 15 kHz path remains completely bypassed.
+    //
+    // The HGC pipeline runs at 114.544 MHz while its native pixels are exposed
+    // by ce_pixel_hgc_raw as a two-clock level.  The capture samples the second
+    // half of that level, giving one event per converted 28.636 MHz pixel.
+    localparam [11:0] HGC_FB_DOTS  = 12'd720;
+    localparam [9:0]  HGC_FB_LINES = 10'd350;
+
+    // HGC text and graphics do not always expose the same active vertical
+    // aperture after the CRTC/sequencer pipeline.  In particular, HGC
+    // graphics can arrive a few lines shorter than the nominal 350-line
+    // timing.  The framebuffer must be told the aperture that is actually
+    // present or its whole-frame guard will reject every graphics frame.
+    wire hgc_fb_de = ~hbaux_hgc & ~vbaux_hgc;
+    reg  hgc_fb_de_q = 1'b0;
+    reg  hgc_fb_vblank_q = 1'b1;
+    reg  [9:0] hgc_fb_line_count = 10'd0;
+    reg  [9:0] hgc_fb_active_lines = HGC_FB_LINES;
+    wire hgc_fb_de_fall = ce_pixel_hgc_fb && !hgc_fb_de && hgc_fb_de_q;
+    wire hgc_fb_vblank_fall = ce_pixel_hgc_fb && !vbaux_hgc && hgc_fb_vblank_q;
+    wire hgc_fb_vblank_rise = ce_pixel_hgc_fb && vbaux_hgc && !hgc_fb_vblank_q;
+    wire [9:0] hgc_fb_line_count_eff = hgc_fb_de_fall ?
+                                       (hgc_fb_line_count + 10'd1) :
+                                       hgc_fb_line_count;
+
+    // Measure the source aperture once per frame.  The result is held still
+    // while the next frame is captured, so register writes during a mode set
+    // cannot change the DDRAM stride or make a mixed frame appear valid.
+    always @(posedge CLK_VIDEO_HGC) begin
+        if (video_retime_reset_hgc) begin
+            hgc_fb_de_q          <= 1'b0;
+            hgc_fb_vblank_q      <= 1'b1;
+            hgc_fb_line_count   <= 10'd0;
+            hgc_fb_active_lines <= HGC_FB_LINES;
+        end else begin
+            if (ce_pixel_hgc_fb) begin
+                hgc_fb_de_q     <= hgc_fb_de;
+                hgc_fb_vblank_q <= vbaux_hgc;
+            end
+
+            if (hgc_fb_vblank_fall)
+                hgc_fb_line_count <= 10'd0;
+            else if (hgc_fb_de_fall)
+                hgc_fb_line_count <= hgc_fb_line_count + 10'd1;
+
+            if (hgc_fb_vblank_rise && (hgc_fb_line_count_eff != 10'd0))
+                hgc_fb_active_lines <= hgc_fb_line_count_eff;
+        end
+    end
+
+    wire fb_enable = swap_video_eff & crt480i_osd;
+    wire [7:0]  cap_burstcnt;
+    wire [28:0] cap_addr;
+    wire [63:0] cap_din;
+    wire        cap_we;
+    wire        cap_busy;
+    wire [1:0]  fb_frame_buffer;
+    wire [11:0] fb_frame_width;
+    wire [9:0]  fb_frame_height;
+    wire [13:0] fb_frame_stride;
+    wire        fb_frame_valid;
+    wire [1:0]  fb_reading_buffer;
+
+    hgc_fb_capture fb_capture_hgc (
+        .clk(CLK_VIDEO_HGC),
+        .reset(video_retime_reset_hgc),
+        .enable(fb_enable),
+        .ce_pix(ce_pixel_hgc_fb),
+        .r(raux_hgc), .g(gaux_hgc), .b(baux_hgc),
+        .de(hgc_fb_de),
+        .vblank(vbaux_hgc),
+        .active_dots(HGC_FB_DOTS),
+        .active_lines(hgc_fb_active_lines),
+        .reading_buffer(fb_reading_buffer),
+        .ddram_busy(cap_busy),
+        .ddram_burstcnt(cap_burstcnt),
+        .ddram_addr(cap_addr),
+        .ddram_din(cap_din),
+        .ddram_be(),
+        .ddram_we(cap_we),
+        .frame_buffer(fb_frame_buffer),
+        .frame_width(fb_frame_width),
+        .frame_height(fb_frame_height),
+        .frame_stride(fb_frame_stride),
+        .frame_seq(),
+        .frame_valid(fb_frame_valid),
+        .overrun()
+    );
+
+    wire        fb_rd_req;
+    wire [28:0] fb_rd_addr;
+    wire [7:0]  fb_rd_burstcnt;
+    wire        fb_rd_grant;
+    wire [63:0] fb_rd_data;
+    wire        fb_rd_data_valid;
+    wire [7:0]  fb_r, fb_g, fb_b;
+    wire        fb_hs, fb_vs, fb_hb, fb_vb, fb_de, fb_field, fb_ce_pix;
+
+    hgc_fb_readout #(.CLK_DIV(8)) fb_readout_hgc (
+        .clk(CLK_VIDEO_HGC),
+        .reset(video_retime_reset_hgc),
+        .enable(fb_enable),
+        .progressive(crt480i_prog),
+        .crt_h_offset(status[49:46]),
+        .crt_v_offset(status[52:50]),
+        .frame_buffer(fb_frame_buffer),
+        .frame_width(fb_frame_width),
+        .frame_height(fb_frame_height),
+        .frame_stride(fb_frame_stride),
+        .frame_valid(fb_frame_valid),
+        .rd_req(fb_rd_req),
+        .rd_addr(fb_rd_addr),
+        .rd_burstcnt(fb_rd_burstcnt),
+        .rd_grant(fb_rd_grant),
+        .rd_data(fb_rd_data),
+        .rd_data_valid(fb_rd_data_valid),
+        .r(fb_r), .g(fb_g), .b(fb_b),
+        .hsync(fb_hs), .vsync(fb_vs), .hblank(fb_hb), .vblank(fb_vb),
+        .de(fb_de), .field(fb_field), .ce_pix(fb_ce_pix),
+        .reading_buffer(fb_reading_buffer)
+    );
+
+    assign DDRAM_CLK = CLK_VIDEO_HGC;
+
+    hgc_ddr_arbiter fb_arbiter_hgc (
+        .clk(CLK_VIDEO_HGC),
+        .reset(video_retime_reset_hgc),
+        .ddram_busy(DDRAM_BUSY),
+        .ddram_burstcnt(DDRAM_BURSTCNT),
+        .ddram_addr(DDRAM_ADDR),
+        .ddram_din(DDRAM_DIN),
+        .ddram_be(DDRAM_BE),
+        .ddram_we(DDRAM_WE),
+        .ddram_rd(DDRAM_RD),
+        .ddram_dout(DDRAM_DOUT),
+        .ddram_dout_ready(DDRAM_DOUT_READY),
+        .rd_req(fb_rd_req),
+        .rd_addr(fb_rd_addr),
+        .rd_burstcnt(fb_rd_burstcnt),
+        .rd_grant(fb_rd_grant),
+        .rd_data(fb_rd_data),
+        .rd_data_valid(fb_rd_data_valid),
+        .wr_req(cap_we),
+        .wr_addr(cap_addr),
+        .wr_burstcnt(cap_burstcnt),
+        .wr_din(cap_din),
+        .wr_busy_out(cap_busy),
+        .wr_grant()
+    );
+
+    // Switch on an HGC blanking edge once a complete frame is available. It
+    // avoids exposing a half-filled DDRAM frame during a mode transition.
+    wire crt480i_active;
+    video_source_switch crt480i_source_switch_hgc (
+        .clock(CLK_VIDEO_HGC),
+        .reset(video_retime_reset_hgc),
+        .select_alt(fb_enable & fb_frame_valid),
+        .primary_hsync(haux_hgc),
+        .primary_vblank(vbaux_hgc),
+        .alt_hsync(fb_hs),
+        .alt_vblank(fb_vb),
+        .alt_active(crt480i_active)
+    );
+
+    wire [7:0] hgc_mixer_r = crt480i_active ? fb_r : raux_hgc;
+    wire [7:0] hgc_mixer_g = crt480i_active ? fb_g : gaux_hgc;
+    wire [7:0] hgc_mixer_b = crt480i_active ? fb_b : baux_hgc;
+    wire       hgc_mixer_hs = crt480i_active ? fb_hs : haux_hgc;
+    wire       hgc_mixer_vs = crt480i_active ? fb_vs : vaux_hgc;
+    wire       hgc_mixer_hb = crt480i_active ? fb_hb : hbaux_hgc;
+    wire       hgc_mixer_vb = crt480i_active ? fb_vb : vbaux_hgc;
+    wire       ce_pixel_hgc_mixer = crt480i_active ? fb_ce_pix : ce_pixel_hgc_raw;
+
+    always @(posedge clk_video_out_ps or posedge video_retime_reset_local)
+    begin
+        if (video_retime_reset_local) begin
+            vga_f1_hgc_ps1 <= 1'b0;
+            vga_f1_hgc_ps2 <= 1'b0;
+        end else begin
+            vga_f1_hgc_ps1 <= crt480i_active & fb_field;
+            vga_f1_hgc_ps2 <= vga_f1_hgc_ps1;
+        end
+    end
+
+    assign VGA_F1 = vga_f1_hgc_ps2;
+
     /*
     assign VGA_R = raux;
     assign VGA_G = gaux;
@@ -1940,26 +2159,28 @@ module emu
         end
     end
 
-    video_mixer #(.GAMMA(0)) video_mixer_hgc
+	video_mixer #(.GAMMA(0)) video_mixer_hgc
 	(
 		.*,
 
 		.CLK_VIDEO(CLK_VIDEO_HGC),
 		.CE_PIXEL(CE_PIXEL_hgc),
-		.ce_pix(ce_pixel_hgc_raw),
+		.ce_pix(ce_pixel_hgc_mixer),
 
 		.freeze_sync(),
 
-		.R(raux_hgc),
-		.G(gaux_hgc),
-		.B(baux_hgc),
+		.R(hgc_mixer_r),
+		.G(hgc_mixer_g),
+		.B(hgc_mixer_b),
 
-		.HBlank(hbaux_hgc),
-		.VBlank(vbaux_hgc),
-		.HSync(haux_hgc),
-		.VSync(vaux_hgc),
+		.HBlank(hgc_mixer_hb),
+		.VBlank(hgc_mixer_vb),
+		.HSync(hgc_mixer_hs),
+		.VSync(hgc_mixer_vs),
 
-		.scandoubler(scandoubler),
+		// The framebuffer already emits a 15 kHz raster. Applying the normal
+		// HGC scandoubler to it would turn 480i/240p back into a high-rate mode.
+		.scandoubler(scandoubler && !crt480i_active),
 		.hq2x(scale_video_ff==1),
 		.gamma_bus(gamma_bus_hgc),
 
@@ -1993,8 +2214,8 @@ module emu
             VGA_HS_hgc_src <= VGA_HS_hgc;
             VGA_VS_hgc_src <= VGA_VS_hgc;
             VGA_DE_hgc_src <= VGA_DE_hgc;
-            LHBL_hgc_src <= hgc_hb_sync;
-            credits_vb_hgc_src <= hgc_vb_sync;
+            LHBL_hgc_src <= crt480i_active ? fb_hb : hgc_hb_sync;
+            credits_vb_hgc_src <= crt480i_active ? fb_vb : hgc_vb_sync;
         end
     end
 

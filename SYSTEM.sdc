@@ -77,9 +77,13 @@ set_max_delay -from [get_clocks $CLOCK_HDMI] -to [get_clocks $CLOCK_H2F] $VIDEO_
 # Explicit frame-marker and reset-release synchronizers.
 set_false_path -from [get_registers {pll_hdmi_adj:pll_hdmi_adj|i_vss_delay}] \
               -to   [get_registers {pll_hdmi_adj:pll_hdmi_adj|ivss}]
-set_false_path -to [get_registers {emu:emu|video_retime_reset_sync[*]}]
+set_false_path -to [get_registers {emu:emu|video_retime_reset_sync[*] \
+                                    emu:emu|video_retime_hgc_sync[*]}]
 set_false_path -to [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_reset_cga_sync[*] \
                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_reset_hgc_sync[*]}]
+set_false_path -to [get_registers {sysmem_lite:sysmem|ram1_reset_0 \
+                                    sysmem_lite:sysmem|ram2_reset_0 \
+                                    sysmem_lite:sysmem|vbuf_reset_0}]
 set_false_path -to [get_registers {ascal:ascal|i_reset_na \
                                    ascal:ascal|o_reset_na \
                                    ascal:ascal|avl_reset_na}]
@@ -212,3 +216,18 @@ set_input_delay -clock { SDRAM_CLK } -max 6 [get_ports { SDRAM_DQ[*] }]
 set_input_delay -clock { SDRAM_CLK } -min 3 [get_ports { SDRAM_DQ[*] }]
 set_output_delay -clock { SDRAM_CLK } -max 2 [get_ports { SDRAM_DQ[*] SDRAM_DQM* SDRAM_A[*] SDRAM_n*  SDRAM_BA[*] SDRAM_CKE }]
 set_output_delay -clock { SDRAM_CLK } -min 1.5 [get_ports { SDRAM_DQ[*] SDRAM_DQM* SDRAM_A[*] SDRAM_n*  SDRAM_BA[*] SDRAM_CKE }]
+
+#============================================================
+# DDRAM / HPS f2h bridge
+#
+# The HGC 350-line framebuffer clocks the f2h DDRAM port from the video PLL.
+# The HPS bridge and the audio PLL are independent clock domains which share
+# the DDRAM wrapper. The wrapper provides the protocol crossings, so do not
+# make TimeQuest close false synchronous relationships between these domains.
+#============================================================
+set CLOCK_AUDIO {pll_audio|pll_audio_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}
+
+set_clock_groups -asynchronous \
+    -group [get_clocks $CLOCK_VIDEO_MDA] \
+    -group [get_clocks $CLOCK_H2F]      \
+    -group [get_clocks $CLOCK_AUDIO]
