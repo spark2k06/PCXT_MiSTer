@@ -113,6 +113,7 @@ module mcl86_eu_core
         input  wire        CORE_CLK_INT,          // High-speed core clock
         input  wire        RESET_INT,             // Synchronous reset (active high)
         input  wire        TEST_N_INT,            // Test pin input (active low, can be tied high)
+        input  wire        FAKE286_FLAGS,         // Make PUSHF expose 80286 reserved FLAGS bits
         // EU to BIU Command Interface
         output wire [15:0] EU_BIU_COMMAND,        // Command word to BIU for bus operations
         output wire [15:0] EU_BIU_DATAOUT,        // Data output to BIU for write operations
@@ -226,6 +227,7 @@ module mcl86_eu_core
     reg  [15:0] eu_alu_last_result;     // Retained result - the z/nz jump conditions test THIS
     wire [15:0] adder_out;              // Adder sum
     wire [16:0] carry;                  // Carry into each bit; carry[16] is the carry out
+    wire        eu_pushf_serialize;     // Current microword emits FLAGS for PUSHF
 
     //--------------------------------------------------------------------------
     // Internal Signals - Arithmetic Flag Generation
@@ -324,6 +326,16 @@ module mcl86_eu_core
     // The EU-side operand: architectural registers, microcode scratch, the BIU
     // command word being assembled, or the status bus. Select 0xF reads as zero,
     // which microcode relies on to synthesise "load immediate" (zero OR imm).
+    // The execution core reuses FLAGS[15:12] as prefix/NMI scratch.  Do not
+    // globally mask them: only PUSHF serialises architectural FLAGS to memory.
+    // This exact OR-to-BIU microword is the PUSHF data stage in mcl86_ucode.
+    // Native MCL86 serialises the 8086-reserved high nibble as ones (F002).
+    assign eu_pushf_serialize = (eu_opcode_type      == 3'h5) &&
+                              (eu_opcode_dst_sel   == 4'hF) &&
+                              (eu_opcode_op0_sel   == 4'h8) &&
+                              (eu_opcode_op1_sel   == 4'hF) &&
+                              (eu_opcode_immediate == 16'hF002);
+
     assign  eu_operand0 = (eu_opcode_op0_sel == 4'h0) ? eu_register_ax :
                           (eu_opcode_op0_sel == 4'h1) ? eu_register_bx :
                           (eu_opcode_op0_sel == 4'h2) ? eu_register_cx :
@@ -332,7 +344,9 @@ module mcl86_eu_core
                           (eu_opcode_op0_sel == 4'h5) ? eu_register_bp :
                           (eu_opcode_op0_sel == 4'h6) ? eu_register_si :
                           (eu_opcode_op0_sel == 4'h7) ? eu_register_di :
-                          (eu_opcode_op0_sel == 4'h8) ? eu_flags       :
+                          (eu_opcode_op0_sel == 4'h8) ?
+                              ((FAKE286_FLAGS && eu_pushf_serialize) ?
+                                  {4'b0000, eu_flags[11:0]} : eu_flags) :
                           (eu_opcode_op0_sel == 4'h9) ? eu_register_r0 :
                           (eu_opcode_op0_sel == 4'hA) ? eu_register_r1 :
                           (eu_opcode_op0_sel == 4'hB) ? eu_register_r2 :
@@ -363,7 +377,8 @@ module mcl86_eu_core
                           (eu_opcode_op1_sel == 4'hC) ? eu_register_r3        :
                           (eu_opcode_op1_sel == 4'hD) ? eu_alu_last_result    :
                           (eu_opcode_op1_sel == 4'hE) ? system_signals        :
-                                                        eu_opcode_immediate   ;
+                              ((FAKE286_FLAGS && eu_pushf_serialize) ?
+                                  16'h0002 : eu_opcode_immediate)             ;
 
     //--------------------------------------------------------------------------
     // Jump Condition Evaluation Logic

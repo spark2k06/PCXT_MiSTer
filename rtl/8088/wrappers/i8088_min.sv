@@ -205,6 +205,7 @@ module i8088_min
         .CORE_CLK_INT         ( CORE_CLK               ),
         .RESET_INT            ( RESET                  ),
         .TEST_N_INT           ( 1'b1                   ), // TEST pin tied high (not used)
+        .FAKE286_FLAGS        ( 1'b0                   ), // Minimum-mode wrapper keeps native FLAGS behaviour
         .EU_BIU_COMMAND       ( t_eu_biu_command       ),
         .EU_BIU_DATAOUT       ( t_eu_biu_dataout       ),
         .EU_REGISTER_R3       ( t_eu_register_r3       ),

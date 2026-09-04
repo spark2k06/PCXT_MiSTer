@@ -48,6 +48,7 @@ cp mcl86_ucode.mem "$BUILD_DIR/mcl86_ucode.mem"
 declare -A SOURCES=(
     [mcl86_adder_tb]="mcl86_adder.sv"
     [cpu_type_latch_tb]="cpu_type_latch.sv"
+    [mcl86_fake286_flags_tb]="mcl86_eu_core.sv mcl86_ucode.sv mcl86_adder.sv"
     [biu_prefetch_tb]="mcl86_biu_max.sv"
     # Step 4 end-to-end: the BIU's request crosses the actual RAM.sv word
     # path and comes back from the SDRAM model, rather than from the BIU

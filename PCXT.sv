@@ -277,6 +277,7 @@ module emu
 		CONF_STR_HGC,
 		"P1O7,Boot Splash Screen,Yes,No;",
 		"P1oV,CPU Type,8088,8086;",
+		"P1oL,Fake 286 FLAGS,Off,On;",
 		"P1-;",
 		CONF_STR_ROM,
 		"P1FC2,ROM,EC00 BIOS:;",
@@ -326,6 +327,11 @@ module emu
     // BIU is latched only during reset; changing the menu alone cannot change
     // queue depth or bus width while an instruction is in flight.
     wire        cpu_type_8086_osd = status[63];
+    // Status bit 53 makes PUSHF report zero in reserved FLAGS bits 12:15,
+    // matching a real-mode 80286 for legacy CPU probes.  Unlike the CPU type
+    // this is applied live: it only gates a mux on the PUSHF operand path, so
+    // the worst a mid-run change can do is decide the PUSHF of that instant.
+    wire        fake_286_flags_osd = status[53];
     wire        is8086_applied;
     wire [7:0]  xtctl;
     wire [7:0]  uart_mode;
@@ -625,11 +631,22 @@ module emu
     end
 
     cpu_type_latch cpu_type_apply_latch (
-        .clock        (clk_chipset),
-        .reset_active (reset),
-        .selected_8086(cpu_type_8086_osd),
-        .is8086       (is8086_applied)
+        .clock                 (clk_chipset),
+        .reset_active          (reset),
+        .selected_8086         (cpu_type_8086_osd),
+        .is8086                (is8086_applied)
     );
+
+    // Fake 286 FLAGS is live, so it now crosses from the chipset domain that
+    // hps_io drives into the core clock the EU mux is evaluated on. While it
+    // was reset-latched the value only ever moved with the CPU held in reset
+    // and no synchronizer was needed; a running change needs one.
+    (* ASYNC_REG = "TRUE" *) logic [1:0] fake_286_flags_meta = 2'b00;
+    wire fake_286_flags_applied = fake_286_flags_meta[1];
+
+    always_ff @(posedge clk_100)
+        fake_286_flags_meta <= {fake_286_flags_meta[0], fake_286_flags_osd};
+
     logic reset_cpu_ff = 1'b1;
     logic reset_cpu = 1'b1;
     logic [15:0] reset_cpu_count = 16'h0000;
@@ -1280,9 +1297,11 @@ module emu
 		.clock_cycle_counter_decrement_value(clock_cycle_counter_decrement_value),
 		.shift_read_timing(shift_read_timing),
 
-		// The OSD selection is frozen outside reset so queue depth and bus width
-		// cannot change in the middle of an instruction or bus cycle.
+		// The CPU type is frozen outside reset so queue depth and bus width
+		// cannot change in the middle of an instruction or bus cycle. Fake 286
+		// FLAGS carries no such state and tracks the menu as it is changed.
 		.is8086(is8086_applied),
+		.fake286_flags(fake_286_flags_applied),
 		.word_read_request(word_read_request),
 		.word_write_request(word_write_request),
 		.data_bus_word_out(cpu_data_bus_word),

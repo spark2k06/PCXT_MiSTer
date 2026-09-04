@@ -2,6 +2,10 @@
 //
 //  CPU type selection must only take effect during machine reset.
 //
+//  Fake 286 FLAGS used to be latched here too. It only gates a mux on the
+//  PUSHF operand path, with no queue or bus-width state behind it, so it is
+//  applied live and is no longer part of this module.
+//
 //============================================================================
 
 `timescale 1ns/1ps

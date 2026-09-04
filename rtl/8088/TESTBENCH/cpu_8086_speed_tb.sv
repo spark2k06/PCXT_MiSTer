@@ -51,6 +51,7 @@ module cpu_8086_speed_tb;
         .clock_cycle_counter_division_ratio(counter_division),
         .clock_cycle_counter_decrement_value(counter_decrement),
         .shift_read_timing(shift_read_timing), .is8086(1'b1),
+        .fake286_flags(1'b0),
         .word_read_request(word_read_request),
         .word_write_request(word_write_request),
         .data_bus_word_out(data_bus_word_out), .data_bus_word(data_bus_word),

@@ -109,6 +109,7 @@ module i8088
         input  wire   [7:0] clock_cycle_counter_decrement_value,  // Clock decrement value for fine timing
         input  wire         shift_read_timing,                    // Shift read timing for slow memory (1=delayed)
         input  wire         is8086,                               // CPU type: 0 = 8088, 1 = 8086
+        input  wire         fake286_flags,                        // Report 80286-style reserved FLAGS through PUSHF
         // Private 16-bit SDRAM path (steps 4 and 5)
         output logic         word_read_request,
         output logic         word_write_request,
@@ -212,6 +213,7 @@ module i8088
         .CORE_CLK_INT         ( CORE_CLK                                      ),
         .RESET_INT            ( RESET                                         ),
         .TEST_N_INT           ( 1'b0                                          ), // TEST pin tied low (not used)
+        .FAKE286_FLAGS        ( fake286_flags                                 ),
         .EU_BIU_COMMAND       ( t_eu_biu_command                              ),
         .EU_BIU_DATAOUT       ( t_eu_biu_dataout                              ),
         .EU_REGISTER_R3       ( t_eu_register_r3                              ),
