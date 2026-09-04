@@ -107,9 +107,19 @@ module emu
     localparam CONF_STR_EMS = (`ENABLE_EMS ? "P3OB,Lo-tech 2MB EMS,Enabled,Disabled;P3OCD,EMS Frame,C000,D000,E000;P3-;" : "");
     localparam CONF_STR_A000 = (`ENABLE_A000_UMB ? "P3o9,A000 UMB,Enabled,Disabled;P3-;" : "");
     localparam CONF_STR_MIDI = (`ENABLE_MIDI ? "P3O6,USER I/O,MIDI,COM2;P3-;h3P4,MT32-pi;h3P4-;h3P4OD,Use MT32-pi,Yes,No;h3P4-;h3P4o9,MT32-pi Mode,MT-32,General MIDI;h3P4O34,MT32-pi ROM,MT-32 v1,MT-32 v2,CM-32L,Reserved;h3P4oSU,MT32-pi SoundFont,#0,#1,#2,#3,#4,#5,#6,#7;h3P4-;h3P4r8,Reset Hanging Notes;h3P4-;" : "");
+    // This line is shown at the top of the menu while the required PCXT BIOS
+    // is absent, so the splash hold has an actionable explanation.
+    localparam CONF_STR_HALT = "h4-,HALTED: no PCXT BIOS selected;";
+    localparam CONF_STR_INFO = {
+        "I,",
+        "No PCXT BIOS selected\n",
+        "Machine halted\n",
+        "OSD: System & BIOS;"
+    };
 
-    localparam CONF_STR = {
+	localparam CONF_STR = {
 		`CONF_STR_SYSTEM,
+		CONF_STR_HALT,
 		"S0,IMGIMAVFD,Floppy A:;",
 		"S1,IMGIMAVFD,Floppy B:;",
 		"OJK,Write Protect,None,A:,B:,A: & B:;",
@@ -165,6 +175,7 @@ module emu
 		"-;",
 		"R0,Reset & apply settings;",
 		"J,Fire 1,Fire 2;",
+		CONF_STR_INFO,
 		"V,v",`BUILD_DATE
 	};
 
@@ -189,6 +200,10 @@ module emu
     wire        ps2_kbd_data_out;
     wire        ps2_kbd_clk_in;
     wire        ps2_kbd_data_in;
+    // Decoded key stream, used to catch F12 while the machine is in reset.
+    wire [10:0] ps2_key;
+    wire [7:0]  info;
+    wire        info_req;
 
     //Mouse PS2
     wire        ps2_mouse_clk_out;
@@ -233,14 +248,17 @@ module emu
     wire        video_scandoubler_en = (scale_video_ff > 0) || forced_scandoubler;
     wire        cga_scandouble_en = (scale_cga_ff > 0) || forced_scandoubler;
     reg         hercules_hw;
-    // bit0=status[5]; bit3 exposes the MT32-pi options when detected.
-    wire [15:0] status_menumask = {12'd0, ((`ENABLE_MIDI != 0) && mt32_available), 2'b00, status[5]};
+    // bit0=status[5]; bit3 exposes the MT32-pi options; bit4 exposes the
+    // halted/missing-PCXT-BIOS status line at the top of the menu.
+    wire [15:0] status_menumask = {11'd0, bios_missing_pcxt,
+                                   ((`ENABLE_MIDI != 0) && mt32_available),
+                                   2'b00, status[5]};
 
     wire VGA_VBlank_border;
     wire std_hsyncwidth;
     wire pause_core;
     wire swap_video;
-    wire swap_video_eff = `ENABLE_HGC ? (`ENABLE_CGA ? swap_video : (`ENABLE_TANDY_VIDEO ? 1'b0 : 1'b1)) : 1'b0;
+    wire swap_video_requested = `ENABLE_HGC ? (`ENABLE_CGA ? swap_video : (`ENABLE_TANDY_VIDEO ? 1'b0 : 1'b1)) : 1'b0;
 
     always @(posedge clk_57_272)
     begin
@@ -266,7 +284,7 @@ module emu
     always @(posedge clk_chipset)
         hgc_mode_video_ff       <= `ENABLE_HGC ? hgc_mode : 1'b0;
 
-    hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1)) hps_io 
+    hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2000), .PS2WE(1), .WIDE(1), .F12KEYMOD(1)) hps_io
 	(
 		.clk_sys(clk_chipset),
 		.HPS_BUS(HPS_BUS),
@@ -278,9 +296,12 @@ module emu
 		.buttons(buttons),
 		.status(status),
 		.status_menumask(status_menumask),
+		.info_req(info_req),
+		.info(info),
 
 		.uart_mode(uart_mode),
 
+		.ps2_key(ps2_key),
 		.ps2_kbd_clk_in		(ps2_kbd_clk_out),
 		.ps2_kbd_data_in	(ps2_kbd_data_out),
 		.ps2_kbd_clk_out	(ps2_kbd_clk_in),
@@ -756,6 +777,26 @@ module emu
     end
 
 
+    // The BIOS loader writes the selected image one byte at a time. Record a
+    // slot as present only after the final byte of a download has completed;
+    // this also lets replacing the image re-arm the hold safely.
+    wire pcxt_bios_download_active = ioctl_download && (ioctl_index[5:0] == 6'd0);
+    wire pcxt_bios_write_complete = (bios_load_state == 4'h04) &&
+                                    bios_write_byte_cnt && select_pcxt;
+    wire pcxt_bios_loaded;
+
+    rom_presence_latch pcxt_bios_presence (
+        .clock              (clk_chipset),
+        .reset              (reset_sdram),
+        .sdram_initialized  (initilized_sdram),
+        .download_active    (pcxt_bios_download_active),
+        .write_complete     (pcxt_bios_write_complete),
+        .loaded             (pcxt_bios_loaded)
+    );
+
+    wire bios_missing_pcxt = ~pcxt_bios_loaded;
+
+
     //////////////////////////////////////////////////////////////////
 
     //
@@ -764,16 +805,12 @@ module emu
     reg splash_off = 1'b1;
     reg [24:0] splash_cnt = 0;
     reg [3:0] splash_cnt2 = 0;
-    reg splashscreen = 1'b0;
+    reg splash_timed = 1'b0;
     reg splash_pending = 1'b1;
     reg [23:0] splash_boot_cnt = 24'd0;
     reg splashscreen_sync1 = 0;
     reg splashscreen_sync2 = 0;
     reg splashscreen_sync_prev = 0;
-    reg status0_sync1 = 0;
-    reg status0_sync2 = 0;
-    reg status0_sync_prev = 0;
-    wire status0_clear_pulse = status0_sync2 & ~status0_sync_prev;
     reg splash_reset_hold = 0;
     reg [17:0] splash_reset_cnt = 18'd0;
     localparam [17:0] SPLASH_RESET_HOLD = 18'd131072;
@@ -802,7 +839,7 @@ module emu
         begin
             if (~splash_off)
             begin
-                splashscreen <= 1'b1;
+                splash_timed <= 1'b1;
                 splash_cnt <= 0;
                 splash_cnt2 <= 0;
                 splash_pending <= 1'b0;
@@ -817,15 +854,21 @@ module emu
                 splash_boot_cnt <= splash_boot_cnt + 24'd1;
             end
         end
-        else if (splashscreen)
+        else if (splash_timed)
         begin
             if (splash_off)
             begin
-                splashscreen <= 0;
+                splash_timed <= 0;
+            end
+            else if (splash_paused)
+            begin
+                // F12 holds the picture and the machine reset until pressed
+                // again. Turning the splash off in the OSD still dismisses it.
+                splash_cnt <= splash_cnt;
             end
             else if(splash_cnt2 == 5) // 5 seconds delay
             begin
-                splashscreen <= 0;
+                splash_timed <= 0;
             end
             else if (splash_cnt == 14318000)
             begin // 1 second at 14.318Mhz
@@ -838,15 +881,43 @@ module emu
 
     end
 
+    // The keyboard controller that normally decodes F12 is inside the
+    // machine, and is held in reset while the splash is shown. Catch the key
+    // in the framework stream instead.
+    wire splash_paused;
+
+    splash_f12_pause splash_pause (
+        .clock         (clk_14_318),
+        .splash_active (splash_timed),
+        .ps2_key       (ps2_key),
+        .paused        (splash_paused)
+    );
+
+    // Keep the power-on raster until the required BIOS exists. Reusing the
+    // splash signal means the CPU reset, splash renderer and video timing all
+    // agree on the held state.
+    wire bios_hold;
+
+    bios_hold_notice bios_notice (
+        .clock             (clk_14_318),
+        .splash_boot_phase (splash_pending | splash_timed),
+        .bios_missing_pcxt (bios_missing_pcxt),
+        .hold              (bios_hold),
+        .info              (info),
+        .info_req          (info_req)
+    );
+
+    wire splashscreen = splash_timed | bios_hold;
+    // The splash is always a native CGA raster.  Keep the shared video path on
+    // CGA until it has finished; the selected HGC/MDA path is restored after
+    // the normal two-flop output-domain synchronization below.
+    wire swap_video_eff = splashscreen ? 1'b0 : swap_video_requested;
+
     always @(posedge clk_chipset)
     begin
         splashscreen_sync1 <= splashscreen;
         splashscreen_sync2 <= splashscreen_sync1;
         splashscreen_sync_prev <= splashscreen_sync2;
-        status0_sync1 <= status[0];
-        status0_sync2 <= status0_sync1;
-        status0_sync_prev <= status0_sync2;
-
         if (splashscreen_sync_prev && ~splashscreen_sync2)
         begin
             splash_reset_hold <= 1'b1;
@@ -971,7 +1042,6 @@ module emu
 		.processor_ready                    (processor_ready),
 		.interrupt_to_cpu                   (interrupt_to_cpu),
 		.splashscreen                       (splashscreen),
-		.status0_clear                      (status0_clear_pulse),
 		.std_hsyncwidth                     (std_hsyncwidth),
 		.composite                          (composite),
 		.video_reset                        (video_retime_reset),
@@ -1601,8 +1671,10 @@ module emu
     reg [1:0] HSync_del_hgc = 2'b11;
     localparam integer MDA_VSYNC_DELAY = 19;
     reg [MDA_VSYNC_DELAY:0] VSync_line;
-    reg        video_pause_core_buf;
-    reg        video_pause_core;
+    // Credits are useful during the splash pause as well as during a normal
+    // pause. Audio and CPU control continue to use pause_core alone.
+    reg        video_credits_show_buf;
+    reg        video_credits_show;
 
     always_comb
     begin
@@ -1669,8 +1741,8 @@ module emu
     end
 
     always @ (posedge clk_video_out_ps) begin
-        video_pause_core_buf    <= pause_core;
-        video_pause_core        <= video_pause_core_buf;
+        video_credits_show_buf  <= pause_core | splash_paused;
+        video_credits_show      <= video_credits_show_buf;
     end
 
     wire LHBL = cga_scandouble_en ? HBlank :
@@ -2017,7 +2089,7 @@ module emu
         .COLW   (8),
         .BLKPOL (1)
     ) u_credits(
-        .rst        ( reset      ),
+        .rst        ( video_retime_reset_local ),
         .clk        ( clk_video_out_ps ),
         .pxl_cen    ( CE_PIXEL_CREDITS ),
 
@@ -2035,7 +2107,7 @@ module emu
         .vram_addr  ( 8'h0  ),
         .vram_we    ( 1'b0  ),
         .vram_ctrl  ( 3'b0  ),
-        .enable     ( video_pause_core ),
+        .enable     ( video_credits_show ),
 
         // output image
         .HB_out     ( pre2x_LHBL      ),

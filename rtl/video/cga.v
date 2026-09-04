@@ -50,6 +50,7 @@ module cga(
     output[6:0] comp_video,
 
     input splashscreen,
+    input composite,
     input thin_font,
     input tandy_video,     
     input scandouble_en,
@@ -353,6 +354,9 @@ module cga(
 		  .tandy_color_16(tandy_color_16)
     );
 
+    wire [3:0] video_core;
+    wire [3:0] splash_video;
+
     // Pixel pusher
     cga_pixel pixel (
         .clk(clk),
@@ -383,8 +387,25 @@ module cga(
         .tandy_bordercol(tandy_bordercol),
         .tandy_color_4(tandy_color_4),
         .tandy_color_16(tandy_color_16),
-        .video(video)
+        .video(video_core)
     );
+
+    // The graphical boot splash replaces only the native RGBI stream.  The
+    // existing scandoubler and cga_vgaport remain downstream, so both RGB
+    // and composite output use the same timing and analogue model as normal
+    // CGA video.
+    cga_splash_renderer splash_renderer (
+        .clk(clk),
+        .reset(video_reset_local),
+        .enable(splashscreen),
+        .clkdiv(clkdiv),
+        .display_enable(display_enable),
+        .vblank(vblank_crtc),
+        .composite(composite),
+        .pixel_index(splash_video)
+    );
+
+    assign video = splashscreen ? splash_video : video_core;
 
     // Generate blink signal for cursor and character
     always @ (posedge clk)

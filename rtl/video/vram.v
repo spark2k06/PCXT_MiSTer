@@ -16,8 +16,6 @@ module vram #(parameter AW=16)
 
 reg [7:0] vram[(2**AW)-1:0];
 
-initial $readmemh("splash.hex", vram);
-
 always @(posedge clka)
   if (ena)
 		if (wea)

@@ -25,7 +25,6 @@ module CHIPSET #(
         output  logic           interrupt_to_cpu,
         // SplashScreen
         input   logic           splashscreen,
-        input   logic           status0_clear,
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
@@ -329,7 +328,6 @@ module CHIPSET #(
         .dma_chip_select_n                  (dma_chip_select_n),
         .dma_page_chip_select_n             (dma_page_chip_select_n),
         .splashscreen                       (splashscreen),
-        .status0_clear                      (status0_clear),
         .std_hsyncwidth                     (std_hsyncwidth),
         .composite                          (composite),
         .video_reset                        (video_reset),
