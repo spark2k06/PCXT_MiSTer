@@ -68,11 +68,16 @@ set_max_delay -from [get_clocks $CLOCK_VIDEO_MDA] -to [get_clocks $CLOCK_VIDEO_O
 # NOTE: If the system clock and video clock are synchronous, the following description is not necessary.
 set VIDEO_TO_SYSYEM_DELAY 10
 
-# Video status returns through the top-level HPS bus. TimeQuest cannot derive
-# the forwarded-clock relationship through that inout bus, so retain the
-# framework's established CDC bound.
-set_max_delay -from [get_clocks $CLOCK_VIDEO_OUT_PS] -to [get_clocks $CLOCK_H2F] $VIDEO_TO_SYSYEM_DELAY
-set_max_delay -from [get_clocks $CLOCK_HDMI] -to [get_clocks $CLOCK_H2F] $VIDEO_TO_SYSYEM_DELAY
+# The final video clock and the HPS clock are unrelated. Every crossing between
+# them is synchronised in the framework: video_calc samples DE/HS/VS through
+# its own registers and ascal hands over its write pointers with a toggle
+# handshake. A max_delay bound cannot be met here because it does not cancel
+# the PLL phase offset and clock-tree insertion of CLOCK_VIDEO_OUT_PS, so treat
+# the two domains as asynchronous, as sys_top.sdc already does for the core
+# PLL and the HDMI PLL.
+set_clock_groups -asynchronous \
+    -group [get_clocks $CLOCK_VIDEO_OUT_PS] \
+    -group [get_clocks $CLOCK_H2F]
 
 # Explicit frame-marker and reset-release synchronizers.
 set_false_path -from [get_registers {pll_hdmi_adj:pll_hdmi_adj|i_vss_delay}] \
@@ -95,7 +100,8 @@ set_false_path -to [get_registers  {emu:emu|scale_video_meta[*] \
                                     emu:emu|screen_mode_cga_meta[*] \
                                     emu:emu|ar_video_out_meta[*] \
                                     emu:emu|swap_video_out_meta \
-                                    emu:emu|border_video_out_meta}]
+                                    emu:emu|border_video_out_meta \
+                                    emu:emu|scale_video_out_meta[*]}]
 
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_address[*]}] \
               -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_address_1[*]}] $VIDEO_TO_SYSYEM_DELAY
@@ -156,7 +162,7 @@ set_max_delay -to   [get_registers {emu:emu|hercules_hw}] $VIDEO_TO_SYSYEM_DELAY
 
 set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|swap_video_buffer_2}] $VIDEO_TO_SYSYEM_DELAY
 
-set_max_delay -to   [get_registers {emu:emu|video_pause_core_buf}] $VIDEO_TO_SYSYEM_DELAY
+set_max_delay -to   [get_registers {emu:emu|video_credits_show_buf}] $VIDEO_TO_SYSYEM_DELAY
 
 #
 set_max_delay -from [get_registers {osd:vga_osd|info       \

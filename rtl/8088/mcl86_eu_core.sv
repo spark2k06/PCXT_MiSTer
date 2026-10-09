@@ -151,6 +151,7 @@ module mcl86_eu_core
     reg  [51:0] eu_calling_address;     // 4-deep call stack: four 13-bit return addresses, shifted
     reg         eu_stall_pipeline;      // Squash the 2 words already in flight behind a taken jump
     wire [31:0] eu_rom_data;            // Microword fetched from the ucode ROM (registered read)
+    wire  [7:0] eu_rom_sel;             // Copy of eu_rom_data[23:16] for the operand trees
     wire        new_instruction;        // uPC is in the opcode dispatch page -> a macro-op is starting
 
     //--------------------------------------------------------------------------
@@ -224,6 +225,7 @@ module mcl86_eu_core
     wire [15:0] eu_alu6;                // XOR result
     wire [15:0] eu_alu7;                // SHR result
     wire [15:0] eu_alu_out;             // Selected ALU result
+    wire [15:0] eu_alu_logic;           // Selected non-adder ALU result
     reg  [15:0] eu_alu_last_result;     // Retained result - the z/nz jump conditions test THIS
     wire [15:0] adder_out;              // Adder sum
     wire [16:0] carry;                  // Carry into each bit; carry[16] is the carry out
@@ -275,7 +277,6 @@ module mcl86_eu_core
     reg  [15:0] eu_biu_command;         // Command word presented to the BIU
     reg  [15:0] eu_biu_dataout;         // Write data / EA decode source presented to the BIU
     reg         intr_enable_delayed;    // IF, delayed one instruction (STI semantics)
-    reg         intr_delay;             // BIU_INTR sampled at the last instruction boundary
     wire        intr_asserted;          // INTR that is actually allowed through right now
     reg         eu_flag_t_d;            // TF delayed, for rising-edge detect
     reg         eu_tr_latched;          // Single-step trap armed for this instruction
@@ -294,7 +295,8 @@ module mcl86_eu_core
     mcl86_ucode u_ucode_rom (
         .clk  ( CORE_CLK_INT         ),
         .addr ( eu_rom_address[11:0] ),
-        .dout ( eu_rom_data          )
+        .dout     ( eu_rom_data          ),
+        .dout_sel ( eu_rom_sel           )
     );
 
     //--------------------------------------------------------------------------
@@ -321,6 +323,19 @@ module mcl86_eu_core
     assign eu_opcode_jump_cond = eu_rom_data[19:16];
 
     //--------------------------------------------------------------------------
+    // 4:1 multiplexer used to build the operand selection trees
+    //--------------------------------------------------------------------------
+    function automatic [15:0] mux4(input [1:0] sel, input [15:0] d0, input [15:0] d1,
+                                   input [15:0] d2, input [15:0] d3);
+        case (sel)
+            2'd0:    mux4 = d0;
+            2'd1:    mux4 = d1;
+            2'd2:    mux4 = d2;
+            default: mux4 = d3;
+        endcase
+    endfunction
+
+    //--------------------------------------------------------------------------
     // Operand 0 Multiplexer - EU Register File and Control Signals
     //--------------------------------------------------------------------------
     // The EU-side operand: architectural registers, microcode scratch, the BIU
@@ -336,24 +351,21 @@ module mcl86_eu_core
                               (eu_opcode_op1_sel   == 4'hF) &&
                               (eu_opcode_immediate == 16'hF002);
 
-    assign  eu_operand0 = (eu_opcode_op0_sel == 4'h0) ? eu_register_ax :
-                          (eu_opcode_op0_sel == 4'h1) ? eu_register_bx :
-                          (eu_opcode_op0_sel == 4'h2) ? eu_register_cx :
-                          (eu_opcode_op0_sel == 4'h3) ? eu_register_dx :
-                          (eu_opcode_op0_sel == 4'h4) ? eu_register_sp :
-                          (eu_opcode_op0_sel == 4'h5) ? eu_register_bp :
-                          (eu_opcode_op0_sel == 4'h6) ? eu_register_si :
-                          (eu_opcode_op0_sel == 4'h7) ? eu_register_di :
-                          (eu_opcode_op0_sel == 4'h8) ?
-                              ((FAKE286_FLAGS && eu_pushf_serialize) ?
-                                  {4'b0000, eu_flags[11:0]} : eu_flags) :
-                          (eu_opcode_op0_sel == 4'h9) ? eu_register_r0 :
-                          (eu_opcode_op0_sel == 4'hA) ? eu_register_r1 :
-                          (eu_opcode_op0_sel == 4'hB) ? eu_register_r2 :
-                          (eu_opcode_op0_sel == 4'hC) ? eu_register_r3 :
-                          (eu_opcode_op0_sel == 4'hD) ? eu_biu_command :
-                          (eu_opcode_op0_sel == 4'hE) ? system_signals :
-                                                        16'h0          ;
+    // Built as an explicit two-level tree of 4:1 multiplexers: each first-level
+    // group (selected by op0_sel[1:0]) fits one 6-input LUT per bit, and the
+    // second level (op0_sel[3:2]) is one more. The select comes straight out
+    // of the microcode ROM at the start of the core's critical path, so the
+    // tree depth matters; a priority chain synthesised to three levels.
+    wire [15:0] eu_op0_grp0 /* synthesis keep */;
+    wire [15:0] eu_op0_grp1 /* synthesis keep */;
+    wire [15:0] eu_op0_grp2 /* synthesis keep */;
+    wire [15:0] eu_op0_grp3 /* synthesis keep */;
+
+    assign eu_op0_grp0 = mux4(eu_rom_sel[5:4], eu_register_ax, eu_register_bx, eu_register_cx, eu_register_dx);
+    assign eu_op0_grp1 = mux4(eu_rom_sel[5:4], eu_register_sp, eu_register_bp, eu_register_si, eu_register_di);
+    assign eu_op0_grp2 = mux4(eu_rom_sel[5:4], eu_flags,       eu_register_r0, eu_register_r1, eu_register_r2);
+    assign eu_op0_grp3 = mux4(eu_rom_sel[5:4], eu_register_r3, eu_biu_command, system_signals, 16'h0);
+    assign eu_operand0 = mux4(eu_rom_sel[7:6], eu_op0_grp0, eu_op0_grp1, eu_op0_grp2, eu_op0_grp3);
 
     //--------------------------------------------------------------------------
     // Operand 1 Multiplexer - BIU Interface and System Signals
@@ -362,23 +374,17 @@ module mcl86_eu_core
     // returned bus data, the prefetch queue, or the microword's own immediate.
     // Select 0x4 is how the microcode consumes an instruction byte - it pulls
     // the top of the prefetch queue in zero-extended.
-    assign  eu_operand1 = (eu_opcode_op1_sel == 4'h0) ? BIU_REGISTER_ES       :
-                          (eu_opcode_op1_sel == 4'h1) ? BIU_REGISTER_SS       :
-                          (eu_opcode_op1_sel == 4'h2) ? BIU_REGISTER_CS       :
-                          (eu_opcode_op1_sel == 4'h3) ? BIU_REGISTER_DS       :
-                          (eu_opcode_op1_sel == 4'h4) ? {8'h00, PFQ_TOP_BYTE} :
-                          (eu_opcode_op1_sel == 4'h5) ? BIU_REGISTER_RM       :
-                          (eu_opcode_op1_sel == 4'h6) ? BIU_REGISTER_REG      :
-                          (eu_opcode_op1_sel == 4'h7) ? BIU_RETURN_DATA       :
-                          (eu_opcode_op1_sel == 4'h8) ? PFQ_ADDR_OUT          :
-                          (eu_opcode_op1_sel == 4'h9) ? eu_register_r0        :
-                          (eu_opcode_op1_sel == 4'hA) ? eu_register_r1        :
-                          (eu_opcode_op1_sel == 4'hB) ? eu_register_r2        :
-                          (eu_opcode_op1_sel == 4'hC) ? eu_register_r3        :
-                          (eu_opcode_op1_sel == 4'hD) ? eu_alu_last_result    :
-                          (eu_opcode_op1_sel == 4'hE) ? system_signals        :
-                              ((FAKE286_FLAGS && eu_pushf_serialize) ?
-                                  16'h0002 : eu_opcode_immediate)             ;
+    // Same two-level 4:1 tree as operand 0.
+    wire [15:0] eu_op1_grp0 /* synthesis keep */;
+    wire [15:0] eu_op1_grp1 /* synthesis keep */;
+    wire [15:0] eu_op1_grp2 /* synthesis keep */;
+    wire [15:0] eu_op1_grp3 /* synthesis keep */;
+
+    assign eu_op1_grp0 = mux4(eu_rom_sel[1:0], BIU_REGISTER_ES,       BIU_REGISTER_SS,  BIU_REGISTER_CS,  BIU_REGISTER_DS);
+    assign eu_op1_grp1 = mux4(eu_rom_sel[1:0], {8'h00, PFQ_TOP_BYTE}, BIU_REGISTER_RM,  BIU_REGISTER_REG, BIU_RETURN_DATA);
+    assign eu_op1_grp2 = mux4(eu_rom_sel[1:0], PFQ_ADDR_OUT,          eu_register_r0,   eu_register_r1,   eu_register_r2);
+    assign eu_op1_grp3 = mux4(eu_rom_sel[1:0], eu_register_r3,        eu_alu_last_result, system_signals, eu_opcode_immediate);
+    assign eu_operand1 = mux4(eu_rom_sel[3:2], eu_op1_grp0, eu_op1_grp1, eu_op1_grp2, eu_op1_grp3);
 
     //--------------------------------------------------------------------------
     // Jump Condition Evaluation Logic
@@ -458,7 +464,13 @@ module mcl86_eu_core
     assign eu_alu2 = adder_out;                              // ADD
     assign eu_alu3 = {eu_operand0[7:0], eu_operand0[15:8]};  // BYTESWAP
     assign eu_alu4 = eu_operand0 & eu_operand1;              // AND
-    assign eu_alu5 = eu_operand0 | eu_operand1;              // OR
+    // Fake 286 PUSHF: the serialising microword is FLAGS | F002. Substitute
+    // {4'b0000, FLAGS[11:0]} | 0002 here, on the OR result only, instead of in
+    // the operand multiplexers. The 31-bit microword compare then stays off the
+    // ROM -> operand -> adder -> writeback critical path of the core clock.
+    assign eu_alu5 = (FAKE286_FLAGS && eu_pushf_serialize) ?
+                         {4'b0000, eu_flags[11:2], 1'b1, eu_flags[0]} :
+                         (eu_operand0 | eu_operand1);                // OR
     assign eu_alu6 = eu_operand0 ^ eu_operand1;              // XOR
     assign eu_alu7 = {1'b0, eu_operand0[15:1]};              // SHR
 
@@ -466,15 +478,19 @@ module mcl86_eu_core
     // ALU Output Multiplexer
     //--------------------------------------------------------------------------
     // Selects the appropriate ALU operation result based on microcode type field.
-    // Types 0 and 1 (NOP and JUMP) produce no result and never write back, so the
-    // 0xEEEE default is unreachable as a stored value.
-    assign eu_alu_out = (eu_opcode_type == 3'h2) ? eu_alu2
-                      : (eu_opcode_type == 3'h3) ? eu_alu3
-                      : (eu_opcode_type == 3'h4) ? eu_alu4
-                      : (eu_opcode_type == 3'h5) ? eu_alu5
-                      : (eu_opcode_type == 3'h6) ? eu_alu6
-                      : (eu_opcode_type == 3'h7) ? eu_alu7
-                      :                            16'hEEEE;
+    // Types 0 and 1 (NOP and JUMP) produce no result and never write back, so
+    // their value is a don't-care and they share the logic-result leg.
+    //
+    // The adder output is the latest-arriving input of the whole core clock
+    // path, so the logic operations are resolved first in parallel and the sum
+    // passes through a single 2:1 select on its way to the register file.
+    assign eu_alu_logic = (eu_opcode_type == 3'h3) ? eu_alu3
+                        : (eu_opcode_type == 3'h4) ? eu_alu4
+                        : (eu_opcode_type == 3'h5) ? eu_alu5
+                        : (eu_opcode_type == 3'h6) ? eu_alu6
+                        :                            eu_alu7;
+
+    assign eu_alu_out = (eu_opcode_type == 3'h2) ? eu_alu2 : eu_alu_logic;
 
     //--------------------------------------------------------------------------
     // 16-bit Adder
@@ -520,11 +536,17 @@ module mcl86_eu_core
     // page means a fresh macro-instruction is being dispatched right now. The
     // deferred STI below keys off this.
     assign eu_biu_req      = eu_biu_command[9];
-    // A real 8088 recognises INTR at instruction boundaries. Sampling the live
-    // pin throughout an instruction makes the result depend on the current
-    // microcode position and therefore on timing. HLT is a boundary too: its
-    // microsequencer does not return to the dispatch page while it waits.
-    assign intr_asserted   = BIU_INTR & intr_delay & intr_enable_delayed;
+    // INTR is only read by the microcode at its interrupt checks: the end of
+    // every instruction (0x0008), between iterations of a REP string
+    // instruction (the string loops branch back to 0x0006), and in the HLT
+    // wait loop (0x0207). Those are the points where a real 8088 recognises
+    // INTR, so the live request is used there.
+    //
+    // Do not latch it at instruction dispatch instead: the REP iteration
+    // check never passes through the dispatch page, so an interrupt raised
+    // during a long REP MOVSW/STOSW (a CGA scroll, for example) would then be
+    // held off until the whole string operation had finished.
+    assign intr_asserted   = BIU_INTR & intr_enable_delayed;
     assign new_instruction = (eu_rom_address[12:8] == 5'h01) |
                              (eu_biu_command[8:4]  == 5'h18);   // HLT wait
 
@@ -582,7 +604,6 @@ module mcl86_eu_core
             eu_rom_address      <= 13'h0020;  // Reset entry point in the microcode ROM
             eu_calling_address  <=   '0;
             intr_enable_delayed <=   '0;
-            intr_delay          <=   '0;
             idiv_opcode         <=   '0;
         end
         else begin
@@ -599,10 +620,6 @@ module mcl86_eu_core
                 if (new_instruction == 1'b1) begin
                     intr_enable_delayed <= eu_flag_i;
                 end
-            end
-
-            if (new_instruction == 1'b1) begin
-                intr_delay <= BIU_INTR;
             end
 
             // Latch the TF flag on its rising edge.

@@ -1679,8 +1679,6 @@ module emu
     always @(posedge clk_57_272)
         ce_pixel_cga_2x <= ~ce_pixel_cga_2x;
 
-    assign VGA_SL = {scale_video_ff==3, scale_video_ff==2};
-
     wire   scandoubler = video_scandoubler_en;
 
     reg [24:0] HBlank_del;
@@ -2223,7 +2221,14 @@ module emu
 
     // Retimes the HGC mixer output by exploiting the exact 2:1 relation between
     // clk_114_544 and the phase-shifted clk_video_out_ps.
-    always @(posedge clk_video_out_ps or posedge video_retime_reset_local)
+    //
+    // The *_ps stage captures on the falling edge of clk_video_out_ps. The
+    // *_src registers change every 17.46 ns on clk_57_272, so that edge (13.1 ns
+    // after launch) still takes the same value the rising edge 4.4 ns after
+    // launch did, and the rising-edge *_56 stage still loads it on the same
+    // edge as before. Only the timing window grows; the cycle alignment of
+    // every HGC signal, CE included, is unchanged.
+    always @(negedge clk_video_out_ps or posedge video_retime_reset_local)
     begin
         if (video_retime_reset_local)
         begin
@@ -2236,6 +2241,25 @@ module emu
             LHBL_hgc_ps <= 1'b1;
             credits_vb_hgc_ps <= 1'b1;
             CE_PIXEL_hgc_ps <= 1'b0;
+        end
+        else
+        begin
+            CE_PIXEL_hgc_ps <= CE_PIXEL_hgc_src;
+            VGA_R_hgc_ps <= VGA_R_hgc_src;
+            VGA_G_hgc_ps <= VGA_G_hgc_src;
+            VGA_B_hgc_ps <= VGA_B_hgc_src;
+            VGA_HS_hgc_ps <= VGA_HS_hgc_src;
+            VGA_VS_hgc_ps <= VGA_VS_hgc_src;
+            VGA_DE_hgc_ps <= VGA_DE_hgc_src;
+            LHBL_hgc_ps <= LHBL_hgc_src;
+            credits_vb_hgc_ps <= credits_vb_hgc_src;
+        end
+    end
+
+    always @(posedge clk_video_out_ps or posedge video_retime_reset_local)
+    begin
+        if (video_retime_reset_local)
+        begin
             VGA_R_hgc_56 <= 8'd0;
             VGA_G_hgc_56 <= 8'd0;
             VGA_B_hgc_56 <= 8'd0;
@@ -2260,16 +2284,6 @@ module emu
                 LHBL_hgc_56 <= LHBL_hgc_ps;
                 credits_vb_hgc_56 <= credits_vb_hgc_ps;
             end
-
-            CE_PIXEL_hgc_ps <= CE_PIXEL_hgc_src;
-            VGA_R_hgc_ps <= VGA_R_hgc_src;
-            VGA_G_hgc_ps <= VGA_G_hgc_src;
-            VGA_B_hgc_ps <= VGA_B_hgc_src;
-            VGA_HS_hgc_ps <= VGA_HS_hgc_src;
-            VGA_VS_hgc_ps <= VGA_VS_hgc_src;
-            VGA_DE_hgc_ps <= VGA_DE_hgc_src;
-            LHBL_hgc_ps <= LHBL_hgc_src;
-            credits_vb_hgc_ps <= credits_vb_hgc_src;
         end
     end
 
@@ -2279,6 +2293,8 @@ module emu
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg swap_video_out_ff = 1'b0;
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg border_video_out_meta = 1'b0;
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg border_video_out_ff = 1'b0;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] scale_video_out_meta = 2'b00;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] scale_video_out_ff = 2'b00;
 
     // Aspect ratio and adapter selection are static controls. Synchronize them
     // into the final video domain instead of timing them against PLL phase.
@@ -2290,9 +2306,15 @@ module emu
         swap_video_out_ff     <= swap_video_out_meta;
         border_video_out_meta <= border_video_ff;
         border_video_out_ff   <= border_video_out_meta;
+        scale_video_out_meta  <= scale_video_ff;
+        scale_video_out_ff    <= scale_video_out_meta;
         VIDEO_ARX             <= (!ar_video_out_ff) ? 13'd4 : {11'd0, ar_video_out_ff - 1'd1};
         VIDEO_ARY             <= (!ar_video_out_ff) ? 13'd3 : 13'd0;
     end
+
+    // The scanline selection drives the scanlines block, which runs on the
+    // final video clock, so take it from the synchronized copy.
+    assign VGA_SL = {scale_video_out_ff==3, scale_video_out_ff==2};
 
     assign VGA_R_AUX  =  swap_video_out_ff ? VGA_R_hgc_56   : VGA_R_cga_hdmi;
     assign VGA_G_AUX  =  swap_video_out_ff ? VGA_G_hgc_56   : VGA_G_cga_hdmi;

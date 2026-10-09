@@ -269,10 +269,16 @@ module RAM (
     end
 
     // Data
+    //
+    // Hold the byte together with the address once a write has left IDLE. A
+    // write is completed even after its MEMW pulse has ended (see the state
+    // machine), and by then the bus may already carry the next cycle - or,
+    // when the 8237 has taken the bus for a refresh, nothing at all - so
+    // sampling it during RAM_WRITE_1/RAM_WRITE_2 stored the wrong byte.
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             latch_data      <= 0;
-        else
+        else if (state == IDLE)
             latch_data      <= internal_data_bus;
     end
 
