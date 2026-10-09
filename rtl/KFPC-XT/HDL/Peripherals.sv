@@ -1364,6 +1364,28 @@ end
         .blue(B_CGA_native)
     );
 
+    // The decoded RGB leaves the decoder 5 clocks after the CRTC blanking
+    // edge (later with the composite filter or a Tandy 16-colour mode).  The
+    // scandoubler takes its line window from the samples it stores, so give
+    // it the horizontal enable at the RGB's own time.  These are the native
+    // path's taps in PCXT.sv minus 2: there the monochrome converter's extra
+    // colour register sits after the blanking tap, here after the doubler.
+    reg  [21:0] hblank_cga_raw_del = 22'h3FFFFF;
+    always_ff @(posedge clk_vga_cga)
+        hblank_cga_raw_del <= {hblank_cga_raw_del[20:0], hblank_cga_raw};
+
+    wire cga_sd_hblank_in = composite_cga  ? (hblank_cga_raw_del[20] | hblank_cga_raw_del[0]) :
+                            tandy_color_16 ? hblank_cga_raw_del[9] :
+                            tandy_16_gfx   ? hblank_cga_raw_del[7] :
+                                             hblank_cga_raw_del[4];
+
+    // The converter registers colour once more than blanking; one doubled
+    // pixel is one clock here.
+    reg hblank_cga_sd_r = 1'b1;
+    always_ff @(posedge clk_vga_cga)
+        hblank_cga_sd_r <= ~de_o_cga_sd;
+    assign hblank_cga_sd = hblank_cga_sd_r;
+
     // The decoder above runs at the native CGA rate.  Only the decoded RGB
     // stream is doubled for the digital output, preserving the original line
     // sample sequence and its carrier phase.
@@ -1379,7 +1401,7 @@ end
         .hsync_in(hsync_cga_raw),
         .vsync_in(vsync_cga_raw),
         .vblank_in(vblank_cga_raw),
-        .display_enable_in(de_o_cga_raw),
+        .display_enable_in(~cga_sd_hblank_in),
         .pixel_out(cga_rgb_sd),
         .hsync_out(hsync_cga_sd),
         .vsync_out(vsync_cga_sd),
