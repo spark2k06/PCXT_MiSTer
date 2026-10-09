@@ -326,9 +326,32 @@ reg [121:0] hsync_delay_line;
 wire [6:0] hsync_delay_index = hres_mode ?
                                (7'd60  - {crt_h_offset, 2'b00}) :
                                (7'd120 - {crt_h_offset, 3'b000});
+
+// The OSD CRT H offset starts HSYNC earlier.  When the display reaches close
+// to the sync position (Area 5150's 96-column screens: R1 = 96, R2 = 98) that
+// would start HSYNC on the last visible characters, where it blanks them and,
+// on HDMI, moves the VSYNC edge into the visible line.  A pulse whose early
+// start would fall while the display (or the pixels still in the pipeline) is
+// on comes out at its position without offset instead.  With no offset both
+// positions are the same.
+wire       h_disp   = sf_active ? s_hde : hde;
+reg  [7:0] h_disp_q = 8'd0;
+wire       h_busy   = h_disp | (|h_disp_q);
+wire       hs_offs  = hsync_delay_line[hsync_delay_index];
+wire       hs_dflt  = hsync_delay_line[hres_mode ? 7'd60 : 7'd120];
+reg        hs_offs_q = 1'b0, hs_dflt_q = 1'b0, hs_late = 1'b0;
+wire       hs_start = hs_offs & ~hs_offs_q;
+wire       hs_late_now = hs_start ? h_busy : hs_late;
+wire hsync_next = hs_late_now ? hs_dflt : hs_offs;
+
 always @(posedge CLOCK) begin
     hsync_delay_line <= {hsync_delay_line[120:0], hsync_effective};
-    HSYNC <= hsync_delay_line[hsync_delay_index];
+    HSYNC <= hsync_next;
+    h_disp_q  <= {h_disp_q[6:0], h_disp};
+    hs_offs_q <= hs_offs;
+    hs_dflt_q <= hs_dflt;
+    if (hs_start)                hs_late <= h_busy;
+    else if (hs_dflt_q & ~hs_dflt) hs_late <= 1'b0;
 end
 
 // vertical output
@@ -411,7 +434,6 @@ end
 
 reg [8:0] vsync_delay_line = 9'd0;
 wire      vsync_delayed = vsync_delay_line[3'd7 - crt_v_offset];
-wire hsync_next = hsync_delay_line[hsync_delay_index];
 always @(posedge CLOCK) begin
     if (~nRESET) begin
         vsync_delay_line <= 9'd0;
