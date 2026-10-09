@@ -1722,7 +1722,14 @@ module emu
         else if (tandy_16_gfx)
             HBlank_VGA = HBlank_del[9];
         else
-            HBlank_VGA = HBlank_del[5];
+            // RGBI reaches the converter 5 clocks after the CRTC blanking
+            // edge, and the converter registers colour once more than
+            // blanking (one 14 MHz pixel = 2 clocks).  [6] puts the blanking
+            // edge on that colour edge exactly.  [5] was half a pixel early,
+            // so with half of the power-up phases of ce_pixel_cga against
+            // the CGA clkdiv the window opened on one border pixel and
+            // dropped the last pixel of the line.
+            HBlank_VGA = HBlank_del[6];
     end
 
     always @(posedge clk_28_636)
