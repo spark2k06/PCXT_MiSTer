@@ -299,7 +299,8 @@ module PERIPHERALS #(
     generate
         if (`ENABLE_CGA) begin : CGA_MEMORY_WAIT
             CGA_BUS_WAIT u_CGA_BUS_WAIT (
-                .clock              (clk_vga_cga),
+                .clock              (clock),
+                .video_clock        (clk_vga_cga),
                 .reset              (reset),
                 .sequencer_phase    (clkdiv),
                 .memory_select      (cga_mem_select),
