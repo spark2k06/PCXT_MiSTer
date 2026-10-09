@@ -275,7 +275,6 @@ module mcl86_eu_core
     reg  [15:0] eu_biu_command;         // Command word presented to the BIU
     reg  [15:0] eu_biu_dataout;         // Write data / EA decode source presented to the BIU
     reg         intr_enable_delayed;    // IF, delayed one instruction (STI semantics)
-    reg         intr_delay;             // BIU_INTR sampled at the last instruction boundary
     wire        intr_asserted;          // INTR that is actually allowed through right now
     reg         eu_flag_t_d;            // TF delayed, for rising-edge detect
     reg         eu_tr_latched;          // Single-step trap armed for this instruction
@@ -520,11 +519,17 @@ module mcl86_eu_core
     // page means a fresh macro-instruction is being dispatched right now. The
     // deferred STI below keys off this.
     assign eu_biu_req      = eu_biu_command[9];
-    // A real 8088 recognises INTR at instruction boundaries. Sampling the live
-    // pin throughout an instruction makes the result depend on the current
-    // microcode position and therefore on timing. HLT is a boundary too: its
-    // microsequencer does not return to the dispatch page while it waits.
-    assign intr_asserted   = BIU_INTR & intr_delay & intr_enable_delayed;
+    // INTR is only read by the microcode at its interrupt checks: the end of
+    // every instruction (0x0008), between iterations of a REP string
+    // instruction (the string loops branch back to 0x0006), and in the HLT
+    // wait loop (0x0207). Those are the points where a real 8088 recognises
+    // INTR, so the live request is used there.
+    //
+    // Do not latch it at instruction dispatch instead: the REP iteration
+    // check never passes through the dispatch page, so an interrupt raised
+    // during a long REP MOVSW/STOSW (a CGA scroll, for example) would then be
+    // held off until the whole string operation had finished.
+    assign intr_asserted   = BIU_INTR & intr_enable_delayed;
     assign new_instruction = (eu_rom_address[12:8] == 5'h01) |
                              (eu_biu_command[8:4]  == 5'h18);   // HLT wait
 
@@ -582,7 +587,6 @@ module mcl86_eu_core
             eu_rom_address      <= 13'h0020;  // Reset entry point in the microcode ROM
             eu_calling_address  <=   '0;
             intr_enable_delayed <=   '0;
-            intr_delay          <=   '0;
             idiv_opcode         <=   '0;
         end
         else begin
@@ -599,10 +603,6 @@ module mcl86_eu_core
                 if (new_instruction == 1'b1) begin
                     intr_enable_delayed <= eu_flag_i;
                 end
-            end
-
-            if (new_instruction == 1'b1) begin
-                intr_delay <= BIU_INTR;
             end
 
             // Latch the TF flag on its rising edge.
