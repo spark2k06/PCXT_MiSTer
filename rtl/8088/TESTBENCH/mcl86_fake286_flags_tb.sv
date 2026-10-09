@@ -43,6 +43,7 @@ module mcl86_fake286_flags_tb;
         // this stays a precise unit test, independent of instruction fetch.
         force dut.eu_flags = 16'hFABC;
         force dut.eu_rom_data = 32'h5F8FF002;
+        force dut.eu_rom_sel  = 8'h8F;          // operand select copy, eu_rom_data[23:16]
         #1 check("native profile preserves 8086 reserved bits", 16'hFABE);
 
         fake286_flags = 1'b1;

@@ -66,7 +66,8 @@ module mcl86_ucode
         input  wire         clk,   // Core clock; read is registered on the rising edge
         // ROM Read Port
         input  wire  [11:0] addr,  // Microcode address (word address, 0..4095)
-        output logic [31:0] dout   // Microword, valid one clock after addr
+        output logic [31:0] dout,      // Microword, valid one clock after addr
+        output logic  [7:0] dout_sel   // Copy of the operand selects, dout[23:16]
     );
 
     //--------------------------------------------------------------------------
@@ -87,6 +88,24 @@ module mcl86_ucode
     // Registered read - the EU's 2-word sequencer lead depends on this latency.
     always_ff @(posedge clk) begin : read_mem
         dout <= mem[addr];
+    end
+
+    //--------------------------------------------------------------------------
+    // Operand Select Copy
+    //--------------------------------------------------------------------------
+    // The operand select fields drive both 16-bit operand multiplexer trees,
+    // more than ninety loads per bit, at the start of the core clock's
+    // critical path. A second, narrow copy of the ROM serves only those trees
+    // so the main ROM outputs keep a small fanout. Same contents, address and
+    // registered read, so dout_sel always equals dout[23:16].
+    logic [31:0] mem_sel[0:4095];
+
+    initial begin
+        $readmemh("mcl86_ucode.mem", mem_sel);
+    end
+
+    always_ff @(posedge clk) begin : read_mem_sel
+        dout_sel <= mem_sel[addr][23:16];
     end
 
 endmodule
