@@ -36,6 +36,7 @@ module KF8253_Counter (
     logic           select_bcd;
 
     logic           write_count_step;
+    logic   [7:0]   count_preset_lsb;
     logic   [15:0]  count_preset;
     logic   [16:0]  count_preset_load;
 
@@ -135,14 +136,30 @@ module KF8253_Counter (
     //
     // Write count value (preset)
     //
+    // With LSB/MSB access the LSB waits in count_preset_lsb and the preset
+    // only changes when the MSB completes the count, as on the 8253: a
+    // counter that reloads between the two writes (modes 2 and 3) must reload
+    // the old count, not a mix of the new LSB and the old MSB.
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset)
+            count_preset_lsb <= 8'h00;
+        else if ((write_counter) && (write_count_step == 1'b1))
+            count_preset_lsb <= internal_data_bus;
+        else
+            count_preset_lsb <= count_preset_lsb;
+    end
+
     always_ff @(posedge clock, posedge reset) begin
         if (reset)
             count_preset[15:0] <= 16'h0000;
         else if (write_counter)
             if (write_count_step == 1'b0)
-                count_preset[15:0] <= {internal_data_bus,  count_preset[7:0]};
-            else
+                count_preset[15:0] <= {internal_data_bus,
+                                       (select_read_write == `RL_SELECT_LSB_MSB) ? count_preset_lsb : count_preset[7:0]};
+            else if (select_read_write != `RL_SELECT_LSB_MSB)
                 count_preset[15:0] <= {count_preset[15:8], internal_data_bus};
+            else
+                count_preset[15:0] <= count_preset[15:0];
         else
             count_preset[15:0] <= count_preset[15:0];
     end
