@@ -100,7 +100,8 @@ set_false_path -to [get_registers  {emu:emu|scale_video_meta[*] \
                                     emu:emu|screen_mode_cga_meta[*] \
                                     emu:emu|ar_video_out_meta[*] \
                                     emu:emu|swap_video_out_meta \
-                                    emu:emu|border_video_out_meta}]
+                                    emu:emu|border_video_out_meta \
+                                    emu:emu|scale_video_out_meta[*]}]
 
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_io_address[*]}] \
               -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|cga_io_address_1[*]}] $VIDEO_TO_SYSYEM_DELAY
