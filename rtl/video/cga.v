@@ -66,7 +66,8 @@ module cga(
     input[3:0] crt_h_offset,
     input[2:0] crt_v_offset,
     input[2:0] vsync_width_osd,
-    input[2:0] hsync_width_osd
+    input[2:0] hsync_width_osd,
+    input frame_stack_rebuild
 );
 
     // Keep the carrier/CRTC relationship independent of the boot-time clock
@@ -79,6 +80,11 @@ module cga(
             video_reset_sync <= {video_reset_sync[0], 1'b0};
     end
     wire video_reset_local = video_reset_sync[1];
+
+    // OSD bit from the chipset clock domain.
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] frame_stack_sync = 2'b00;
+    always @(posedge clk)
+        frame_stack_sync <= {frame_stack_sync[0], frame_stack_rebuild};
 
     parameter MDA_70HZ = 0;
     parameter BLINK_MAX = 0;
@@ -308,7 +314,8 @@ module cga(
 		  .crt_v_offset(crt_v_offset),
 		  .vsync_width_osd(vsync_width_osd),
 		  .hsync_width_osd(hsync_width_osd),
-		  .hres_mode(hres_mode)
+		  .hres_mode(hres_mode),
+		  .frame_stack_rebuild(frame_stack_sync[1])
 		 );
 
     // CGA 80 column timings

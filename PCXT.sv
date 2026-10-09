@@ -93,6 +93,7 @@ module emu
     // 01234567890123456789012345678901 23456789012345678901234567890123
     // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
     // XXXXX XXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXX
+    // status[64]: CRTC Frame Stacking (Native / Rebuilt)
 
 	`include "build_id.v"
 
@@ -160,6 +161,7 @@ module emu
 		"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 		"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 		"P2OT,Border,No,Yes;",
+		"P2O[64],CRTC Frame Stacking,Native,Rebuilt;",
 		"P2o8,Composite video,Off,On;",
 		"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
 		CONF_STR_CRT,
@@ -183,7 +185,7 @@ module emu
 
     wire forced_scandoubler;
     wire [1:0] buttons;
-    wire [63:0] status;
+    wire [127:0] status;
     // Status bit 63 is the pending CPU selection. The value presented to the
     // BIU is latched only during reset; changing the menu alone cannot change
     // queue depth or bus width while an instruction is in flight.
@@ -1194,7 +1196,8 @@ module emu
 		.crt_h_offset                       (status[49:46]),
 		.crt_v_offset                       (status[52:50]),
 		.vsync_width_osd                    (vsync_width_osd),
-		.hsync_width_osd                    (hsync_width_osd)
+		.hsync_width_osd                    (hsync_width_osd),
+		.cga_frame_stack_rebuild            (status[64])
 	);
 
     wire [15:0] SDRAM_DQ_IN;

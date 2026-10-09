@@ -133,7 +133,8 @@ module cga_crtc_composite_tb #(
         .crt_v_offset(3'd0),
         .vsync_width_osd(3'd0),
         .hsync_width_osd(3'd0),
-        .hres_mode(hres_mode)
+        .hres_mode(hres_mode),
+        .frame_stack_rebuild(1'b0)
     );
 
     cga_pixel pixel (
