@@ -231,8 +231,12 @@ always @(posedge CLOCK) begin
 	end
 end
 
-wire CRTC1_reload =  CRTC_TYPE & (frame_new | (~line_last & !row & !hcc_next)); //CRTC1 reloads addr on every line of 1st row
-wire CRTC0_reload = ~CRTC_TYPE & frame_new;
+// The start address (R12/R13) is taken only when a frame begins, on both
+// types. A real type 1 reloads it on every line of the first row, but the
+// IBM CGA's MC6845 does not: a program that writes R12/R13 once the first
+// row has started (Area 5150's ISOTEXT scrolls that way) sees the new
+// address only from the next frame.
+wire start_reload  = frame_new;
 wire row_addr_save = hcc == R1_h_displayed && (CRTC_TYPE ? line_last : line_last_r);
 
 // address
@@ -245,11 +249,8 @@ always @(posedge CLOCK) begin
 		if(hcc_last & !row_addr_save) row_addr_r <= row_addr; // restore the pointer, take care of simultaneous saving and restoring
 		if(!hcc_last)                 row_addr_r <= row_addr_r + 1'd1;
 
-		if(CRTC0_reload) begin
+		if(start_reload) begin
 			row_addr <= {R12_start_addr_h, R13_start_addr_l};
-			row_addr_r <= {R12_start_addr_h, R13_start_addr_l};
-		end
-		if(CRTC1_reload) begin
 			row_addr_r <= {R12_start_addr_h, R13_start_addr_l};
 		end
 	end
