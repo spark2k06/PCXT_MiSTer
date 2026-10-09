@@ -254,7 +254,15 @@ end
 reg        hde;
 reg  [3:0] hsc;
 
-wire hsync_on = hcc == (R2_h_sync_pos - (hres_mode ? 3 : 4)) && R3_h_sync_width != 0;
+// HSYNC starts a few characters early because the output delay line below
+// moves it back.  The plain subtraction wrapped when R2 was smaller than that
+// lead, so HSYNC never started (Area 5150's Lake effect puts R2=2 in a
+// 26-character row).  An earlier start would have to happen in the previous
+// row, before this row's R2 is known, so start at R2 itself: late by the
+// lead, but present.
+wire [7:0] hsync_lead  = hres_mode ? 8'd3 : 8'd4;
+wire [7:0] hsync_start = (R2_h_sync_pos >= hsync_lead) ? R2_h_sync_pos - hsync_lead : R2_h_sync_pos;
+wire hsync_on = hcc == hsync_start && R3_h_sync_width != 0;
 wire hsync_off = (hsc == R3_h_sync_width) || (CRTC_TYPE && R3_h_sync_width == 0);
 
 reg hsync_raw;
