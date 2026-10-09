@@ -332,8 +332,20 @@ always @(posedge CLOCK) begin
 end
 
 // vertical output
+//
+// VSYNC is normally started one row early and then delayed by up to eight
+// lines (vsync_delay_line), so that the OSD "CRT V offset" can also move it
+// up.  When R7 is in the first row(s) of a frame, the row before it belongs
+// to the previous frame: a program that restarts frames (Area 5150 sets
+// R4 = 8, R7 = 1 just after a frame starts) then gets VSYNC a whole frame
+// late, in the middle of its picture.  There, start VSYNC on row R7 itself
+// and send it out without the delay; the V offset does not apply to it.
 reg vde, vde_r;
 reg VSYNC_r;
+reg vs_direct = 1'b0;
+wire [6:0] vsync_lead  = hres_mode ? 7'd1 : 7'd2;
+wire       vsync_early = R7_v_sync_pos > vsync_lead;
+wire [6:0] vsync_row   = vsync_early ? R7_v_sync_pos - vsync_lead : R7_v_sync_pos;
 always @(posedge CLOCK) begin
 	reg  [3:0] vsc;
 	reg        vsync_allow;
@@ -343,6 +355,7 @@ always @(posedge CLOCK) begin
 		vde    <= 0;
 		vde_r  <= 0;
 		VSYNC_r<= 0;
+		vs_direct <= 0;
 		vsync_allow <= 1;
 	end
 	else if (CLKEN) begin
@@ -358,8 +371,9 @@ always @(posedge CLOCK) begin
 		end
 		if(field ? (hcc_next == {1'b0, R0_h_total[7:1]}) : line_new) begin
 			if(vsc) vsc <= vsc - 1'd1;
-			else if (vsync_allow & (field ? ((row == R7_v_sync_pos - (hres_mode ? 1 : 2)) && !line) : ((row_next == R7_v_sync_pos - (hres_mode ? 1 : 2)) && line_last))) begin
+			else if (vsync_allow & (field ? ((row == vsync_row) && !line) : ((row_next == vsync_row) && line_last))) begin
 				VSYNC_r <= 1;
+				vs_direct <= ~vsync_early;
 				// Don't allow a new vsync until a new row (Onescreen Colonies) or the R7 is written (PHX)
 				vsync_allow <= 0;
 				vsc <= eff_v_sync_width - 1'd1;
@@ -379,6 +393,7 @@ always @(posedge CLOCK) begin
 		if (row == DI[6:0] && !VSYNC_r) begin
 			// TODO: extra conditions for CRTC0
 			VSYNC_r <= 1;
+			vs_direct <= 1'b0;
 			vsc <= eff_v_sync_width - 1'd1;
 		end
 	end
@@ -395,6 +410,7 @@ always @(posedge CLOCK) begin
 end
 
 reg [8:0] vsync_delay_line = 9'd0;
+wire      vsync_delayed = vsync_delay_line[3'd7 - crt_v_offset];
 wire hsync_next = hsync_delay_line[hsync_delay_index];
 always @(posedge CLOCK) begin
     if (~nRESET) begin
@@ -404,18 +420,8 @@ always @(posedge CLOCK) begin
     else if (~HSYNC && hsync_next) begin
         // Shift on the same CLOCK edge that raises the delayed HSYNC output.
         // Sample the same VSYNC value that belongs to this delayed line edge.
-        vsync_delay_line <= {vsync_delay_line[7:0], sf_active ? s_vsync : VSYNC_r};
-        case (crt_v_offset)
-            3'd0: VSYNC <= vsync_delay_line[7];
-            3'd1: VSYNC <= vsync_delay_line[6];
-            3'd2: VSYNC <= vsync_delay_line[5];
-            3'd3: VSYNC <= vsync_delay_line[4];
-            3'd4: VSYNC <= vsync_delay_line[3];
-            3'd5: VSYNC <= vsync_delay_line[2];
-            3'd6: VSYNC <= vsync_delay_line[1];
-            3'd7: VSYNC <= vsync_delay_line[0];
-            default: VSYNC <= vsync_delay_line[7];
-        endcase
+        vsync_delay_line <= {vsync_delay_line[7:0], sf_active ? s_vsync : (VSYNC_r & ~vs_direct)};
+        VSYNC <= vsync_delayed | (~sf_active & vs_direct & VSYNC_r);
     end
 end
 
