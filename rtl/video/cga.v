@@ -194,8 +194,48 @@ module cga(
 
     // Some modules need a non-inverted vsync trigger.
     // In scandoubled mode use VSYNC synthesized by the scandoubler.
+    // Vertical picture window. A CRTC line with display off inside the picture
+    // is part of the picture: a demo that ends the frame early to split the
+    // screen (TETRA3D) shows the border colour there on a real CGA, not black.
+    // The window is the first and last displayed line of the previous frame,
+    // counted from VSYNC, so only the overscan outside the picture is blanked.
+    reg        hblank_q = 1'b1, hsync_q = 1'b0, vsync_q = 1'b1;
+    reg [9:0]  line_no = 10'd0;
+    reg        disp_any = 1'b0;
+    reg [9:0]  disp_first = 10'h3FF, disp_last = 10'h000;
+    reg [9:0]  win_first = 10'h3FF, win_last = 10'h000;
+    wire       frame_start = vsync_l & ~vsync_q;          // VSYNC has ended
+    wire       line_start  = ~hblank_crtc & hblank_q;     // first character of a line
+    wire       line_sync   = hsync_int & ~hsync_q;        // HSYNC of this line
+    // The line index moves one clock after the blanking edge; use the index of
+    // the line that is starting so its first pixel is judged in the same line.
+    wire [9:0] line_now    = line_start ? line_no + 10'd1 : line_no;
+    wire       in_window   = (line_now >= win_first) && (line_now <= win_last);
+    wire       vblank_win  = vblank_crtc & (~in_window | vsync_l);
+
+    always @(posedge clk) begin
+        vsync_q  <= vsync_l;
+        hblank_q <= hblank_crtc;
+        hsync_q  <= hsync_int;
+        if (frame_start) begin
+            win_first  <= disp_any ? disp_first : 10'h3FF;
+            win_last   <= disp_last;
+            disp_any   <= 1'b0;
+            disp_first <= 10'h3FF;
+            disp_last  <= 10'h000;
+            line_no    <= 10'd0;
+        end else begin
+            if (line_start) line_no <= line_no + 10'd1;
+            if (line_sync && !vblank_crtc) begin
+                disp_any <= 1'b1;
+                if (line_no < disp_first) disp_first <= line_no;
+                if (line_no > disp_last)  disp_last  <= line_no;
+            end
+        end
+    end
+
     assign vsync = scandouble_en ? ~vsync_sd_l : ~vsync_l;
-    assign vblank = scandouble_en ? vblank_sd : vblank_crtc;
+    assign vblank = scandouble_en ? vblank_sd : vblank_win;
 
     // Mapped IO
     assign crtc_cs = (bus_a[14:3] == IO_BASE_ADDR[14:3]) & ~bus_aen & cga_hw; // 3D4/3D5
@@ -438,7 +478,7 @@ module cga(
         .pixel_in(video),
         .hsync_in(hsync_int),
         .vsync_in(vsync_l),
-        .vblank_in(vblank_crtc),
+        .vblank_in(vblank_win),
         .display_enable_in(display_enable),
         .pixel_out(dbl_video),
         .hsync_out(dbl_hsync),
