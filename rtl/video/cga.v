@@ -42,6 +42,9 @@ module cga(
     output vsync,
     output vblank,
     output vblank_border,
+    output raw_vblank,
+    output hsync_ref,               // syncs at MC6845 positions, for the border window
+    output vsync_ref,
     output std_hsyncwidth,
     output de_o,
     output raw_de_o,
@@ -173,6 +176,7 @@ module cga(
     // Keep the unmodified CRTC timing available to consumers that must
     // decode the native 14.318 MHz CGA stream before scan doubling.
     assign raw_hblank = hblank_crtc;
+    assign raw_vblank = vblank_crtc;
     assign raw_de_o = display_enable;
     
     assign ram_a = {4'h0, pixel_addr14, pixel_addr13, crtc_addr[11:0],
@@ -341,6 +345,8 @@ module cga(
 		  
 		  .VSYNC(vsync_l),
 		  .HSYNC(hsync_int),
+		  .HSYNC_REF(hsync_ref),
+		  .VSYNC_REF(vsync_ref),
 		  .DE(display_enable),
 		  // .FIELD(),
 		  .CURSOR(cursor),

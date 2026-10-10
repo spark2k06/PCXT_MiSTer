@@ -44,6 +44,8 @@ module CHIPSET #(
         output  logic           VGA_HBlank,
         output  logic           VGA_VBlank,
         output  logic           VGA_VBlank_border,
+        output  logic           VGA_HSYNC_REF,
+        output  logic           VGA_VSYNC_REF,
         // I/O Ports
         output  logic   [19:0]  address,
         input   logic   [19:0]  address_ext,
@@ -347,6 +349,8 @@ module CHIPSET #(
         .VGA_HBlank                         (VGA_HBlank),
         .VGA_VBlank                         (VGA_VBlank),
         .VGA_VBlank_border                  (VGA_VBlank_border),
+        .VGA_HSYNC_REF                      (VGA_HSYNC_REF),
+        .VGA_VSYNC_REF                      (VGA_VSYNC_REF),
         .cga_memory_ready                   (cga_memory_ready),
         .cga_memory_write_wait              (cga_memory_write_wait),
         .address                            (address),

@@ -38,6 +38,11 @@ module UM6845R
 	
 	output reg       VSYNC,
 	output reg       HSYNC,
+	// HSYNC and VSYNC where an MC6845 starts them (character R2, first line of
+	// row R7), without the lead and delay of the outputs above and without the
+	// OSD offsets. The CGA border window locks to them.
+	output reg       HSYNC_REF = 1'b0,
+	output           VSYNC_REF,
 	output           DE,
 	output           FIELD,
 	output           CURSOR,
@@ -323,7 +328,7 @@ end
 // Use reshaped HSYNC only in low-res (40-col) mode when OSD override is active.
 wire hsync_effective = (|hsync_width_osd & ~hres_mode) ? hsync_shaped : hsync_src;
 
-reg [121:0] hsync_delay_line;
+reg [128:0] hsync_delay_line;
 wire [6:0] hsync_delay_index = hres_mode ?
                                (7'd60  - {crt_h_offset, 2'b00}) :
                                (7'd120 - {crt_h_offset, 3'b000});
@@ -346,8 +351,10 @@ wire       hs_late_now = hs_start ? h_busy : hs_late;
 wire hsync_next = hs_late_now ? hs_dflt : hs_offs;
 
 always @(posedge CLOCK) begin
-    hsync_delay_line <= {hsync_delay_line[120:0], hsync_effective};
+    hsync_delay_line <= {hsync_delay_line[127:0], hsync_effective};
     HSYNC <= hsync_next;
+    // the lead of hsync_start, 3 or 4 characters of 16 or 32 clocks
+    HSYNC_REF <= hsync_delay_line[hres_mode ? 8'd48 : 8'd128];
     h_disp_q  <= {h_disp_q[6:0], h_disp};
     hs_offs_q <= hs_offs;
     hs_dflt_q <= hs_dflt;
@@ -367,6 +374,7 @@ end
 reg vde, vde_r;
 reg VSYNC_r;
 reg vs_direct = 1'b0;
+reg vs_lead = 1'b0;     // VSYNC_r started vsync_lead rows before row R7
 wire [6:0] vsync_lead  = hres_mode ? 7'd1 : 7'd2;
 wire       vsync_early = R7_v_sync_pos > vsync_lead;
 wire [6:0] vsync_row   = vsync_early ? R7_v_sync_pos - vsync_lead : R7_v_sync_pos;
@@ -398,6 +406,7 @@ always @(posedge CLOCK) begin
 			else if (vsync_allow & (field ? ((row == vsync_row) && !line) : ((row_next == vsync_row) && line_last))) begin
 				VSYNC_r <= 1;
 				vs_direct <= ~vsync_early;
+				vs_lead <= vsync_early;
 				// Don't allow a new vsync until a new row (Onescreen Colonies) or the R7 is written (PHX)
 				vsync_allow <= 0;
 				vsc <= eff_v_sync_width - 1'd1;
@@ -418,6 +427,7 @@ always @(posedge CLOCK) begin
 			// TODO: extra conditions for CRTC0
 			VSYNC_r <= 1;
 			vs_direct <= 1'b0;
+			vs_lead <= 1'b0;
 			vsc <= eff_v_sync_width - 1'd1;
 		end
 	end
@@ -447,6 +457,30 @@ always @(posedge CLOCK) begin
         VSYNC <= vsync_delayed | (~sf_active & vs_direct & VSYNC_r);
     end
 end
+
+// VSYNC_REF: one line long at the first line of row R7. A VSYNC_r started
+// vsync_lead rows early waits that many rows of R9 + 1 lines.
+reg [6:0] vref_cnt = 7'd0;
+reg       vref = 1'b0;
+reg       vsync_r_q = 1'b0;
+wire [5:0] row_lines  = {1'b0, R9_v_max_line} + 6'd1;
+wire [6:0] vref_lines = hres_mode ? {1'b0, row_lines} : {row_lines, 1'b0};
+always @(posedge CLOCK) begin
+    vsync_r_q <= VSYNC_r;
+    if (~nRESET) begin
+        vref_cnt <= 7'd0;
+        vref     <= 1'b0;
+    end
+    else if (VSYNC_r & ~vsync_r_q) begin
+        if (vs_lead) vref_cnt <= vref_lines;
+        else         vref     <= 1'b1;
+    end
+    else if (CLKEN & line_new) begin
+        vref <= (vref_cnt == 7'd1);
+        if (vref_cnt != 7'd0) vref_cnt <= vref_cnt - 7'd1;
+    end
+end
+assign VSYNC_REF = sf_active ? VSYNC : vref;
 
 wire [3:0] de = {1'b0, dde[1:0], hde & vde & vde_r};
 reg  [1:0] dde;

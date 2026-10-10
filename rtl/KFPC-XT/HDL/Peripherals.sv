@@ -70,6 +70,8 @@ module PERIPHERALS #(
         output  logic           VGA_HBlank,
         output  logic           VGA_VBlank,
         output  logic           VGA_VBlank_border,
+        output  logic           VGA_HSYNC_REF,
+        output  logic           VGA_VSYNC_REF,
         output  logic           cga_memory_ready,
         output  logic           cga_memory_write_wait,
         // I/O Ports
@@ -1176,6 +1178,7 @@ end
     wire       vsync_cga_raw;
     wire       vblank_cga_raw;
     wire       hblank_cga_raw;
+    wire       vblank_cga_crtc;
     wire       de_o_cga_raw;
     wire       hsync_cga_sd;
     wire       vsync_cga_sd;
@@ -1307,6 +1310,7 @@ end
     logic [7:0] CGA_CRTC_DOUT_1;
     logic [7:0] CGA_CRTC_DOUT_2;
     wire        VGA_VBlank_border_raw;
+    wire        hsync_ref_cga, vsync_ref_cga;
     wire        std_hsyncwidth_raw;
     wire        tandy_color_16_raw;
     wire        std_hsyncwidth_hgc;
@@ -1336,7 +1340,20 @@ end
     wire cga_video_grph_mode = splashscreen ? 1'b1 : grph_mode;
     wire [3:0] cga_video_border_color = splashscreen ? 4'h0 : composite_border_color;
 
+    // The CGA outputs the border colour on every line outside the picture, as it
+    // does during horizontal blanking. The pixel stream carries no defined data
+    // there, so give the converter the border colour rather than whatever the
+    // stream holds (it showed as stray coloured lines when the overscan is visible).
+    // The stream is black during HSYNC; the border window starts inside the
+    // 160-pixel HSYNC of the 40-column modes, so that is border colour too (the
+    // composite decoder keeps the real signal). Outside the window it is never
+    // shown: the scaler and the analogue output blank it.
+    wire [3:0] video_cga_port = (vblank_cga_crtc | (hsync_cga_raw & ~composite_cga)) ?
+                                cga_video_border_color : video_cga_raw;
+
     assign VGA_VBlank_border = `ENABLE_CGA ? VGA_VBlank_border_raw : (`ENABLE_HGC ? vblank_border_hgc : 1'b0);
+    assign VGA_HSYNC_REF = `ENABLE_CGA ? hsync_ref_cga : 1'b0;
+    assign VGA_VSYNC_REF = `ENABLE_CGA ? vsync_ref_cga : 1'b0;
     assign std_hsyncwidth = `ENABLE_CGA ? std_hsyncwidth_raw : (`ENABLE_HGC ? std_hsyncwidth_hgc : 1'b0);
     assign tandy_color_16 = `ENABLE_CGA ? tandy_color_16_raw : 1'b0;
 
@@ -1349,7 +1366,7 @@ end
         // Composite decoding must see the native CGA dot stream.  The
         // scan-doubled RGBI stream has a different time base and loses the
         // phase relationship used by 8088 MPH colour effects.
-        .video(video_cga_raw),
+        .video(video_cga_port),
         .hblank(hblank_cga_raw),
         .composite(composite_cga),
         .bw_mode(cga_video_bw_mode),
@@ -1430,9 +1447,12 @@ end
         .dbl_hsync                  (hsync_cga_rgbi_sd),
         .hblank                     (),
         .raw_hblank                 (hblank_cga_raw),
+        .raw_vblank                 (vblank_cga_crtc),
         .vsync                      (vsync_cga_raw),
         .vblank                     (vblank_cga_raw),
         .vblank_border              (VGA_VBlank_border_raw),
+        .hsync_ref                  (hsync_ref_cga),
+        .vsync_ref                  (vsync_ref_cga),
         .std_hsyncwidth             (std_hsyncwidth_raw),
         .de_o                       (),
         .raw_de_o                   (de_o_cga_raw),

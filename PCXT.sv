@@ -262,6 +262,7 @@ module emu
                                    2'b00, status[5]};
 
     wire VGA_VBlank_border;
+    wire VGA_HSYNC_REF, VGA_VSYNC_REF;
     wire std_hsyncwidth;
     wire pause_core;
     wire swap_video;
@@ -1080,6 +1081,8 @@ module emu
 		.VGA_HBlank                         (HBlank),
 		.VGA_VBlank                         (VBlank),
 		.VGA_VBlank_border                  (VGA_VBlank_border),
+		.VGA_HSYNC_REF                      (VGA_HSYNC_REF),
+		.VGA_VSYNC_REF                      (VGA_VSYNC_REF),
 	//	.address                            (address),
 		.address_ext                        (bios_access_address),
 		.ext_access_request                 (bios_access_request),
@@ -1692,11 +1695,8 @@ module emu
     
 	 wire HBlank_VGA;
 
-    reg [10:0] HBlank_counter = 0;
     reg [10:0] HBlank_counter_hgc = 0;
-    reg HBlank_fixed = 1'b1;
     reg HBlank_fixed_hgc = 1'b1;
-    reg [1:0] HSync_del = 2'b11;
     reg [1:0] HSync_del_hgc = 2'b11;
     localparam integer MDA_VSYNC_DELAY = 19;
     reg [MDA_VSYNC_DELAY:0] VSync_line;
@@ -1732,27 +1732,21 @@ module emu
             HBlank_VGA = HBlank_del[6];
     end
 
-    always @(posedge clk_28_636)
-    begin
-        // This enable is the same edge that previously clocked the block via
-        // ce_pixel_cga, without promoting a data signal to a clock network.
-        if (clk_14_318) begin
-            HSync_del <= {HSync_del[0], HSync};
-
-            if (HSync_del == 2'b01)
-            begin
-                HBlank_counter <= 0;
-                HBlank_fixed <= 1'b1;
-            end
-            else
-            begin
-                if (HBlank_counter == (std_hsyncwidth ? 120 : 143))
-                    HBlank_fixed <= 1'b0;
-                else
-                    HBlank_counter <= HBlank_counter + 1;
-            end
-        end
-    end
+    // With Border the CGA output is a fixed raster placed after the sync pulses,
+    // as a monitor shows it, whatever timing the CRTC is given: the scaler gets
+    // frames of the same size, with the picture where the timing puts it.
+    wire HBlank_win, VBlank_win, HSync_win, VSync_win;
+    cga_border_window cga_border_win
+    (
+        .clk       (clk_28_636),
+        .ce        (clk_14_318),
+        .hsync     (VGA_HSYNC_REF),
+        .vsync     (VGA_VSYNC_REF),
+        .hblank    (HBlank_win),
+        .vblank    (VBlank_win),
+        .hsync_out (HSync_win),
+        .vsync_out (VSync_win)
+    );
 
     always @(posedge clk_57_272)
     begin
@@ -1781,10 +1775,13 @@ module emu
         video_credits_show      <= video_credits_show_buf;
     end
 
+    wire cga_border_win_en = border_video_ff & ~swap_video_eff & ~cga_scandouble_en;
     wire LHBL = cga_scandouble_en ? HBlank :
-                ((border_video_ff) ? (swap_video_eff ? HBlank_fixed_hgc : HBlank_fixed) : HBlank_VGA);
+                (border_video_ff ? (swap_video_eff ? HBlank_fixed_hgc : HBlank_win) : HBlank_VGA);
     wire LVBL = cga_scandouble_en ? VBlank :
-                ((border_video_ff) ? (std_hsyncwidth ? VGA_VBlank_border : VBlank) : VBlank);
+                (border_video_ff ? (swap_video_eff ? VGA_VBlank_border : VBlank_win) : VBlank);
+    wire LHS  = cga_border_win_en ? HSync_win : HSync;
+    wire LVS  = cga_border_win_en ? VSync_win : VSync;
     wire VSync_hgc = VSync_line[MDA_VSYNC_DELAY];
 
     wire haux_cga, vaux_cga, hbaux_cga, vbaux_cga;
@@ -1799,8 +1796,8 @@ module emu
 		.G({g, 2'b00}),
 		.B({b, 2'b00}),
 
-		.HSync(HSync),
-		.VSync(VSync),
+		.HSync(LHS),
+		.VSync(LVS),
 		.HBlank(LHBL),
 		.VBlank(LVBL),
 
@@ -2340,7 +2337,8 @@ module emu
     jtframe_credits #(
         .PAGES  (4),
         .COLW   (8),
-        .BLKPOL (1)
+        .BLKPOL (1),
+        .BORDER_X (64)      // left margin of the CGA border window
     ) u_credits(
         .rst        ( video_retime_reset_local ),
         .clk        ( clk_video_out_ps ),

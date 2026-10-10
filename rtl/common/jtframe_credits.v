@@ -26,7 +26,8 @@ module jtframe_credits #(
     parameter [11:0] PAL2   = { 4'h3, 4'h3, 4'hf },  // Blue
     parameter [11:0] PAL3   = { 4'hf, 4'hf, 4'hf },  // White
     parameter        BLKPOL = 1'b1, // Blanking polarity
-    parameter        SPEED  = 2     // scroll speed
+    parameter        SPEED  = 2,    // scroll speed
+    parameter        BORDER_X = 73  // horizontal offset added with border on
 ) (
     input               rst,
     input               clk,
@@ -68,7 +69,7 @@ localparam [VPOSW-1:0] MAXVISIBLE  = _MAXVISIBLE[VPOSW-1:0];
 
 localparam [HPOSW-1:0] HSTART = 0, HEND = 514;
 
-wire [HPOSW-1:0]  hoffset = 64 + (border ? 73 : 0);
+wire [HPOSW-1:0]  hoffset = 64 + (border ? BORDER_X : 0);
 
 reg  [HPOSW-1:0]  hn;
 wire [HPOSW-1:0]  hscan;
