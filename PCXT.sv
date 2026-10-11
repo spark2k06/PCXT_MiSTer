@@ -153,14 +153,15 @@ module emu
 		"P2o45,Audio Boost,No,2x,4x;",
 		"P2o67,Stereo Mix,none,25%,50%,100%;",
 		"P2-;",
-		"P2oEH,CRT H offset,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15;",
-		"P2oIK,CRT V offset,0,1,2,3,4,5,6,7;",        
+		"d6P2oEH,CRT H offset,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15;",
+		"d6P2oIK,CRT V offset,0,1,2,3,4,5,6,7;",        
 		"P2oMO,VSync Width,Auto,1,2,3,4,5,6,7;",
 		"P2oPR,HSync Width,Auto,1,2,3,4,5,6,7;",
         "P2-;",
 		"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 		"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 		"P2OT,Border,No,Yes;",
+		"h5P2O[65],Border CRT offsets,No,Yes;",
 		"P2O[64],CRTC Frame Stacking,Native,Rebuilt;",
 		"P2o8,Composite video,Off,On;",
 		"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
@@ -256,8 +257,12 @@ module emu
     wire        cga_scandouble_en = (scale_cga_ff > 0) || forced_scandoubler;
     reg         hercules_hw;
     // bit0=status[5]; bit3 exposes the MT32-pi options; bit4 exposes the
-    // halted/missing-PCXT-BIOS status line at the top of the menu.
-    wire [15:0] status_menumask = {11'd0, bios_missing_pcxt,
+    // halted/missing-PCXT-BIOS status line at the top of the menu; bit5 is set
+    // while Border is on (it shows Border CRT offsets); bit6 is set while the OSD
+    // CRT H/V offsets act on the picture: always, except with Border on and
+    // Border CRT offsets off, where the window ignores them.
+    wire        crt_offsets_act = ~border | status[65];
+    wire [15:0] status_menumask = {9'd0, crt_offsets_act, border, bios_missing_pcxt,
                                    ((`ENABLE_MIDI != 0) && mt32_available),
                                    2'b00, status[5]};
 
@@ -1742,6 +1747,7 @@ module emu
         .ce        (clk_14_318),
         .hsync     (VGA_HSYNC_REF),
         .vsync     (VGA_VSYNC_REF),
+        .v_early   (status[65] ? status[52:50] : 3'd0),
         .hblank    (HBlank_win),
         .vblank    (VBlank_win),
         .hsync_out (HSync_win),
@@ -1782,6 +1788,24 @@ module emu
                 (border_video_ff ? (swap_video_eff ? VGA_VBlank_border : VBlank_win) : VBlank);
     wire LHS  = cga_border_win_en ? HSync_win : HSync;
     wire LVS  = cga_border_win_en ? VSync_win : VSync;
+
+    // The window's sync pulses do not follow the OSD CRT H offset, so with Border
+    // and "Border CRT offsets" the picture is moved inside the window instead.
+    // The window is the same in every mode, so this is too. The CGA's own HSYNC
+    // is 6 pixels later than the reference one in 80 columns and every step of
+    // the offset brings it 2 pixels earlier: the picture goes where the same
+    // offset puts it in 80 columns with Border off.
+    wire [3:0] crt_h_off = status[65] ? status[49:46] : 4'd0;
+    wire [6:0] crt_h_pix = (crt_h_off > 4'd3) ? {2'b00, crt_h_off, 1'b0} - 7'd6 : 7'd0;
+    wire [17:0] cga_pix_dly;
+    cga_pixel_delay #(.W(18)) cga_border_pix_delay
+    (
+        .clk  (clk_28_636),
+        .en   (clk_14_318),
+        .n    (cga_border_win_en ? crt_h_pix : 7'd0),
+        .din  ({r, g, b}),
+        .dout (cga_pix_dly)
+    );
     wire VSync_hgc = VSync_line[MDA_VSYNC_DELAY];
 
     wire haux_cga, vaux_cga, hbaux_cga, vbaux_cga;
@@ -1792,9 +1816,9 @@ module emu
 		.clk_vid(CLK_VIDEO_CGA),
 		.ce_pix(ce_pixel_cga_vid),
 
-		.R({r, 2'b00}),
-		.G({g, 2'b00}),
-		.B({b, 2'b00}),
+		.R({cga_pix_dly[17:12], 2'b00}),
+		.G({cga_pix_dly[11:6], 2'b00}),
+		.B({cga_pix_dly[5:0], 2'b00}),
 
 		.HSync(LHS),
 		.VSync(LVS),

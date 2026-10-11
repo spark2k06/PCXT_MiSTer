@@ -4,20 +4,26 @@
 // (V_LINES lines of H_WIDTH pixels, one run per line) placed after the sync
 // pulses, with regular timing and with the irregular timing of demos: long
 // HSYNC, short and long frames, an early VSYNC, no VSYNC, a short line.
+// V_EARLY is the OSD CRT V offset; the window comes V_START lines after the held-back VSYNC,
+// so every step of the offset brings it one line earlier. The default pair (8, 0) puts it
+// where it was with V_START 15 and no hold-back.
 //   iverilog -g2012 -o bw.vvp TESTBENCH/cga_border_window_tb.sv cga_border_window.sv && vvp bw.vvp
+//   (also -P cga_border_window_tb.V_START=15 -P cga_border_window_tb.V_EARLY=7, and V_EARLY=4)
 module cga_border_window_tb;
+    parameter integer V_START = 8;
+    parameter integer V_EARLY = 0;
     reg clk = 0, ce = 0;
     always #5 clk = ~clk;
     always @(posedge clk) ce <= ~ce;
 
     reg  hsync = 0, vsync = 0;
     wire hblank, vblank, hs_out, vs_out;
-    cga_border_window dut (.clk(clk), .ce(ce), .hsync(hsync), .vsync(vsync),
+    cga_border_window #(.V_START(V_START)) dut (.clk(clk), .ce(ce), .hsync(hsync), .vsync(vsync), .v_early(V_EARLY[2:0]),
         .hblank(hblank), .vblank(vblank), .hsync_out(hs_out), .vsync_out(vs_out));
 
     localparam integer W = 768, H = 246;
     localparam integer X0 = 129;            // window start after the HSYNC edge (as sampled here)
-    localparam integer Y0 = 16;             // first window line: 16th HSYNC after VSYNC
+    localparam integer Y0 = V_START + 1 + 7 - V_EARLY;  // first window line: 16th HSYNC after VSYNC at offset 0
 
     integer errors = 0, tick = 0;
     integer hs_tick = 0, hs_count = 0, vs_hs = 0;
@@ -95,7 +101,7 @@ module cga_border_window_tb;
         #100;
         frames_of(3, 262, 80, 1);                    // lock
         reset_counts; frames_of(4, 262, 80, 1);   report("80 col BIOS        ", 4, 1, 80);
-        reset_counts; frames_of(4, 262, 160, 1);  report("40 col BIOS hsync  ", 4, 1, 121);
+        reset_counts; frames_of(4, 262, 160, 1);  report("40 col BIOS hsync  ", 4, 1, 80);
         frames_of(1, 262, 80, 1);                    // back to an 80-pixel HSYNC
         reset_counts; frames_of(5, 255, 80, 1);   report("255-line frames    ", 5, 1, 80);
         reset_counts; frames_of(4, 300, 80, 1);   report("300-line frames    ", 4, 1, 80);
