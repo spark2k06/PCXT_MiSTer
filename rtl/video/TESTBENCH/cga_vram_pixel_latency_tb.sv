@@ -80,7 +80,7 @@ module cga_vram_pixel_latency_tb;
         .RA(row_addr), .hsync_width(hsync_width),
         .composite_phase(composite_phase), .crt_h_offset(4'd0),
         .crt_v_offset(3'd0), .vsync_width_osd(3'd0),
-        .hsync_width_osd(3'd0), .hres_mode(hres_mode)
+        .hsync_width_osd(3'd0), .hres_mode(hres_mode), .frame_stack_rebuild(1'b0)
     );
 
     // The memory is deliberately address-derived and synchronous.  Every

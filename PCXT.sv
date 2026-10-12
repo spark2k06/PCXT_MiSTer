@@ -93,6 +93,7 @@ module emu
     // 01234567890123456789012345678901 23456789012345678901234567890123
     // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
     // XXXXX XXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXX
+    // status[64]: CRTC Frame Stacking (Native / Rebuilt)
 
 	`include "build_id.v"
 
@@ -152,14 +153,16 @@ module emu
 		"P2o45,Audio Boost,No,2x,4x;",
 		"P2o67,Stereo Mix,none,25%,50%,100%;",
 		"P2-;",
-		"P2oEH,CRT H offset,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15;",
-		"P2oIK,CRT V offset,0,1,2,3,4,5,6,7;",        
+		"d6P2oEH,CRT H offset,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15;",
+		"d6P2oIK,CRT V offset,0,1,2,3,4,5,6,7;",        
 		"P2oMO,VSync Width,Auto,1,2,3,4,5,6,7;",
 		"P2oPR,HSync Width,Auto,1,2,3,4,5,6,7;",
         "P2-;",
 		"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
 		"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 		"P2OT,Border,No,Yes;",
+		"h5P2O[65],Border CRT offsets,No,Yes;",
+		"P2O[64],CRTC Frame Stacking,Native,Rebuilt;",
 		"P2o8,Composite video,Off,On;",
 		"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
 		CONF_STR_CRT,
@@ -183,7 +186,7 @@ module emu
 
     wire forced_scandoubler;
     wire [1:0] buttons;
-    wire [63:0] status;
+    wire [127:0] status;
     // Status bit 63 is the pending CPU selection. The value presented to the
     // BIU is latched only during reset; changing the menu alone cannot change
     // queue depth or bus width while an instruction is in flight.
@@ -254,12 +257,17 @@ module emu
     wire        cga_scandouble_en = (scale_cga_ff > 0) || forced_scandoubler;
     reg         hercules_hw;
     // bit0=status[5]; bit3 exposes the MT32-pi options; bit4 exposes the
-    // halted/missing-PCXT-BIOS status line at the top of the menu.
-    wire [15:0] status_menumask = {11'd0, bios_missing_pcxt,
+    // halted/missing-PCXT-BIOS status line at the top of the menu; bit5 is set
+    // while Border is on (it shows Border CRT offsets); bit6 is set while the OSD
+    // CRT H/V offsets act on the picture: always, except with Border on and
+    // Border CRT offsets off, where the window ignores them.
+    wire        crt_offsets_act = ~border | status[65];
+    wire [15:0] status_menumask = {9'd0, crt_offsets_act, border, bios_missing_pcxt,
                                    ((`ENABLE_MIDI != 0) && mt32_available),
                                    2'b00, status[5]};
 
     wire VGA_VBlank_border;
+    wire VGA_HSYNC_REF, VGA_VSYNC_REF;
     wire std_hsyncwidth;
     wire pause_core;
     wire swap_video;
@@ -1078,6 +1086,8 @@ module emu
 		.VGA_HBlank                         (HBlank),
 		.VGA_VBlank                         (VBlank),
 		.VGA_VBlank_border                  (VGA_VBlank_border),
+		.VGA_HSYNC_REF                      (VGA_HSYNC_REF),
+		.VGA_VSYNC_REF                      (VGA_VSYNC_REF),
 	//	.address                            (address),
 		.address_ext                        (bios_access_address),
 		.ext_access_request                 (bios_access_request),
@@ -1194,7 +1204,8 @@ module emu
 		.crt_h_offset                       (status[49:46]),
 		.crt_v_offset                       (status[52:50]),
 		.vsync_width_osd                    (vsync_width_osd),
-		.hsync_width_osd                    (hsync_width_osd)
+		.hsync_width_osd                    (hsync_width_osd),
+		.cga_frame_stack_rebuild            (status[64])
 	);
 
     wire [15:0] SDRAM_DQ_IN;
@@ -1689,11 +1700,8 @@ module emu
     
 	 wire HBlank_VGA;
 
-    reg [10:0] HBlank_counter = 0;
     reg [10:0] HBlank_counter_hgc = 0;
-    reg HBlank_fixed = 1'b1;
     reg HBlank_fixed_hgc = 1'b1;
-    reg [1:0] HSync_del = 2'b11;
     reg [1:0] HSync_del_hgc = 2'b11;
     localparam integer MDA_VSYNC_DELAY = 19;
     reg [MDA_VSYNC_DELAY:0] VSync_line;
@@ -1719,30 +1727,32 @@ module emu
         else if (tandy_16_gfx)
             HBlank_VGA = HBlank_del[9];
         else
-            HBlank_VGA = HBlank_del[5];
+            // RGBI reaches the converter 5 clocks after the CRTC blanking
+            // edge, and the converter registers colour once more than
+            // blanking (one 14 MHz pixel = 2 clocks).  [6] puts the blanking
+            // edge on that colour edge exactly.  [5] was half a pixel early,
+            // so with half of the power-up phases of ce_pixel_cga against
+            // the CGA clkdiv the window opened on one border pixel and
+            // dropped the last pixel of the line.
+            HBlank_VGA = HBlank_del[6];
     end
 
-    always @(posedge clk_28_636)
-    begin
-        // This enable is the same edge that previously clocked the block via
-        // ce_pixel_cga, without promoting a data signal to a clock network.
-        if (clk_14_318) begin
-            HSync_del <= {HSync_del[0], HSync};
-
-            if (HSync_del == 2'b01)
-            begin
-                HBlank_counter <= 0;
-                HBlank_fixed <= 1'b1;
-            end
-            else
-            begin
-                if (HBlank_counter == (std_hsyncwidth ? 120 : 143))
-                    HBlank_fixed <= 1'b0;
-                else
-                    HBlank_counter <= HBlank_counter + 1;
-            end
-        end
-    end
+    // With Border the CGA output is a fixed raster placed after the sync pulses,
+    // as a monitor shows it, whatever timing the CRTC is given: the scaler gets
+    // frames of the same size, with the picture where the timing puts it.
+    wire HBlank_win, VBlank_win, HSync_win, VSync_win;
+    cga_border_window cga_border_win
+    (
+        .clk       (clk_28_636),
+        .ce        (clk_14_318),
+        .hsync     (VGA_HSYNC_REF),
+        .vsync     (VGA_VSYNC_REF),
+        .v_early   (status[65] ? status[52:50] : 3'd0),
+        .hblank    (HBlank_win),
+        .vblank    (VBlank_win),
+        .hsync_out (HSync_win),
+        .vsync_out (VSync_win)
+    );
 
     always @(posedge clk_57_272)
     begin
@@ -1771,10 +1781,31 @@ module emu
         video_credits_show      <= video_credits_show_buf;
     end
 
+    wire cga_border_win_en = border_video_ff & ~swap_video_eff & ~cga_scandouble_en;
     wire LHBL = cga_scandouble_en ? HBlank :
-                ((border_video_ff) ? (swap_video_eff ? HBlank_fixed_hgc : HBlank_fixed) : HBlank_VGA);
+                (border_video_ff ? (swap_video_eff ? HBlank_fixed_hgc : HBlank_win) : HBlank_VGA);
     wire LVBL = cga_scandouble_en ? VBlank :
-                ((border_video_ff) ? (std_hsyncwidth ? VGA_VBlank_border : VBlank) : VBlank);
+                (border_video_ff ? (swap_video_eff ? VGA_VBlank_border : VBlank_win) : VBlank);
+    wire LHS  = cga_border_win_en ? HSync_win : HSync;
+    wire LVS  = cga_border_win_en ? VSync_win : VSync;
+
+    // The window's sync pulses do not follow the OSD CRT H offset, so with Border
+    // and "Border CRT offsets" the picture is moved inside the window instead.
+    // The window is the same in every mode, so this is too. The CGA's own HSYNC
+    // is 6 pixels later than the reference one in 80 columns and every step of
+    // the offset brings it 2 pixels earlier: the picture goes where the same
+    // offset puts it in 80 columns with Border off.
+    wire [3:0] crt_h_off = status[65] ? status[49:46] : 4'd0;
+    wire [6:0] crt_h_pix = (crt_h_off > 4'd3) ? {2'b00, crt_h_off, 1'b0} - 7'd6 : 7'd0;
+    wire [17:0] cga_pix_dly;
+    cga_pixel_delay #(.W(18)) cga_border_pix_delay
+    (
+        .clk  (clk_28_636),
+        .en   (clk_14_318),
+        .n    (cga_border_win_en ? crt_h_pix : 7'd0),
+        .din  ({r, g, b}),
+        .dout (cga_pix_dly)
+    );
     wire VSync_hgc = VSync_line[MDA_VSYNC_DELAY];
 
     wire haux_cga, vaux_cga, hbaux_cga, vbaux_cga;
@@ -1785,12 +1816,12 @@ module emu
 		.clk_vid(CLK_VIDEO_CGA),
 		.ce_pix(ce_pixel_cga_vid),
 
-		.R({r, 2'b00}),
-		.G({g, 2'b00}),
-		.B({b, 2'b00}),
+		.R({cga_pix_dly[17:12], 2'b00}),
+		.G({cga_pix_dly[11:6], 2'b00}),
+		.B({cga_pix_dly[5:0], 2'b00}),
 
-		.HSync(HSync),
-		.VSync(VSync),
+		.HSync(LHS),
+		.VSync(LVS),
 		.HBlank(LHBL),
 		.VBlank(LVBL),
 
@@ -2330,7 +2361,8 @@ module emu
     jtframe_credits #(
         .PAGES  (4),
         .COLW   (8),
-        .BLKPOL (1)
+        .BLKPOL (1),
+        .BORDER_X (64)      // left margin of the CGA border window
     ) u_credits(
         .rst        ( video_retime_reset_local ),
         .clk        ( clk_video_out_ps ),

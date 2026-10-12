@@ -201,7 +201,8 @@ module hgc(
 		  
 		  .MA(crtc_addr),
 		  .RA(row_addr),
-		  .hsync_width(hsync_width_crtc)
+		  .hsync_width(hsync_width_crtc),
+		  .frame_stack_rebuild(1'b0)
 
 	 );
 	 

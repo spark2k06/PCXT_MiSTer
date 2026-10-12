@@ -67,6 +67,29 @@ The **Composite video** OSD option enables the simulated NTSC colour decoder.
 **Display** selects the RGBI presentation (full colour, green, amber, B&W,
 red, blue, fuchsia or purple), while **Border** exposes the active border.
 
+**CRTC Frame Stacking** (`Native` by default) is for software that makes the
+6845 start a new frame on every scanline, so that each line gets its own start
+address (per-line scrolling, mirrors, ripples). The trick programs a tiny frame
+(R4 set to 0 or 1, R9 set to 0) and rewrites R0/R1/R2 in the middle of every
+line, and each write has to land within a few characters of its slot. The
+end-credits water reflection of the *Area 5150* demo is one example.
+`Native` runs the trick on the CRTC as it is, which needs CPU and bus timing
+that is cycle-exact with the CGA; the core does not reach that. `Rebuilt`
+keeps the registers as before, but records the start addresses in the order
+they are written and shows them on a stable 80-column raster of its own, so
+the picture depends on the order of the writes rather than on their timing.
+Each picture is one complete frame of the program, even when the program's
+frames do not last exactly one 262-line picture; while this raster is shown,
+the status port (3DA) follows it. Rebuilt lines use the split Area 5150 uses: 80
+characters from A+1 in glyph row 0, plus character A in the right overscan,
+as on an IBM CGA. A program that splits its lines differently is still shown
+on a stable raster, but not necessarily where a real CGA puts it. Rebuilt
+only takes over when R0 is rewritten on every line as well; frames of one or
+two whole scanlines, which the CRTC times by itself, stay native. The normal
+CRTC output returns a few frames after the pattern stops.
+`rtl/video/TESTBENCH/cga_frame_stack_tb.sv` replays a real 5150 bus capture
+of the Area 5150 effect, with and without timing errors.
+
 ### HGC/MDA
 
 The HGC path implements the B0000h/B8000h video apertures, monochrome text,
@@ -134,7 +157,7 @@ The main OSD groups are:
 | Disks | Floppy A/B, write protection, IDE images and second SD card |
 | CPU | 4.77 MHz, 7.16 MHz, 9.54 MHz, Max |
 | System & BIOS | CGA/HGC enable, first video, splash, CPU type, Fake 286 FLAGS, PCXT BIOS, EC00 ROM and BIOS write protection |
-| Audio & Video | OPL2/CMS, speaker and audio boost, mixing, CRT offsets, sync widths, scaler effect, aspect ratio, border, composite and display tint |
+| Audio & Video | OPL2/CMS, speaker and audio boost, mixing, CRT offsets, sync widths, scaler effect, aspect ratio, border, CRTC frame stacking, composite and display tint |
 | Audio & Video | HGC/MDA `350-line CRT`: Native, 480i 15 kHz or 240p 15 kHz |
 | Hardware | EMS enable and page frame, A000 UMB, joysticks, joystick swap and CPU-speed synchronisation |
 | User I/O | MIDI, COM2 and MT32-pi options when `ENABLE_MIDI` is built |

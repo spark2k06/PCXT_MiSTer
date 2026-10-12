@@ -44,6 +44,8 @@ module CHIPSET #(
         output  logic           VGA_HBlank,
         output  logic           VGA_VBlank,
         output  logic           VGA_VBlank_border,
+        output  logic           VGA_HSYNC_REF,
+        output  logic           VGA_VSYNC_REF,
         // I/O Ports
         output  logic   [19:0]  address,
         input   logic   [19:0]  address_ext,
@@ -193,7 +195,8 @@ module CHIPSET #(
         input   logic   [3:0]   crt_h_offset,
         input   logic   [2:0]   crt_v_offset,
         input   logic   [2:0]   vsync_width_osd,
-        input   logic   [2:0]   hsync_width_osd
+        input   logic   [2:0]   hsync_width_osd,
+        input   logic           cga_frame_stack_rebuild
 
     );
 
@@ -346,6 +349,8 @@ module CHIPSET #(
         .VGA_HBlank                         (VGA_HBlank),
         .VGA_VBlank                         (VGA_VBlank),
         .VGA_VBlank_border                  (VGA_VBlank_border),
+        .VGA_HSYNC_REF                      (VGA_HSYNC_REF),
+        .VGA_VSYNC_REF                      (VGA_VSYNC_REF),
         .cga_memory_ready                   (cga_memory_ready),
         .cga_memory_write_wait              (cga_memory_write_wait),
         .address                            (address),
@@ -436,7 +441,8 @@ module CHIPSET #(
         .crt_h_offset                       (crt_h_offset),
         .crt_v_offset                       (crt_v_offset),
         .vsync_width_osd                    (vsync_width_osd),
-        .hsync_width_osd                    (hsync_width_osd)
+        .hsync_width_osd                    (hsync_width_osd),
+        .cga_frame_stack_rebuild            (cga_frame_stack_rebuild)
     );
 
     RAM u_RAM 
