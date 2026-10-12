@@ -49,3 +49,9 @@ set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/splash_f12_pause
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/rom_presence_latch.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/bios_hold_notice.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/hps_ext.v"
+# Keep the HDMI PLL where every MiSTer core has it. sys/pll_cfg/pll_cfg_hdmi.v
+# reprograms a fixed physical output counter; if the fitter moves pll_hdmi to
+# another PLL or counter, the C divider write is lost and the HDMI/VGA scaler
+# clock keeps the default divider (30 MHz custom mode came out at 140 MHz).
+set_location_assignment FRACTIONALPLL_X0_Y1_N0 -to "pll_hdmi:pll_hdmi|pll_hdmi_0002:pll_hdmi_inst|altera_pll:altera_pll_i|altera_cyclonev_pll:cyclonev_pll|altera_cyclonev_pll_base:fpll_0|fpll"
+set_location_assignment PLLOUTPUTCOUNTER_X0_Y5_N1 -to "pll_hdmi:pll_hdmi|pll_hdmi_0002:pll_hdmi_inst|altera_pll:altera_pll_i|altera_cyclonev_pll:cyclonev_pll|counter[0].output_counter"
