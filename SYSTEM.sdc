@@ -17,7 +17,15 @@ set CLOCK_14_318    {emu:emu|clk_14_318|q}
 
 # clk_14_318 derives from clk_28_636 (PLL video - precise frequency)
 create_generated_clock -name clk_14_318 -source [get_pins $CLOCK_VGA_CGA] -divide_by 2 [get_pins $CLOCK_14_318]
-create_generated_clock -name SDRAM_CLK -source [get_pins $CLOCK_CHIP] [get_ports { SDRAM_CLK }]
+# SDRAM. The controller has its own clock, which also
+# serves as the HGC video clock: 114.545 MHz (general[2]). The chip's clock
+# leaves through a DDIO register (emu|sdram_clk_ddr): a separate PLL output
+# (general[4]) half a period after the controller clock.
+foreach_in_collection a [get_all_global_assignments -name VERILOG_MACRO] {
+}
+set SDRAM_DDIO [get_pins -compatibility_mode {*sdram_clk_ddr|*|muxsel}]
+set CLOCK_SDRAM $CLOCK_VIDEO_MDA
+create_generated_clock -name SDRAM_CLK -source $SDRAM_DDIO [get_ports { SDRAM_CLK }]
 create_clock -name VCLK_SDIO -period 20.000
 set SDIO_SPI_REG {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|KFMMC_DRIVE_IDE:u_KFMMC_DRIVE_IDE|KFMMC_SPI:u_KFMMC_SPI|spi_clk}
 create_generated_clock -name SDIO_SPI_CLK -source [get_pins ${SDIO_SPI_REG}|clk] -divide_by 2 [get_pins ${SDIO_SPI_REG}|q]
@@ -217,11 +225,23 @@ set_input_delay -clock { VCLK_SDIO } -min 5 [get_ports { SDIO_DAT[*] SDIO_CMD }]
 set_output_delay -clock { SDIO_SPI_CLK } -max 5 [get_ports { SDIO_DAT[*] SDIO_CMD }]
 set_output_delay -clock { SDIO_SPI_CLK } -min 0 [get_ports { SDIO_DAT[*] SDIO_CMD }]
 
-# SDRAM
-set_input_delay -clock { SDRAM_CLK } -max 6 [get_ports { SDRAM_DQ[*] }]
-set_input_delay -clock { SDRAM_CLK } -min 3 [get_ports { SDRAM_DQ[*] }]
-set_output_delay -clock { SDRAM_CLK } -max 2 [get_ports { SDRAM_DQ[*] SDRAM_DQM* SDRAM_A[*] SDRAM_n*  SDRAM_BA[*] SDRAM_CKE }]
-set_output_delay -clock { SDRAM_CLK } -min 1.5 [get_ports { SDRAM_DQ[*] SDRAM_DQM* SDRAM_A[*] SDRAM_n*  SDRAM_BA[*] SDRAM_CKE }]
+# SDRAM pins: W9825G6KH (the MiSTer module chip) at CL3, 114.5 MHz, with the
+# budget PCAT-286 uses for it: tAC <= 5.4 ns (-7 grade; -6 is 5.0), tOH >= 3 ns,
+# tIS 1.5 ns, tIH 1 ns, plus 0.5 ns of board on the slow side.
+set_input_delay  -clock { SDRAM_CLK } -max 5.9 [get_ports { SDRAM_DQ[*] }]
+set_input_delay  -clock { SDRAM_CLK } -min 3.0 [get_ports { SDRAM_DQ[*] }]
+set_output_delay -clock { SDRAM_CLK } -max 2.0 [get_ports { SDRAM_DQ[*] SDRAM_DQM* SDRAM_A[*] SDRAM_n*  SDRAM_BA[*] SDRAM_CKE }]
+set_output_delay -clock { SDRAM_CLK } -min -1.0 [get_ports { SDRAM_DQ[*] SDRAM_DQM* SDRAM_A[*] SDRAM_n*  SDRAM_BA[*] SDRAM_CKE }]
+# Read data: a READ registered on edge e is sampled by the chip half a
+# period later; its word is launched CL-1 chip clocks after that and is
+# captured on controller edge e+CL+1 (sdram_ctrl RD_DELAY), i.e. one and a
+# half periods after the launching chip edge: the second controller edge, not
+# the first. The hold check stays on the first one, where the previous word
+# is captured, which is the default once the setup is moved.
+set_multicycle_path -from [get_clocks SDRAM_CLK] -to [get_clocks $CLOCK_SDRAM] -setup 2
+# The chipset reaches the arbiter through sdram_xbridge (toggle handshake,
+# two-flop synchronisers); those crossings are covered by the CLOCK_CHIP
+# false paths above.
 
 #============================================================
 # DDRAM / HPS f2h bridge

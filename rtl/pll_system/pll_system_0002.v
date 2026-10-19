@@ -19,6 +19,9 @@ module  pll_system_0002(
 	// interface 'outclk3'
 	output wire outclk_3,
 
+	// interface 'outclk4'
+	output wire outclk_4,
+
 	// interface 'locked'
 	output wire locked
 );
@@ -27,7 +30,7 @@ module  pll_system_0002(
 		.fractional_vco_multiplier("false"),
 		.reference_clock_frequency("50.0 MHz"),
 		.operation_mode("direct"),
-		.number_of_clocks(4),
+		.number_of_clocks(5),
 		.output_clock_frequency0("28.636363 MHz"),
 		.phase_shift0("0 ps"),
 		.duty_cycle0(50),
@@ -40,8 +43,13 @@ module  pll_system_0002(
 		.output_clock_frequency3("57.272727 MHz"),
 		.phase_shift3("8730 ps"),
 		.duty_cycle3(50),
-		.output_clock_frequency4("0 MHz"),
-		.phase_shift4("0 ps"),
+		// SDRAM_CLK: the SDRAM controller clock (outclk_2) shifted by half a
+		// period; it reaches the pin through a DDIO register like the command
+		// outputs. Added by hand (F1). The VCO runs at
+		// 1260 MHz (M 126, N 5), so a phase must be a multiple of 1/8 VCO
+		// period = 99.2 ps: 4365 ps is 44 steps.
+		.output_clock_frequency4("114.545454 MHz"),
+		.phase_shift4("4365 ps"),
 		.duty_cycle4(50),
 		.output_clock_frequency5("0 MHz"),
 		.phase_shift5("0 ps"),
@@ -86,7 +94,7 @@ module  pll_system_0002(
 		.pll_subtype("General")
 	) altera_pll_i (
 		.rst	(rst),
-		.outclk	({outclk_3, outclk_2, outclk_1, outclk_0}),
+		.outclk	({outclk_4, outclk_3, outclk_2, outclk_1, outclk_0}),
 		.locked	(locked),
 		.fboutclk	( ),
 		.fbclk	(1'b0),

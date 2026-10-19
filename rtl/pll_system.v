@@ -12,6 +12,7 @@ module pll_system (
 		output wire  outclk_1, // outclk1.clk
 		output wire  outclk_2, // outclk2.clk
 		output wire  outclk_3, // outclk3.clk
+		output wire  outclk_4, // outclk4.clk
 		output wire  locked    //  locked.export
 	);
 
@@ -22,6 +23,7 @@ module pll_system (
 		.outclk_1 (outclk_1), // outclk1.clk
 		.outclk_2 (outclk_2), // outclk2.clk
 		.outclk_3 (outclk_3), // outclk3.clk
+		.outclk_4 (outclk_4), // outclk4.clk
 		.locked   (locked)    //  locked.export
 	);
 

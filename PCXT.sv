@@ -71,7 +71,6 @@ module emu
     //assign {UART_RTS, UART_TXD, UART_DTR} = 0;
     assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
     //assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
-    assign SDRAM_CLK = clk_chipset;
     assign VGA_SCALER = 0;
     assign VGA_DISABLE = 0;
     assign HDMI_FREEZE = 0;
@@ -221,7 +220,7 @@ module emu
     wire        ioctl_wr;
     wire [24:0] ioctl_addr;
     wire [15:0] ioctl_data;
-    reg         ioctl_wait;
+    wire        ioctl_wait;
 
     wire [21:0] gamma_bus;
 
@@ -376,6 +375,7 @@ module emu
     wire clk_57_272;
     wire clk_114_544;
     wire clk_video_out_ps;
+    wire clk_sdram_pin;
     reg clk_14_318 = 1'b0;
     wire clk_cpu;
     logic cpu_ce_posedge;
@@ -408,6 +408,7 @@ module emu
         .outclk_1(clk_57_272),
         .outclk_2(clk_114_544),
         .outclk_3(clk_video_out_ps),
+        .outclk_4(clk_sdram_pin),
         .locked(pll_system_locked)
     );
 
@@ -437,7 +438,7 @@ module emu
         else
             video_retime_hgc_sync <= {video_retime_hgc_sync[0], 1'b0};
     end
-    wire reset_sdram_wire = RESET | !pll_locked;
+    wire reset_sdram_wire = RESET | !pll_locked | !pll_system_locked;
 
     //////////////////////////////////////////////////////////////////
 
@@ -618,197 +619,307 @@ module emu
     end
 
     //
-    ///////////////////////   BIOS LOADER   ////////////////////////////
+    ///////////////////////   MEMORY   ////////////////////////////////
     //
+    // System memory and the ROMs live in SDRAM behind one arbiter.
+    // The chipset's memory port and the ROM loader are its clients;
+    // the controller drives the chip. In F1 the controller runs on its own
+    // clock: the chipset stays at 50 MHz and each
+    // client crosses with an sdram_xbridge.
+    //
+    //   CHIPSET (cpu_mem_port) -> sdram_xbridge -+-> sdram_arbiter -> sdram_ctrl -> SDRAM
+    //   rom_loader              -> sdram_xbridge -+
 
-    reg [4:0]  bios_load_state = 4'h0;
-    reg [1:0]  bios_protect_flag;
-    reg        bios_access_request;
-    reg [19:0] bios_access_address;
-    reg [15:0] bios_write_data;
-    reg        bios_write_n;
-    reg [7:0]  bios_write_wait_cnt;
-    reg        bios_write_byte_cnt;
-    reg        tandy_bios_write;
-    wire select_pcxt  = (ioctl_index[5:0] == 0) && (ioctl_addr[24:16] == 9'b000000000);
-    wire select_tandy = `ROM_IS_TANDY ? (ioctl_index[5:0] == 1) && (ioctl_addr[24:16] == 9'b000000000) : 1'b0;
-    wire select_xtide = ioctl_index == 2;
+    wire clk_sdram = clk_114_544;
 
-    wire [19:0] bios_access_address_wire = select_pcxt  ? { 4'b1111, ioctl_addr[15:0]} :
-         select_tandy ? { 4'b1111, ioctl_addr[15:0]} :
-         select_xtide ? { 6'b111011, ioctl_addr[13:0]} :
-         20'hFFFFF;
+    // The chip's clock is forwarded through a DDIO output register, so that it
+    // leaves the FPGA on the same kind of path as the commands and data and
+    // its delay tracks theirs across process, voltage and temperature. A
+    // global clock taken straight to the pin arrives ~5 ns late in the slow
+    // corner and ~2.6 ns less in the fast one, which leaves no read window.
+    // It is its own PLL output (calibrable phase, half a period after the
+    // controller clock).
+    wire sdram_clk_src = clk_sdram_pin;
 
-    wire bios_load_n = ~(ioctl_download & (select_pcxt | select_tandy | select_xtide));
+    altddio_out
+    #(
+        .extend_oe_disable  ("OFF"),
+        .intended_device_family("Cyclone V"),
+        .invert_output      ("OFF"),
+        .lpm_hint           ("UNUSED"),
+        .lpm_type           ("altddio_out"),
+        .oe_reg             ("UNREGISTERED"),
+        .power_up_high      ("OFF"),
+        .width              (1)
+    )
+    sdram_clk_ddr
+    (
+        .datain_h           (1'b1),
+        .datain_l           (1'b0),
+        .outclock           (sdram_clk_src),
+        .dataout            (SDRAM_CLK),
+        .aclr               (1'b0),
+        .aset               (1'b0),
+        .oe                 (1'b1),
+        .outclocken         (1'b1),
+        .sclr               (1'b0),
+        .sset               (1'b0)
+    );
 
-    always @(posedge clk_chipset, posedge reset_sdram)
-    begin
+    // Controller-side reset: asserted with reset_sdram, released on clk_sdram.
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) logic [1:0] sd_reset_sync = 2'b11;
+    always_ff @(posedge clk_sdram or posedge reset_sdram) begin
         if (reset_sdram)
-        begin
-            bios_protect_flag   <= 2'b11;
-            bios_access_request <= 1'b0;
-            bios_access_address <= 20'hFFFFF;
-            bios_write_data     <= 16'hFFFF;
-            bios_write_n        <= 1'b1;
-            bios_write_wait_cnt <= 'h0;
-            bios_write_byte_cnt <= 1'h0;
-            tandy_bios_write    <= 1'b0;
-            ioctl_wait          <= 1'b1;
-            bios_load_state     <= 4'h00;
-        end
-        else if (~initilized_sdram)
-        begin
-            bios_protect_flag   <= 2'b11;
-            bios_access_request <= 1'b0;
-            bios_access_address <= 20'hFFFFF;
-            bios_write_data     <= 16'hFFFF;
-            bios_write_n        <= 1'b1;
-            bios_write_wait_cnt <= 'h0;
-            bios_write_byte_cnt <= 1'h0;
-            ioctl_wait          <= 1'b1;
-            bios_load_state     <= 4'h00;
-        end
+            sd_reset_sync <= 2'b11;
         else
-        begin
-            casez (bios_load_state)
-                4'h00:
-                begin
-                    bios_protect_flag   <= ~status[31:30];  // bios_writable
-                    bios_access_address <= 20'hFFFFF;
-                    bios_write_data     <= 16'hFFFF;
-                    bios_write_n        <= 1'b1;
-                    bios_write_wait_cnt <= 'h0;
-                    bios_write_byte_cnt <= 1'h0;
-                    tandy_bios_write    <= 1'b0;
-                    if (~ioctl_download)
-                    begin
-                        bios_access_request <= 1'b0;
-                        ioctl_wait          <= 1'b0;
-                    end
-                    else
-                    begin
-                        bios_access_request <= 1'b1;
-                        ioctl_wait          <= 1'b1;
-                    end
-
-                    if ((ioctl_download) && (~processor_ready) && (address_direction))
-                        bios_load_state <= 4'h01;
-                    else
-                        bios_load_state <= 4'h00;
-                end
-                4'h01:
-                begin
-                    bios_protect_flag   <= 2'b00;
-                    bios_access_request <= 1'b1;
-                    bios_write_byte_cnt <= 1'h0;
-                    tandy_bios_write    <= select_tandy;
-                    if (~ioctl_download)
-                    begin
-                        bios_access_address <= 20'hFFFFF;
-                        bios_write_data     <= 16'hFFFF;
-                        bios_write_n        <= 1'b1;
-                        bios_write_wait_cnt <= 'h0;
-                        ioctl_wait          <= 1'b0;
-                        bios_load_state     <= 4'h00;
-                    end
-                    else if ((~ioctl_wr) || (bios_load_n))
-                    begin
-                        bios_access_address <= 20'hFFFFF;
-                        bios_write_data     <= 16'hFFFF;
-                        bios_write_n        <= 1'b1;
-                        bios_write_wait_cnt <= 'h0;
-                        ioctl_wait          <= 1'b0;
-                        bios_load_state     <= 4'h01;
-                    end
-                    else
-                    begin
-                        bios_access_address <= bios_access_address_wire;
-                        bios_write_data     <= ioctl_data;
-                        bios_write_n        <= 1'b1;
-                        bios_write_wait_cnt <= 'h0;
-                        ioctl_wait          <= 1'b1;
-                        bios_load_state     <= 4'h02;
-                    end
-                end
-                4'h02:
-                begin
-                    bios_protect_flag   <= 2'b00;
-                    bios_access_request <= 1'b1;
-                    bios_access_address <= bios_access_address;
-                    bios_write_data     <= bios_write_data;
-                    bios_write_byte_cnt <= bios_write_byte_cnt;
-                    tandy_bios_write    <= select_tandy;
-                    ioctl_wait          <= 1'b1;
-                    bios_write_wait_cnt <= bios_write_wait_cnt + 'h1;
-
-                    if (bios_write_wait_cnt != 'd20)
-                    begin
-                        bios_write_n        <= 1'b0;
-                        bios_load_state     <= 4'h02;
-                    end
-                    else
-                    begin
-                        bios_write_n        <= 1'b1;
-                        bios_load_state     <= 4'h03;
-                    end
-                end
-                4'h03:
-                begin
-                    bios_protect_flag   <= 2'b00;
-                    bios_access_request <= 1'b1;
-                    bios_access_address <= bios_access_address;
-                    bios_write_data     <= bios_write_data;
-                    bios_write_n        <= 1'b1;
-                    bios_write_byte_cnt <= bios_write_byte_cnt;
-                    tandy_bios_write    <= 1'b0;
-                    ioctl_wait          <= 1'b1;
-                    bios_write_wait_cnt <= bios_write_wait_cnt + 'h1;
-
-                    if (bios_write_wait_cnt != 'h40)
-                        bios_load_state     <= 4'h03;
-                    else
-                        bios_load_state     <= 4'h04;
-                end
-                4'h04:
-                begin
-                    bios_protect_flag   <= 2'b00;
-                    bios_access_request <= 1'b1;
-                    bios_access_address <= bios_access_address + 'h1;
-                    bios_write_data     <= {8'hFF, bios_write_data[15:8]};
-                    bios_write_n        <= 1'b1;
-                    bios_write_wait_cnt <= 'h0;
-                    bios_write_byte_cnt <= ~bios_write_byte_cnt;
-                    tandy_bios_write    <= 1'b0;
-                    ioctl_wait          <= 1'b1;
-                    if (bios_write_byte_cnt == 1'b0)
-                        bios_load_state     <= 4'h02;
-                    else
-                        bios_load_state     <= 4'h01;
-                end
-                default:
-                begin
-                    bios_protect_flag   <= 2'b11;
-                    bios_access_request <= 1'b0;
-                    bios_access_address <= 20'hFFFFF;
-                    bios_write_data     <= 16'hFFFF;
-                    bios_write_n        <= 1'b1;
-                    bios_write_wait_cnt <= 'h0;
-                    bios_write_byte_cnt <= 1'h0;
-                    tandy_bios_write    <= 1'b0;
-                    ioctl_wait          <= 1'b0;
-                    bios_load_state     <= 4'h00;
-                end
-            endcase
-        end
+            sd_reset_sync <= {sd_reset_sync[0], 1'b0};
     end
+    wire sd_reset = sd_reset_sync[1];
 
+    // The chip has finished its power-up sequence, seen from the chipset.
+    wire sd_init_done;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) logic [1:0] sd_init_sync = 2'b00;
+    always_ff @(posedge clk_chipset)
+        sd_init_sync <= {sd_init_sync[0], sd_init_done};
+    wire initilized_sdram = sd_init_sync[1];
 
-    // The BIOS loader writes the selected image one byte at a time. Record a
-    // slot as present only after the final byte of a download has completed;
-    // this also lets replacing the image re-arm the hold safely.
+    // BIOS Writable: [1] F000 (main), [0] EC00.
+    reg [1:0] bios_protect_flag = 2'b11;
+    always @(posedge clk_chipset)
+        bios_protect_flag <= ~status[31:30];
+
+    //
+    // ROM loader: HPS downloads straight into the SDRAM ROM bank
+    //
+    wire        ldr_start;
+    wire        ldr_busy;
+    wire        ldr_done;
+    wire        ldr_flush;
+    wire        ldr_hold_request;
+    wire [23:0] ldr_addr;
+    wire [15:0] ldr_wdata;
+    wire        pcxt_bios_write_complete;
+
+    rom_loader #(.ROM_TANDY(`ROM_IS_TANDY)) u_rom_loader
+    (
+        .clock              (clk_chipset),
+        .reset              (reset_sdram),
+        .sdram_ready        (initilized_sdram),
+        .ioctl_download     (ioctl_download),
+        .ioctl_index        (ioctl_index),
+        .ioctl_wr           (ioctl_wr),
+        .ioctl_addr         (ioctl_addr),
+        .ioctl_data         (ioctl_data),
+        .ioctl_wait         (ioctl_wait),
+        .hold_request       (ldr_hold_request),
+        .hold_granted       ((~processor_ready) & address_direction),
+        .l_start            (ldr_start),
+        .l_addr             (ldr_addr),
+        .l_wdata            (ldr_wdata),
+        .l_busy             (ldr_busy),
+        .l_done             (ldr_done),
+        .write_any          (ldr_flush),
+        .write_main         (pcxt_bios_write_complete)
+    );
+
+    //
+    // Clock-domain bridges
+    //
+    wire        mem_start;
+    wire        mem_we;
+    wire [23:0] mem_addr;
+    wire [1:0]  mem_len;
+    wire [63:0] mem_wdata;
+    wire [7:0]  mem_wbe;
+    wire        mem_busy;
+    wire        mem_done;
+    wire [63:0] mem_rdata;
+
+    wire        sd_cpu_req, sd_cpu_we, sd_cpu_ack, sd_cpu_rvalid, sd_cpu_rlast;
+    wire [23:0] sd_cpu_addr;
+    wire [1:0]  sd_cpu_len;
+    wire [63:0] sd_cpu_wdata;
+    wire [7:0]  sd_cpu_wbe;
+    wire        sd_ldr_req, sd_ldr_we, sd_ldr_ack, sd_ldr_rvalid, sd_ldr_rlast;
+    wire [23:0] sd_ldr_addr;
+    wire [1:0]  sd_ldr_len;
+    wire [63:0] sd_ldr_wdata;
+    wire [7:0]  sd_ldr_wbe;
+    wire [15:0] sd_rdata;
+
+    sdram_xbridge #(.SYNC_STAGES(2)) u_cpu_bridge
+    (
+        .clk_a      (clk_chipset),
+        .reset_a    (reset_sdram),
+        .a_start    (mem_start),
+        .a_we       (mem_we),
+        .a_addr     (mem_addr),
+        .a_len      (mem_len),
+        .a_wdata    (mem_wdata),
+        .a_wbe      (mem_wbe),
+        .a_busy     (mem_busy),
+        .a_done     (mem_done),
+        .a_rdata    (mem_rdata),
+        .clk_s      (clk_sdram),
+        .reset_s    (sd_reset),
+        .s_req      (sd_cpu_req),
+        .s_we       (sd_cpu_we),
+        .s_addr     (sd_cpu_addr),
+        .s_len      (sd_cpu_len),
+        .s_wdata    (sd_cpu_wdata),
+        .s_wbe      (sd_cpu_wbe),
+        .s_ack      (sd_cpu_ack),
+        .s_rvalid   (sd_cpu_rvalid),
+        .s_rdata    (sd_rdata),
+        .s_rlast    (sd_cpu_rlast)
+    );
+
+    sdram_xbridge #(.SYNC_STAGES(2)) u_ldr_bridge
+    (
+        .clk_a      (clk_chipset),
+        .reset_a    (reset_sdram),
+        .a_start    (ldr_start),
+        .a_we       (1'b1),
+        .a_addr     (ldr_addr),
+        .a_len      (2'd0),
+        .a_wdata    ({48'd0, ldr_wdata}),
+        .a_wbe      (8'h03),
+        .a_busy     (ldr_busy),
+        .a_done     (ldr_done),
+        .a_rdata    (),
+        .clk_s      (clk_sdram),
+        .reset_s    (sd_reset),
+        .s_req      (sd_ldr_req),
+        .s_we       (sd_ldr_we),
+        .s_addr     (sd_ldr_addr),
+        .s_len      (sd_ldr_len),
+        .s_wdata    (sd_ldr_wdata),
+        .s_wbe      (sd_ldr_wbe),
+        .s_ack      (sd_ldr_ack),
+        .s_rvalid   (sd_ldr_rvalid),
+        .s_rdata    (sd_rdata),
+        .s_rlast    (sd_ldr_rlast)
+    );
+
+    //
+    // Arbiter and controller
+    //
+    wire        op_valid, op_ref, op_we, op_issue;
+    wire [23:0] op_addr;
+    wire [1:0]  op_len;
+    wire [63:0] op_wdata;
+    wire [7:0]  op_wbe;
+    wire [1:0]  op_tag;
+    wire [3:0]  sd_bank_idle;
+    wire        sd_rd_valid, sd_rd_last;
+    wire [15:0] sd_rd_data;
+    wire [1:0]  sd_rd_tag;
+
+    sdram_arbiter u_sdram_arbiter
+    (
+        .clk            (clk_sdram),
+        .reset          (sd_reset),
+        .init_done      (sd_init_done),
+        // VID: the video fetch engines arrive in F2.
+        .vid_req        (1'b0),
+        .vid_addr       (24'd0),
+        .vid_len        (2'd0),
+        .vid_deadline   (16'd0),
+        .vid_ack        (),
+        .vid_rvalid     (),
+        .vid_rlast      (),
+        .cpu_req        (sd_cpu_req),
+        .cpu_we         (sd_cpu_we),
+        .cpu_addr       (sd_cpu_addr),
+        .cpu_len        (sd_cpu_len),
+        .cpu_wdata      (sd_cpu_wdata),
+        .cpu_wbe        (sd_cpu_wbe),
+        .cpu_ack        (sd_cpu_ack),
+        .cpu_rvalid     (sd_cpu_rvalid),
+        .cpu_rlast      (sd_cpu_rlast),
+        .ldr_req        (sd_ldr_req),
+        .ldr_we         (sd_ldr_we),
+        .ldr_addr       (sd_ldr_addr),
+        .ldr_len        (sd_ldr_len),
+        .ldr_wdata      (sd_ldr_wdata),
+        .ldr_wbe        (sd_ldr_wbe),
+        .ldr_high       (1'b0),
+        .ldr_ack        (sd_ldr_ack),
+        .ldr_rvalid     (sd_ldr_rvalid),
+        .ldr_rlast      (sd_ldr_rlast),
+        // AUX: reserved.
+        .aux_req        (1'b0),
+        .aux_addr       (24'd0),
+        .aux_len        (2'd0),
+        .aux_ack        (),
+        .aux_rvalid     (),
+        .aux_rlast      (),
+        .rdata          (sd_rdata),
+        .op_valid       (op_valid),
+        .op_ref         (op_ref),
+        .op_we          (op_we),
+        .op_addr        (op_addr),
+        .op_len         (op_len),
+        .op_wdata       (op_wdata),
+        .op_wbe         (op_wbe),
+        .op_tag         (op_tag),
+        .op_issue       (op_issue),
+        .bank_idle      (sd_bank_idle),
+        .rd_valid       (sd_rd_valid),
+        .rd_data        (sd_rd_data),
+        .rd_tag         (sd_rd_tag),
+        .rd_last        (sd_rd_last),
+        // Debug counters (XTCTL 8990h+, a later phase).
+        .cpu_lat_max    (),
+        .vid_lat_max    (),
+        .vid_underruns  (),
+        .ref_debt       ()
+    );
+
+    wire [15:0] sdram_dq_out;
+    wire        sdram_dq_oe;
+    wire [1:0]  sdram_dqm;
+
+    sdram_ctrl u_sdram_ctrl
+    (
+        .clk            (clk_sdram),
+        .reset          (sd_reset),
+        .init_done      (sd_init_done),
+        .op_valid       (op_valid),
+        .op_ref         (op_ref),
+        .op_we          (op_we),
+        .op_addr        (op_addr),
+        .op_len         (op_len),
+        .op_wdata       (op_wdata),
+        .op_wbe         (op_wbe),
+        .op_tag         (op_tag),
+        .op_issue       (op_issue),
+        .bank_idle      (sd_bank_idle),
+        .rd_valid       (sd_rd_valid),
+        .rd_data        (sd_rd_data),
+        .rd_tag         (sd_rd_tag),
+        .rd_last        (sd_rd_last),
+        .sdram_cke      (SDRAM_CKE),
+        .sdram_cs_n     (SDRAM_nCS),
+        .sdram_ras_n    (SDRAM_nRAS),
+        .sdram_cas_n    (SDRAM_nCAS),
+        .sdram_we_n     (SDRAM_nWE),
+        .sdram_ba       (SDRAM_BA),
+        .sdram_a        (SDRAM_A),
+        .sdram_dqm      (sdram_dqm),
+        .sdram_dq_out   (sdram_dq_out),
+        .sdram_dq_oe    (sdram_dq_oe),
+        .sdram_dq_in    (SDRAM_DQ)
+    );
+
+    assign SDRAM_DQ   = sdram_dq_oe ? sdram_dq_out : 16'hZZZZ;
+    assign SDRAM_DQML = sdram_dqm[0];
+    assign SDRAM_DQMH = sdram_dqm[1];
+
+    // The ROM loader writes the selected image one word at a time. A slot is
+    // recorded as present once a word of the download has reached the SDRAM;
+    // starting a new download clears it, which re-arms the hold.
     wire pcxt_bios_download_active = ioctl_download && (ioctl_index[5:0] == 6'd0);
-    wire pcxt_bios_write_complete = (bios_load_state == 4'h04) &&
-                                    bios_write_byte_cnt && select_pcxt;
     wire pcxt_bios_loaded;
 
     rom_presence_latch pcxt_bios_presence (
@@ -1033,7 +1144,6 @@ module emu
     assign  sw = {sw_floppy, sw_base}; // DIP switches (CGA and floppy count)
     assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
 
-    wire tandy_bios_flag = bios_write_n ? `ROM_IS_TANDY : tandy_bios_write;
 
     wire video_output_sel = `ENABLE_HGC ? hgc_mode_video_ff : 1'b0;
     wire enable_hgc_sel = `ENABLE_HGC ? 1'b1 : 1'b0;
@@ -1050,7 +1160,7 @@ module emu
             cpu_address <= cpu_address;
     end
 
-    CHIPSET #(.clk_rate(cur_rate)) u_CHIPSET
+    CHIPSET #(.clk_rate(cur_rate), .ROM_TANDY(`ROM_IS_TANDY)) u_CHIPSET
 	(
 		.clock                              (clk_chipset),
 		.cpu_ce_posedge                     (cpu_ce_posedge),
@@ -1089,8 +1199,8 @@ module emu
 		.VGA_HSYNC_REF                      (VGA_HSYNC_REF),
 		.VGA_VSYNC_REF                      (VGA_VSYNC_REF),
 	//	.address                            (address),
-		.address_ext                        (bios_access_address),
-		.ext_access_request                 (bios_access_request),
+		.address_ext                        (20'hFFFFF),
+		.ext_access_request                 (ldr_hold_request),     // CPU off the bus during a ROM download
 		.address_direction                  (address_direction),
 		.data_bus                           (data_bus),
 		// Private 16-bit SDRAM path, beside the public 8-bit chipset bus.
@@ -1099,7 +1209,7 @@ module emu
 		.data_bus_word_in                   (cpu_data_bus_word),
 		.data_bus_word                      (data_bus_word),
 		.word_read_possible                 (word_read_possible),
-		.data_bus_ext                       (bios_write_data[7:0]),
+		.data_bus_ext                       (8'hFF),
 	//	.data_bus_direction                 (data_bus_direction),
 		.address_latch_enable               (address_latch_enable),
 	//  .io_channel_check                   (),
@@ -1115,7 +1225,7 @@ module emu
 		.memory_read_n_ext                  (1'b1),
 	//  .memory_read_n_direction            (memory_read_n_direction),
 	//  .memory_write_n                     (memory_write_n),
-		.memory_write_n_ext                 (bios_write_n),
+		.memory_write_n_ext                 (1'b1),
 	//  .memory_write_n_direction           (memory_write_n_direction),
 		.dma_request                        (0),    // use?	-> I don't know if it will ever be necessary, at least not during testing.
 		.dma_acknowledge_n                  (dma_acknowledge_n),
@@ -1145,7 +1255,6 @@ module emu
 		.o_cms_l                            (cms_l_snd_e),
 		.o_cms_r                            (cms_r_snd_e),
 		.tandy_video                        (tandy_video_mode),
-		.tandy_bios_flag                    (tandy_bios_flag),
 		.tandy_16_gfx                       (tandy_16_gfx),
 		.tandy_color_16                     (tandy_color_16),
 		.clk_uart                           (clk_uart2_en),
@@ -1160,21 +1269,20 @@ module emu
 		.clk_midi                           (clk_midi_en),
 		.midi_rx                            (midi_rx),
 		.midi_tx                            (midi_tx),
-		.enable_sdram                       (1'b1),
-		.initilized_sdram                   (initilized_sdram),
-		.sdram_clock                        (SDRAM_CLK),
-		.sdram_address                      (SDRAM_A),
-		.sdram_cke                          (SDRAM_CKE),
-		.sdram_cs                           (SDRAM_nCS),
-		.sdram_ras                          (SDRAM_nRAS),
-		.sdram_cas                          (SDRAM_nCAS),
-		.sdram_we                           (SDRAM_nWE),
-		.sdram_ba                           (SDRAM_BA),
-		.sdram_dq_in                        (SDRAM_DQ_IN),
-		.sdram_dq_out                       (SDRAM_DQ_OUT),
-		.sdram_dq_io                        (SDRAM_DQ_IO),
-		.sdram_ldqm                         (SDRAM_DQML),
-		.sdram_udqm                         (SDRAM_DQMH),
+		.mem_start                          (mem_start),
+		.mem_we                             (mem_we),
+		.mem_addr                           (mem_addr),
+		.mem_len                            (mem_len),
+		.mem_wdata                          (mem_wdata),
+		.mem_wbe                            (mem_wbe),
+		.mem_busy                           (mem_busy),
+		.mem_done                           (mem_done),
+		.mem_rdata                          (mem_rdata),
+		.mem_flush                          (ldr_flush),
+		.mem_snoop_valid                    (),
+		.mem_snoop_addr                     (),
+		.mem_snoop_data                     (),
+		.mem_snoop_be                       (),
 		.ems_enabled                        (ems_enabled_sel),
 		.ems_address                        (ems_address_sel),
 		.bios_protect_flag                  (bios_protect_flag),
@@ -1208,14 +1316,6 @@ module emu
 		.hsync_width_osd                    (hsync_width_osd),
 		.cga_frame_stack_rebuild            (status[64])
 	);
-
-    wire [15:0] SDRAM_DQ_IN;
-    wire [15:0] SDRAM_DQ_OUT;
-    wire        SDRAM_DQ_IO;
-    wire        initilized_sdram;
-
-    assign SDRAM_DQ_IN = SDRAM_DQ;
-    assign SDRAM_DQ = ~SDRAM_DQ_IO ? SDRAM_DQ_OUT : 16'hZZZZ;
 
     wire s6_3_mux;
     wire [2:0] SEGMENT;

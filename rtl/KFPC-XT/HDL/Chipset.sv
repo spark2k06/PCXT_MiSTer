@@ -5,7 +5,8 @@
 // Based on KFPC-XT written by @kitune-san
 //
 module CHIPSET #(
-        parameter clk_rate = 28'd50000000)
+        parameter clk_rate = 28'd50000000,
+        parameter bit ROM_TANDY = 1'b0)       // F000 maps the Tandy BIOS slot
         (
         input   logic           clock,
         input   logic           cpu_ce_posedge,
@@ -124,7 +125,6 @@ module CHIPSET #(
         output  logic   [15:0]  o_cms_r,
         // TANDY
         input   logic           tandy_video,
-        input   logic           tandy_bios_flag,
         output  logic   [10:0]  tandy_snd_e,
         output  logic           tandy_16_gfx,
         output  logic           tandy_color_16,
@@ -142,22 +142,23 @@ module CHIPSET #(
         input   logic           clk_midi,
         input   logic           midi_rx,
         output  logic           midi_tx,
-        // SDRAM
-        input   logic           enable_sdram,
-        output  logic           initilized_sdram,
-        input   logic           sdram_clock,    // 50MHz
-        output  logic   [12:0]  sdram_address,
-        output  logic           sdram_cke,
-        output  logic           sdram_cs,
-        output  logic           sdram_ras,
-        output  logic           sdram_cas,
-        output  logic           sdram_we,
-        output  logic   [1:0]   sdram_ba,
-        input   logic   [15:0]  sdram_dq_in,
-        output  logic   [15:0]  sdram_dq_out,
-        output  logic           sdram_dq_io,
-        output  logic           sdram_ldqm,
-        output  logic           sdram_udqm,
+        // System memory. Each access is a transaction to the SDRAM arbiter
+        // (through sdram_xbridge); the controller is in the platform layer.
+        output  logic           mem_start,
+        output  logic           mem_we,
+        output  logic   [23:0]  mem_addr,
+        output  logic   [1:0]   mem_len,
+        output  logic   [63:0]  mem_wdata,
+        output  logic   [7:0]   mem_wbe,
+        input   logic           mem_busy,
+        input   logic           mem_done,
+        input   logic   [63:0]  mem_rdata,
+        input   logic           mem_flush,      // the ROM loader is writing
+        // Committed writes, for the video fetch engines (F2)
+        output  logic           mem_snoop_valid,
+        output  logic   [23:0]  mem_snoop_addr,
+        output  logic   [15:0]  mem_snoop_data,
+        output  logic   [1:0]   mem_snoop_be,
         // EMS
         input   logic           ems_enabled,
         input   logic   [1:0]   ems_address,
@@ -211,7 +212,9 @@ module CHIPSET #(
     logic           memory_access_ready;
     logic           cga_memory_ready;
     logic           cga_memory_write_wait;
-    logic           ram_address_select_n;
+    logic           map_select;
+    logic   [24:0]  map_phys;
+    logic           map_protect;
     logic   [7:0]   internal_data_bus;
     logic   [7:0]   internal_data_bus_ext;
     logic   [7:0]   internal_data_bus_chipset;
@@ -447,13 +450,40 @@ module CHIPSET #(
         .cga_frame_stack_rebuild            (cga_frame_stack_rebuild)
     );
 
-    RAM u_RAM 
+    //
+    // System memory
+    //
+    mem_map #(.ROM_TANDY(ROM_TANDY)) u_mem_map
     (
-        .clock                              (sdram_clock),
-        .reset                              (sdram_reset),
-        .enable_sdram                       (enable_sdram),
-        .initilized_sdram                   (initilized_sdram),
         .address                            (latch_address),
+        .map_ems                            (map_ems),
+        .ems_b1                             (ems_b1),
+        .ems_b2                             (ems_b2),
+        .ems_b3                             (ems_b3),
+        .ems_b4                             (ems_b4),
+        .enable_a000h                       (enable_a000h),
+        .bios_protect_flag                  (bios_protect_flag),
+        .select                             (map_select),
+        .phys                               (map_phys),
+        .protect                            (map_protect)
+    );
+
+    // A CPU memory read or code fetch can start in SDRAM before MEMR: the
+    // clock after ALE rises, cpu_address (latched at the top level) already
+    // holds the T1 address. See cpu_mem_port.
+    logic   ale_q;
+    logic   ale_qq;
+    always_ff @(posedge clock) begin
+        ale_q  <= address_latch_enable;
+        ale_qq <= ale_q;
+    end
+    wire    early_read = ale_q & ~ale_qq
+                       & ((processor_status == 3'b100) | (processor_status == 3'b101));
+
+    cpu_mem_port u_cpu_mem_port
+    (
+        .clock                              (clock),
+        .reset                              (sdram_reset),
         .internal_data_bus                  (internal_data_bus),
         .data_bus_out                       (internal_data_bus_ram),
         .word_read_request                  (word_read_request),
@@ -462,33 +492,29 @@ module CHIPSET #(
         .data_bus_out_word                  (internal_data_bus_ram_word),
         .memory_read_n                      (memory_read_n),
         .memory_write_n                     (memory_write_n),
-        .no_command_state                   (no_command_state),
         .memory_access_ready                (memory_access_ready),
-        .ram_address_select_n               (ram_address_select_n),
-        .sdram_address                      (sdram_address),
-        .sdram_cke                          (sdram_cke),
-        .sdram_cs                           (sdram_cs),
-        .sdram_ras                          (sdram_ras),
-        .sdram_cas                          (sdram_cas),
-        .sdram_we                           (sdram_we),
-        .sdram_ba                           (sdram_ba),
-        .sdram_dq_in                        (sdram_dq_in),
-        .sdram_dq_out                       (sdram_dq_out),
-        .sdram_dq_io                        (sdram_dq_io),
-        .sdram_ldqm                         (sdram_ldqm),
-        .sdram_udqm                         (sdram_udqm),
-        .map_ems                            (map_ems),
-        .ems_b1                             (ems_b1),
-        .ems_b2                             (ems_b2),
-        .ems_b3                             (ems_b3),
-        .ems_b4                             (ems_b4),
-        .tandy_bios_flag                    (tandy_bios_flag),
-        .bios_protect_flag                  (bios_protect_flag),
-        .enable_a000h                       (enable_a000h),
+        .map_select                         (map_select),
+        .map_phys                           (map_phys),
+        .map_protect                        (map_protect),
         .wait_count_clk_en                  (wait_count_clk_en),
         .ram_read_wait_cycle                (ram_read_wait_cycle),
         .ram_write_wait_cycle               (ram_write_wait_cycle),
-        .clk_select                         (clk_select)
+        .clk_select                         (clk_select),
+        .flush                              (mem_flush),
+        .early_read                         (early_read),
+        .m_start                            (mem_start),
+        .m_we                               (mem_we),
+        .m_addr                             (mem_addr),
+        .m_len                              (mem_len),
+        .m_wdata                            (mem_wdata),
+        .m_wbe                              (mem_wbe),
+        .m_busy                             (mem_busy),
+        .m_done                             (mem_done),
+        .m_rdata                            (mem_rdata),
+        .snoop_valid                        (mem_snoop_valid),
+        .snoop_addr                         (mem_snoop_addr),
+        .snoop_data                         (mem_snoop_data),
+        .snoop_be                           (mem_snoop_be)
     );
 
     assign  data_bus = internal_data_bus;
@@ -499,13 +525,12 @@ module CHIPSET #(
     // every other device a 16-bit port it has nothing to put on.
     assign  data_bus_word = internal_data_bus_ram_word;
 
-    // ram_address_select_n is combinational on the latched address, so this
-    // settles as soon as the address does and is available to the CPU well
-    // before it has to commit to a wide cycle. It covers the decode holes -
-    // video memory, an unmapped EMS frame, the UMB window when it is off -
-    // because those are the places a wide read would come back with whatever
-    // RAM.sv happened to be holding.
-    assign  word_read_possible = ~ram_address_select_n;
+    // map_select is combinational on the latched address, so this settles as
+    // soon as the address does and is available to the CPU well before it has
+    // to commit to a wide cycle. It covers the decode holes - video memory,
+    // the UMB window when it is off - because those are the places a wide
+    // read would come back with whatever the memory port happened to hold.
+    assign  word_read_possible = map_select;
 
     always_comb
     begin
@@ -514,7 +539,7 @@ module CHIPSET #(
             internal_data_bus_ext = internal_data_bus_chipset;
             data_bus_direction    = 1'b0;
         end
-        else if ((~ram_address_select_n) && (~memory_read_n))
+        else if ((map_select) && (~memory_read_n))
         begin
             internal_data_bus_ext = internal_data_bus_ram;
             data_bus_direction    = 1'b0;
