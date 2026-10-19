@@ -53,6 +53,7 @@ mkdir -p "$BUILD_DIR"
 declare -A SOURCES=(
     [ram_refresh_collision_tb]="HDL/RAM.sv HDL/KFSDRAM/HDL/KFSDRAM.sv"
     [ram_lookahead_tb]="HDL/RAM.sv HDL/KFSDRAM/HDL/KFSDRAM.sv"
+    [ram_ems_protect_tb]="HDL/RAM.sv HDL/KFSDRAM/HDL/KFSDRAM.sv"
     [Ready_tb]="HDL/Ready.sv"
     [CGA_Bus_Wait_tb]="HDL/CGA_Bus_Wait.sv"
     [Bus_Arbiter_Hold_tb]="HDL/Bus_Arbiter.sv"

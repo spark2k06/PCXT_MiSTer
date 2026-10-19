@@ -236,8 +236,11 @@ module RAM (
     //
     // Write protect
     //
+    // The EMS page that sits at EC000 is RAM, not the EC00 ROM: it is not
+    // write protected, or the fourth page of an E000 frame could never be
+    // written while "BIOS Writable" is at its default.
     assign write_protect = bios_protect_flag[1] & (address[19:16] == 4'b1111)
-                         | bios_protect_flag[0] & (address[19:14] == 6'b111011);
+                         | bios_protect_flag[0] & (address[19:14] == 6'b111011) & ~ems_b4;
 
 
     //
