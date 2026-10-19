@@ -22,7 +22,7 @@ module rom_loader_tb;
     logic        hold_granted = 0;
     wire         l_start;  wire [23:0] l_addr;  wire [15:0] l_wdata;
     logic        l_busy = 0, l_done = 0;
-    wire         write_any, write_main;
+    wire         write_any, write_main, ec00_loaded;
 
     rom_loader #(.ROM_TANDY(1'b0)) dut (
         .clock(clock), .reset(reset), .sdram_ready(1'b1),
@@ -30,7 +30,7 @@ module rom_loader_tb;
         .ioctl_addr(ioctl_addr), .ioctl_data(ioctl_data), .ioctl_wait(ioctl_wait),
         .hold_request(hold_request), .hold_granted(hold_granted),
         .l_start(l_start), .l_addr(l_addr), .l_wdata(l_wdata), .l_busy(l_busy), .l_done(l_done),
-        .write_any(write_any), .write_main(write_main)
+        .write_any(write_any), .write_main(write_main), .ec00_loaded(ec00_loaded)
     );
 
     int errors = 0;
@@ -103,8 +103,10 @@ module rom_loader_tb;
         reset <= 0;
         repeat (4) @(posedge clock);
 
+        if (ec00_loaded) err("EC00 flagged as loaded before any download");
         writes = 0; mains = 0;
         download(8'd0, 300, 1);
+        if (ec00_loaded) err("EC00 flagged as loaded by the PCXT BIOS");
         verify((PHYS_ROM_BANK + ROM_PCXT_BIOS) >> 1, 300, 1, 0, "PCXT BIOS");
         if (writes != 300) err($sformatf("PCXT BIOS: %0d writes", writes));
         if (mains != 300) err($sformatf("write_main pulsed %0d times", mains));
@@ -113,6 +115,7 @@ module rom_loader_tb;
         download(8'd2, 9000, 7);         // 18000 bytes: wraps inside 16 KiB
         verify((PHYS_ROM_BANK + ROM_EC00) >> 1, 9000, 7, 8192, "EC00 (16 KiB window)");
         if (mains != 0) err("write_main for EC00");
+        if (!ec00_loaded) err("EC00 not flagged as loaded after its download");
 
         writes = 0;
         download(8'd1, 50, 9);           // Tandy slot: not in a PCXT build
@@ -121,6 +124,13 @@ module rom_loader_tb;
         writes = 0;
         download(8'd3, 50, 9);           // unknown index: ignored
         if (writes != 0) err("unknown index written");
+        if (!ec00_loaded) err("EC00 flag dropped by a later download");
+
+        reset <= 1;
+        repeat (3) @(posedge clock);
+        reset <= 0;
+        repeat (3) @(posedge clock);
+        if (ec00_loaded) err("EC00 flag survived a reset");
 
         $display("RESULT: %s", errors == 0 ? "PASS" : "FAIL");
         $finish;

@@ -40,7 +40,8 @@ module rom_loader #(
     input  logic        l_done,
 
     output logic        write_any,      // a word is being written (lookahead flush)
-    output logic        write_main      // a word of slot 0 has been written
+    output logic        write_main,     // a word of slot 0 has been written
+    output logic        ec00_loaded     // a word of the EC00 slot has been written since reset
 );
     import sdram_pkg::*;
 
@@ -57,6 +58,7 @@ module rom_loader #(
     typedef enum logic [1:0] {L_IDLE, L_ARMED, L_WRITE} lstate_t;
     lstate_t state;
     logic    main_slot;
+    logic    ec00_slot;
 
     // l_busy rises on the edge that takes l_start and falls with l_done.
     assign l_start   = (state == L_WRITE) & ~l_busy & ~l_done;
@@ -70,6 +72,8 @@ module rom_loader #(
             l_addr       <= 24'd0;
             l_wdata      <= 16'h0000;
             main_slot    <= 1'b0;
+            ec00_slot    <= 1'b0;
+            ec00_loaded  <= 1'b0;
             write_main   <= 1'b0;
         end
         else begin
@@ -92,6 +96,7 @@ module rom_loader #(
                         l_addr     <= dest[24:1];
                         l_wdata    <= ioctl_data;
                         main_slot  <= sel_pcxt;
+                        ec00_slot  <= sel_ec00;
                         ioctl_wait <= 1'b1;
                         state      <= L_WRITE;
                     end
@@ -101,6 +106,8 @@ module rom_loader #(
                 L_WRITE:
                     if (l_done) begin
                         write_main <= main_slot;
+                        if (ec00_slot)
+                            ec00_loaded <= 1'b1;
                         ioctl_wait <= 1'b0;
                         state      <= L_ARMED;
                     end

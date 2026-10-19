@@ -699,6 +699,7 @@ module emu
     wire [23:0] ldr_addr;
     wire [15:0] ldr_wdata;
     wire        pcxt_bios_write_complete;
+    wire        ec00_loaded;
 
     rom_loader #(.ROM_TANDY(`ROM_IS_TANDY)) u_rom_loader
     (
@@ -719,7 +720,8 @@ module emu
         .l_busy             (ldr_busy),
         .l_done             (ldr_done),
         .write_any          (ldr_flush),
-        .write_main         (pcxt_bios_write_complete)
+        .write_main         (pcxt_bios_write_complete),
+        .ec00_loaded        (ec00_loaded)
     );
 
     //
@@ -1279,6 +1281,7 @@ module emu
 		.mem_done                           (mem_done),
 		.mem_rdata                          (mem_rdata),
 		.mem_flush                          (ldr_flush),
+		.ec00_loaded                        (ec00_loaded),
 		.mem_snoop_valid                    (),
 		.mem_snoop_addr                     (),
 		.mem_snoop_data                     (),

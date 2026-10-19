@@ -154,6 +154,7 @@ module CHIPSET #(
         input   logic           mem_done,
         input   logic   [63:0]  mem_rdata,
         input   logic           mem_flush,      // the ROM loader is writing
+        input   logic           ec00_loaded,    // an EC00 ROM has been loaded; if not, EC000-EFFFF is open bus
         // Committed writes, for the video fetch engines (F2)
         output  logic           mem_snoop_valid,
         output  logic   [23:0]  mem_snoop_addr,
@@ -463,6 +464,7 @@ module CHIPSET #(
         .ems_b4                             (ems_b4),
         .enable_a000h                       (enable_a000h),
         .bios_protect_flag                  (bios_protect_flag),
+        .ec00_loaded                        (ec00_loaded),
         .select                             (map_select),
         .phys                               (map_phys),
         .protect                            (map_protect)

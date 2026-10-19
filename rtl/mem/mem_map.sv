@@ -12,7 +12,9 @@
 //   00000-AFFFF  CPU image (A0000-AFFFF only with the A000 UMB)
 //   B0000-BFFFF  not here: CGA and HGC video RAM
 //   C0000-EFFFF  CPU image, or the Lo-tech EMS frame when it is mapped
-//   EC000-EFFFF  EC00 ROM slot (XTIDE), unless the EMS frame covers it
+//   EC000-EFFFF  EC00 ROM slot (XTIDE), unless the EMS frame covers it. With
+//                no EC00 ROM loaded the window is not memory (open bus: reads
+//                come back as FF, writes are ignored), like a PC without the card
 //   F0000-FFFFF  PCXT BIOS slot (Tandy BIOS slot in a ROM_VARIANT_TANDY build)
 //
 // The EMS frame wins over the EC00 window, as it did in RAM.sv.
@@ -28,6 +30,7 @@ module mem_map #(
     input  logic        ems_b4,
     input  logic        enable_a000h,
     input  logic [1:0]  bios_protect_flag,   // [1] F000 (main), [0] EC00
+    input  logic        ec00_loaded,         // an EC00 ROM has been written to the slot
     output logic        select,
     output logic [24:0] phys,
     output logic        protect
@@ -39,7 +42,10 @@ module mem_map #(
     wire seg_f    = (address[19:16] == 4'hF);
     wire seg_ec00 = (address[19:14] == 6'b111011);
 
-    assign select = ~(address[19:16] == 4'hB) & ~(~enable_a000h & (address[19:16] == 4'hA));
+    wire ems_hit = ems_b1 | ems_b2 | ems_b3 | ems_b4;
+
+    assign select = ~(address[19:16] == 4'hB) & ~(~enable_a000h & (address[19:16] == 4'hA))
+                  & ~(seg_ec00 & ~ems_hit & ~ec00_loaded);
 
     always_comb begin
         protect = 1'b0;

@@ -47,7 +47,7 @@ module cpu_mem_port_tb #(
 
     mem_map map (
         .address(address), .map_ems(ems), .ems_b1(1'b0), .ems_b2(1'b0), .ems_b3(1'b0),
-        .ems_b4(1'b0), .enable_a000h(1'b1), .bios_protect_flag(protect_flags),
+        .ems_b4(1'b0), .enable_a000h(1'b1), .bios_protect_flag(protect_flags), .ec00_loaded(1'b1),
         .select(sel), .phys(phys), .protect(prot)
     );
 

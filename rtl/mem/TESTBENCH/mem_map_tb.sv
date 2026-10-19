@@ -13,19 +13,20 @@ module mem_map_tb;
     logic        ems_b [4];
     logic        enable_a000h;
     logic [1:0]  bios_protect_flag;
+    logic        ec00_loaded;
     wire         select_x, protect_x, select_t, protect_t;
     wire  [24:0] phys_x, phys_t;
 
     mem_map #(.ROM_TANDY(1'b0)) dut_xt (
         .address(address), .map_ems(map_ems), .ems_b1(ems_b[0]), .ems_b2(ems_b[1]),
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
-        .bios_protect_flag(bios_protect_flag),
+        .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .select(select_x), .phys(phys_x), .protect(protect_x)
     );
     mem_map #(.ROM_TANDY(1'b1)) dut_tandy (
         .address(address), .map_ems(map_ems), .ems_b1(ems_b[0]), .ems_b2(ems_b[1]),
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
-        .bios_protect_flag(bios_protect_flag),
+        .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .select(select_t), .phys(phys_t), .protect(protect_t)
     );
 
@@ -66,6 +67,8 @@ module mem_map_tb;
         for (int i = 0; i < 4; i++) if (ems_b[i]) page = i;
         if (address >= 20'hB0000 && address <= 20'hBFFFF) sel = 0;
         if (address >= 20'hA0000 && address <= 20'hAFFFF && !enable_a000h) sel = 0;
+        // No EC00 ROM and no EMS page over it: open bus.
+        if (page < 0 && !ec00_loaded && address >= 20'hEC000 && address <= 20'hEFFFF) sel = 0;
         if (page >= 0)
             ph = 25'h100_0000 + map_ems[page] * 25'h4000 + (address & 20'h3FFF);
         else if (address >= 20'hF0000) begin
@@ -84,7 +87,7 @@ module mem_map_tb;
     initial begin
         map_ems[0] = 7'h00; map_ems[1] = 7'h05; map_ems[2] = 7'h40; map_ems[3] = 7'h7F;
         frame = 2'd0; ems_on = 0; ena = 4'b0000;
-        enable_a000h = 1; bios_protect_flag = 2'b11;
+        enable_a000h = 1; bios_protect_flag = 2'b11; ec00_loaded = 1;
 
         // Golden table (PCXT, CGA + HGC)
         address = 20'h00000; check("RAM 0",        1, 25'h000_0000, 0, 0);
@@ -116,6 +119,18 @@ module mem_map_tb;
         ena = 4'b0111;
         address = 20'hEC010; check("EC00 when p3 unmapped", 1, 25'h013_0010, 1, 0);
 
+        // No EC00 ROM loaded: the window is open bus, but an EMS page over it
+        // and the rest of the map are not affected.
+        ec00_loaded = 0; ems_on = 0; ena = 4'b0000;
+        address = 20'hEC000; check("EC00 open bus",      0, 25'h0, 0, 0);
+        address = 20'hEFFFF; check("EC00 open bus end",  0, 25'h0, 0, 0);
+        address = 20'hEBFFF; check("below EC00 (no ROM)", 1, 25'h00E_BFFF, 0, 0);
+        address = 20'hF0000; check("BIOS (no EC00 ROM)", 1, 25'h010_0000, 1, 0);
+        ems_on = 1; frame = 2'd2; ena = 4'b1000;
+        address = 20'hEC010; check("EMS p3 over open EC00", 1, 25'h11F_C010, 0, 0);
+        ec00_loaded = 1; ems_on = 0; ena = 4'b0000;
+        address = 20'hEC000; check("EC00 slot once loaded", 1, 25'h013_0000, 1, 0);
+
         // Sweep every 2 KiB in every combination.
         for (int f = 0; f < 3; f++)
         for (int on = 0; on < 2; on++)
@@ -123,9 +138,10 @@ module mem_map_tb;
         for (int u = 0; u < 2; u++)
         for (int bp = 0; bp < 4; bp++)
         for (int t = 0; t < 2; t++)
+        for (int l = 0; l < 2; l++)
             for (int a = 0; a < 32'h100000; a += 32'h800) begin
                 frame = 2'(f); ems_on = on[0]; ena = 4'(e); enable_a000h = u[0];
-                bios_protect_flag = 2'(bp);
+                bios_protect_flag = 2'(bp); ec00_loaded = l[0];
                 address = 20'(a) | 20'(($urandom & 32'h7FF));
                 expect_ref(t[0]);
             end

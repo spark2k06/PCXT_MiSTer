@@ -202,7 +202,7 @@ module cpu_sdram_e2e_tb #(
 
     mem_map n_map (
         .address(n_addr), .map_ems(no_ems), .ems_b1(1'b0), .ems_b2(1'b0), .ems_b3(1'b0),
-        .ems_b4(1'b0), .enable_a000h(1'b1), .bios_protect_flag(2'b00),
+        .ems_b4(1'b0), .enable_a000h(1'b1), .bios_protect_flag(2'b00), .ec00_loaded(1'b1),
         .select(n_select), .phys(n_phys), .protect(n_protect)
     );
 
