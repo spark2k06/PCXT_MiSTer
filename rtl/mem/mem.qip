@@ -1,0 +1,7 @@
+# Memory subsystem. The package goes first: every other file imports it.
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "sdram_pkg.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "sdram_arbiter.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "sdram_xbridge.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "mem_map.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "cpu_mem_port.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "rom_loader.sv"]
