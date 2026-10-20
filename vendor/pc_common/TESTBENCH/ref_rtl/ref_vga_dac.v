@@ -1,0 +1,444 @@
+// REFERENCE COPY for ega_sdram_equiv_tb: the reconciled EGA/VGA core as it was
+// before the SDRAM retiming, modules renamed ref_*. Do not edit.
+//============================================================================
+//
+//  VGA/VGA-compatible 256-entry DAC palette
+//
+//============================================================================
+
+module ref_vga_dac(
+    input  wire        clock,
+    input  wire        reset,
+    input  wire        load_defaults,
+    input  wire        invalidate,
+
+    input  wire        write_en,
+    input  wire [7:0]  write_index,
+    input  wire [5:0]  write_red,
+    input  wire [5:0]  write_green,
+    input  wire [5:0]  write_blue,
+
+    input  wire        component_write_en,
+    input  wire [7:0]  component_write_index,
+    input  wire [1:0]  component_select,
+    input  wire [5:0]  component_data,
+
+    input  wire [7:0]  sample_index,
+    output wire [5:0]  sample_red,
+    output wire [5:0]  sample_green,
+    output wire [5:0]  sample_blue,
+    output wire [7:0]  sample_red_8,
+    output wire [7:0]  sample_green_8,
+    output wire [7:0]  sample_blue_8,
+    output wire        sample_valid,
+
+    input  wire [7:0]  port_index,
+    output wire [5:0]  port_red,
+    output wire [5:0]  port_green,
+    output wire [5:0]  port_blue,
+    output wire        port_valid
+);
+
+    // Each colour RAM has one write port and one asynchronous read port.
+    // The pixel and I/O readers need independent addresses, so keep a copy
+    // for each reader. Cyclone V MLABs support this flow-through read mode;
+    // M10Ks would add a clock of latency to the existing video pipeline.
+    // The explicit bypass below defines same-address read-after-write data;
+    // Quartus must not try to reproduce the array's HDL collision semantics.
+    (* ramstyle = "MLAB, no_rw_check" *) reg [5:0] sample_red_ram[0:255];
+    (* ramstyle = "MLAB, no_rw_check" *) reg [5:0] sample_green_ram[0:255];
+    (* ramstyle = "MLAB, no_rw_check" *) reg [5:0] sample_blue_ram[0:255];
+    (* ramstyle = "MLAB, no_rw_check" *) reg [5:0] port_red_ram[0:255];
+    (* ramstyle = "MLAB, no_rw_check" *) reg [5:0] port_green_ram[0:255];
+    (* ramstyle = "MLAB, no_rw_check" *) reg [5:0] port_blue_ram[0:255];
+
+    // Independent ROM copies provide the two asynchronous read addresses.
+    // The RAMs hold only software changes; clearing the override bits
+    // restores every default without a 256-entry parallel palette write.
+    (* ramstyle = "MLAB" *) reg [17:0] sample_default_palette[0:255];
+    (* ramstyle = "MLAB" *) reg [17:0] port_default_palette[0:255];
+    reg [255:0] red_override = 256'd0;
+    reg [255:0] green_override = 256'd0;
+    reg [255:0] blue_override = 256'd0;
+    // Set for every index loaded by load_defaults (i.e. while VGA mode 13h
+    // is active) or explicitly written through the DAC ports; cleared by
+    // invalidate (a mode set to anything other than mode 13h). Lets the EGA
+    // path fall back to its own palette for any entry a VGA-unaware EGA
+    // program never touched, instead of guessing a single default table that
+    // cannot serve both the VGA and EGA 200-line attribute code conventions.
+    reg [255:0] entry_valid;
+
+    integer default_index;
+
+    function [5:0] ega16_component;
+        input [3:0] index;
+        input [1:0] component;
+        begin
+            case (index)
+                4'h0: ega16_component = 6'h00;
+                4'h1: ega16_component = (component == 2'd2) ? 6'h2A : 6'h00;
+                4'h2: ega16_component = (component == 2'd1) ? 6'h2A : 6'h00;
+                4'h3: ega16_component = (component == 2'd0) ? 6'h00 : 6'h2A;
+                4'h4: ega16_component = (component == 2'd0) ? 6'h2A : 6'h00;
+                4'h5: ega16_component = (component == 2'd1) ? 6'h00 : 6'h2A;
+                4'h6: ega16_component = (component == 2'd0) ? 6'h2A :
+                                          (component == 2'd1) ? 6'h15 : 6'h00;
+                4'h7: ega16_component = 6'h2A;
+                4'h8: ega16_component = 6'h15;
+                4'h9: ega16_component = (component == 2'd2) ? 6'h3F : 6'h15;
+                4'hA: ega16_component = (component == 2'd1) ? 6'h3F : 6'h15;
+                4'hB: ega16_component = (component == 2'd0) ? 6'h15 : 6'h3F;
+                4'hC: ega16_component = (component == 2'd0) ? 6'h3F : 6'h15;
+                4'hD: ega16_component = (component == 2'd1) ? 6'h15 : 6'h3F;
+                4'hE: ega16_component = (component == 2'd2) ? 6'h15 : 6'h3F;
+                4'hF: ega16_component = 6'h3F;
+                default: ega16_component = 6'h00;
+            endcase
+        end
+    endfunction
+
+    function [5:0] gray_component;
+        input [3:0] index;
+        begin
+            case (index)
+                4'h0: gray_component = 6'h00;
+                4'h1: gray_component = 6'h05;
+                4'h2: gray_component = 6'h08;
+                4'h3: gray_component = 6'h0B;
+                4'h4: gray_component = 6'h0E;
+                4'h5: gray_component = 6'h11;
+                4'h6: gray_component = 6'h14;
+                4'h7: gray_component = 6'h18;
+                4'h8: gray_component = 6'h1C;
+                4'h9: gray_component = 6'h20;
+                4'hA: gray_component = 6'h24;
+                4'hB: gray_component = 6'h28;
+                4'hC: gray_component = 6'h2D;
+                4'hD: gray_component = 6'h32;
+                4'hE: gray_component = 6'h38;
+                4'hF: gray_component = 6'h3F;
+                default: gray_component = 6'h00;
+            endcase
+        end
+    endfunction
+
+    function [5:0] vga_ring_level;
+        input [3:0] ring;
+        input [2:0] level;
+        begin
+            case (ring)
+                4'd0: begin
+                    case (level)
+                        3'd0: vga_ring_level = 6'h00;
+                        3'd1: vga_ring_level = 6'h10;
+                        3'd2: vga_ring_level = 6'h1F;
+                        3'd3: vga_ring_level = 6'h2F;
+                        default: vga_ring_level = 6'h3F;
+                    endcase
+                end
+                4'd1: begin
+                    case (level)
+                        3'd0: vga_ring_level = 6'h1F;
+                        3'd1: vga_ring_level = 6'h27;
+                        3'd2: vga_ring_level = 6'h2F;
+                        3'd3: vga_ring_level = 6'h37;
+                        default: vga_ring_level = 6'h3F;
+                    endcase
+                end
+                4'd2: begin
+                    case (level)
+                        3'd0: vga_ring_level = 6'h2D;
+                        3'd1: vga_ring_level = 6'h31;
+                        3'd2: vga_ring_level = 6'h36;
+                        3'd3: vga_ring_level = 6'h3A;
+                        default: vga_ring_level = 6'h3F;
+                    endcase
+                end
+                4'd3: begin
+                    case (level)
+                        3'd0: vga_ring_level = 6'h00;
+                        3'd1: vga_ring_level = 6'h07;
+                        3'd2: vga_ring_level = 6'h0E;
+                        3'd3: vga_ring_level = 6'h15;
+                        default: vga_ring_level = 6'h1C;
+                    endcase
+                end
+                4'd4: begin
+                    case (level)
+                        3'd0: vga_ring_level = 6'h0E;
+                        3'd1: vga_ring_level = 6'h11;
+                        3'd2: vga_ring_level = 6'h15;
+                        3'd3: vga_ring_level = 6'h18;
+                        default: vga_ring_level = 6'h1C;
+                    endcase
+                end
+                4'd5: begin
+                    case (level)
+                        3'd0: vga_ring_level = 6'h14;
+                        3'd1: vga_ring_level = 6'h16;
+                        3'd2: vga_ring_level = 6'h18;
+                        3'd3: vga_ring_level = 6'h1A;
+                        default: vga_ring_level = 6'h1C;
+                    endcase
+                end
+                4'd6: begin
+                    case (level)
+                        3'd0: vga_ring_level = 6'h00;
+                        3'd1: vga_ring_level = 6'h04;
+                        3'd2: vga_ring_level = 6'h08;
+                        3'd3: vga_ring_level = 6'h0C;
+                        default: vga_ring_level = 6'h10;
+                    endcase
+                end
+                4'd7: begin
+                    case (level)
+                        3'd0: vga_ring_level = 6'h08;
+                        3'd1: vga_ring_level = 6'h0A;
+                        3'd2: vga_ring_level = 6'h0C;
+                        3'd3: vga_ring_level = 6'h0E;
+                        default: vga_ring_level = 6'h10;
+                    endcase
+                end
+                default: begin
+                    case (level)
+                        3'd0: vga_ring_level = 6'h0B;
+                        3'd1: vga_ring_level = 6'h0C;
+                        3'd2: vga_ring_level = 6'h0D;
+                        3'd3: vga_ring_level = 6'h0F;
+                        default: vga_ring_level = 6'h10;
+                    endcase
+                end
+            endcase
+        end
+    endfunction
+
+    function [5:0] vga_ring_component;
+        input [3:0] ring;
+        input [4:0] position;
+        input [1:0] component;
+        reg [2:0] red_level;
+        reg [2:0] green_level;
+        reg [2:0] blue_level;
+        begin
+            case (position)
+                5'd0:  begin red_level = 3'd0; green_level = 3'd0; blue_level = 3'd4; end
+                5'd1:  begin red_level = 3'd1; green_level = 3'd0; blue_level = 3'd4; end
+                5'd2:  begin red_level = 3'd2; green_level = 3'd0; blue_level = 3'd4; end
+                5'd3:  begin red_level = 3'd3; green_level = 3'd0; blue_level = 3'd4; end
+                5'd4:  begin red_level = 3'd4; green_level = 3'd0; blue_level = 3'd4; end
+                5'd5:  begin red_level = 3'd4; green_level = 3'd0; blue_level = 3'd3; end
+                5'd6:  begin red_level = 3'd4; green_level = 3'd0; blue_level = 3'd2; end
+                5'd7:  begin red_level = 3'd4; green_level = 3'd0; blue_level = 3'd1; end
+                5'd8:  begin red_level = 3'd4; green_level = 3'd0; blue_level = 3'd0; end
+                5'd9:  begin red_level = 3'd4; green_level = 3'd1; blue_level = 3'd0; end
+                5'd10: begin red_level = 3'd4; green_level = 3'd2; blue_level = 3'd0; end
+                5'd11: begin red_level = 3'd4; green_level = 3'd3; blue_level = 3'd0; end
+                5'd12: begin red_level = 3'd4; green_level = 3'd4; blue_level = 3'd0; end
+                5'd13: begin red_level = 3'd3; green_level = 3'd4; blue_level = 3'd0; end
+                5'd14: begin red_level = 3'd2; green_level = 3'd4; blue_level = 3'd0; end
+                5'd15: begin red_level = 3'd1; green_level = 3'd4; blue_level = 3'd0; end
+                5'd16: begin red_level = 3'd0; green_level = 3'd4; blue_level = 3'd0; end
+                5'd17: begin red_level = 3'd0; green_level = 3'd4; blue_level = 3'd1; end
+                5'd18: begin red_level = 3'd0; green_level = 3'd4; blue_level = 3'd2; end
+                5'd19: begin red_level = 3'd0; green_level = 3'd4; blue_level = 3'd3; end
+                5'd20: begin red_level = 3'd0; green_level = 3'd4; blue_level = 3'd4; end
+                5'd21: begin red_level = 3'd0; green_level = 3'd3; blue_level = 3'd4; end
+                5'd22: begin red_level = 3'd0; green_level = 3'd2; blue_level = 3'd4; end
+                default: begin red_level = 3'd0; green_level = 3'd1; blue_level = 3'd4; end
+            endcase
+
+            case (component)
+                2'd0: vga_ring_component = vga_ring_level(ring, red_level);
+                2'd1: vga_ring_component = vga_ring_level(ring, green_level);
+                2'd2: vga_ring_component = vga_ring_level(ring, blue_level);
+                default: vga_ring_component = 6'h00;
+            endcase
+        end
+    endfunction
+
+    function [5:0] default_component;
+        input [7:0] index;
+        input [1:0] component;
+        reg [3:0] ring;
+        reg [4:0] position;
+        begin
+            if (index < 8'd16) begin
+                default_component = ega16_component(index[3:0], component);
+            end else if (index < 8'd32) begin
+                default_component = gray_component(index[3:0]);
+            end else if (index < 8'd248) begin
+                if (index < 8'd56) begin
+                    ring = 4'd0;
+                    position = index - 8'd32;
+                end else if (index < 8'd80) begin
+                    ring = 4'd1;
+                    position = index - 8'd56;
+                end else if (index < 8'd104) begin
+                    ring = 4'd2;
+                    position = index - 8'd80;
+                end else if (index < 8'd128) begin
+                    ring = 4'd3;
+                    position = index - 8'd104;
+                end else if (index < 8'd152) begin
+                    ring = 4'd4;
+                    position = index - 8'd128;
+                end else if (index < 8'd176) begin
+                    ring = 4'd5;
+                    position = index - 8'd152;
+                end else if (index < 8'd200) begin
+                    ring = 4'd6;
+                    position = index - 8'd176;
+                end else if (index < 8'd224) begin
+                    ring = 4'd7;
+                    position = index - 8'd200;
+                end else begin
+                    ring = 4'd8;
+                    position = index - 8'd224;
+                end
+                default_component = vga_ring_component(ring, position, component);
+            end else begin
+                default_component = 6'h00;
+            end
+        end
+    endfunction
+
+    initial begin
+        for (default_index = 0; default_index < 256; default_index = default_index + 1)
+            sample_default_palette[default_index] = {
+                default_component(default_index[7:0], 2'd0),
+                default_component(default_index[7:0], 2'd1),
+                default_component(default_index[7:0], 2'd2)
+            };
+        for (default_index = 0; default_index < 256; default_index = default_index + 1)
+            port_default_palette[default_index] = {
+                default_component(default_index[7:0], 2'd0),
+                default_component(default_index[7:0], 2'd1),
+                default_component(default_index[7:0], 2'd2)
+            };
+    end
+
+    wire palette_write = !reset && !load_defaults && !invalidate;
+    wire full_write = palette_write && write_en;
+    wire component_write = palette_write && !write_en && component_write_en;
+    wire [7:0] ram_write_index = full_write ? write_index : component_write_index;
+    // Store software colours through a bijective address transform. It was
+    // added to lengthen the MLAB write-address path for hold; the falling-edge
+    // write below now provides that margin, and the transform stays harmless.
+    // Default ROMs, validity/override bits and bypass comparisons use logical
+    // addresses. Applying this same permutation to reads preserves all data.
+    function [7:0] palette_ram_address;
+        input [7:0] logical_index;
+        begin
+            palette_ram_address[6:0] = logical_index[6:0] ^ logical_index[7:1];
+            palette_ram_address[7] = logical_index[7] ^ logical_index[0] ^ logical_index[1];
+        end
+    endfunction
+    wire [7:0] encoded_write_index = palette_ram_address(ram_write_index);
+    wire [7:0] encoded_sample_index = palette_ram_address(sample_index);
+    wire [7:0] encoded_port_index = palette_ram_address(port_index);
+    wire red_write = full_write || (component_write && component_select == 2'd0);
+    wire green_write = full_write || (component_write && component_select == 2'd1);
+    wire blue_write = full_write || (component_write && component_select == 2'd2);
+    wire [5:0] red_write_data = full_write ? write_red : component_data;
+    wire [5:0] green_write_data = full_write ? write_green : component_data;
+    wire [5:0] blue_write_data = full_write ? write_blue : component_data;
+
+    // Same-address reads on a write cycle see the new component explicitly.
+    // This also avoids depending on the device's read-during-write setting.
+    reg [7:0] last_write_index;
+    reg [5:0] last_red_data, last_green_data, last_blue_data;
+    reg last_red_write, last_green_write, last_blue_write;
+    always @(posedge clock) begin
+        last_write_index <= ram_write_index;
+        last_red_write <= red_write;
+        last_green_write <= green_write;
+        last_blue_write <= blue_write;
+        if (red_write)
+            last_red_data <= red_write_data;
+        if (green_write)
+            last_green_data <= green_write_data;
+        if (blue_write)
+            last_blue_data <= blue_write_data;
+    end
+
+    // The MLABs take their write on the falling edge. An MLAB write-address
+    // register needs a positive hold time, and launched and captured on the
+    // same rising edge that path had only picoseconds to spare: no SDC
+    // minimum-delay constraint held once the Fitter duplicated a write_index
+    // register. Half a clock now separates launch from capture, which is all
+    // hold margin; the write controls are registered on the rising edge, so
+    // they settle well within the half period left for setup. The entry is
+    // written before the next rising edge sets its override bit, so a read
+    // never sees a stale value; the bypass above covers the cycle after.
+    always @(negedge clock) begin
+        if (red_write) begin
+            sample_red_ram[encoded_write_index] <= red_write_data;
+            port_red_ram[encoded_write_index] <= red_write_data;
+        end
+        if (green_write) begin
+            sample_green_ram[encoded_write_index] <= green_write_data;
+            port_green_ram[encoded_write_index] <= green_write_data;
+        end
+        if (blue_write) begin
+            sample_blue_ram[encoded_write_index] <= blue_write_data;
+            port_blue_ram[encoded_write_index] <= blue_write_data;
+        end
+    end
+
+    always @(posedge clock or posedge reset) begin
+        if (reset) begin
+            red_override <= 256'd0;
+            green_override <= 256'd0;
+            blue_override <= 256'd0;
+            entry_valid <= 256'd0;
+        end else if (load_defaults) begin
+            red_override <= 256'd0;
+            green_override <= 256'd0;
+            blue_override <= 256'd0;
+            entry_valid <= {256{1'b1}};
+        end else if (invalidate) begin
+            entry_valid <= 256'd0;
+        end else if (write_en) begin
+            red_override[write_index] <= 1'b1;
+            green_override[write_index] <= 1'b1;
+            blue_override[write_index] <= 1'b1;
+            entry_valid[write_index] <= 1'b1;
+        end else if (component_write_en) begin
+            case (component_select)
+                2'd0: red_override[component_write_index] <= 1'b1;
+                2'd1: green_override[component_write_index] <= 1'b1;
+                2'd2: blue_override[component_write_index] <= 1'b1;
+                default: begin
+                end
+            endcase
+            entry_valid[component_write_index] <= 1'b1;
+        end
+    end
+
+    wire [17:0] sample_default = sample_default_palette[sample_index];
+    wire [17:0] port_default = port_default_palette[port_index];
+    assign sample_red = red_override[sample_index] ?
+                        (last_red_write && last_write_index == sample_index ? last_red_data : sample_red_ram[encoded_sample_index]) :
+                        sample_default[17:12];
+    assign sample_green = green_override[sample_index] ?
+                          (last_green_write && last_write_index == sample_index ? last_green_data : sample_green_ram[encoded_sample_index]) :
+                          sample_default[11:6];
+    assign sample_blue = blue_override[sample_index] ?
+                         (last_blue_write && last_write_index == sample_index ? last_blue_data : sample_blue_ram[encoded_sample_index]) :
+                         sample_default[5:0];
+    assign sample_red_8 = {sample_red, sample_red[5:4]};
+    assign sample_green_8 = {sample_green, sample_green[5:4]};
+    assign sample_blue_8 = {sample_blue, sample_blue[5:4]};
+    assign sample_valid = entry_valid[sample_index];
+    assign port_red = red_override[port_index] ?
+                      (last_red_write && last_write_index == port_index ? last_red_data : port_red_ram[encoded_port_index]) :
+                      port_default[17:12];
+    assign port_green = green_override[port_index] ?
+                        (last_green_write && last_write_index == port_index ? last_green_data : port_green_ram[encoded_port_index]) :
+                        port_default[11:6];
+    assign port_blue = blue_override[port_index] ?
+                       (last_blue_write && last_write_index == port_index ? last_blue_data : port_blue_ram[encoded_port_index]) :
+                       port_default[5:0];
+    assign port_valid = entry_valid[port_index];
+
+endmodule

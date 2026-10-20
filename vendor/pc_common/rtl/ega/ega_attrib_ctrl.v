@@ -1,0 +1,203 @@
+//============================================================================
+//
+//  PCXT MiSTer EGA attribute controller
+//
+//============================================================================
+
+`default_nettype wire
+
+module ega_attrib_ctrl (
+    input  wire        clk,
+    input  wire        reset,
+    input  wire        ce_pix,
+    input  wire [15:0] io_addr,
+    input  wire [7:0]  io_data_in,
+    output reg  [7:0]  io_data_out,
+    input  wire        io_we,
+    input  wire        io_re,
+    input  wire        status_re,
+    input  wire [3:0]  plane_index,
+    input  wire        pixel_valid,
+    input  wire        display_enable,
+    input  wire        text_mode,
+    input  wire        blink_state,
+    input  wire        palette_64_mode,
+    // VGA adds Mode Control bit 7 (P5,P4 Select) and the Color Select
+    // register 14h. An EGA has neither, so they act only with VGA enabled.
+    input  wire        vga_extensions,
+    output wire        blink_enable_out,
+    output wire        mono_attributes_out,
+    output wire        line_graphics_enable_out,
+    output wire [3:0]  pixel_pan_out,
+    output wire        split_panning_suppress_out,
+    output reg  [5:0]  color_out,
+    output reg         display_enable_out,
+    output reg         video_enable_out
+);
+
+    localparam [15:0] ATTR_ADDR_PORT0 = 16'h03C0;
+    localparam [15:0] ATTR_ADDR_PORT1 = 16'h02C0;
+    localparam [15:0] ATTR_READ_PORT0 = 16'h03C1;
+    localparam [15:0] ATTR_READ_PORT1 = 16'h02C1;
+
+    reg [7:0] raw_palette[0:15];
+    reg [4:0] attr_index = 5'h00;
+    reg       address_phase = 1'b1;
+    reg       video_enable_reg = 1'b1;
+    reg [7:0] mode_control_reg = 8'h01;
+    reg [7:0] overscan_reg = 8'h00;
+    reg [7:0] plane_enable_reg = 8'h0F;
+    reg [7:0] pixel_panning_reg = 8'h00;
+    reg [7:0] color_select_reg = 8'h00;
+    reg       attr_write_q = 1'b0;
+    reg       status_re_q = 1'b0;
+
+    // A write reaches the attribute controller at either address. The card does
+    // not decode A0 for this register - 3C1h is only "the read port" by
+    // convention, and 86Box (vid_ega.c, ega_out) answers writes at 3C0h, 3C1h,
+    // 2C0h and 2C1h alike. Software does rely on it: EGA test code that loads
+    // the index at 3C0h and then pushes the value at 3C1h works on real
+    // hardware, and dropping that write leaves the register half programmed.
+    wire attr_addr_cs = (io_addr == ATTR_ADDR_PORT0) || (io_addr == ATTR_ADDR_PORT1) ||
+                        (io_addr == ATTR_READ_PORT0) || (io_addr == ATTR_READ_PORT1);
+    wire attr_read_cs = (io_addr == ATTR_READ_PORT0) || (io_addr == ATTR_READ_PORT1);
+    wire attr_write_pulse = (io_we && attr_addr_cs) && !attr_write_q;
+    wire status_re_pulse = status_re && !status_re_q;
+    wire       attr_blink_enable = mode_control_reg[3];
+    wire       attr_mono_attributes = mode_control_reg[1];
+    wire       attr_line_graphics_enable = mode_control_reg[2];
+    wire [3:0] graphics_blink_mask = attr_blink_enable ? 4'h8 : 4'h0;
+    wire [3:0] graphics_blink_value = (attr_blink_enable && blink_state) ? 4'h8 : 4'h0;
+    wire [3:0] graphics_blink_index =
+        ((plane_index & plane_enable_reg[3:0] & ~graphics_blink_mask) |
+         ((plane_index | ~plane_enable_reg[3:0]) & graphics_blink_mask & graphics_blink_value)) ^
+        graphics_blink_mask;
+    wire [3:0] text_index = plane_index & plane_enable_reg[3:0];
+    wire [3:0] palette_index_effective = text_mode ? text_index : graphics_blink_index;
+    // Match 86Box IBM EGA behavior: Color Select (0x14) is latched/readable,
+    // but does not alter the effective 6-bit EGA palette on the base IBM card.
+    wire [5:0] palette_color_code = raw_palette[palette_index_effective][5:0];
+    // P54S replaces palette bits 5:4 by Color Select bits 1:0. Bits 3:2 of
+    // Color Select would drive DAC index bits 7:6, which this six-bit path
+    // does not carry; they stay zero, which is their BIOS default.
+    wire       p54_select = vga_extensions & mode_control_reg[7];
+    wire [5:0] pixel_color_code = p54_select ?
+                                  {color_select_reg[1:0], palette_color_code[3:0]} :
+                                  palette_color_code;
+    wire [5:0] border_color_code = palette_64_mode ? overscan_reg[5:0] : {2'b00, overscan_reg[3:0]};
+    assign blink_enable_out = attr_blink_enable;
+    assign mono_attributes_out = attr_mono_attributes;
+    assign line_graphics_enable_out = attr_line_graphics_enable;
+    // Horizontal Pel Panning (index 13h), for the renderer to act on.
+    assign pixel_pan_out = pixel_panning_reg[3:0];
+    // Attribute Mode Control bit 5 makes the lower half of a Line Compare
+    // split start aligned, instead of inheriting the upper half's pel pan.
+    assign split_panning_suppress_out = mode_control_reg[5];
+
+    integer palette_index;
+
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            // Power-on palette must be the IBM EGA 200-line/CGA-compatible set:
+            // 0x00-0x07 for 0-7, 0x10-0x17 for 8-15. In the 16-colour DAC path
+            // ega_vgaport uses bit 4 as the shared intensity and ignores bit 3,
+            // so a plain identity mapping would render 8-15 exactly like 0-7.
+            // Index 6 stays 0x06 to keep ega_vgaport's brown special case.
+            for (palette_index = 0; palette_index < 16; palette_index = palette_index + 1)
+                raw_palette[palette_index] <= (palette_index < 8) ? palette_index[5:0]
+                                                                  : {3'b010, palette_index[2:0]};
+            attr_index <= 5'h00;
+            address_phase <= 1'b1;
+            video_enable_reg <= 1'b1;
+            mode_control_reg <= 8'h01;
+            overscan_reg <= 8'h00;
+            plane_enable_reg <= 8'h0F;
+            pixel_panning_reg <= 8'h00;
+            color_select_reg <= 8'h00;
+            attr_write_q <= 1'b0;
+            status_re_q <= 1'b0;
+            color_out <= 6'h00;
+            display_enable_out <= 1'b0;
+            video_enable_out <= 1'b1;
+        end else begin
+            attr_write_q <= io_we && attr_addr_cs;
+            status_re_q <= status_re;
+
+            if (status_re_pulse)
+                address_phase <= 1'b1;
+            else if (attr_write_pulse) begin
+                if (address_phase) begin
+                    attr_index <= io_data_in[4:0];
+                    video_enable_reg <= io_data_in[5];
+                end else begin
+                    case (attr_index)
+                        5'h00, 5'h01, 5'h02, 5'h03,
+                        5'h04, 5'h05, 5'h06, 5'h07,
+                        5'h08, 5'h09, 5'h0A, 5'h0B,
+                        5'h0C, 5'h0D, 5'h0E, 5'h0F:
+                            raw_palette[attr_index[3:0]] <= io_data_in;
+                        5'h10: mode_control_reg <= io_data_in;
+                        5'h11: overscan_reg <= io_data_in;
+                        5'h12: plane_enable_reg <= io_data_in;
+                        5'h13: pixel_panning_reg <= io_data_in;
+                        5'h14: color_select_reg <= io_data_in;
+                        default: begin
+                        end
+                    endcase
+                end
+
+                address_phase <= ~address_phase;
+            end
+
+            if (ce_pix) begin
+                if (display_enable && video_enable_reg) begin
+                    if (pixel_valid)
+                        color_out <= pixel_color_code;
+                    else
+                        color_out <= 6'h00;
+                end
+                else if (!display_enable) begin
+                    // Border/overscan RGB. Top-level hblank/vblank/de signals
+                    // carry the sync-safe blanking state to the video mixer.
+                    color_out <= border_color_code;
+                end
+                else begin
+                    color_out <= 6'h00;
+                end
+
+                // Palette Address Source takes the beam dark, it does not stop
+                // the raster: the CRTC keeps scanning and the line is still
+                // drawn, in black. 86Box models it the same way, by swapping
+                // the renderer for ega_render_blank rather than by changing any
+                // timing. Folding it into the display enable instead punched a
+                // hole in the active window every time software cleared the
+                // bit - and a 64 colour raster bar effect clears it twice per
+                // scanline, which left the scaler with no stable window to lock
+                // to and the picture tearing.
+                display_enable_out <= display_enable;
+                video_enable_out <= video_enable_reg;
+            end
+        end
+    end
+
+    always @(*) begin
+        io_data_out = 8'h00;
+        case (attr_index)
+            5'h00, 5'h01, 5'h02, 5'h03,
+            5'h04, 5'h05, 5'h06, 5'h07,
+            5'h08, 5'h09, 5'h0A, 5'h0B,
+            5'h0C, 5'h0D, 5'h0E, 5'h0F:
+                io_data_out = raw_palette[attr_index[3:0]];
+            5'h10: io_data_out = mode_control_reg;
+            5'h11: io_data_out = overscan_reg;
+            5'h12: io_data_out = plane_enable_reg;
+            5'h13: io_data_out = pixel_panning_reg;
+            5'h14: io_data_out = color_select_reg;
+            default: io_data_out = 8'h00;
+        endcase
+
+        if (!io_re || !attr_read_cs)
+            io_data_out = 8'h00;
+    end
+
+endmodule

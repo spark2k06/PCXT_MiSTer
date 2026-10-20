@@ -1,0 +1,5 @@
+# pc_common, BRAM backend of the video memory (MEM_BACKEND=BRAM).
+# Not used by SDRAM builds; the benches use it as the reference.
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) ega/ega_vram.v]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) mem/ega_vram_bram_frontend.sv]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/vga_framebuffer.v]
