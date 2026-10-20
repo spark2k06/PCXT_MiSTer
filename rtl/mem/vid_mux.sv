@@ -3,11 +3,19 @@
 // the arbiter.
 //
 //  * Among the engines that are asking, the one with the earliest deadline is
-//    presented (ties: lowest index). The comparison is registered, so it uses
-//    the deadlines of the clock before (they all count down together, which
-//    does not change the order); if the registered choice is not asking, the
-//    first asking engine is presented. A request that is being presented keeps
-//    its place until the arbiter takes it, so the fields stay stable.
+//    chosen (ties: lowest index). The comparison is registered, so it uses the
+//    deadlines of the clock before (they all count down together, which does
+//    not change the order); if the registered choice is not asking, the first
+//    asking engine is chosen.
+//  * The chosen request is acknowledged to its engine and parked in a register
+//    stage, which is what the arbiter sees. The stage holds the fields stable
+//    until the arbiter takes it, and its deadline keeps counting down, so the
+//    arbiter reads the value the engine would have shown on that clock. The
+//    engines never see the arbiter's answer: the loop engine -> arbiter ->
+//    engine that this stage cuts was the longest path of the core with three
+//    engines (about 10 logic levels).
+//  * The stage takes a new request the clock after it has emptied, so the port
+//    carries at most one request every two clocks.
 //  * The engine of every accepted request is queued, and the words that come
 //    back are handed to the engines in that order.
 //  * At most four reads are in flight in total (the arbiter keeps four).
@@ -62,54 +70,64 @@ module vid_mux #(
             if (c_req[i]) first = SW'(i);
     end
 
-    // The request on show is kept until it is taken (or withdrawn)
-    logic          locked;
-    logic [SW-1:0] sel_q;
-    wire           use_q = locked && c_req[sel_q];
-    wire           use_b = any_q && c_req[best_q];
-    wire  [SW-1:0] sel   = use_q ? sel_q : (use_b ? best_q : first);
+    wire use_b = any_q && c_req[best_q];
+    wire [SW-1:0] sel = use_b ? best_q : first;
 
     logic [2:0]    if_cnt;
     wire           room = (if_cnt < 3'(MAX_INFLIGHT));
 
-    assign vid_req      = (use_q | (|c_req)) & room;
-    assign vid_addr     = c_addr[24*sel +: 24];
-    assign vid_len      = c_len[2*sel +: 2];
-    assign vid_deadline = c_deadline[16*sel +: 16];
+    // The register stage that the arbiter sees
+    logic          stage_v;
+    logic [SW-1:0] stage_own;
+    logic [23:0]   stage_addr;
+    logic [1:0]    stage_len;
+    logic [15:0]   stage_dl;
 
-    wire take = vid_req & vid_ack;
+    assign vid_req      = stage_v;
+    assign vid_addr     = stage_addr;
+    assign vid_len      = stage_len;
+    assign vid_deadline = stage_dl;
+
+    wire take = stage_v & vid_ack;
+    wire fill = !stage_v & (|c_req) & room;
 
     always_comb
         for (int i = 0; i < N; i++)
-            c_ack[i] = take && (sel == SW'(i));
+            c_ack[i] = fill && (sel == SW'(i));
 
     // Who the words belong to
     logic [SW-1:0] own_q [MAX_INFLIGHT];
     logic [1:0]    own_rd, own_wr;
 
+    wire [15:0] fill_dl = c_deadline[16*sel +: 16];
+
     always_ff @(posedge clk) begin
         if (reset) begin
-            locked <= 1'b0;
-            sel_q  <= '0;
-            best_q <= '0;
-            any_q  <= 1'b0;
-            own_rd <= 2'd0;
-            own_wr <= 2'd0;
-            if_cnt <= 3'd0;
+            stage_v <= 1'b0;
+            best_q  <= '0;
+            any_q   <= 1'b0;
+            own_rd  <= 2'd0;
+            own_wr  <= 2'd0;
+            if_cnt  <= 3'd0;
         end
         else begin
             best_q <= best;
             any_q  <= any;
 
-            if (vid_req && !vid_ack) begin
-                locked <= 1'b1;
-                sel_q  <= sel;
+            if (fill) begin
+                stage_v    <= 1'b1;
+                stage_own  <= sel;
+                stage_addr <= c_addr[24*sel +: 24];
+                stage_len  <= c_len[2*sel +: 2];
+                stage_dl   <= (fill_dl != 16'd0) ? fill_dl - 16'd1 : 16'd0;
             end
-            else
-                locked <= 1'b0;
+            else begin
+                if (take) stage_v <= 1'b0;
+                if (stage_dl != 16'd0) stage_dl <= stage_dl - 16'd1;
+            end
 
             if (take) begin
-                own_q[own_wr] <= sel;
+                own_q[own_wr] <= stage_own;
                 own_wr        <= own_wr + 2'd1;
             end
             if (vid_rvalid && vid_rlast)

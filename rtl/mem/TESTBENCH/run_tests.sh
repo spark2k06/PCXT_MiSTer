@@ -34,6 +34,8 @@ VFETCH="$MEM/vram_fetch.sv $MEM/vid_mux.sv"
 RCLEAR="$MEM/ram_clear.sv"
 VID="$ROOT/rtl/video"
 VCARDS="$VID/UM6845R.v $VID/cga.v $VID/cga_sequencer.v $VID/cga_pixel.sv $VID/cga_attrib.v $VID/cga_splash_renderer.v $VID/video_scandoubler.v $ROOT/rtl/common/jtframe_dual_ram.v $VID/hgc.v $VID/hgc_sequencer.v $VID/hgc_pixel.v $VID/hgc_attrib.v $VID/crtc_vram_if.sv $VID/cga_vram_if.sv $VID/hgc_vram_if.sv $VID/vram.v"
+MAPEGA="$MEM/mem_map_ega.sv"
+TXNMUX="$MEM/sdram_txn_mux.sv"
 MODEL="$TB/sdram_model.sv"
 CPU8088="$ROOT/rtl/8088"
 KFXT="$ROOT/rtl/KFPC-XT/HDL"
@@ -44,7 +46,7 @@ E2E="$PKG $CTRL $ARB $BRIDGE $PORT $MAP $MODEL $CPU $XT $TB/cpu_sdram_e2e_tb.sv"
 DEFS="-DENABLE_CGA=1 -DENABLE_HGC=1 -DENABLE_OPL2=0 -DENABLE_CMS=0 -DENABLE_MIDI=0 -DENABLE_EMS=0"
 INCS="-I$KFXT/KF8237/HDL -I$KFXT/KF8253/HDL -I$KFXT/KF8255/HDL -I$KFXT/KF8259/HDL"
 # Everything the machine is made of, as the qips list it (sys_video_files.lst), plus stubs
-SYSV="$TB/sys_video_stubs.sv $MODEL $(sed "s|^|$ROOT/|" "$TB/sys_video_files.lst" | tr '\n' ' ') $TB/sys_video_tb.sv"
+SYSV="$TB/sys_video_stubs.sv $MODEL $(tr -d '' < "$TB/sys_video_files.lst" | sed "s|^|$ROOT/|" | tr '\n' ' ') $TB/sys_video_tb.sv"
 
 # name | top module | -G parameters | sources
 BENCHES=(
@@ -89,6 +91,9 @@ BENCHES=(
     "sys_video_4_77|sys_video_tb|-GSPEED=0|$SYSV"
     "sys_video_max|sys_video_tb|-GSPEED=3|$SYSV"
     "vram_fetch_busy|vram_fetch_tb|-GWR_GAP=3 -GB_PERIOD=32 -GLATE_PCT=10|$PKG $CTRL $ARB $MODEL $VFETCH $TB/vram_fetch_tb.sv"
+    # F3: the EGA card's memory map and the second master of the CPU port
+    "mem_map_ega|mem_map_ega_tb||$PKG $MAPEGA $TB/mem_map_ega_tb.sv"
+    "sdram_txn_mux|sdram_txn_mux_tb||$TXNMUX $TB/sdram_txn_mux_tb.sv"
 )
 
 pass=0; fail=0; skip=0
