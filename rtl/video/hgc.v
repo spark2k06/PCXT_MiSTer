@@ -40,7 +40,13 @@ module hgc(
     output grph_page,
     output std_hsyncwidth,
     output vblank_border,
-    input hercules_hw
+    input hercules_hw,
+    // Word of video memory (16 bits: character, attribute) that the CRTC will
+    // address at its next character clock, within the 32 KiB page, for the
+    // memory fetch engine.
+    // Registered, so it is settled one slot after the CRTC has advanced.
+    output reg [13:0] fx_next_word,
+    output[4:0] fx_phase
     );
 
     parameter HGC_70HZ = 1;
@@ -72,6 +78,8 @@ module hgc(
 
     wire[13:0] crtc_addr;
     wire[4:0] row_addr;
+    wire[13:0] crtc_addr_next;
+    wire[4:0] row_addr_next;
 
     wire charrom_read;
     wire disp_pipeline;
@@ -102,6 +110,13 @@ module hgc(
 	 assign ram_a = grph_mode ? {4'b0000, row_addr[1:0], crtc_addr[11:0], vram_read_a0} : 
                                {7'b0000000, crtc_addr[10:0], vram_read_a0};
 						  
+	 // The same address mapping as ram_a, for the character after this one
+	 always @(posedge clk)
+	     fx_next_word <= grph_mode ? {row_addr_next[1:0], crtc_addr_next[11:0]} :
+	                                 {3'b000, crtc_addr_next[10:0]};
+
+	 assign fx_phase = clkdiv;
+
 	 assign ram_1_d = ram_d;
 	 //assign ram_1_d = 8'hFF;
 	 assign ram_we_l = vram_read;
@@ -201,6 +216,8 @@ module hgc(
 		  
 		  .MA(crtc_addr),
 		  .RA(row_addr),
+		  .MA_NEXT(crtc_addr_next),
+		  .RA_NEXT(row_addr_next),
 		  .hsync_width(hsync_width_crtc),
 		  .frame_stack_rebuild(1'b0)
 

@@ -5,3 +5,6 @@ set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "mem_map.sv"]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "cpu_mem_port.sv"]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "rom_loader.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "vram_fetch.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "vid_mux.sv"]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) "ram_clear.sv"]

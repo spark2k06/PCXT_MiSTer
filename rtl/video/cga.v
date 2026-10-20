@@ -70,7 +70,11 @@ module cga(
     input[2:0] crt_v_offset,
     input[2:0] vsync_width_osd,
     input[2:0] hsync_width_osd,
-    input frame_stack_rebuild
+    input frame_stack_rebuild,
+    // Word of video memory (16 bits: character, attribute) that the CRTC will
+    // address at its next character clock, for the memory fetch engine.
+    // Registered, so it is settled one slot after the CRTC has advanced.
+    output reg [13:0] fx_next_word
 );
 
     // Keep the carrier/CRTC relationship independent of the boot-time clock
@@ -145,6 +149,8 @@ module cga(
 
     wire[13:0] crtc_addr;
     wire[4:0] row_addr;
+    wire[13:0] crtc_addr_next;
+    wire[4:0] row_addr_next;
     wire pixel_addr13;
     wire pixel_addr14;
 
@@ -353,6 +359,8 @@ module cga(
 		  
 		  .MA(crtc_addr),
 		  .RA(row_addr),
+		  .MA_NEXT(crtc_addr_next),
+		  .RA_NEXT(row_addr_next),
 		  .hsync_width(hsync_width_crtc),
 		  .composite_phase(composite_phase_crtc),
 		  
@@ -384,6 +392,12 @@ module cga(
 
     // Address bit 14 is only used for Tandy modes (32K RAM)
     assign pixel_addr14 = `ENABLE_TANDY_VIDEO ? (grph_mode ? row_addr[1] : 1'b0) : 1'b0;
+
+    // The same address mapping as ram_a, for the character after this one
+    wire fx_pixel_addr13 = grph_mode ? row_addr_next[0] : crtc_addr_next[12];
+    wire fx_pixel_addr14 = `ENABLE_TANDY_VIDEO ? (grph_mode ? row_addr_next[1] : 1'b0) : 1'b0;
+    always @(posedge clk)
+        fx_next_word <= {fx_pixel_addr14, fx_pixel_addr13, crtc_addr_next[11:0]};
 
     wire tandy_16_gfx = `ENABLE_TANDY_VIDEO ? (tandy_16_mode & grph_mode & hres_mode) : 1'b0;
 

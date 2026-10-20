@@ -151,9 +151,10 @@ set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERI
 set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|HGC_CRTC_DOUT_1[*] \
                                     emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|HGC_CRTC_OE_1}] $VIDEO_TO_SYSYEM_DELAY
 
+# The Hercules graphics page crosses to the chipset clock for the memory map
+# (the video memory is in SDRAM now, there is no HGC BRAM to write any more).
 set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc:hgc1|hgc_control_reg[7]}] \
-              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|vram:hgc_vram|* \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc_mem_select_1}] $VIDEO_TO_SYSYEM_DELAY
+              -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|hgc_page_meta[*]}] $VIDEO_TO_SYSYEM_DELAY
 
 set_max_delay -from [get_registers {emu:emu|hps_io:hps_io|video_calc:video_calc|vid_hcnt[*]   \
                                     emu:emu|hps_io:hps_io|video_calc:video_calc|vid_nres[*]   \

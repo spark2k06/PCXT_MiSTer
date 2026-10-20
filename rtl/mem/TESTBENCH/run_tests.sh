@@ -30,12 +30,21 @@ BRIDGE="$MEM/sdram_xbridge.sv"
 PORT="$MEM/cpu_mem_port.sv"
 MAP="$MEM/mem_map.sv"
 LOADER="$MEM/rom_loader.sv"
+VFETCH="$MEM/vram_fetch.sv $MEM/vid_mux.sv"
+RCLEAR="$MEM/ram_clear.sv"
+VID="$ROOT/rtl/video"
+VCARDS="$VID/UM6845R.v $VID/cga.v $VID/cga_sequencer.v $VID/cga_pixel.sv $VID/cga_attrib.v $VID/cga_splash_renderer.v $VID/video_scandoubler.v $ROOT/rtl/common/jtframe_dual_ram.v $VID/hgc.v $VID/hgc_sequencer.v $VID/hgc_pixel.v $VID/hgc_attrib.v $VID/crtc_vram_if.sv $VID/cga_vram_if.sv $VID/hgc_vram_if.sv $VID/vram.v"
 MODEL="$TB/sdram_model.sv"
 CPU8088="$ROOT/rtl/8088"
 KFXT="$ROOT/rtl/KFPC-XT/HDL"
 CPU="$CPU8088/wrappers/i8088.sv $CPU8088/mcl86_eu_core.sv $CPU8088/mcl86_ucode.sv $CPU8088/mcl86_biu_max.sv $CPU8088/mcl86_adder.sv"
 XT="$KFXT/RAM.sv $KFXT/KFSDRAM/HDL/KFSDRAM.sv $KFXT/Ready.sv $KFXT/XT_CE_Generator.sv $KFXT/KF8288/HDL/KF8288.sv"
 E2E="$PKG $CTRL $ARB $BRIDGE $PORT $MAP $MODEL $CPU $XT $TB/cpu_sdram_e2e_tb.sv"
+# The cards on; sound and EMS options off (config.tcl has them on, they are not under test)
+DEFS="-DENABLE_CGA=1 -DENABLE_HGC=1 -DENABLE_OPL2=0 -DENABLE_CMS=0 -DENABLE_MIDI=0 -DENABLE_EMS=0"
+INCS="-I$KFXT/KF8237/HDL -I$KFXT/KF8253/HDL -I$KFXT/KF8255/HDL -I$KFXT/KF8259/HDL"
+# Everything the machine is made of, as the qips list it (sys_video_files.lst), plus stubs
+SYSV="$TB/sys_video_stubs.sv $MODEL $(sed "s|^|$ROOT/|" "$TB/sys_video_files.lst" | tr '\n' ' ') $TB/sys_video_tb.sv"
 
 # name | top module | -G parameters | sources
 BENCHES=(
@@ -61,8 +70,25 @@ BENCHES=(
     "e2e_optB_8086|cpu_sdram_e2e_tb|-GOPTION_A=0 -GIS8086=1|$E2E"
     "e2e_optA_8088|cpu_sdram_e2e_tb|-GOPTION_A=1 -GIS8086=0|$E2E"
     "e2e_optA_8086|cpu_sdram_e2e_tb|-GOPTION_A=1 -GIS8086=1|$E2E"
+    # The instruction mix 8088 MPH times at start-up, run from RAM
+    "e2e_mph_check|cpu_sdram_e2e_tb|-GOPTION_A=0 -GIS8086=0 -GPROG=1|$E2E"
     "mem_map|mem_map_tb||$PKG $MAP $TB/mem_map_tb.sv"
     "rom_loader|rom_loader_tb||$PKG $LOADER $TB/rom_loader_tb.sv"
+    # Video fetch engines against the real arbiter and chip model, with the CPU writing
+    # into the words being fetched (coherence, ordering, late pops, flush).
+    "vram_fetch|vram_fetch_tb||$PKG $CTRL $ARB $MODEL $VFETCH $TB/vram_fetch_tb.sv"
+    # A real CGA / HGC fed through the adapter and an engine, against an ideal memory.
+    "video_chain_cga|video_fetch_chain_tb|-GCARD=0|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
+    "video_chain_hgc|video_fetch_chain_tb|-GCARD=1|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
+    # The same with the CPU hammering the video memory (a write every few clocks)
+    "video_chain_cga_cmp|video_fetch_chain_tb|-GCARD=0 -GCMP=1|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
+    "video_chain_hgc_cmp|video_fetch_chain_tb|-GCARD=1 -GCMP=1|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
+    "video_chain_cga_busy|video_fetch_chain_tb|-GCARD=0 -GWR_GAP=2 -GTARGET=1 -GPHASES=2|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
+    "video_chain_hgc_busy|video_fetch_chain_tb|-GCARD=1 -GWR_GAP=2 -GTARGET=1 -GPHASES=2|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
+    # The whole machine around the video memory: CPU program, chipset, CGA, HGC, SDRAM.
+    "sys_video_4_77|sys_video_tb|-GSPEED=0|$SYSV"
+    "sys_video_max|sys_video_tb|-GSPEED=3|$SYSV"
+    "vram_fetch_busy|vram_fetch_tb|-GWR_GAP=3 -GB_PERIOD=32 -GLATE_PCT=10|$PKG $CTRL $ARB $MODEL $VFETCH $TB/vram_fetch_tb.sv"
 )
 
 pass=0; fail=0; skip=0
@@ -83,9 +109,9 @@ for entry in "${BENCHES[@]}"; do
     : > "$log"
     start=$(date +%s)
     verilator --binary --timing --timescale 1ns/1ps -Wno-fatal -Wno-lint -Wno-style ${VFLAGS:-} \
-        -Wno-MULTIDRIVEN -Wno-TIMESCALEMOD -Wno-INITIALDLY \
+        -Wno-MULTIDRIVEN -Wno-TIMESCALEMOD -Wno-INITIALDLY -Wno-BLKANDNBLK $INCS $DEFS \
         --top-module "$top" $params -Mdir "$out" -o sim $sources > "$blog" 2>&1 \
-        && cp "$CPU8088/mcl86_ucode.mem" "$out/"         && (cd "$out" && ./sim) > "$log" 2>&1
+        && cp "$CPU8088/mcl86_ucode.mem" "$TB/sys_video_prog.hex" "$VID/cga.hex" "$VID/hgc.hex" "$VID/splash_cga_320x200.hex" "$out/"         && (cd "$out" && ./sim) > "$log" 2>&1
     rc=$?
     [ -s "$log" ] || cp "$blog" "$log"
     elapsed=$(( $(date +%s) - start ))

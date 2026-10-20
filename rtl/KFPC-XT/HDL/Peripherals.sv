@@ -177,8 +177,24 @@ module PERIPHERALS #(
         input   logic   [2:0]   crt_v_offset,
         input   logic   [2:0]   vsync_width_osd,
         input   logic   [2:0]   hsync_width_osd,
-        input   logic           cga_frame_stack_rebuild
-        
+        input   logic           cga_frame_stack_rebuild,
+        // Video memory is in SDRAM (F2). The CPU reaches it through the memory
+        // port; the adapters read it through the video fetch engines, which are
+        // in the clk_sdram domain at the top level. These are the adapters'
+        // views of the CRTC and the bytes they get back.
+        input   logic   [7:0]   fx_cga_vram_d,
+        output  logic   [4:0]   fx_cga_phase,
+        output  logic           fx_cga_hres,
+        output  logic   [13:0]  fx_cga_cur_word,
+        output  logic   [13:0]  fx_cga_next_word,
+        input   logic   [7:0]   fx_hgc_vram_d,
+        output  logic   [4:0]   fx_hgc_phase,
+        output  logic           fx_hgc_grph,
+        output  logic           fx_hgc_page,
+        output  logic   [13:0]  fx_hgc_cur_word,
+        output  logic   [13:0]  fx_hgc_next_word,
+        // Hercules graphics page, in the chipset clock domain, for the memory map
+        output  logic           hgc_page_sys
     );
 
     wire [4:0] clkdiv;
@@ -1278,7 +1294,9 @@ end
         .grph_page                  (hgc_grph_page),
         .std_hsyncwidth             (std_hsyncwidth_hgc),
         .vblank_border              (vblank_border_hgc),
-        .hercules_hw                (hercules_hw)
+        .hercules_hw                (hercules_hw),
+        .fx_next_word               (fx_hgc_next_word),
+        .fx_phase                   (fx_hgc_phase)
 
     );
 
@@ -1477,7 +1495,8 @@ end
         .crt_v_offset               (crt_v_offset),
         .vsync_width_osd            (vsync_width_osd),
         .hsync_width_osd            (hsync_width_osd),
-        .frame_stack_rebuild        (cga_frame_stack_rebuild)
+        .frame_stack_rebuild        (cga_frame_stack_rebuild),
+        .fx_next_word               (fx_cga_next_word)
     );
 
     always_ff @(posedge clock)
@@ -1501,56 +1520,26 @@ end
 
     defparam cga1.BLINK_MAX = 24'd4772727;
     defparam hgc1.BLINK_MAX = 24'd9100000;
-    wire [7:0] cga_vram_cpu_dout;
-    wire [7:0] hgc_vram_cpu_dout;
+    // Video memory lives in SDRAM. The CPU's reads and writes go through the
+    // memory map and the memory port (mem_map, cpu_mem_port); what the two cards
+    // read comes from the video fetch engines at the top level, through the
+    // adapters (crtc_vram_if), which need the sequencer phase, the word being
+    // addressed and the word of the next character.
+    assign CGA_VRAM_DOUT = fx_cga_vram_d;
+    assign HGC_VRAM_DOUT = fx_hgc_vram_d;
 
-    wire [16:0] cga_vram_addra = `ENABLE_CGA ?
-                                 (tandy_video_en ? (video_mem_select_1 ? video_ram_address :
-                                 (tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} :
-                                 {tandy_page_data[5:4], video_ram_address[14:0]})) : {3'b000, video_ram_address[13:0]}) : 17'd0;
-    wire [16:0] cga_vram_addrb = `ENABLE_CGA ? (tandy_video_en ?
-                                 ((grph_mode & hres_mode) ? {tandy_page_data[2:1], CGA_VRAM_ADDR[14:0]} :
-                                 {tandy_page_data[2:0], CGA_VRAM_ADDR[13:0]}) : {3'b000, CGA_VRAM_ADDR[13:0]}) : 17'd0;
-    wire [7:0]  cga_vram_dina  = video_ram_data;
-    wire        cga_vram_ena   = `ENABLE_CGA ? (cga_mem_select_1 || video_mem_select_1) : 1'b0;
-    wire        cga_vram_wea   = `ENABLE_CGA ? (~video_memory_write_n & memory_write_n) : 1'b0;
-    wire        cga_vram_enb   = `ENABLE_CGA ? CGA_VRAM_ENABLE : 1'b0;
+    assign fx_cga_phase     = clkdiv;
+    assign fx_cga_hres      = hres_mode;
+    assign fx_cga_cur_word  = CGA_VRAM_ADDR[14:1];
+    assign fx_hgc_grph      = hgc_grph_mode;
+    assign fx_hgc_page      = hgc_grph_page;
+    assign fx_hgc_cur_word  = HGC_VRAM_ADDR[14:1];
 
-    vram #(.AW(17)) cga_vram
-    (
-        .clka                       (clock),
-        .ena                        (cga_vram_ena),
-        .wea                        (cga_vram_wea),
-        .addra                      (cga_vram_addra),
-        .dina                       (cga_vram_dina),
-        .douta                      (cga_vram_cpu_dout),
-        .clkb                       (clk_vga_cga),
-        .web                        (1'b0),
-        .enb                        (cga_vram_enb),
-        .addrb                      (cga_vram_addrb),
-        .dinb                       (8'h0),
-        .doutb                      (CGA_VRAM_DOUT)
-    );
-
-    wire hgc_vram_ena = `ENABLE_HGC ? hgc_mem_select_1 : 1'b0;
-    wire hgc_vram_enb = `ENABLE_HGC ? HGC_VRAM_ENABLE : 1'b0;
-
-    vram #(.AW(16)) hgc_vram
-    (
-        .clka                       (clock),
-        .ena                        (hgc_vram_ena),
-        .wea                        (`ENABLE_HGC ? ~video_memory_write_n : 1'b0),
-        .addra                      ({hgc_grph_page, video_ram_address[14:0]}),
-        .dina                       (video_ram_data),
-        .douta                      (hgc_vram_cpu_dout),
-        .clkb                       (clk_vga_hgc),
-        .web                        (1'b0),
-        .enb                        (hgc_vram_enb),
-        .addrb                      ({hgc_grph_page, HGC_VRAM_ADDR[14:0]}),
-        .dinb                       (8'h0),
-        .doutb                      (HGC_VRAM_DOUT)
-    );
-
+    // The Hercules page crosses from the HGC clock to the chipset clock
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) logic [1:0] hgc_page_meta = 2'b00;
+    always_ff @(posedge clock)
+        hgc_page_meta <= {hgc_page_meta[0], hgc_grph_page};
+    assign hgc_page_sys = hgc_page_meta[1];
 
     //
     // XT2IDE
@@ -1924,16 +1913,6 @@ end
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= ppi_data_bus_out;
-        end
-        else if (`ENABLE_CGA && cga_mem_select && (~memory_read_n))
-        begin
-            data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= cga_vram_cpu_dout;
-        end
-        else if (`ENABLE_HGC && hgc_mem_select && (~memory_read_n))
-        begin
-            data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= hgc_vram_cpu_dout;
         end
         else if (`ENABLE_CGA && CGA_CRTC_OE_2)
         begin

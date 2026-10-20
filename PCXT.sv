@@ -804,6 +804,185 @@ module emu
     );
 
     //
+    // Video memory (F2): CGA and HGC read their VRAM from SDRAM through vram_fetch
+    // engines. Everything here is in clk_sdram;
+    // the CGA (28.636 MHz) and HGC (57.27 MHz) sequencers come from the same PLL
+    // and are sampled by the adapters.
+    //
+    //   LDR port: rom_loader (through its bridge) or ram_clear, which writes zeros
+    //             over the video regions once the chip is initialised
+    //   VID port: u_cga_fetch and u_hgc_fetch through vid_mux
+    //   snoop:    every write the arbiter captures (CPU or LDR), registered once
+    //
+    localparam logic [23:0] CGA_WORD_BASE = sdram_pkg::PHYS_CGA[24:1];
+    localparam logic [23:0] HGC_WORD_BASE = sdram_pkg::PHYS_HGC[24:1];
+
+    wire        clr_busy, clr_req, clr_ack;
+    wire [23:0] clr_addr;
+    wire [1:0]  clr_len;
+    wire [63:0] clr_wdata;
+    wire [7:0]  clr_wbe;
+
+    ram_clear #(
+        .NREG   (2),
+        .BASES  ({HGC_WORD_BASE, CGA_WORD_BASE}),
+        .WORDS  ({24'd32768, 24'd16384})            // 64 KiB and 32 KiB
+    ) u_ram_clear
+    (
+        .clk        (clk_sdram),
+        .reset      (sd_reset),
+        .init_done  (sd_init_done),
+        .clear      (1'b0),
+        .busy       (clr_busy),
+        .req        (clr_req),
+        .addr       (clr_addr),
+        .len        (clr_len),
+        .wdata      (clr_wdata),
+        .wbe        (clr_wbe),
+        .ack        (clr_ack)
+    );
+
+    wire        arb_ldr_req   = clr_busy ? clr_req   : sd_ldr_req;
+    wire        arb_ldr_we    = clr_busy ? 1'b1      : sd_ldr_we;
+    wire [23:0] arb_ldr_addr  = clr_busy ? clr_addr  : sd_ldr_addr;
+    wire [1:0]  arb_ldr_len   = clr_busy ? clr_len   : sd_ldr_len;
+    wire [63:0] arb_ldr_wdata = clr_busy ? clr_wdata : sd_ldr_wdata;
+    wire [7:0]  arb_ldr_wbe   = clr_busy ? clr_wbe   : sd_ldr_wbe;
+    wire        arb_ldr_ack;
+    assign sd_ldr_ack = arb_ldr_ack & ~clr_busy;
+    assign clr_ack    = arb_ldr_ack &  clr_busy;
+
+    // Snoop: writes as the arbiter captures them. The fields of both ports are
+    // registered as they are (only the two acknowledges are logic), so that the
+    // path from the arbiter's grant logic does not run through the engines; the
+    // choice between the two ports is made after the registers.
+    logic        sn_c_v, sn_l_v;
+    logic [23:0] sn_c_addr, sn_l_addr;
+    logic [1:0]  sn_c_len,  sn_l_len;
+    logic [63:0] sn_c_wdata, sn_l_wdata;
+    logic [7:0]  sn_c_wbe,  sn_l_wbe;
+    always_ff @(posedge clk_sdram) begin
+        sn_c_v     <= sd_cpu_ack & sd_cpu_we;
+        sn_l_v     <= arb_ldr_ack;
+        sn_c_addr  <= sd_cpu_addr;
+        sn_c_len   <= sd_cpu_len;
+        sn_c_wdata <= sd_cpu_wdata;
+        sn_c_wbe   <= sd_cpu_wbe;
+        sn_l_addr  <= arb_ldr_addr;
+        sn_l_len   <= arb_ldr_len;
+        sn_l_wdata <= arb_ldr_wdata;
+        sn_l_wbe   <= arb_ldr_wbe;
+    end
+    wire        sn_valid = sn_c_v | sn_l_v;
+    wire [23:0] sn_addr  = sn_l_v ? sn_l_addr  : sn_c_addr;
+    wire [1:0]  sn_len   = sn_l_v ? sn_l_len   : sn_c_len;
+    wire [63:0] sn_wdata = sn_l_v ? sn_l_wdata : sn_c_wdata;
+    wire [7:0]  sn_wbe   = sn_l_v ? sn_l_wbe   : sn_c_wbe;
+
+    // The engines wait for the chip: until it is initialised nothing can be read
+    wire vid_reset = sd_reset | ~sd_init_done;
+
+    // CRTC views and bytes (to and from the chipset)
+    wire [4:0]  fx_cga_phase, fx_hgc_phase;
+    wire        fx_cga_hres, fx_hgc_grph, fx_hgc_page;
+    wire [13:0] fx_cga_cur_word, fx_cga_next_word, fx_hgc_cur_word, fx_hgc_next_word;
+    wire [7:0]  fx_cga_vram_d, fx_hgc_vram_d;
+
+    // Engines
+    wire        cga_req_v, cga_req_r, cga_rsp_p, cga_rsp_v, cga_rsp_pop;
+    wire [23:0] cga_req_a, cga_rsp_a;
+    wire [1:0]  cga_req_l;
+    wire [15:0] cga_req_d;
+    wire [63:0] cga_rsp_d;
+    wire        cga_vreq, cga_vack, cga_vrv, cga_vrl;
+    wire [23:0] cga_vaddr;
+    wire [1:0]  cga_vlen;
+    wire [15:0] cga_vdl;
+    wire [15:0] cga_underrun, cga_mismatch, cga_late, cga_dropped;
+
+    wire        hgc_req_v, hgc_req_r, hgc_rsp_p, hgc_rsp_v, hgc_rsp_pop;
+    wire [23:0] hgc_req_a, hgc_rsp_a;
+    wire [1:0]  hgc_req_l;
+    wire [15:0] hgc_req_d;
+    wire [63:0] hgc_rsp_d;
+    wire        hgc_vreq, hgc_vack, hgc_vrv, hgc_vrl;
+    wire [23:0] hgc_vaddr;
+    wire [1:0]  hgc_vlen;
+    wire [15:0] hgc_vdl;
+    wire [15:0] hgc_underrun, hgc_mismatch, hgc_late, hgc_dropped;
+
+    wire        vid_req, vid_ack, vid_rvalid, vid_rlast;
+    wire [23:0] vid_addr;
+    wire [1:0]  vid_len;
+    wire [15:0] vid_deadline;
+
+    vram_fetch #(.DEPTH(3), .MAX_WORDS(1)) u_cga_fetch
+    (
+        .clk(clk_sdram), .reset(vid_reset),
+        .req_valid(cga_req_v), .req_addr(cga_req_a), .req_len(cga_req_l),
+        .req_deadline(cga_req_d), .req_ready(cga_req_r),
+        .rsp_pending(cga_rsp_p), .rsp_valid(cga_rsp_v), .rsp_data(cga_rsp_d),
+        .rsp_addr(cga_rsp_a), .rsp_len(),
+        .rsp_pop(cga_rsp_pop), .flush(1'b0),
+        .snoop_valid(sn_valid), .snoop_addr(sn_addr), .snoop_len(sn_len),
+        .snoop_wdata(sn_wdata), .snoop_wbe(sn_wbe),
+        .vid_req(cga_vreq), .vid_addr(cga_vaddr), .vid_len(cga_vlen), .vid_deadline(cga_vdl),
+        .vid_ack(cga_vack), .vid_rvalid(cga_vrv), .vid_rlast(cga_vrl), .vid_rdata(sd_rdata),
+        .underrun_count(cga_underrun), .occupancy()
+    );
+
+    cga_vram_if #(.BASE(CGA_WORD_BASE)) u_cga_vif
+    (
+        .clk(clk_sdram), .reset(vid_reset),
+        .seq_phase(fx_cga_phase), .hres(fx_cga_hres),
+        .cur_word(fx_cga_cur_word), .next_word(fx_cga_next_word),
+        .vram_d(fx_cga_vram_d),
+        .req_valid(cga_req_v), .req_addr(cga_req_a), .req_len(cga_req_l),
+        .req_deadline(cga_req_d), .req_ready(cga_req_r),
+        .rsp_pending(cga_rsp_p), .rsp_valid(cga_rsp_v), .rsp_data(cga_rsp_d),
+        .rsp_addr(cga_rsp_a), .rsp_pop(cga_rsp_pop),
+        .mismatch_count(cga_mismatch), .late_count(cga_late), .dropped_count(cga_dropped)
+    );
+
+    vram_fetch #(.DEPTH(3), .MAX_WORDS(1)) u_hgc_fetch
+    (
+        .clk(clk_sdram), .reset(vid_reset),
+        .req_valid(hgc_req_v), .req_addr(hgc_req_a), .req_len(hgc_req_l),
+        .req_deadline(hgc_req_d), .req_ready(hgc_req_r),
+        .rsp_pending(hgc_rsp_p), .rsp_valid(hgc_rsp_v), .rsp_data(hgc_rsp_d),
+        .rsp_addr(hgc_rsp_a), .rsp_len(),
+        .rsp_pop(hgc_rsp_pop), .flush(1'b0),
+        .snoop_valid(sn_valid), .snoop_addr(sn_addr), .snoop_len(sn_len),
+        .snoop_wdata(sn_wdata), .snoop_wbe(sn_wbe),
+        .vid_req(hgc_vreq), .vid_addr(hgc_vaddr), .vid_len(hgc_vlen), .vid_deadline(hgc_vdl),
+        .vid_ack(hgc_vack), .vid_rvalid(hgc_vrv), .vid_rlast(hgc_vrl), .vid_rdata(sd_rdata),
+        .underrun_count(hgc_underrun), .occupancy()
+    );
+
+    hgc_vram_if #(.BASE(HGC_WORD_BASE)) u_hgc_vif
+    (
+        .clk(clk_sdram), .reset(vid_reset),
+        .seq_phase(fx_hgc_phase), .grph(fx_hgc_grph), .page(fx_hgc_page),
+        .cur_word(fx_hgc_cur_word), .next_word(fx_hgc_next_word),
+        .vram_d(fx_hgc_vram_d),
+        .req_valid(hgc_req_v), .req_addr(hgc_req_a), .req_len(hgc_req_l),
+        .req_deadline(hgc_req_d), .req_ready(hgc_req_r),
+        .rsp_pending(hgc_rsp_p), .rsp_valid(hgc_rsp_v), .rsp_data(hgc_rsp_d),
+        .rsp_addr(hgc_rsp_a), .rsp_pop(hgc_rsp_pop),
+        .mismatch_count(hgc_mismatch), .late_count(hgc_late), .dropped_count(hgc_dropped)
+    );
+
+    vid_mux #(.N(2)) u_vid_mux
+    (
+        .clk(clk_sdram), .reset(vid_reset),
+        .c_req({hgc_vreq, cga_vreq}), .c_addr({hgc_vaddr, cga_vaddr}),
+        .c_len({hgc_vlen, cga_vlen}), .c_deadline({hgc_vdl, cga_vdl}),
+        .c_ack({hgc_vack, cga_vack}), .c_rvalid({hgc_vrv, cga_vrv}), .c_rlast({hgc_vrl, cga_vrl}),
+        .vid_req(vid_req), .vid_addr(vid_addr), .vid_len(vid_len), .vid_deadline(vid_deadline),
+        .vid_ack(vid_ack), .vid_rvalid(vid_rvalid), .vid_rlast(vid_rlast)
+    );
+
+    //
     // Arbiter and controller
     //
     wire        op_valid, op_ref, op_we, op_issue;
@@ -822,14 +1001,14 @@ module emu
         .clk            (clk_sdram),
         .reset          (sd_reset),
         .init_done      (sd_init_done),
-        // VID: the video fetch engines arrive in F2.
-        .vid_req        (1'b0),
-        .vid_addr       (24'd0),
-        .vid_len        (2'd0),
-        .vid_deadline   (16'd0),
-        .vid_ack        (),
-        .vid_rvalid     (),
-        .vid_rlast      (),
+        // VID: the video fetch engines, joined by vid_mux
+        .vid_req        (vid_req),
+        .vid_addr       (vid_addr),
+        .vid_len        (vid_len),
+        .vid_deadline   (vid_deadline),
+        .vid_ack        (vid_ack),
+        .vid_rvalid     (vid_rvalid),
+        .vid_rlast      (vid_rlast),
         .cpu_req        (sd_cpu_req),
         .cpu_we         (sd_cpu_we),
         .cpu_addr       (sd_cpu_addr),
@@ -839,14 +1018,14 @@ module emu
         .cpu_ack        (sd_cpu_ack),
         .cpu_rvalid     (sd_cpu_rvalid),
         .cpu_rlast      (sd_cpu_rlast),
-        .ldr_req        (sd_ldr_req),
-        .ldr_we         (sd_ldr_we),
-        .ldr_addr       (sd_ldr_addr),
-        .ldr_len        (sd_ldr_len),
-        .ldr_wdata      (sd_ldr_wdata),
-        .ldr_wbe        (sd_ldr_wbe),
+        .ldr_req        (arb_ldr_req),
+        .ldr_we         (arb_ldr_we),
+        .ldr_addr       (arb_ldr_addr),
+        .ldr_len        (arb_ldr_len),
+        .ldr_wdata      (arb_ldr_wdata),
+        .ldr_wbe        (arb_ldr_wbe),
         .ldr_high       (1'b0),
-        .ldr_ack        (sd_ldr_ack),
+        .ldr_ack        (arb_ldr_ack),
         .ldr_rvalid     (sd_ldr_rvalid),
         .ldr_rlast      (sd_ldr_rlast),
         // AUX: reserved.
@@ -1317,7 +1496,18 @@ module emu
 		.crt_v_offset                       (status[52:50]),
 		.vsync_width_osd                    (vsync_width_osd),
 		.hsync_width_osd                    (hsync_width_osd),
-		.cga_frame_stack_rebuild            (status[64])
+		.cga_frame_stack_rebuild            (status[64]),
+		.fx_cga_vram_d                      (fx_cga_vram_d),
+		.fx_cga_phase                       (fx_cga_phase),
+		.fx_cga_hres                        (fx_cga_hres),
+		.fx_cga_cur_word                    (fx_cga_cur_word),
+		.fx_cga_next_word                   (fx_cga_next_word),
+		.fx_hgc_vram_d                      (fx_hgc_vram_d),
+		.fx_hgc_phase                       (fx_hgc_phase),
+		.fx_hgc_grph                        (fx_hgc_grph),
+		.fx_hgc_page                        (fx_hgc_page),
+		.fx_hgc_cur_word                    (fx_hgc_cur_word),
+		.fx_hgc_next_word                   (fx_hgc_next_word)
 	);
 
     wire s6_3_mux;

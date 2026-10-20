@@ -44,6 +44,9 @@ package sdram_pkg;
     // Bank 0: the 1 MiB image of the CPU address space, then the ROM bank.
     localparam logic [24:0] PHYS_CPU_IMAGE = 25'h000_0000;
     localparam logic [24:0] PHYS_ROM_BANK  = 25'h010_0000;
+    // Bank 1: video memory. Only CGA and HGC so far.
+    localparam logic [24:0] PHYS_CGA       = 25'h085_0000;   // 16 KiB used, 32 KiB reserved
+    localparam logic [24:0] PHYS_HGC       = 25'h086_0000;   // 64 KiB: two 32 KiB pages
     // Bank 2: Lo-tech EMS, 2 MiB.
     localparam logic [24:0] PHYS_EMS       = 25'h100_0000;
 
@@ -55,6 +58,13 @@ package sdram_pkg;
     localparam logic [19:0] ROM_EGA_BIOS   = 20'h3_4000;   // 16 KiB (32 KiB reserved)
     localparam logic [19:0] ROM_PCJR_CART1 = 20'h4_0000;   // 64 KiB
     localparam logic [19:0] ROM_PCJR_CART2 = 20'h5_0000;   // 64 KiB
+
+    // Class of a CPU access to video memory, from mem_map. It tells the memory
+    // port that the address is not system RAM: no RAM wait states, one byte at
+    // a time, and for the CGA the write is made at the end of the bus cycle.
+    localparam logic [1:0] VC_NONE = 2'd0;
+    localparam logic [1:0] VC_CGA  = 2'd1;
+    localparam logic [1:0] VC_HGC  = 2'd2;
 
     // Client tags, also the arbiter port numbers.
     localparam logic [1:0] TAG_VID = 2'd0;

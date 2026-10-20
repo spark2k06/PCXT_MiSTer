@@ -38,7 +38,19 @@
 //    kept. Writes update a line they fall in instead of invalidating it, and
 //    a ROM-loader write (flush) clears both lines.
 //
-//  * Committed writes are published on the snoop port for vram_fetch (F2).
+//  * Committed writes are published on the snoop port (chipset clock domain).
+//    The video fetch engines do not use it: they take the writes as the
+//    arbiter captures them, which is the order that matters (F2).
+//
+//  * Video memory (F2). mem_map says when an address is CGA or HGC memory. Such
+//    accesses are byte-wide and have no RAM wait states (the CGA has its own,
+//    CGA_BUS_WAIT, outside this module). A CGA write is accepted at once but only
+//    sent to the SDRAM when MEMW ends, because that is the moment the CGA
+//    BRAM used to take it and the video side sees the write from the moment
+//    the arbiter captures it: raster-timed code depends on that instant. An HGC
+//    write is sent as soon as it is accepted, as RAM writes are. An address
+//    that is both CGA and HGC memory (HGC graphics page 1 at B8000) is written
+//    in both places, one after the other.
 //
 //  * A CPU read may start before its strobe (early_read): the chipset raises
 //    it once the address of a memory read or code fetch has been latched in
@@ -70,6 +82,9 @@ module cpu_mem_port (
     input  logic        map_select,
     input  logic [24:0] map_phys,
     input  logic        map_protect,
+    input  logic [1:0]  map_vclass,
+    input  logic [24:0] map_phys2,
+    input  logic        map_phys2_valid,
 
     // Wait profile and speed (0 4.77, 1 7.16, 2 9.54, 3 Max)
     input  logic        cpu_ce_posedge,
@@ -107,6 +122,9 @@ module cpu_mem_port (
     wire [23:0] w    = map_phys[24:1];
     wire        lane = map_phys[0];
 
+    wire        video = (map_vclass != VC_NONE);
+    wire        defer = (map_vclass == VC_CGA);
+
     // ------------------------------------------------------------------
     // Lookahead lines
     // ------------------------------------------------------------------
@@ -130,10 +148,11 @@ module cpu_mem_port (
     wire [1:0]  hit_off  = la_in[0] ? la_off[0][1:0] : la_off[1][1:0];
     wire [15:0] hit_word = hit_line[16*hit_off +: 16];
 
-    // Burst length of a read miss.
+    // Burst length of a read miss. Video memory is read a word at a time: it is
+    // what the video fetch engines share a bank with.
     logic [1:0] rd_len;
     always_comb begin
-        case (clk_select)
+        case (video ? 2'b00 : clk_select)
             2'b11:   rd_len = (w[8:0] <= 9'd508) ? LEN_4 : ((w[8:0] <= 9'd510) ? LEN_2 : LEN_1);
             2'b10:   rd_len = (w[8:0] <= 9'd510) ? LEN_2 : LEN_1;
             default: rd_len = LEN_1;
@@ -154,10 +173,23 @@ module cpu_mem_port (
 
     wire bridge_free = ~m_busy & ~m_done;
 
-    wire accept_hit   = cmd_active & ~owned & read_command & hit & ~flush;
-    wire accept_read  = cmd_active & ~owned & read_command & ~accept_hit & bridge_free;
-    wire accept_write = cmd_active & ~owned & ~read_command & write_command & bridge_free;
-    wire accept_early = early_read & ~cmd_active & map_select & ~hit & ~flush & bridge_free;
+    // A CGA write waiting for the end of its bus cycle (and then for the bridge)
+    logic        dw_pending;
+    logic        dw_ended;      // the strobe it was taken in has ended
+    logic        dw_stage;      // 0: first target, 1: second target
+    logic        dw_two;
+    logic [23:0] dw_w, dw_w2;
+    logic [15:0] dw_data;
+    logic [1:0]  dw_be;
+
+    wire accept_hit   = cmd_active & ~owned & read_command & hit & ~flush & ~dw_pending;
+    wire accept_read  = cmd_active & ~owned & read_command & ~accept_hit & bridge_free & ~dw_pending;
+    wire accept_write = cmd_active & ~owned & ~read_command & write_command & ~defer & bridge_free & ~dw_pending;
+    wire accept_defer = cmd_active & ~owned & ~read_command & write_command &  defer & ~dw_pending;
+    wire accept_early = early_read & ~cmd_active & map_select & ~hit & ~flush & bridge_free & ~dw_pending;
+
+    wire post_dw  = dw_pending & (dw_ended | ~write_command) & bridge_free;
+    wire post_now = accept_write | post_dw;
 
     // A read strobe waiting for the line an early read is bringing: answer
     // it from the line on its way into the lookahead.
@@ -169,17 +201,30 @@ module cpu_mem_port (
     wire [15:0] wr_data  = wr_word ? data_bus_in_word : {internal_data_bus, internal_data_bus};
     wire [1:0]  wr_be    = wr_word ? 2'b11 : (lane ? 2'b10 : 2'b01);
 
-    assign m_start = accept_read | accept_write | accept_early;
-    assign m_we    = accept_write;
-    assign m_addr  = w;
-    assign m_len   = accept_write ? LEN_1 : rd_len;
-    assign m_wdata = {48'd0, wr_data};
-    assign m_wbe   = accept_write ? {6'd0, wr_be} : 8'd0;
+    wire [23:0] post_w    = accept_write ? w : (dw_stage ? dw_w2 : dw_w);
+    wire [15:0] post_data = accept_write ? wr_data : dw_data;
+    wire [1:0]  post_be   = accept_write ? wr_be   : dw_be;
 
-    assign snoop_valid = accept_write;
-    assign snoop_addr  = w;
-    assign snoop_data  = wr_data;
-    assign snoop_be    = wr_be;
+    assign m_start = accept_read | post_now | accept_early;
+    assign m_we    = post_now;
+    assign m_addr  = post_now ? post_w : w;
+    assign m_len   = post_now ? LEN_1 : rd_len;
+    assign m_wdata = {48'd0, post_data};
+    assign m_wbe   = post_now ? {6'd0, post_be} : 8'd0;
+
+    assign snoop_valid = post_now;
+    assign snoop_addr  = post_w;
+    assign snoop_data  = post_data;
+    assign snoop_be    = post_be;
+
+    // Lookahead lines a posted write falls in
+    logic [23:0] la_poff [2];
+    logic        la_pin  [2];
+    always_comb
+        for (int e = 0; e < 2; e++) begin
+            la_poff[e] = post_w - la_base[e];
+            la_pin[e]  = la_valid[e] & (la_poff[e] < 24'(la_cnt[e]));
+        end
 
     function automatic logic [15:0] merge(input logic [15:0] old, input logic [15:0] d,
                                           input logic [1:0] be);
@@ -197,6 +242,14 @@ module cpu_mem_port (
             xfer_lane <= 1'b0;
             data_reg  <= 16'h0000;
             la_victim <= 1'b0;
+            dw_pending <= 1'b0;
+            dw_ended   <= 1'b0;
+            dw_stage   <= 1'b0;
+            dw_two     <= 1'b0;
+            dw_w       <= 24'd0;
+            dw_w2      <= 24'd0;
+            dw_data    <= 16'd0;
+            dw_be      <= 2'd0;
             for (int e = 0; e < 2; e++) begin
                 la_valid[e] <= 1'b0;
                 la_base[e]  <= 24'd0;
@@ -233,13 +286,42 @@ module cpu_mem_port (
                 xfer_len  <= rd_len;
             end
 
-            if (accept_write) begin
-                owned     <= 1'b1;
+            if (accept_write)
+                owned <= 1'b1;
+
+            if (post_now) begin
                 xfer_read <= 1'b0;
                 for (int e = 0; e < 2; e++)
-                    if (la_in[e])
-                        la_data[e][16*la_off[e][1:0] +: 16] <=
-                            merge(la_data[e][16*la_off[e][1:0] +: 16], wr_data, wr_be);
+                    if (la_pin[e])
+                        la_data[e][16*la_poff[e][1:0] +: 16] <=
+                            merge(la_data[e][16*la_poff[e][1:0] +: 16], post_data, post_be);
+            end
+
+            // CGA: take the write now, send it when MEMW is over
+            if (accept_defer) begin
+                owned      <= 1'b1;
+                dw_pending <= 1'b1;
+                dw_ended   <= 1'b0;
+                dw_stage   <= 1'b0;
+                dw_two     <= map_phys2_valid;
+                dw_w       <= w;
+                dw_w2      <= map_phys2[24:1];
+                dw_data    <= wr_data;
+                dw_be      <= wr_be;
+            end
+            else if (dw_pending) begin
+                if (write_command && !dw_ended)
+                    dw_data <= wr_data;         // the last value on the bus wins
+                if (!write_command)
+                    dw_ended <= 1'b1;
+                if (post_dw) begin
+                    if (dw_two && !dw_stage)
+                        dw_stage <= 1'b1;
+                    else begin
+                        dw_pending <= 1'b0;
+                        dw_stage   <= 1'b0;
+                    end
+                end
             end
 
             if (m_done && xfer_read) begin
@@ -333,13 +415,14 @@ module cpu_mem_port (
     wire strict  = (clk_select == 2'b11);
     wire may_dip = strict | dip_ok;
     wire access_ready = read_command  ? ((accept_hit & ~strict) | (owned & rd_valid) | ~may_dip)
-                      : write_command ? (owned | accept_write | ~may_dip)
+                      : write_command ? (owned | accept_write | accept_defer | ~may_dip)
                       :                 1'b1;
 
+    // Video memory has no RAM wait states
     assign memory_access_ready = (map_select & (~memory_read_n | ~memory_write_n))
                                ? (access_ready
-                                  & ((read_wait_count == 2'd0) | ~read_command)
-                                  & ((write_wait_count == 2'd0) | ~write_command))
+                                  & ((read_wait_count == 2'd0) | ~read_command | video)
+                                  & ((write_wait_count == 2'd0) | ~write_command | video))
                                : 1'b1;
 
 endmodule

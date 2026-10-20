@@ -49,6 +49,11 @@ module UM6845R
 
 	output    [13:0] MA,
 	output     [4:0] RA,
+	// MA and RA as they will be after the next CLKEN edge, from the same state
+	// and the same equations as the registers below. The video memory fetch
+	// engines use them to ask for the next character one character early.
+	output    [13:0] MA_NEXT,
+	output     [4:0] RA_NEXT,
 	output    [3:0] hsync_width,
 	// 8088 MPH uses a one-dot CRTC timing change (R0=72 then R0=71)
 	// to select the other composite colour-burst phase. The value is
@@ -740,5 +745,16 @@ always @(posedge CLOCK) begin
 		q_valid   <= 1'b0;
 	end
 end
+
+// MA and RA after the next CLKEN edge (see the ports)
+wire [13:0] ma_next_cc = start_reload   ? {R12_start_addr_h, R13_start_addr_l} :
+                         !hcc_last      ? row_addr_r + 1'd1 :
+                         row_addr_save  ? row_addr_r :
+                                          row_addr;
+wire [13:0] s_ma_next  = (s_hcc_next == 8'd0)         ? s_tbl_q + 14'd1 :
+                         (s_hcc_next == SF_LONE_CHAR) ? s_tbl_q :
+                                                        s_ma + 14'd1;
+assign MA_NEXT = sf_active ? s_ma_next : ma_next_cc;
+assign RA_NEXT = sf_active ? 5'd0 : ((line_new ? line_next : line) | (field & interlace[0]));
 
 endmodule

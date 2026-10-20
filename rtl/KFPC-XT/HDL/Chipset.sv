@@ -199,8 +199,20 @@ module CHIPSET #(
         input   logic   [2:0]   crt_v_offset,
         input   logic   [2:0]   vsync_width_osd,
         input   logic   [2:0]   hsync_width_osd,
-        input   logic           cga_frame_stack_rebuild
-
+        input   logic           cga_frame_stack_rebuild,
+        // Video memory fetch (F2): what the adapters need to ask for the
+        // next character and the bytes they get back, see Peripherals.sv
+        input   logic   [7:0]   fx_cga_vram_d,
+        output  logic   [4:0]   fx_cga_phase,
+        output  logic           fx_cga_hres,
+        output  logic   [13:0]  fx_cga_cur_word,
+        output  logic   [13:0]  fx_cga_next_word,
+        input   logic   [7:0]   fx_hgc_vram_d,
+        output  logic   [4:0]   fx_hgc_phase,
+        output  logic           fx_hgc_grph,
+        output  logic           fx_hgc_page,
+        output  logic   [13:0]  fx_hgc_cur_word,
+        output  logic   [13:0]  fx_hgc_next_word
     );
 
 	 logic   [19:0]  latch_address;
@@ -216,6 +228,10 @@ module CHIPSET #(
     logic           map_select;
     logic   [24:0]  map_phys;
     logic           map_protect;
+    logic   [1:0]   map_vclass;
+    logic   [24:0]  map_phys2;
+    logic           map_phys2_valid;
+    logic           hgc_page_sys;
     logic   [7:0]   internal_data_bus;
     logic   [7:0]   internal_data_bus_ext;
     logic   [7:0]   internal_data_bus_chipset;
@@ -448,7 +464,19 @@ module CHIPSET #(
         .crt_v_offset                       (crt_v_offset),
         .vsync_width_osd                    (vsync_width_osd),
         .hsync_width_osd                    (hsync_width_osd),
-        .cga_frame_stack_rebuild            (cga_frame_stack_rebuild)
+        .cga_frame_stack_rebuild            (cga_frame_stack_rebuild),
+        .fx_cga_vram_d                      (fx_cga_vram_d),
+        .fx_cga_phase                       (fx_cga_phase),
+        .fx_cga_hres                        (fx_cga_hres),
+        .fx_cga_cur_word                    (fx_cga_cur_word),
+        .fx_cga_next_word                   (fx_cga_next_word),
+        .fx_hgc_vram_d                      (fx_hgc_vram_d),
+        .fx_hgc_phase                       (fx_hgc_phase),
+        .fx_hgc_grph                        (fx_hgc_grph),
+        .fx_hgc_page                        (fx_hgc_page),
+        .fx_hgc_cur_word                    (fx_hgc_cur_word),
+        .fx_hgc_next_word                   (fx_hgc_next_word),
+        .hgc_page_sys                       (hgc_page_sys)
     );
 
     //
@@ -465,9 +493,15 @@ module CHIPSET #(
         .enable_a000h                       (enable_a000h),
         .bios_protect_flag                  (bios_protect_flag),
         .ec00_loaded                        (ec00_loaded),
+        .en_cga                             (enable_cga),
+        .en_hgc                             (enable_hgc),
+        .hgc_page                           (hgc_page_sys),
         .select                             (map_select),
         .phys                               (map_phys),
-        .protect                            (map_protect)
+        .protect                            (map_protect),
+        .vclass                             (map_vclass),
+        .phys2                              (map_phys2),
+        .phys2_valid                        (map_phys2_valid)
     );
 
     // A CPU memory read or code fetch can start in SDRAM before MEMR: the
@@ -498,6 +532,9 @@ module CHIPSET #(
         .map_select                         (map_select),
         .map_phys                           (map_phys),
         .map_protect                        (map_protect),
+        .map_vclass                         (map_vclass),
+        .map_phys2                          (map_phys2),
+        .map_phys2_valid                    (map_phys2_valid),
         .cpu_ce_posedge                     (cpu_ce_posedge),
         .wait_count_clk_en                  (wait_count_clk_en),
         .ram_read_wait_cycle                (ram_read_wait_cycle),
@@ -533,7 +570,8 @@ module CHIPSET #(
     // to commit to a wide cycle. It covers the decode holes - video memory,
     // the UMB window when it is off - because those are the places a wide
     // read would come back with whatever the memory port happened to hold.
-    assign  word_read_possible = map_select;
+    // Video memory is eight bits wide, as on the card, so it is excluded.
+    assign  word_read_possible = map_select & (map_vclass == 2'd0);
 
     always_comb
     begin

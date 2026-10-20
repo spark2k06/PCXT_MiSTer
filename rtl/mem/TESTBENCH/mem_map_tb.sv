@@ -21,14 +21,47 @@ module mem_map_tb;
         .address(address), .map_ems(map_ems), .ems_b1(ems_b[0]), .ems_b2(ems_b[1]),
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
-        .select(select_x), .phys(phys_x), .protect(protect_x)
+        .en_cga(1'b0), .en_hgc(1'b0), .hgc_page(1'b0),
+        .select(select_x), .phys(phys_x), .protect(protect_x),
+        .vclass(), .phys2(), .phys2_valid()
     );
     mem_map #(.ROM_TANDY(1'b1)) dut_tandy (
         .address(address), .map_ems(map_ems), .ems_b1(ems_b[0]), .ems_b2(ems_b[1]),
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
-        .select(select_t), .phys(phys_t), .protect(protect_t)
+        .en_cga(1'b0), .en_hgc(1'b0), .hgc_page(1'b0),
+        .select(select_t), .phys(phys_t), .protect(protect_t),
+        .vclass(), .phys2(), .phys2_valid()
     );
+
+    // The same map with the two video cards (F2)
+    logic        en_cga, en_hgc, hgc_page;
+    wire         select_v, protect_v, phys2_valid_v;
+    wire  [24:0] phys_v, phys2_v;
+    wire  [1:0]  vclass_v;
+    mem_map #(.ROM_TANDY(1'b0)) dut_vid (
+        .address(address), .map_ems(map_ems), .ems_b1(ems_b[0]), .ems_b2(ems_b[1]),
+        .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
+        .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
+        .en_cga(en_cga), .en_hgc(en_hgc), .hgc_page(hgc_page),
+        .select(select_v), .phys(phys_v), .protect(protect_v),
+        .vclass(vclass_v), .phys2(phys2_v), .phys2_valid(phys2_valid_v)
+    );
+
+    // Video rows: select, class, primary target, second target (0 = none)
+    task automatic check_vid(input string what, input logic sel, input logic [1:0] cls,
+                             input logic [24:0] ph, input logic [24:0] ph2);
+        #1;
+        checks++;
+        if (select_v !== sel || (sel && (vclass_v !== cls || phys_v !== ph ||
+                                         phys2_valid_v !== (ph2 != 0) || (ph2 != 0 && phys2_v !== ph2) ||
+                                         protect_v !== 1'b0))) begin
+            errors++;
+            if (errors <= 20)
+                $display("ERROR %s @%05h page %b: select %b class %0d phys %07h phys2 %b/%07h, expected %b %0d %07h %07h",
+                         what, address, hgc_page, select_v, vclass_v, phys_v, phys2_valid_v, phys2_v, sel, cls, ph, ph2);
+        end
+    endtask
 
     int errors = 0, checks = 0;
 
@@ -130,6 +163,46 @@ module mem_map_tb;
         address = 20'hEC010; check("EMS p3 over open EC00", 1, 25'h11F_C010, 0, 0);
         ec00_loaded = 1; ems_on = 0; ena = 4'b0000;
         address = 20'hEC000; check("EC00 slot once loaded", 1, 25'h013_0000, 1, 0);
+
+        // Video memory (F2): CGA 16 KiB mirrored at B8000, HGC pages at B0000/B8000
+        en_cga = 1; en_hgc = 1; hgc_page = 0;
+        address = 20'hB0000; check_vid("HGC page 0 start", 1, VC_HGC, 25'h086_0000, 0);
+        address = 20'hB7FFF; check_vid("HGC page 0 end",   1, VC_HGC, 25'h086_7FFF, 0);
+        address = 20'hB8000; check_vid("CGA start",        1, VC_CGA, 25'h085_0000, 0);
+        address = 20'hBBFFF; check_vid("CGA 16K",          1, VC_CGA, 25'h085_3FFF, 0);
+        address = 20'hBC000; check_vid("CGA mirror",       1, VC_CGA, 25'h085_0000, 0);
+        address = 20'hBFFFF; check_vid("CGA mirror end",   1, VC_CGA, 25'h085_3FFF, 0);
+        address = 20'hAFFFF; check_vid("below B000",       1, VC_NONE, 25'h00A_FFFF, 0);
+        address = 20'hC0000; check_vid("above B000",       1, VC_NONE, 25'h00C_0000, 0);
+        hgc_page = 1;
+        address = 20'hB0000; check_vid("page 1: B0000 is nothing", 0, VC_NONE, 0, 0);
+        address = 20'hB8123; check_vid("page 1: CGA and HGC", 1, VC_CGA, 25'h085_0123, 25'h086_8123);
+        address = 20'hBFFFF; check_vid("page 1: end",         1, VC_CGA, 25'h085_3FFF, 25'h086_FFFF);
+        en_cga = 0;
+        address = 20'hB8123; check_vid("page 1, no CGA: HGC only", 1, VC_HGC, 25'h086_8123, 0);
+        hgc_page = 0;
+        address = 20'hB8123; check_vid("no CGA, page 0: nothing", 0, VC_NONE, 0, 0);
+        en_cga = 1; en_hgc = 0;
+        address = 20'hB0000; check_vid("no HGC: B0000 nothing", 0, VC_NONE, 0, 0);
+        address = 20'hB8000; check_vid("no HGC: CGA",           1, VC_CGA, 25'h085_0000, 0);
+        hgc_page = 1;
+        address = 20'hB8000; check_vid("no HGC, page 1: CGA only", 1, VC_CGA, 25'h085_0000, 0);
+        en_cga = 0;
+        address = 20'hB8000; check_vid("no cards", 0, VC_NONE, 0, 0);
+        en_cga = 1; en_hgc = 1; hgc_page = 0;
+        // Everything outside B0000-BFFFF is as without the cards
+        for (int a = 0; a < 32'h100000; a += 32'h1001) begin
+            if (a < 32'hB0000 || a > 32'hBFFFF) begin
+                address = 20'(a);
+                #1;
+                checks++;
+                if (select_v !== select_x || (select_x && (phys_v !== phys_x || vclass_v !== VC_NONE || phys2_valid_v !== 1'b0))) begin
+                    errors++;
+                    if (errors <= 20) $display("ERROR video map changes @%05h", address);
+                end
+            end
+        end
+        en_cga = 0; en_hgc = 0; hgc_page = 0;
 
         // Sweep every 2 KiB in every combination.
         for (int f = 0; f < 3; f++)
