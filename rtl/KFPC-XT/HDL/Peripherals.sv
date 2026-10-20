@@ -31,6 +31,17 @@
 `ifndef ENABLE_MIDI
 `define ENABLE_MIDI 1
 `endif
+`ifndef ENABLE_SB
+`define ENABLE_SB 0
+`endif
+// The EGA/VGA card is built into the RBF, and with it the VGA 13h+ extension
+//. Without ENABLE_EGA nothing of the EGA is instantiated.
+`ifndef ENABLE_EGA
+`define ENABLE_EGA 0
+`endif
+`ifndef ENABLE_VGA13
+`define ENABLE_VGA13 1
+`endif
 
 module PERIPHERALS #(
         parameter ps2_over_time = 16'd1000,
@@ -51,6 +62,10 @@ module PERIPHERALS #(
         output  logic           dma_page_chip_select_n,
         // SplashScreen
         input   logic           splashscreen,
+        // Video card chosen at reset: 1 = EGA/VGA, 0 = CGA/Hercules. Static for
+        // as long as the machine runs; the card that is not chosen is held in
+        // reset and kept off the bus.
+        input   logic           ega_active,
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
@@ -74,6 +89,33 @@ module PERIPHERALS #(
         output  logic           VGA_VSYNC_REF,
         output  logic           cga_memory_ready,
         output  logic           cga_memory_write_wait,
+        // EGA/VGA card outputs (clk_vga_cga domain), zero without ENABLE_EGA
+        output  logic   [5:0]   EGA_R,
+        output  logic   [5:0]   EGA_G,
+        output  logic   [5:0]   EGA_B,
+        output  logic           EGA_HSYNC,
+        output  logic           EGA_VSYNC,
+        output  logic           EGA_HBlank,
+        output  logic           EGA_VBlank,
+        output  logic           EGA_VBlank_border,
+        output  logic           EGA_std_hsyncwidth,
+        output  logic           EGA_de_o,
+        // EGA dot clock and mode status, clk_vga_cga domain
+        output  logic           ega_dot_toggle,
+        output  logic           ega_dot_clock_sel,
+        output  logic           ega_scandouble_active_out,
+        output  logic           ega_vmode_toggle_out,
+        // Geometry of the picture the CRTC is currently asked for, latched
+        // once a frame. What the 480i converter switches on.
+        output  logic           ega_mode350,
+        output  logic   [11:0]  ega_active_dots,
+        output  logic   [9:0]   ega_active_lines,
+        input   logic           vga_mode13_osd,
+        input   logic           vga_mode13_native,
+        input   logic   [1:0]   ega_monitor_profile,
+        output  logic           vga_mode13_active_out,
+        output  logic           vga_mode13_wide_clock_out,
+        output  logic           vga_mode13_pixel_toggle_out,
         // I/O Ports
         input   logic   [19:0]  address,
         output  logic   [19:0]  latch_address,
@@ -86,6 +128,38 @@ module PERIPHERALS #(
         input   logic           memory_read_n,
         input   logic           memory_write_n,
         input   logic           address_enable_n,
+        input   logic           warm_boot_marker_event,
+        // EGA video memory in SDRAM (F3). The frontend's side of the CPU memory
+        // port (chipset clock), its client end of the arbiter's video port and
+        // the captured writes it snoops (sdram clock), and whether the packed
+        // 13h framebuffer is the CPU's A0000 window (served by cpu_mem_port).
+        output  logic           video_memory_access_ready,
+        output  logic           video_io_access_ready,
+        output  logic           vram_m_start,
+        output  logic           vram_m_we,
+        output  logic   [23:0]  vram_m_addr,
+        output  logic   [1:0]   vram_m_len,
+        output  logic   [63:0]  vram_m_wdata,
+        output  logic   [7:0]   vram_m_wbe,
+        input   logic           vram_m_busy,
+        input   logic           vram_m_done,
+        input   logic   [63:0]  vram_m_rdata,
+        input   logic           sdram_clk,
+        input   logic           sdram_reset,
+        output  logic           vid_req,
+        output  logic   [23:0]  vid_addr,
+        output  logic   [1:0]   vid_len,
+        output  logic   [15:0]  vid_deadline,
+        input   logic           vid_ack,
+        input   logic           vid_rvalid,
+        input   logic           vid_rlast,
+        input   logic   [15:0]  vid_rdata,
+        input   logic           snoop_valid,
+        input   logic   [23:0]  snoop_addr,
+        input   logic   [1:0]   snoop_len,
+        input   logic   [63:0]  snoop_wdata,
+        input   logic   [7:0]   snoop_wbe,
+        output  logic           vga13_packed_cpu,
         // Peripherals
         output  logic   [2:0]   timer_counter_out,
         output  logic           speaker_out,
@@ -113,6 +187,15 @@ module PERIPHERALS #(
         // JTOPL
         output  logic   [15:0]  jtopl2_snd_e,
         input   logic   [1:0]   opl2_io,
+        // Sound Blaster Pro
+        input   logic           sb_en,
+        input   logic           sb_irq7,
+        output  logic   [15:0]  sb_snd_l,
+        output  logic   [15:0]  sb_snd_r,
+        output  logic           sb_dma_req,
+        input   logic           sb_dma_ack,
+        // Tandy 1000 sound switch (XTEGACTL): 0 takes the SN76489 off the bus
+        input   logic           tandy_en,
         // C/MS Audio
         input   logic           cms_en,
         output  reg     [15:0]  o_cms_l,
@@ -137,6 +220,7 @@ module PERIPHERALS #(
         input   logic           clk_midi,
         input   logic           midi_rx,
         output  logic           midi_tx,
+        input   logic           mpu401_enabled,
         // EMS
         input   logic           ems_enabled,
         input   logic   [1:0]   ems_address,
@@ -165,8 +249,26 @@ module PERIPHERALS #(
         output  logic           fdd_dma_req,
         input   logic           fdd_dma_ack,
         input   logic           terminal_count,
-        // XTCTL DATA
+        // XTCTL DATA: legacy 8888h register (CGA family only)
         output  logic   [7:0]   xtctl = 8'h00,
+        // XTEGACTL register file (8980h..898Fh), interpreted by xtegactl_resolve
+        // up top. Common to every video card.
+        output  logic   [7:0]   xtegactl_cpu,
+        output  logic   [7:0]   xtegactl_exp,
+        output  logic   [7:0]   xtegactl_vid,
+        output  logic   [7:0]   xtegactl_inp,
+        output  logic   [7:0]   xtegactl_midi,
+        output  logic   [7:0]   xtegactl_exp2,
+        output  logic   [7:0]   xtegactl_crt,
+        output  logic   [7:0]   xtegactl_sync,
+        // Read-only effective XTEGACTL status, supplied by the top level where
+        // the OSD values are available.
+        input   logic   [39:0]  xtegactl_status_effective,
+        input   logic   [17:0]  xtegactl_status_osd_match,
+        // Identification block (8990h..8997h)
+        input   logic   [1:0]   id_video_card,
+        input   logic           id_vga13_active,
+        input   logic   [7:0]   id_cpu_latency_max,
         // Others
         output  logic           pause_core,
         input   logic           cga_hw,
@@ -214,6 +316,19 @@ module PERIPHERALS #(
     wire video_reset_cga = video_reset_cga_sync[1];
     wire video_reset_hgc = video_reset_hgc_sync[1];
 
+    // The chosen card is static once the machine is out of reset, so one
+    // synchroniser per clock domain is all the crossing needs.
+    (* ASYNC_REG = "TRUE" *) logic [1:0] ega_active_cga_sync = 2'b00;
+    (* ASYNC_REG = "TRUE" *) logic [1:0] ega_active_hgc_sync = 2'b00;
+    wire ega_active_cga = `ENABLE_EGA ? ega_active_cga_sync[1] : 1'b0;
+    wire ega_active_hgc = `ENABLE_EGA ? ega_active_hgc_sync[1] : 1'b0;
+
+    always_ff @(posedge clk_vga_cga)
+        ega_active_cga_sync <= {ega_active_cga_sync[0], ega_active};
+
+    always_ff @(posedge clk_vga_hgc)
+        ega_active_hgc_sync <= {ega_active_hgc_sync[0], ega_active};
+
     always_ff @(posedge clk_vga_cga or posedge video_reset) begin
         if (video_reset)
             video_reset_cga_sync <= 2'b11;
@@ -229,16 +344,44 @@ module PERIPHERALS #(
     end
 
     wire tandy_video_en = `ENABLE_TANDY_VIDEO ? tandy_video : 1'b0;
-    wire tandy_audio_en = `ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0;
+    wire tandy_audio_en = `ENABLE_TANDY_AUDIO ? tandy_en : 1'b0;
     wire tandy_kbd_en = `ENABLE_TANDY_KBD ? 1'b1 : 1'b0;
 
     wire tandy_io_en = tandy_video_en | tandy_audio_en;
 
-    wire hgc_enable = `ENABLE_HGC ? enable_hgc : 1'b0;
+    wire hgc_enable = `ENABLE_HGC ? (enable_hgc & ~ega_active) : 1'b0;
     wire hgc_grph_mode;
     wire hgc_grph_page;
 
     assign tandy_16_gfx = `ENABLE_CGA ? (tandy_video_en & grph_mode & hres_mode) : 1'b0;
+
+    // Handed between the shared decoders below and the EGA block at the end
+    // of the video section.
+    wire        ega_mem_select_raw;
+    wire        ega_mem_select;
+    wire  [1:0] ega_mem_map_sel_cfg;
+    wire        vga13_packed_cpu_w;
+    wire        ega_io_oe_sys;
+    wire  [7:0] ega_io_dout_sys;
+    wire        ega_switch_sense_oe;
+    wire  [7:0] ega_switch_sense_data;
+    wire  [7:0] ega_vram_cpu_dout;
+    wire [15:0] id_video_underruns;
+
+    function automatic logic ega_memory_window_select(
+        input logic [19:0] addr,
+        input logic [1:0]  mem_map_sel
+    );
+        begin
+            case (mem_map_sel)
+                2'b00:  ega_memory_window_select = (addr[19:17] == 3'b101);   // A0000 - BFFFF
+                2'b01:  ega_memory_window_select = (addr[19:16] == 4'hA);     // A0000 - AFFFF
+                2'b10:  ega_memory_window_select = (addr[19:15] == 5'b10110); // B0000 - B7FFF
+                2'b11:  ega_memory_window_select = (addr[19:15] == 5'b10111); // B8000 - BFFFF
+                default: ega_memory_window_select = 1'b0;
+            endcase
+        end
+    endfunction
 
 
 
@@ -249,7 +392,7 @@ module PERIPHERALS #(
 
     always_comb
     begin
-        if (iorq & ~address_enable_n & ~address[9] & ~address[8] & (tandy_io_en ? ~address[4] : 1'b1))
+        if (iorq & ~address_enable_n & ~address[9] & ~address[8] & (tandy_video_en ? ~address[4] : 1'b1))
         begin
             casez (address[7:5])
                 3'b000:
@@ -287,14 +430,19 @@ module PERIPHERALS #(
     assign  dma_page_chip_select_n  = chip_select_n[4]; // 0x80 .. 0x8F
     wire    nmi_chip_select_n       = chip_select_n[5]; // 0xA0 .. 0xBF
     wire    joystick_select         = (iorq && ~address_enable_n && address[15:3] == (16'h0200 >> 3)); // 0x200 .. 0x207
-    wire    tandy_chip_select_n     = tandy_io_en ? chip_select_n[6] : 1'b1; // 0xC0 .. 0xDF
+    // Tandy 1000 video claims the whole 0xC0..0xDF block and narrows every
+    // on-board decode with address[4]. The SN76489 alone only answers 0xC0..0xCF
+    // and leaves the shared decoder alone: tightening the DMA controller, PIC,
+    // PIT and PPI decode is more faithful but silently changes how they decode.
+    wire    tandy_chip_select_n     = tandy_video_en ? chip_select_n[6]
+                                    : (tandy_audio_en ? (chip_select_n[6] | address[4]) : 1'b1);
     wire    nmi_mask_register       = (tandy_video_en && ~nmi_chip_select_n);
 
     wire    opl_388_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && ~opl2_io[1] && address[15:1] == (16'h0388 >> 1)) : 1'b0; // 0x388 .. 0x389 (Adlib)
     wire    opl_228_chip_select     = `ENABLE_OPL2 ? (iorq && ~address_enable_n && (opl2_io == 2'b01) && address[15:1] == (16'h0228 >> 1)) : 1'b0; // 0x228 .. 0x229 (Sound Blaster FM)
     wire    cms_220_chip_select     = `ENABLE_CMS ? (iorq && ~address_enable_n && address[15:4] == (16'h0220 >> 4)) : 1'b0; // 0x220 .. 0x22F (C/MS Audio)
     wire    video_mem_select        = `ENABLE_TANDY_VIDEO ? (tandy_video_en && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])) : 1'b0; // 128KB
-    wire    cga_mem_select          = `ENABLE_CGA ? (~iorq && ~address_enable_n && enable_cga & (address[19:15] == 5'b10111)) : 1'b0; // B8000 - BFFFF (16 KB / 32 KB)
+    wire    cga_mem_select          = `ENABLE_CGA ? (~iorq && ~address_enable_n && enable_cga & ~ega_active & (address[19:15] == 5'b10111)) : 1'b0; // B8000 - BFFFF (16 KB / 32 KB)
     wire    hgc_mem_select          = `ENABLE_HGC ? (~iorq && ~address_enable_n && hgc_enable & (address[19:15] == {5'b1011, hgc_grph_page})) : 1'b0; // B0000 - BFFFF (32KB / 64 KB)
     wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
     wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
@@ -302,12 +450,30 @@ module PERIPHERALS #(
     // This select is qualified by iorq_uart, which pulses on the *trailing* edge
     // of io_write_n - by then iorq has already dropped, so including it would
     // gate away every write.
-    wire    mpu401_chip_select      = `ENABLE_MIDI ? (~address_enable_n && address[15:1] == (16'h0330 >> 1)) : 1'b0; // 0x330 .. 0x331 (MPU-401 UART mode)
+    wire    mpu401_chip_select      = (`ENABLE_MIDI && mpu401_enabled) ? (~address_enable_n && address[15:1] == (16'h0330 >> 1)) : 1'b0; // 0x330 .. 0x331 (MPU-401 UART mode)
     wire    lpt_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h0378 >> 1)); // 0x378 ... 0x379
 	 wire    lpt_ctrl_select         = (iorq && ~address_enable_n && address[15:0] == 16'h037A); // 0x37A
     wire    tandy_page_chip_select  = `ENABLE_TANDY_VIDEO ? (tandy_video_en && iorq && ~address_enable_n && address[15:0] == 16'h03DF) : 1'b0;
-    wire    xtctl_chip_select       = (iorq && ~address_enable_n && address[15:0] == 16'h8888);
-    wire    rtc_chip_select         = (iorq && ~address_enable_n && address[15:1] == (16'h02C0 >> 1)); // 0x2C0 .. 0x2C1
+    // The old XTCTL port at 8888h exists in the CGA family only: with
+    // the EGA card the whole 8980h block is the interface. It stays aliased
+    // onto DMA page index 0 by the on-board decoder either way (see xtegactl).
+    wire    xtctl_chip_select       = (~ega_active && iorq && ~address_enable_n && address[15:0] == 16'h8888);
+
+    // 0x2C0 .. 0x2CF is claimed by the EGA card as an undocumented mirror of
+    // 0x3C0 .. 0x3CF (attribute/sequencer/graphics controller index-data
+    // pairs), so with the EGA the RTC/CMOS device (used for the x86_launcher
+    // AppId, among other things) can't live there without every index write
+    // also toggling Palette Address Source and blanking the display. It moves
+    // to 0x340 .. 0x341, one of the standard base addresses of a real MM58167
+    // RTC card. Every other card keeps it at 0x2C0.
+    wire [15:0] rtc_port            = ega_active ? 16'h0340 : 16'h02C0;
+    wire    rtc_chip_select         = (iorq && ~address_enable_n && address[15:1] == rtc_port[15:1]); // 0x2C0 or 0x340, two ports
+
+    // The packed 13h framebuffer is ordinary memory in SDRAM now (mem_map_ega,
+    // cpu_mem_port); all that is left here is keeping the EGA aperture out of
+    // its way while it owns A0000-AFFFF.
+    wire    vga_a000_select         = vga13_packed_cpu_w && ~iorq && ~address_enable_n && (address[19:16] == 4'hA);
+    assign  ega_mem_select          = ega_mem_select_raw && !vga_a000_select;
 
     // Every CGA byte write carries the Tw marked "+WS" in cycle-counted
     // software.  CGA_BUS_WAIT also ties completion to the next of the two
@@ -336,10 +502,10 @@ module PERIPHERALS #(
 
     wire    [3:0] ems_page_address  = (ems_address == 2'b00) ? 4'b1100 : (ems_address == 2'b01) ? 4'b1101 : 4'b1110;
     wire    ems_chip_select         = `ENABLE_EMS ? (iorq && ~address_enable_n && ems_enabled && ({address[15:2], 2'd0} == 16'h0260)) : 1'b0;          // 260h..263h
-    assign  ems_b1                  = `ENABLE_EMS ? (~iorq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})) : 1'b0; // C0000h - D0000h - E0000h
-    assign  ems_b2                  = `ENABLE_EMS ? (~iorq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})) : 1'b0; // C4000h - D4000h - E4000h
-    assign  ems_b3                  = `ENABLE_EMS ? (~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})) : 1'b0; // C8000h - D8000h - E0000h
-    assign  ems_b4                  = `ENABLE_EMS ? (~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})) : 1'b0; // CC000h - DC000h - EC000h
+    assign  ems_b1                  = `ENABLE_EMS ? (ems_enabled && ~iorq && ena_ems[0] && (address[19:14] == {ems_page_address, 2'b00})) : 1'b0; // C0000h - D0000h - E0000h
+    assign  ems_b2                  = `ENABLE_EMS ? (ems_enabled && ~iorq && ena_ems[1] && (address[19:14] == {ems_page_address, 2'b01})) : 1'b0; // C4000h - D4000h - E4000h
+    assign  ems_b3                  = `ENABLE_EMS ? (ems_enabled && ~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})) : 1'b0; // C8000h - D8000h - E0000h
+    assign  ems_b4                  = `ENABLE_EMS ? (ems_enabled && ~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})) : 1'b0; // CC000h - DC000h - EC000h
     wire    ide0_chip_select_n      = ~(iorq && ~address_enable_n && ({address[15:4], 4'd0} == 16'h0300));
     wire    floppy0_chip_select_n   = ~(~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
 
@@ -391,6 +557,12 @@ module PERIPHERALS #(
             map_ems = '{7'h00, 7'h00, 7'h00, 7'h00};
             ena_ems = '{1'b0, 1'b0, 1'b0, 1'b0};
         end
+        // ems_enabled is a level, not an edge of this block: it clears the map synchronously
+        else if (!ems_enabled)
+        begin
+            map_ems = '{7'h00, 7'h00, 7'h00, 7'h00};
+            ena_ems = '{1'b0, 1'b0, 1'b0, 1'b0};
+        end
         else if (ems_write_enable)
         begin
             map_ems[ems_access_address] <= write_map_ems_data;
@@ -432,9 +604,9 @@ module PERIPHERALS #(
         //.slave_program_or_enable_buffer     (),
         .interrupt_acknowledge_n    (interrupt_acknowledge_n),
         .interrupt_to_cpu           (interrupt_to_cpu_buf),
-        .interrupt_request          ({interrupt_request[7],
+        .interrupt_request          ({interrupt_request[7] | (sb_interrupt & sb_irq7),
                                         fdd_interrupt,
-                                        interrupt_request[5],
+                                        interrupt_request[5] | (sb_interrupt & ~sb_irq7),
                                         uart_interrupt,
                                         uart2_interrupt,
                                         mpu_interrupt,
@@ -543,12 +715,8 @@ module PERIPHERALS #(
     logic           lock_recv_clock;
     logic           swap_video_buffer_1;
     logic           swap_video_buffer_2;
-    localparam [15:0] OPL_WARM_RESET_HOLD = 16'd5000;
-    logic           prev_keybord_irq;
-    logic           ctrl_down;
-    logic           alt_down;
-    logic   [15:0]  opl_reset_cnt;
-    wire            opl_warm_reset = `ENABLE_OPL2 ? (opl_reset_cnt != 16'd0) : 1'b0;
+    localparam [15:0] KEYBOARD_WARM_RESET_HOLD = 16'd5000;
+    wire            keyboard_warm_reset_active;
 
     wire    clear_keycode = port_b_out[7];
     wire    ps2_reset_n   = ~tandy_video ? port_b_out[6] : 1'b1;
@@ -584,43 +752,15 @@ module PERIPHERALS #(
 
     assign  keycode = ps2_reset_n ? keycode_buf : 8'h80;
 
-    always_ff @(posedge clock, posedge reset)
-    begin
-        if (reset)
-        begin
-            prev_keybord_irq <= 1'b0;
-            ctrl_down        <= 1'b0;
-            alt_down         <= 1'b0;
-            opl_reset_cnt    <= 16'd0;
-        end
-        else if (`ENABLE_OPL2)
-        begin
-            prev_keybord_irq <= keybord_irq;
-            if (opl_reset_cnt != 16'd0)
-                opl_reset_cnt <= opl_reset_cnt - 16'd1;
-
-            if (keybord_irq && ~prev_keybord_irq)
-            begin
-                case (keycode)
-                    8'h1D: ctrl_down <= 1'b1;
-                    8'h9D: ctrl_down <= 1'b0;
-                    8'h38: alt_down  <= 1'b1;
-                    8'hB8: alt_down  <= 1'b0;
-                    default: ;
-                endcase
-
-                if (keycode == 8'h53 && ctrl_down && alt_down)
-                    opl_reset_cnt <= OPL_WARM_RESET_HOLD;
-            end
-        end
-        else
-        begin
-            prev_keybord_irq <= 1'b0;
-            ctrl_down        <= 1'b0;
-            alt_down         <= 1'b0;
-            opl_reset_cnt    <= 16'd0;
-        end
-    end
+    keyboard_warm_reset #(
+        .HOLD_CYCLES(KEYBOARD_WARM_RESET_HOLD)
+    ) keyboard_warm_reset_detect (
+        .clock             (clock),
+        .reset             (reset),
+        .keycode_irq       (keybord_irq),
+        .keycode           (keycode),
+        .warm_reset_active (keyboard_warm_reset_active)
+    );
 
     // Keyboard reset
     KFPS2KB_Send_Data u_KFPS2KB_Send_Data 
@@ -676,7 +816,11 @@ module PERIPHERALS #(
     wire [7:0] jtopl2_dout_int;
     wire [15:0] jtopl2_snd_e_int;
     wire [7:0] jtopl2_dout = `ENABLE_OPL2 ? jtopl2_dout_int : 8'hFF;
-    assign jtopl2_snd_e = `ENABLE_OPL2 ? jtopl2_snd_e_int : 16'd0;
+    // The OPL2 goes out through the Sound Blaster when there is one, so that
+    // the card's mixer can set its level like a real one does. The direct
+    // path is silenced in that case - otherwise the top level would sum the
+    // same FM twice. With no card built this is exactly as it was.
+    assign jtopl2_snd_e = (`ENABLE_OPL2 && !`ENABLE_SB) ? jtopl2_snd_e_int : 16'd0;
 
     reg clk_en_opl2;
     always @(posedge clock) begin
@@ -692,7 +836,7 @@ module PERIPHERALS #(
 
     jtopl2 jtopl2_inst
     (
-        .rst(reset | opl_warm_reset),
+        .rst(reset | (`ENABLE_OPL2 && keyboard_warm_reset_active)),
         .clk(clock),
         .cen(clk_en_opl2),
         .din(internal_data_bus),
@@ -706,9 +850,57 @@ module PERIPHERALS #(
     );
 
 
+    //
+    // Sound Blaster Pro
+    //
+    // 220h and DMA channel 1 are fixed. IRQ 5 or 7 is selected by the OSD or
+    // XTEGACTL, matching the two standard Sound Blaster jumper positions.
+    // The DSP, mixer and DMA bridge all live inside soundblaster.sv; what is
+    // left out here is only the wiring.
+    //
+    // sb_en arrives already exclusive with cms_en: xtegactl_resolve drops
+    // the C/MS whenever this is set, because the two collide on 226h/227h.
+    logic           sb_read_select;
+    logic   [7:0]   sb_readdata;
+    logic           sb_interrupt;
+
+    generate
+    if (`ENABLE_SB) begin : SOUND_BLASTER
+        soundblaster u_soundblaster (
+            .clock              (clock),
+            .reset              (reset),
+            .cpu_ce_negedge     (cpu_ce_negedge),
+            .clk_rate           (clk_rate),
+            .address            (address[15:0]),
+            .internal_data_bus  (internal_data_bus),
+            .io_read_n          (io_read_n),
+            .io_write_n         (io_write_n),
+            .address_enable_n   (address_enable_n),
+            .enable             (sb_en),
+            .read_select        (sb_read_select),
+            .data_bus_out       (sb_readdata),
+            .dma_acknowledge    (sb_dma_ack),
+            .dma_request        (sb_dma_req),
+            .irq                (sb_interrupt),
+            .fm_l               (jtopl2_snd_e_int),
+            .fm_r               (jtopl2_snd_e_int),
+            .sample_l           (sb_snd_l),
+            .sample_r           (sb_snd_r)
+        );
+    end
+    else begin : NO_SOUND_BLASTER
+        assign sb_read_select = 1'b0;
+        assign sb_readdata    = 8'hFF;
+        assign sb_interrupt   = 1'b0;
+        assign sb_dma_req     = 1'b0;
+        assign sb_snd_l       = 16'd0;
+        assign sb_snd_r       = 16'd0;
+    end
+    endgenerate
+
     wire [10:0] tandy_snd_e_int;
     wire        tandy_snd_rdy_int;
-    assign tandy_snd_e = `ENABLE_TANDY_AUDIO ? tandy_snd_e_int : 11'd0;
+    assign tandy_snd_e = (`ENABLE_TANDY_AUDIO && tandy_en) ? tandy_snd_e_int : 11'd0;
     assign tandy_snd_rdy = `ENABLE_TANDY_AUDIO ? tandy_snd_rdy_int : 1'b1;
 
     // Tandy sound
@@ -851,7 +1043,12 @@ end
             keybord_interrupt       <= keybord_interrupt_ff;
             uart_interrupt_ff       <= uart_irq;
             uart_interrupt          <= uart_interrupt_ff;
-            mpu_interrupt_ff        <= mpu_irq;
+            // mpu401_inst's rx_ready tracks the underlying UART core, which
+            // keeps receiving on midi_rx regardless of the chip select above,
+            // so gate the interrupt here too - otherwise a byte arriving from
+            // a still-connected mt32-pi/USB MIDI link could raise IRQ9 for a
+            // card that is supposed to look unplugged.
+            mpu_interrupt_ff        <= mpu_irq & mpu401_enabled;
             mpu_interrupt           <= mpu_interrupt_ff;
             uart2_interrupt_ff      <= uart2_irq;
             uart2_interrupt         <= uart2_interrupt_ff;
@@ -1040,6 +1237,65 @@ end
     end
 
 
+    // Per-program hardware control, 8980h..898Fh. Only the register file lives
+    // here; what the fields mean is xtegactl_resolve, up where the OSD is.
+    wire [7:0] xtegactl_data;
+    wire       xtegactl_oe;
+
+    xtegactl xtegactl_ports (
+        .clock            (clock),
+        .reset            (reset),
+        .clear_vga13      (warm_boot_marker_event),
+        .address          (address[15:0]),
+        .address_enable_n (address_enable_n),
+        .io_read_n        (io_read_n),
+        .io_write_n       (io_write_n),
+        .data_in          (internal_data_bus),
+        .data_out         (xtegactl_data),
+        .output_enable    (xtegactl_oe),
+        .reg_cpu          (xtegactl_cpu),
+        .reg_exp          (xtegactl_exp),
+        .reg_vid          (xtegactl_vid),
+        .reg_inp          (xtegactl_inp),
+        .reg_midi         (xtegactl_midi),
+        .reg_exp2         (xtegactl_exp2),
+        .reg_crt          (xtegactl_crt),
+        .reg_sync         (xtegactl_sync),
+        .status_effective (xtegactl_status_effective),
+        .status_osd_match (xtegactl_status_osd_match)
+    );
+
+    // Identification and debug, 8990h..8997h
+    localparam [7:0] XTCTL_CAPABILITIES = {
+        `ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0,
+        `ENABLE_CMS         ? 1'b1 : 1'b0,
+        `ENABLE_OPL2        ? 1'b1 : 1'b0,
+        `ENABLE_SB          ? 1'b1 : 1'b0,
+        `ENABLE_HGC         ? 1'b1 : 1'b0,
+        `ENABLE_CGA         ? 1'b1 : 1'b0,
+        (`ENABLE_EGA && `ENABLE_VGA13) ? 1'b1 : 1'b0,
+        `ENABLE_EGA         ? 1'b1 : 1'b0
+    };
+    wire [7:0] xtctl_id_data;
+    wire       xtctl_id_oe;
+
+    xtctl_id #(
+        .CAPABILITIES (XTCTL_CAPABILITIES)
+    ) xtctl_id_ports (
+        .clock            (clock),
+        .reset            (reset),
+        .address          (address[15:0]),
+        .address_enable_n (address_enable_n),
+        .io_read_n        (io_read_n),
+        .data_out         (xtctl_id_data),
+        .output_enable    (xtctl_id_oe),
+        .video_card       (id_video_card),
+        .vga13_active     (id_vga13_active),
+        .rtc_port         (rtc_port),
+        .video_underruns  (id_video_underruns),
+        .cpu_latency_max  (id_cpu_latency_max)
+    );
+
     logic  [16:0]  video_ram_address;
     logic  [7:0]   video_ram_data;
     logic          video_memory_write_n;
@@ -1118,7 +1374,7 @@ end
             hgc_address_enable_n_1  <= 1'b1;
             hgc_address_enable_n_2  <= 1'b1;
         end
-        else if (`ENABLE_HGC)
+        else if (`ENABLE_HGC && !ega_active_hgc)
         begin
             hgc_io_address_1        <= video_io_address;
             hgc_io_address_2        <= hgc_io_address_1;
@@ -1152,7 +1408,7 @@ end
 
     always_ff @(posedge clk_vga_cga)
     begin
-        if (`ENABLE_CGA)
+        if (`ENABLE_CGA && !ega_active_cga)
         begin
             cga_io_address_1        <= video_io_address;
             cga_io_address_2        <= cga_io_address_1;
@@ -1448,7 +1704,7 @@ end
     cga cga1 
     (
         .clk                        (clk_vga_cga),
-        .reset                      (video_reset_cga),
+        .reset                      (video_reset_cga | ega_active_cga),
         .clkdiv                     (clkdiv),
         .bus_a                      (cga_io_address_2),
         .bus_ior_l                  (cga_io_read_n_2),
@@ -1540,6 +1796,551 @@ end
     always_ff @(posedge clock)
         hgc_page_meta <= {hgc_page_meta[0], hgc_grph_page};
     assign hgc_page_sys = hgc_page_meta[1];
+
+    //
+    // EGA / VGA 13h+ card
+    //
+    // Built only when ENABLE_EGA is set, and then only the machine that came
+    // out of reset with ega_active drives anything: the card is held in reset
+    // otherwise, its bus strobes never reach it, and its memory window and its
+    // data bus tap stay off. The CGA and Hercules cards above get the same
+    // treatment in the other direction, so exactly one family answers.
+    generate
+    if (`ENABLE_EGA) begin : EGA_CARD
+
+        // Release reset on the clock that consumes it. The frontend's CPU side
+        // runs on the chipset clock, the card itself on the 28.636 MHz clock.
+        (* ASYNC_REG = "TRUE" *) logic [1:0] video_reset_clock_sync = 2'b11;
+        wire video_reset_clock = video_reset_clock_sync[1];
+        wire video_reset_video = video_reset_cga | ~ega_active_cga;
+
+        always_ff @(posedge clock or posedge video_reset) begin
+            if (video_reset)
+                video_reset_clock_sync <= 2'b11;
+            else
+                video_reset_clock_sync <= {video_reset_clock_sync[0], 1'b0};
+        end
+
+        // The OSD status originates in the chipset clock domain. Treat the
+        // monitor choice like a physical switch and synchronise its static
+        // level before exposing it to the card's input-status register.
+        (* ASYNC_REG = "TRUE" *) logic [1:0] ega_monitor_profile_meta = 2'b00;
+        (* ASYNC_REG = "TRUE" *) logic [1:0] ega_monitor_profile_sync = 2'b00;
+
+        always_ff @(posedge clk_vga_cga) begin
+            if (video_reset_video) begin
+                ega_monitor_profile_meta <= 2'b00;
+                ega_monitor_profile_sync <= 2'b00;
+            end
+            else begin
+                ega_monitor_profile_meta <= ega_monitor_profile;
+                ega_monitor_profile_sync <= ega_monitor_profile_meta;
+            end
+        end
+
+        // The packed 13h framebuffer is the CPU's A0000 window while VGA 13h
+        // is packed (not Mode X or 0Dh, whose planes the frontend serves).
+        wire vga_mode13_active_video;
+        wire vga_planar_memory_active_video;
+        logic vga_mode13_active_sync1;
+        logic vga_mode13_active_sync2;
+        logic vga_planar_memory_active_sync1;
+        logic vga_planar_memory_active_sync2;
+
+        always_ff @(posedge clock or posedge reset) begin
+            if (reset) begin
+                vga_mode13_active_sync1        <= 1'b0;
+                vga_mode13_active_sync2        <= 1'b0;
+                vga_planar_memory_active_sync1 <= 1'b0;
+                vga_planar_memory_active_sync2 <= 1'b0;
+            end else begin
+                vga_mode13_active_sync1        <= vga_mode13_active_video;
+                vga_mode13_active_sync2        <= vga_mode13_active_sync1;
+                vga_planar_memory_active_sync1 <= vga_planar_memory_active_video;
+                vga_planar_memory_active_sync2 <= vga_planar_memory_active_sync1;
+            end
+        end
+
+        assign vga_mode13_active_out = vga_mode13_active_video;
+        assign vga13_packed_cpu_w    = vga_mode13_active_sync2 & ~vga_planar_memory_active_sync2;
+        assign vga13_packed_cpu      = vga13_packed_cpu_w;
+
+        assign ega_mem_select_raw = ~iorq && ~address_enable_n && ega_active
+                                  && ega_memory_window_select(address, ega_mem_map_sel_cfg);
+
+        // The I/O cycle towards the video clock domain used to be a live
+        // registered copy of the bus, which left every write racing the far
+        // side's two-sample qualifier; at the PC/AT 3.5MHz setting the pulse is
+        // barely as long as the qualifier needs and writes were lost by clock
+        // phase. The stretcher posts each write with a guaranteed minimum width
+        // instead. Address latching for reads and the write-only data latch are
+        // preserved inside it: on a read internal_data_bus carries the card's
+        // own reply, so data must never latch under the read strobe.
+        logic  [14:0]  ega_io_address_s;
+        logic  [7:0]   ega_io_data_s;
+        logic          ega_io_write_n_s;
+        logic          ega_io_read_n_s;
+        logic          ega_address_enable_n_s;
+        logic          ega_stretch_ready;
+
+        ega_io_stretch u_ega_io_stretch (
+            .clock                  (clock),
+            .reset                  (reset),
+            .io_write_n             (io_write_n),
+            .io_read_n              (io_read_n),
+            .address_enable_n       (address_enable_n),
+            .address                ({1'b0, address[13:0]}),
+            .write_data             (internal_data_bus),
+            .video_address          (ega_io_address_s),
+            .video_data             (ega_io_data_s),
+            .video_io_write_n       (ega_io_write_n_s),
+            .video_io_read_n        (ega_io_read_n_s),
+            .video_address_enable_n (ega_address_enable_n_s),
+            .access_ready           (ega_stretch_ready)
+        );
+
+        // CGA and Hercules cycle-count against the unstretched bus, so the
+        // stretcher's backpressure only exists while the EGA is the card.
+        assign video_io_access_ready = ega_active ? ega_stretch_ready : 1'b1;
+
+        // Input Status 0 switch sense is physically selected by the same ISA OUT
+        // that programs Miscellaneous Output, and it is answered entirely here:
+        // ega_top does not decode 3C2h reads, so this is the only source of the
+        // byte. Both the selector and the readback therefore live on the live
+        // 8088 bus, with no clock crossing and no posted-write queue in between.
+        //
+        // That matters because the ROM issues OUT 3C2h,01h, then two
+        // instructions later OUT 3C2h,0Dh followed at once by IN 3C2h. Anything
+        // that delays the second selector past the read - the video clock
+        // domain, or the posted write still queued behind the first OUT in
+        // ega_io_stretch - answers that first probe with the previous selector
+        // and turns the CGA 80-column pattern 0111b into 0110b, which is the
+        // CGA 40-column setting.
+        ega_switch_sense_host ega_switch_sense_isa (
+            .clock            (clock),
+            .reset            (reset),
+            .monitor_profile  (ega_monitor_profile),
+            .io_address       ({1'b0, address[13:0]}),
+            .io_data          (internal_data_bus),
+            .io_write_n       (io_write_n),
+            .io_read_n        (io_read_n),
+            .address_enable_n (address_enable_n | ~ega_active),
+            .data_out         (ega_switch_sense_data),
+            .output_enable    (ega_switch_sense_oe)
+        );
+
+        logic  [14:0]  ega_io_address_sync1;
+        logic  [14:0]  ega_io_address_sync2;
+        logic  [7:0]   ega_io_data_sync1;
+        logic  [7:0]   ega_io_data_sync2;
+        logic          ega_io_write_n_sync1;
+        logic          ega_io_write_n_sync2;
+        logic          ega_io_read_n_sync1;
+        logic          ega_io_read_n_sync2;
+        logic          ega_address_enable_n_sync1;
+        logic          ega_address_enable_n_sync2;
+        logic          ega_mem_select_sys;
+        logic          ega_mem_write_sys;
+        logic          ega_mem_select_1;
+        logic          ega_mem_select_2;
+        logic          ega_mem_write_1;
+        logic          ega_mem_write_2;
+
+        always_ff @(posedge clock)
+        begin
+            ega_mem_select_sys <= ega_mem_select;
+            ega_mem_write_sys  <= ega_mem_select & ~memory_write_n;
+        end
+
+        always_ff @(posedge clk_vga_cga, posedge video_reset_video)
+        begin
+            if (video_reset_video)
+            begin
+                ega_io_address_sync1        <= 15'd0;
+                ega_io_address_sync2        <= 15'd0;
+                ega_io_data_sync1           <= 8'd0;
+                ega_io_data_sync2           <= 8'd0;
+                ega_io_write_n_sync1        <= 1'b1;
+                ega_io_write_n_sync2        <= 1'b1;
+                ega_io_read_n_sync1         <= 1'b1;
+                ega_io_read_n_sync2         <= 1'b1;
+                ega_address_enable_n_sync1  <= 1'b1;
+                ega_address_enable_n_sync2  <= 1'b1;
+                ega_mem_select_1            <= 1'b0;
+                ega_mem_select_2            <= 1'b0;
+                ega_mem_write_1             <= 1'b0;
+                ega_mem_write_2             <= 1'b0;
+            end
+            else
+            begin
+                ega_io_address_sync1        <= ega_io_address_s;
+                ega_io_address_sync2        <= ega_io_address_sync1;
+                ega_io_data_sync1           <= ega_io_data_s;
+                ega_io_data_sync2           <= ega_io_data_sync1;
+                ega_io_write_n_sync1        <= ega_io_write_n_s;
+                ega_io_write_n_sync2        <= ega_io_write_n_sync1;
+                ega_io_read_n_sync1         <= ega_io_read_n_s;
+                ega_io_read_n_sync2         <= ega_io_read_n_sync1;
+                ega_address_enable_n_sync1  <= ega_address_enable_n_s;
+                ega_address_enable_n_sync2  <= ega_address_enable_n_sync1;
+                ega_mem_select_1            <= ega_mem_select_sys;
+                ega_mem_select_2            <= ega_mem_select_1;
+                ega_mem_write_1             <= ega_mem_write_sys;
+                ega_mem_write_2             <= ega_mem_write_1;
+            end
+        end
+
+        wire [15:0] VGA_FRAMEBUFFER_ADDR;
+        wire        VGA_FRAMEBUFFER_READ_EN;
+        wire [7:0]  VGA_FRAMEBUFFER_PIXEL;
+        wire        VGA_FRAMEBUFFER_DATA_VALID;
+        wire        hsync_ega_raw;
+        wire        hsync_ega_sd;
+        wire        video_display_active;
+        wire        ega_scandouble_active;
+        wire        ega_hsync_sel = ega_scandouble_active ? hsync_ega_sd : hsync_ega_raw;
+
+        wire        EGA_IO_OE;
+        logic       EGA_IO_OE_SYNC1;
+        logic       EGA_IO_OE_SYNC2;
+        wire [7:0]  EGA_IO_DOUT;
+        logic [7:0] EGA_IO_DOUT_SYNC1;
+        logic [7:0] EGA_IO_DOUT_SYNC2;
+        wire [15:0] EGA_FETCH_ADDR;
+        wire        EGA_FETCH_EN;
+        wire [7:0]  EGA_PLANE0_DOUT;
+        wire [7:0]  EGA_PLANE1_DOUT;
+        wire [7:0]  EGA_PLANE2_DOUT;
+        wire [7:0]  EGA_PLANE3_DOUT;
+        wire        EGA_FETCH_DATA_VALID;
+        wire [15:0] EGA_TEXT_CELL_ADDR;
+        wire [4:0]  EGA_TEXT_SCANLINE;
+        wire        EGA_TEXT_TAG;
+        wire        EGA_TEXT_TAG_IN;
+        wire [1:0]  EGA_CHAR_MAP_A;
+        wire [1:0]  EGA_CHAR_MAP_B;
+        wire        EGA_CE_PIX;
+        wire        EGA_PRIV_ROUTE;
+        wire        EGA_SPLASH_CE;
+        wire        EGA_SPLASH_DE;
+        wire [9:0]  EGA_SPLASH_SCAN;
+        wire [3:0]  EGA_SPLASH_PIX;
+        wire        EGA_SPLASH_PIX_VALID;
+        wire        EGA_TEXT_FETCH_EN;
+        wire [7:0]  EGA_TEXT_CHAR;
+        wire [7:0]  EGA_TEXT_ATTR;
+        wire [7:0]  EGA_TEXT_GLYPH;
+        wire        EGA_TEXT_DATA_VALID;
+        wire        ega_cfg_toggle;
+        wire [3:0]  ega_plane_write_mask_cfg;
+        wire        ega_odd_even_mode_cfg;
+        wire        ega_cpu_access_slot_cfg;
+        wire        ega_chain2_write_cfg;
+        wire        ega_chain2_read_cfg;
+        wire        ega_extended_memory_cfg;
+        wire        ega_page_select_cfg;
+        wire [1:0]  ega_write_mode_cfg;
+        wire [1:0]  ega_read_mode_cfg;
+        wire [1:0]  ega_read_plane_sel_cfg;
+        wire [7:0]  ega_color_compare_cfg;
+        wire [7:0]  ega_color_dont_care_cfg;
+        wire [7:0]  ega_bit_mask_cfg;
+        wire [7:0]  ega_set_reset_cfg;
+        wire [3:0]  ega_enable_set_reset_cfg;
+        wire [1:0]  ega_rop_select_cfg;
+        wire [2:0]  ega_rotate_count_cfg;
+        wire [6:0]  ega_blink_counter;
+        wire        ega_blink_state;
+        wire        ega_vblank_border_raw;
+        wire        ega_std_hsyncwidth_raw;
+        wire        thin_font = 1'b0;     // Default: No thin font
+
+        assign ega_scandouble_active_out = ega_scandouble_active;
+        assign EGA_HSYNC                 = ega_hsync_sel;
+        assign EGA_VBlank_border         = ega_vblank_border_raw;
+        assign EGA_std_hsyncwidth        = ega_std_hsyncwidth_raw;
+
+        ega_top ega1
+        (
+            .clk                        (clk_vga_cga),
+            .reset                      (video_reset_video),
+            .bus_a                      (ega_io_address_sync2),
+            .bus_ior_l                  (ega_io_read_n_sync2),
+            .bus_iow_l                  (ega_io_write_n_sync2),
+            .bus_d                      (ega_io_data_sync2),
+            .bus_out                    (EGA_IO_DOUT),
+            .bus_dir                    (EGA_IO_OE),
+            .bus_aen                    (ega_address_enable_n_sync2),
+            .ega_fetch_addr             (EGA_FETCH_ADDR),
+            .ega_fetch_en               (EGA_FETCH_EN),
+            .ega_plane0_data            (EGA_PLANE0_DOUT),
+            .ega_plane1_data            (EGA_PLANE1_DOUT),
+            .ega_plane2_data            (EGA_PLANE2_DOUT),
+            .ega_plane3_data            (EGA_PLANE3_DOUT),
+            .ega_fetch_data_valid       (EGA_FETCH_DATA_VALID),
+            .ega_text_cell_addr         (EGA_TEXT_CELL_ADDR),
+            .ega_text_scanline          (EGA_TEXT_SCANLINE),
+            .ega_text_tag               (EGA_TEXT_TAG),
+            .ega_text_fetch_en          (EGA_TEXT_FETCH_EN),
+            .ega_text_char              (EGA_TEXT_CHAR),
+            .ega_text_attr              (EGA_TEXT_ATTR),
+            .ega_text_glyph             (EGA_TEXT_GLYPH),
+            .ega_text_tag_in            (EGA_TEXT_TAG_IN),
+            .ega_text_data_valid        (EGA_TEXT_DATA_VALID),
+            .ega_char_map_a_out         (EGA_CHAR_MAP_A),
+            .ega_char_map_b_out         (EGA_CHAR_MAP_B),
+            .ega_ce_pix_out             (EGA_CE_PIX),
+            .ega_priv_route_out         (EGA_PRIV_ROUTE),
+            .vga_framebuffer_addr       (VGA_FRAMEBUFFER_ADDR),
+            .vga_framebuffer_read_en    (VGA_FRAMEBUFFER_READ_EN),
+            .vga_framebuffer_pixel      (VGA_FRAMEBUFFER_PIXEL),
+            .vga_framebuffer_data_valid (VGA_FRAMEBUFFER_DATA_VALID),
+            .cpu_mem_select             (ega_mem_select_2),
+            .cpu_mem_write              (ega_mem_write_2),
+            .ega_cfg_toggle             (ega_cfg_toggle),
+            .ega_plane_write_mask_out   (ega_plane_write_mask_cfg),
+            .ega_odd_even_mode_out      (ega_odd_even_mode_cfg),
+            .ega_cpu_access_slot_out    (ega_cpu_access_slot_cfg),
+            .ega_chain2_write_out       (ega_chain2_write_cfg),
+            .ega_chain2_read_out        (ega_chain2_read_cfg),
+            .ega_extended_memory_out    (ega_extended_memory_cfg),
+            .ega_mem_map_sel_out        (ega_mem_map_sel_cfg),
+            .ega_page_select_out        (ega_page_select_cfg),
+            .ega_write_mode_out         (ega_write_mode_cfg),
+            .ega_read_mode_out          (ega_read_mode_cfg),
+            .ega_read_plane_sel_out     (ega_read_plane_sel_cfg),
+            .ega_color_compare_out      (ega_color_compare_cfg),
+            .ega_color_dont_care_out    (ega_color_dont_care_cfg),
+            .ega_bit_mask_out           (ega_bit_mask_cfg),
+            .ega_set_reset_out          (ega_set_reset_cfg),
+            .ega_enable_set_reset_out   (ega_enable_set_reset_cfg),
+            .ega_rop_select_out         (ega_rop_select_cfg),
+            .ega_rotate_count_out       (ega_rotate_count_cfg),
+            .ega_blink_counter_out      (ega_blink_counter),
+            .ega_blink_state_out        (ega_blink_state),
+            .hsync                      (hsync_ega_raw),
+            .dbl_hsync                  (hsync_ega_sd),
+            .hblank                     (EGA_HBlank),
+            .vsync                      (EGA_VSYNC),
+            .vblank                     (EGA_VBlank),
+            .vblank_border              (ega_vblank_border_raw),
+            .std_hsyncwidth             (ega_std_hsyncwidth_raw),
+            .de_o                       (EGA_de_o),
+            .ega_red                    (EGA_R),
+            .ega_green                  (EGA_G),
+            .ega_blue                   (EGA_B),
+            .ega_display_sel_out        (video_display_active),
+            .ega_dot_toggle_out         (ega_dot_toggle),
+            .ega_dot_clock_sel_out      (ega_dot_clock_sel),
+            .ega_scandouble_active_out  (ega_scandouble_active),
+            .ega_vmode_toggle_out       (ega_vmode_toggle_out),
+            .ega_mode350_out            (ega_mode350),
+            .ega_active_dots_out        (ega_active_dots),
+            .ega_active_lines_out       (ega_active_lines),
+            .splashscreen               (splashscreen),
+            .ext_splash_pixel_index     (EGA_SPLASH_PIX),
+            .ext_splash_pixel_valid     (EGA_SPLASH_PIX_VALID),
+            .ext_splash_ce_pix          (EGA_SPLASH_CE),
+            .ext_splash_display_enable  (EGA_SPLASH_DE),
+            .ext_splash_scanline        (EGA_SPLASH_SCAN),
+            .prebios_video              (1'b0),
+            .thin_font                  (thin_font),
+            .scandouble_en              (cga_scandouble_en),
+            .ega_enabled                (1'b1),
+            .ega_monitor_profile        (ega_monitor_profile_sync),
+            .vga_enabled                (`ENABLE_VGA13 ? vga_mode13_osd : 1'b0),
+            .vga_mode13_native          (vga_mode13_native),
+            .vga_mode13_set             (1'b0),
+            .vga_mode13_clear           (1'b0),
+            .vga_mode13_active_out      (vga_mode13_active_video),
+            .vga_unchained256_active_out(),
+            .vga_mode13_wide_clock_out  (vga_mode13_wide_clock_out),
+            .vga_planar_memory_active_out(vga_planar_memory_active_video),
+            .vga_mode13_pixel_toggle_out(vga_mode13_pixel_toggle_out),
+            .crt_h_offset               (crt_h_offset),
+            .crt_v_offset               (crt_v_offset),
+            .vsync_width_osd            (vsync_width_osd),
+            .hsync_width_osd            (hsync_width_osd)
+        );
+
+        always_ff @(posedge clock)
+        begin
+            EGA_IO_OE_SYNC1   <= EGA_IO_OE;
+            EGA_IO_OE_SYNC2   <= EGA_IO_OE_SYNC1;
+            EGA_IO_DOUT_SYNC1 <= EGA_IO_DOUT;
+            EGA_IO_DOUT_SYNC2 <= EGA_IO_DOUT_SYNC1;
+        end
+
+        assign ega_io_oe_sys   = EGA_IO_OE_SYNC2;
+        assign ega_io_dout_sys = EGA_IO_DOUT_SYNC2;
+
+        defparam ega1.BLINK_MAX = 24'd4772727;
+        // The video memory is read ahead of the display (vram_fetch): the
+        // display side is retimed to match; the same numbers are given to the
+        // frontend below.
+        defparam ega1.SDRAM_LEAD_DOTS  = 16;
+        defparam ega1.SDRAM_PRIV_EXTRA = 16;
+
+        // The boot picture of the EGA card is the core's own
+        ega_splash_renderer ega_splash_renderer_inst (
+            .clk            (clk_vga_cga),
+            .reset          (video_reset_video),
+            .ce_pix         (EGA_SPLASH_CE),
+            .enable         (splashscreen),
+            .display_enable (EGA_SPLASH_DE),
+            .scanline       (EGA_SPLASH_SCAN),
+            .pixel_index    (EGA_SPLASH_PIX),
+            .pixel_valid    (EGA_SPLASH_PIX_VALID)
+        );
+
+        wire [15:0] ega_vram_cpu_addr = address[15:0];
+        wire        ega_vram_cpu_a16 = address[16];
+        wire [7:0]  ega_vram_cpu_din = internal_data_bus;
+        wire        ega_vram_cpu_read_req = ega_mem_select && ~memory_read_n;
+        wire        ega_vram_cpu_write_req = ega_mem_select && ~memory_write_n;
+        wire        ega_vram_cpu_cycle = ega_vram_cpu_read_req | ega_vram_cpu_write_req;
+        wire        ega_vram_cpu_ready;
+        wire [15:0] ega_vram_underruns;
+
+        ega_vram_sdram_frontend
+        #(
+            .LEAD_GFX                   (16),
+            .LEAD_CELL                  (9),
+            .LEAD_GLYPH                 (10),
+            .EXTRA_PRIV                 (16),
+            .EXTRA_FB                   (16)
+        )
+        ega_vram_frontend
+        (
+            .clock                      (clock),
+            .reset_cpu                  (video_reset_clock | ~ega_active),
+            .cpu_addr                   (ega_vram_cpu_addr),
+            .cpu_a16                    (ega_vram_cpu_a16),
+            .cpu_din                    (ega_vram_cpu_din),
+            .cpu_read                   (ega_vram_cpu_read_req),
+            .cpu_write                  (ega_vram_cpu_write_req),
+            .cpu_dout                   (ega_vram_cpu_dout),
+            .cpu_ready                  (ega_vram_cpu_ready),
+            .m_start                    (vram_m_start),
+            .m_we                       (vram_m_we),
+            .m_addr                     (vram_m_addr),
+            .m_len                      (vram_m_len),
+            .m_wdata                    (vram_m_wdata),
+            .m_wbe                      (vram_m_wbe),
+            .m_busy                     (vram_m_busy),
+            .m_done                     (vram_m_done),
+            .m_rdata                    (vram_m_rdata),
+            .clk_video                  (clk_vga_cga),
+            .reset_video                (video_reset_video),
+            .dot_tick                   (EGA_CE_PIX),
+            .priv_route                 (EGA_PRIV_ROUTE),
+            .video_addr                 (EGA_FETCH_ADDR),
+            .video_read_en              (EGA_FETCH_EN),
+            .video_plane0               (EGA_PLANE0_DOUT),
+            .video_plane1               (EGA_PLANE1_DOUT),
+            .video_plane2               (EGA_PLANE2_DOUT),
+            .video_plane3               (EGA_PLANE3_DOUT),
+            .video_data_valid           (EGA_FETCH_DATA_VALID),
+            .text_cell_addr             (EGA_TEXT_CELL_ADDR),
+            .text_scanline              (EGA_TEXT_SCANLINE),
+            .text_tag                   (EGA_TEXT_TAG),
+            .text_fetch_en              (EGA_TEXT_FETCH_EN & video_display_active),
+            .char_map_a                 (EGA_CHAR_MAP_A),
+            .char_map_b                 (EGA_CHAR_MAP_B),
+            .text_char                  (EGA_TEXT_CHAR),
+            .text_attr                  (EGA_TEXT_ATTR),
+            .text_glyph                 (EGA_TEXT_GLYPH),
+            .text_tag_out               (EGA_TEXT_TAG_IN),
+            .text_data_valid            (EGA_TEXT_DATA_VALID),
+            .fb_addr                    (VGA_FRAMEBUFFER_ADDR),
+            .fb_read_en                 (VGA_FRAMEBUFFER_READ_EN),
+            .fb_pixel                   (VGA_FRAMEBUFFER_PIXEL),
+            .fb_data_valid              (VGA_FRAMEBUFFER_DATA_VALID),
+            .cfg_toggle                 (ega_cfg_toggle),
+            .plane_write_mask           (ega_plane_write_mask_cfg),
+            .odd_even_mode              (ega_odd_even_mode_cfg),
+            .cpu_access_en              (ega_cpu_access_slot_cfg),
+            .chain2_write               (ega_chain2_write_cfg),
+            .chain2_read                (ega_chain2_read_cfg),
+            .extended_memory            (ega_extended_memory_cfg),
+            .mem_map_sel                (ega_mem_map_sel_cfg),
+            .page_select                (ega_page_select_cfg),
+            .write_mode                 (ega_write_mode_cfg),
+            .read_mode                  (ega_read_mode_cfg),
+            .read_plane_sel             (ega_read_plane_sel_cfg),
+            .color_compare              (ega_color_compare_cfg),
+            .color_dont_care            (ega_color_dont_care_cfg),
+            .bit_mask                   (ega_bit_mask_cfg),
+            .set_reset                  (ega_set_reset_cfg),
+            .enable_set_reset           (ega_enable_set_reset_cfg),
+            .rop_select                 (ega_rop_select_cfg),
+            .rotate_count               (ega_rotate_count_cfg),
+            .sdram_clk                  (sdram_clk),
+            .sdram_reset                (sdram_reset),
+            .vid_req                    (vid_req),
+            .vid_addr                   (vid_addr),
+            .vid_len                    (vid_len),
+            .vid_deadline               (vid_deadline),
+            .vid_ack                    (vid_ack),
+            .vid_rvalid                 (vid_rvalid),
+            .vid_rlast                  (vid_rlast),
+            .vid_rdata                  (vid_rdata),
+            .snoop_valid                (snoop_valid),
+            .snoop_addr                 (snoop_addr),
+            .snoop_len                  (snoop_len),
+            .snoop_wdata                (snoop_wdata),
+            .snoop_wbe                  (snoop_wbe),
+            .underrun_count             (ega_vram_underruns)
+        );
+
+        assign video_memory_access_ready = ega_vram_cpu_cycle ? ega_vram_cpu_ready : 1'b1;
+        assign id_video_underruns        = ega_vram_underruns;
+    end
+    else begin : NO_EGA_CARD
+        assign video_io_access_ready     = 1'b1;
+        assign video_memory_access_ready = 1'b1;
+        assign id_video_underruns        = 16'd0;
+        assign vga13_packed_cpu          = 1'b0;
+        assign vga13_packed_cpu_w        = 1'b0;
+        assign vga_mode13_active_out     = 1'b0;
+        assign vga_mode13_wide_clock_out = 1'b0;
+        assign vga_mode13_pixel_toggle_out = 1'b0;
+        assign ega_mem_select_raw        = 1'b0;
+        assign ega_mem_map_sel_cfg       = 2'b00;
+        assign ega_io_oe_sys             = 1'b0;
+        assign ega_io_dout_sys           = 8'h00;
+        assign ega_switch_sense_oe       = 1'b0;
+        assign ega_switch_sense_data     = 8'h00;
+        assign ega_vram_cpu_dout         = 8'h00;
+        assign ega_dot_toggle            = 1'b0;
+        assign ega_dot_clock_sel         = 1'b0;
+        assign ega_scandouble_active_out = 1'b0;
+        assign ega_vmode_toggle_out      = 1'b0;
+        assign ega_mode350               = 1'b0;
+        assign ega_active_dots           = 12'd0;
+        assign ega_active_lines          = 10'd0;
+        assign EGA_R                     = 6'd0;
+        assign EGA_G                     = 6'd0;
+        assign EGA_B                     = 6'd0;
+        assign EGA_HSYNC                 = 1'b0;
+        assign EGA_VSYNC                 = 1'b0;
+        assign EGA_HBlank                = 1'b0;
+        assign EGA_VBlank                = 1'b0;
+        assign EGA_VBlank_border         = 1'b0;
+        assign EGA_std_hsyncwidth        = 1'b0;
+        assign EGA_de_o                  = 1'b0;
+        assign vram_m_start              = 1'b0;
+        assign vram_m_we                 = 1'b0;
+        assign vram_m_addr               = 24'd0;
+        assign vram_m_len                = 2'd0;
+        assign vram_m_wdata              = 64'd0;
+        assign vram_m_wbe                = 8'd0;
+        assign vid_req                   = 1'b0;
+        assign vid_addr                  = 24'd0;
+        assign vid_len                   = 2'd0;
+        assign vid_deadline              = 16'd0;
+    end
+    endgenerate
 
     //
     // XT2IDE
@@ -1924,10 +2725,30 @@ end
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= HGC_CRTC_DOUT_2;
         end
+        else if (ega_mem_select && (~memory_read_n))
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= ega_vram_cpu_dout;
+        end
+        else if (ega_switch_sense_oe)
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= ega_switch_sense_data;
+        end
+        else if (ega_io_oe_sys)
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= ega_io_dout_sys;
+        end
         else if (`ENABLE_OPL2 && (opl_228_chip_select || opl_388_chip_select) && ~io_read_n)
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= jtopl2_dout;
+        end
+        else if (`ENABLE_SB && sb_read_select && ~io_read_n)
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= sb_readdata;
         end
         else if (cms_rd && ~io_read_n)
         begin
@@ -1968,6 +2789,16 @@ end
         begin
             data_bus_out_from_chipset <= 1'b1;
             data_bus_out <= xtctl;
+        end
+        else if (xtegactl_oe)
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= xtegactl_data;
+        end
+        else if (xtctl_id_oe)
+        begin
+            data_bus_out_from_chipset <= 1'b1;
+            data_bus_out <= xtctl_id_data;
         end
         else if (`ENABLE_TANDY_VIDEO && nmi_mask_register && (~io_read_n))
         begin

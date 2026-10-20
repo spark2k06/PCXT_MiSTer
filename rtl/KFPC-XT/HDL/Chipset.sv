@@ -6,7 +6,8 @@
 //
 module CHIPSET #(
         parameter clk_rate = 28'd50000000,
-        parameter bit ROM_TANDY = 1'b0)       // F000 maps the Tandy BIOS slot
+        parameter bit ROM_TANDY = 1'b0,       // F000 maps the Tandy BIOS slot
+        parameter bit ENABLE_EGA = 1'b0)      // the EGA/VGA card and its memory map are built
         (
         input   logic           clock,
         input   logic           cpu_ce_posedge,
@@ -26,6 +27,8 @@ module CHIPSET #(
         output  logic           interrupt_to_cpu,
         // SplashScreen
         input   logic           splashscreen,
+        // Video card chosen at reset: 1 = EGA/VGA, 0 = CGA/Hercules
+        input   logic           ega_active,
         // VGA
         output  logic           std_hsyncwidth,
         input   logic           composite,
@@ -47,6 +50,30 @@ module CHIPSET #(
         output  logic           VGA_VBlank_border,
         output  logic           VGA_HSYNC_REF,
         output  logic           VGA_VSYNC_REF,
+        // EGA/VGA card outputs (clk_vga_cga domain)
+        output  logic   [5:0]   EGA_R,
+        output  logic   [5:0]   EGA_G,
+        output  logic   [5:0]   EGA_B,
+        output  logic           EGA_HSYNC,
+        output  logic           EGA_VSYNC,
+        output  logic           EGA_HBlank,
+        output  logic           EGA_VBlank,
+        output  logic           EGA_VBlank_border,
+        output  logic           EGA_std_hsyncwidth,
+        output  logic           EGA_de_o,
+        output  logic           ega_dot_toggle,
+        output  logic           ega_dot_clock_sel,
+        output  logic           ega_scandouble_active_out,
+        output  logic           ega_vmode_toggle_out,
+        output  logic           ega_mode350,
+        output  logic   [11:0]  ega_active_dots,
+        output  logic   [9:0]   ega_active_lines,
+        input   logic           vga_mode13_osd,
+        input   logic           vga_mode13_native,
+        input   logic   [1:0]   ega_monitor_profile,
+        output  logic           vga_mode13_active_out,
+        output  logic           vga_mode13_wide_clock_out,
+        output  logic           vga_mode13_pixel_toggle_out,
         // I/O Ports
         output  logic   [19:0]  address,
         input   logic   [19:0]  address_ext,
@@ -119,6 +146,11 @@ module CHIPSET #(
         // JTOPL
         output  logic   [15:0]  jtopl2_snd_e,
         input   logic   [1:0]   opl2_io,
+        // Sound Blaster Pro
+        input   logic           sb_en,
+        input   logic           sb_irq7,
+        output  logic   [15:0]  sb_snd_l,
+        output  logic   [15:0]  sb_snd_r,
         // C/MS Audio
         input   logic           cms_en,
         output  logic   [15:0]  o_cms_l,
@@ -126,6 +158,7 @@ module CHIPSET #(
         // TANDY
         input   logic           tandy_video,
         output  logic   [10:0]  tandy_snd_e,
+        input   logic           tandy_en,
         output  logic           tandy_16_gfx,
         output  logic           tandy_color_16,
         // UART
@@ -142,6 +175,7 @@ module CHIPSET #(
         input   logic           clk_midi,
         input   logic           midi_rx,
         output  logic           midi_tx,
+        input   logic           mpu401_enabled,
         // System memory. Each access is a transaction to the SDRAM arbiter
         // (through sdram_xbridge); the controller is in the platform layer.
         output  logic           mem_start,
@@ -155,6 +189,22 @@ module CHIPSET #(
         input   logic   [63:0]  mem_rdata,
         input   logic           mem_flush,      // the ROM loader is writing
         input   logic           ec00_loaded,    // an EC00 ROM has been loaded; if not, EC000-EFFFF is open bus
+        // Video memory of the EGA card: the frontend's client end of the
+        // arbiter's video port and the writes the arbiter captured (sdram clock)
+        input   logic           sdram_clk,
+        output  logic           vid_req,
+        output  logic   [23:0]  vid_addr,
+        output  logic   [1:0]   vid_len,
+        output  logic   [15:0]  vid_deadline,
+        input   logic           vid_ack,
+        input   logic           vid_rvalid,
+        input   logic           vid_rlast,
+        input   logic   [15:0]  vid_rdata,
+        input   logic           snoop_valid,
+        input   logic   [23:0]  snoop_addr,
+        input   logic   [1:0]   snoop_len,
+        input   logic   [63:0]  snoop_wdata,
+        input   logic   [7:0]   snoop_wbe,
         // Committed writes, for the video fetch engines (F2)
         output  logic           mem_snoop_valid,
         output  logic   [23:0]  mem_snoop_addr,
@@ -163,8 +213,10 @@ module CHIPSET #(
         // EMS
         input   logic           ems_enabled,
         input   logic   [1:0]   ems_address,
-        // BIOS
-        input  logic    [1:0]   bios_protect_flag,
+        // UMB (EGA memory map)
+        input   logic           umb_enabled,
+        // BIOS: [2] C000 (EGA only), [1] F000 (main), [0] EC00
+        input  logic    [2:0]   bios_protect_flag,
         // MMC interface
         input   logic   [1:0]   use_mmc,
         output  logic           spi_clk,
@@ -181,8 +233,24 @@ module CHIPSET #(
         output  logic   [1:0]   fdd_present,
         output  logic   [1:0]   fdd_request,
         output  logic   [2:0]   ide0_request,
-        // XTCTL DATA
+        // XTCTL DATA: legacy 8888h register (CGA family only)
         output  logic   [7:0]   xtctl,
+        // XTEGACTL register file
+        output  logic   [7:0]   xtegactl_cpu,
+        output  logic   [7:0]   xtegactl_exp,
+        output  logic   [7:0]   xtegactl_vid,
+        output  logic   [7:0]   xtegactl_inp,
+        output  logic   [7:0]   xtegactl_midi,
+        output  logic   [7:0]   xtegactl_exp2,
+        output  logic   [7:0]   xtegactl_crt,
+        output  logic   [7:0]   xtegactl_sync,
+        // Read-only effective XTEGACTL status, supplied by the top level
+        // where the OSD values are available.
+        input   logic   [39:0]  xtegactl_status_effective,
+        input   logic   [17:0]  xtegactl_status_osd_match,
+        // Identification block (8990h..8997h)
+        input   logic   [1:0]   id_video_card,
+        input   logic           id_vga13_active,
         // Optional flags
         input   logic           enable_a000h,
         // RAM wait mode
@@ -252,6 +320,103 @@ module CHIPSET #(
     logic           ems_b4;
     logic           tandy_snd_rdy;
     logic           fdd_dma_req;
+    logic           sb_dma_req;
+
+    // CPU memory port <-> EGA frontend (sdram_txn_mux) and the EGA map
+    logic           video_memory_access_ready;
+    logic           video_io_access_ready;
+    logic           vga13_packed_cpu;
+    logic           vram_m_start;
+    logic           vram_m_we;
+    logic   [23:0]  vram_m_addr;
+    logic   [1:0]   vram_m_len;
+    logic   [63:0]  vram_m_wdata;
+    logic   [7:0]   vram_m_wbe;
+    logic           vram_m_done;
+    logic           cpu_m_start;
+    logic           cpu_m_we;
+    logic   [23:0]  cpu_m_addr;
+    logic   [1:0]   cpu_m_len;
+    logic   [63:0]  cpu_m_wdata;
+    logic   [7:0]   cpu_m_wbe;
+    logic           cpu_m_done;
+    logic           map_select_cga;
+    logic   [24:0]  map_phys_cga;
+    logic           map_protect_cga;
+    logic   [1:0]   map_vclass_cga;
+    logic   [24:0]  map_phys2_cga;
+    logic           map_phys2_valid_cga;
+    logic           map_select_ega;
+    logic   [24:0]  map_phys_ega;
+    logic           map_protect_ega;
+
+    // IBM-compatible BIOSes announce a warm reboot by writing 1234h to the
+    // BIOS Data Area at 0040:0072.  Detect that bus transaction here, where
+    // both the ordinary 8088 byte bus and the 8086 private word path are
+    // visible, before handing the event to the peripheral register file.
+    logic           warm_boot_marker_event;
+
+    //
+    // I/O settle guard (EGA card only)
+    //
+    // The EGA vehicle added a small, CPU-speed dependent floor of extra wait
+    // at the start of every I/O cycle: the I/O device response pipelines are a
+    // fixed number of chipset clocks long, sized against the roomy cycle at the
+    // slower CPU speeds, while at the fastest setting that cycle shrinks to a
+    // couple of clocks -- the same role the 5160's one I/O wait state plays on
+    // real hardware. The CGA family never had it, and adding it there would
+    // change every I/O cycle of a validated core, so it applies to the EGA
+    // card only.
+    logic   [2:0]   io_settle_count;
+    logic           prev_io_active;
+    wire            io_active = ~io_read_n | ~io_write_n;
+
+    function automatic logic [2:0] io_settle_ticks(input logic [1:0] sel);
+        case (sel)
+            2'b11:   io_settle_ticks = 3'd4;
+            default: io_settle_ticks = 3'd0;
+        endcase
+    endfunction
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset) begin
+            prev_io_active  <= 1'b0;
+            io_settle_count <= 3'd0;
+        end
+        else begin
+            prev_io_active <= io_active;
+            if (io_active && ~prev_io_active)
+                io_settle_count <= io_settle_ticks(clk_select);
+            else if (io_settle_count != 3'd0)
+                io_settle_count <= io_settle_count - 3'd1;
+        end
+    end
+
+    wire    io_settle_ready = ~ega_active | (io_settle_count == 3'd0);
+
+    //
+    // Longest CPU stall, for the debug register at XTCTL 8997h. Counts chipset
+    // clocks the CPU spends held by the READY logic outside a DMA cycle, and
+    // keeps the largest run seen since reset, saturating at 255.
+    //
+    logic   [7:0]   cpu_stall_run;
+    logic   [7:0]   id_cpu_latency_max;
+    wire            cpu_stalled = ~processor_ready & dma_acknowledge_n[0] & ~reset;
+
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset) begin
+            cpu_stall_run      <= 8'd0;
+            id_cpu_latency_max <= 8'd0;
+        end
+        else if (cpu_stalled) begin
+            if (cpu_stall_run != 8'hFF)
+                cpu_stall_run <= cpu_stall_run + 8'd1;
+            if (cpu_stall_run >= id_cpu_latency_max && id_cpu_latency_max != 8'hFF)
+                id_cpu_latency_max <= cpu_stall_run + 8'd1;
+        end
+        else
+            cpu_stall_run <= 8'd0;
+    end
 
 
     always_ff @(posedge clock)
@@ -283,7 +448,7 @@ module CHIPSET #(
         .processor_ready                    (processor_ready),
         .dma_ready                          (dma_ready),
         .dma_wait_n                         (dma_wait_n),
-        .io_channel_ready                   (io_channel_ready & memory_access_ready & tandy_snd_rdy & cga_memory_ready),
+        .io_channel_ready                   (io_channel_ready & memory_access_ready & video_memory_access_ready & io_settle_ready & video_io_access_ready & tandy_snd_rdy & cga_memory_ready),
         .io_read_n                          (io_read_n),
         .io_write_n                         (io_write_n),
         .memory_read_n                      (memory_read_n),
@@ -331,13 +496,25 @@ module CHIPSET #(
         .memory_write_n_direction           (memory_write_n_direction),
         .no_command_state                   (no_command_state),
         .ext_access_request                 (ext_access_request),
-        .dma_request                        ({dma_request[3], fdd_dma_req, dma_request[1], DRQ0}),
+        .dma_request                        ({dma_request[3], fdd_dma_req, dma_request[1] | sb_dma_req, DRQ0}),
         .dma_acknowledge_n                  (dma_acknowledge_n),
         .address_enable_n                   (address_enable_n),
         .terminal_count_n                   (terminal_count_n)
     );
 
-    PERIPHERALS #(.clk_rate(clk_rate)) u_PERIPHERALS 
+    warm_boot_marker_detector u_warm_boot_marker_detector (
+        .clock              (clock),
+        .reset              (reset),
+        .address            (address),
+        .address_enable_n   (address_enable_n),
+        .memory_write_n     (memory_write_n),
+        .byte_data          (internal_data_bus),
+        .word_write_request (word_write_request),
+        .word_data          (data_bus_word_in),
+        .warm_boot_event    (warm_boot_marker_event)
+    );
+
+    PERIPHERALS #(.clk_rate(clk_rate)) u_PERIPHERALS
     (
         .clock                              (clock),
         .clk_sys                            (clk_sys),
@@ -353,6 +530,7 @@ module CHIPSET #(
         .dma_chip_select_n                  (dma_chip_select_n),
         .dma_page_chip_select_n             (dma_page_chip_select_n),
         .splashscreen                       (splashscreen),
+        .ega_active                         (ega_active),
         .std_hsyncwidth                     (std_hsyncwidth),
         .composite                          (composite),
         .video_reset                        (video_reset),
@@ -375,6 +553,57 @@ module CHIPSET #(
         .VGA_VSYNC_REF                      (VGA_VSYNC_REF),
         .cga_memory_ready                   (cga_memory_ready),
         .cga_memory_write_wait              (cga_memory_write_wait),
+        .EGA_R                              (EGA_R),
+        .EGA_G                              (EGA_G),
+        .EGA_B                              (EGA_B),
+        .EGA_HSYNC                          (EGA_HSYNC),
+        .EGA_VSYNC                          (EGA_VSYNC),
+        .EGA_HBlank                         (EGA_HBlank),
+        .EGA_VBlank                         (EGA_VBlank),
+        .EGA_VBlank_border                  (EGA_VBlank_border),
+        .EGA_std_hsyncwidth                 (EGA_std_hsyncwidth),
+        .EGA_de_o                           (EGA_de_o),
+        .ega_dot_toggle                     (ega_dot_toggle),
+        .ega_dot_clock_sel                  (ega_dot_clock_sel),
+        .ega_scandouble_active_out          (ega_scandouble_active_out),
+        .ega_vmode_toggle_out               (ega_vmode_toggle_out),
+        .ega_mode350                        (ega_mode350),
+        .ega_active_dots                    (ega_active_dots),
+        .ega_active_lines                   (ega_active_lines),
+        .vga_mode13_osd                     (vga_mode13_osd),
+        .vga_mode13_native                  (vga_mode13_native),
+        .ega_monitor_profile                (ega_monitor_profile),
+        .vga_mode13_active_out              (vga_mode13_active_out),
+        .vga_mode13_wide_clock_out          (vga_mode13_wide_clock_out),
+        .vga_mode13_pixel_toggle_out        (vga_mode13_pixel_toggle_out),
+        .warm_boot_marker_event             (warm_boot_marker_event),
+        .video_memory_access_ready          (video_memory_access_ready),
+        .video_io_access_ready              (video_io_access_ready),
+        .vram_m_start                       (vram_m_start),
+        .vram_m_we                          (vram_m_we),
+        .vram_m_addr                        (vram_m_addr),
+        .vram_m_len                         (vram_m_len),
+        .vram_m_wdata                       (vram_m_wdata),
+        .vram_m_wbe                         (vram_m_wbe),
+        .vram_m_busy                        (mem_busy),
+        .vram_m_done                        (vram_m_done),
+        .vram_m_rdata                       (mem_rdata),
+        .sdram_clk                          (sdram_clk),
+        .sdram_reset                        (sdram_reset),
+        .vid_req                            (vid_req),
+        .vid_addr                           (vid_addr),
+        .vid_len                            (vid_len),
+        .vid_deadline                       (vid_deadline),
+        .vid_ack                            (vid_ack),
+        .vid_rvalid                         (vid_rvalid),
+        .vid_rlast                          (vid_rlast),
+        .vid_rdata                          (vid_rdata),
+        .snoop_valid                        (snoop_valid),
+        .snoop_addr                         (snoop_addr),
+        .snoop_len                          (snoop_len),
+        .snoop_wdata                        (snoop_wdata),
+        .snoop_wbe                          (snoop_wbe),
+        .vga13_packed_cpu                   (vga13_packed_cpu),
         .address                            (address),
 	    .latch_address                      (latch_address),
         .internal_data_bus                  (internal_data_bus),
@@ -411,6 +640,13 @@ module CHIPSET #(
         .ps2_data_out                       (ps2_data_out),
         .jtopl2_snd_e                       (jtopl2_snd_e),
         .opl2_io                            (opl2_io),
+        .sb_en                              (sb_en),
+        .sb_irq7                            (sb_irq7),
+        .sb_snd_l                           (sb_snd_l),
+        .sb_snd_r                           (sb_snd_r),
+        .sb_dma_req                         (sb_dma_req),
+        .sb_dma_ack                         (~dma_acknowledge_n[1]),
+        .tandy_en                           (tandy_en),
         .cms_en                             (cms_en),
         .o_cms_l                            (o_cms_l),
         .o_cms_r                            (o_cms_r),
@@ -429,6 +665,7 @@ module CHIPSET #(
         .clk_midi                          (clk_midi),
         .midi_rx                           (midi_rx),
         .midi_tx                           (midi_tx),
+        .mpu401_enabled                    (mpu401_enabled),
         .ems_enabled                       (ems_enabled),
         .ems_address                       (ems_address),
         .map_ems                           (map_ems),
@@ -455,6 +692,19 @@ module CHIPSET #(
         .fdd_dma_ack                        (~dma_acknowledge_n[2]),
         .terminal_count                     (terminal_count_n),
         .xtctl                              (xtctl),
+        .xtegactl_cpu                       (xtegactl_cpu),
+        .xtegactl_exp                       (xtegactl_exp),
+        .xtegactl_vid                       (xtegactl_vid),
+        .xtegactl_inp                       (xtegactl_inp),
+        .xtegactl_midi                      (xtegactl_midi),
+        .xtegactl_exp2                      (xtegactl_exp2),
+        .xtegactl_crt                       (xtegactl_crt),
+        .xtegactl_sync                      (xtegactl_sync),
+        .xtegactl_status_effective          (xtegactl_status_effective),
+        .xtegactl_status_osd_match          (xtegactl_status_osd_match),
+        .id_video_card                      (id_video_card),
+        .id_vga13_active                    (id_vga13_active),
+        .id_cpu_latency_max                 (id_cpu_latency_max),
         .pause_core                         (pause_core),
         .cga_hw                             (cga_hw),
         .cga_scandouble_en                  (cga_scandouble_en),
@@ -491,18 +741,55 @@ module CHIPSET #(
         .ems_b3                             (ems_b3),
         .ems_b4                             (ems_b4),
         .enable_a000h                       (enable_a000h),
-        .bios_protect_flag                  (bios_protect_flag),
+        .bios_protect_flag                  (bios_protect_flag[1:0]),
         .ec00_loaded                        (ec00_loaded),
         .en_cga                             (enable_cga),
         .en_hgc                             (enable_hgc),
         .hgc_page                           (hgc_page_sys),
-        .select                             (map_select),
-        .phys                               (map_phys),
-        .protect                            (map_protect),
-        .vclass                             (map_vclass),
-        .phys2                              (map_phys2),
-        .phys2_valid                        (map_phys2_valid)
+        .select                             (map_select_cga),
+        .phys                               (map_phys_cga),
+        .protect                            (map_protect_cga),
+        .vclass                             (map_vclass_cga),
+        .phys2                              (map_phys2_cga),
+        .phys2_valid                        (map_phys2_valid_cga)
     );
+
+    // The EGA map replaces the CGA one when that card is chosen. It has no
+    // CGA/HGC video memory: the EGA aperture has its own frontend, and the
+    // 13h image is ordinary memory to the CPU port.
+    generate
+    if (ENABLE_EGA) begin : EGA_MAP
+        mem_map_ega u_mem_map_ega
+        (
+            .address                        (latch_address),
+            .map_ems                        (map_ems),
+            .ems_b1                         (ems_b1),
+            .ems_b2                         (ems_b2),
+            .ems_b3                         (ems_b3),
+            .ems_b4                         (ems_b4),
+            .umb_enabled                    (umb_enabled),
+            .vga13_packed                   (vga13_packed_cpu),
+            .bios_protect_flag              (bios_protect_flag),
+            .ec00_loaded                    (ec00_loaded),
+            .select                         (map_select_ega),
+            .phys                           (map_phys_ega),
+            .protect                        (map_protect_ega)
+        );
+    end
+    else begin : NO_EGA_MAP
+        assign map_select_ega  = 1'b0;
+        assign map_phys_ega    = 25'd0;
+        assign map_protect_ega = 1'b0;
+    end
+    endgenerate
+
+    wire            use_ega_map = ENABLE_EGA & ega_active;
+    assign  map_select       = use_ega_map ? map_select_ega  : map_select_cga;
+    assign  map_phys         = use_ega_map ? map_phys_ega    : map_phys_cga;
+    assign  map_protect      = use_ega_map ? map_protect_ega : map_protect_cga;
+    assign  map_vclass       = use_ega_map ? 2'd0            : map_vclass_cga;
+    assign  map_phys2        = use_ega_map ? 25'd0           : map_phys2_cga;
+    assign  map_phys2_valid  = use_ega_map ? 1'b0            : map_phys2_valid_cga;
 
     // A CPU memory read or code fetch can start in SDRAM before MEMR: the
     // clock after ALE rises, cpu_address (latched at the top level) already
@@ -542,20 +829,65 @@ module CHIPSET #(
         .clk_select                         (clk_select),
         .flush                              (mem_flush),
         .early_read                         (early_read),
-        .m_start                            (mem_start),
-        .m_we                               (mem_we),
-        .m_addr                             (mem_addr),
-        .m_len                              (mem_len),
-        .m_wdata                            (mem_wdata),
-        .m_wbe                              (mem_wbe),
+        .m_start                            (cpu_m_start),
+        .m_we                               (cpu_m_we),
+        .m_addr                             (cpu_m_addr),
+        .m_len                              (cpu_m_len),
+        .m_wdata                            (cpu_m_wdata),
+        .m_wbe                              (cpu_m_wbe),
         .m_busy                             (mem_busy),
-        .m_done                             (mem_done),
+        .m_done                             (cpu_m_done),
         .m_rdata                            (mem_rdata),
         .snoop_valid                        (mem_snoop_valid),
         .snoop_addr                         (mem_snoop_addr),
         .snoop_data                         (mem_snoop_data),
         .snoop_be                           (mem_snoop_be)
     );
+
+    // The EGA frontend is the other master of the CPU port: its window
+    // (A0000-BFFFF) is not memory to cpu_mem_port. Without the EGA card the
+    // port goes straight through.
+    generate
+    if (ENABLE_EGA) begin : TXN_MUX
+        sdram_txn_mux u_txn_mux
+        (
+            .clock                          (clock),
+            .reset                          (sdram_reset),
+            .a0_start                       (cpu_m_start),
+            .a0_we                          (cpu_m_we),
+            .a0_addr                        (cpu_m_addr),
+            .a0_len                         (cpu_m_len),
+            .a0_wdata                       (cpu_m_wdata),
+            .a0_wbe                         (cpu_m_wbe),
+            .a0_done                        (cpu_m_done),
+            .a1_start                       (vram_m_start),
+            .a1_we                          (vram_m_we),
+            .a1_addr                        (vram_m_addr),
+            .a1_len                         (vram_m_len),
+            .a1_wdata                       (vram_m_wdata),
+            .a1_wbe                         (vram_m_wbe),
+            .a1_done                        (vram_m_done),
+            .m_start                        (mem_start),
+            .m_we                           (mem_we),
+            .m_addr                         (mem_addr),
+            .m_len                          (mem_len),
+            .m_wdata                        (mem_wdata),
+            .m_wbe                          (mem_wbe),
+            .m_busy                         (mem_busy),
+            .m_done                         (mem_done)
+        );
+    end
+    else begin : NO_TXN_MUX
+        assign mem_start    = cpu_m_start;
+        assign mem_we       = cpu_m_we;
+        assign mem_addr     = cpu_m_addr;
+        assign mem_len      = cpu_m_len;
+        assign mem_wdata    = cpu_m_wdata;
+        assign mem_wbe      = cpu_m_wbe;
+        assign cpu_m_done   = mem_done;
+        assign vram_m_done  = 1'b0;
+    end
+    endgenerate
 
     assign  data_bus = internal_data_bus;
 

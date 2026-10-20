@@ -19,8 +19,5 @@ set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) cga_spl
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) video_monochrome_converter_cga.sv ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) cga_border_window.sv ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) cga_pixel_delay.sv ]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) hgc_fb_capture.v ]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) hgc_ddr_arbiter.v ]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) hgc_fb_readout.v ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) ega_splash_renderer.v ]
 set_global_assignment -name QIP_FILE [file join $::quartus(qip_path) .. .. vendor pc_common rtl pc_common.qip ]

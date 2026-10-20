@@ -60,6 +60,8 @@ set_global_assignment -name SEED 5
 #set_global_assignment -name VERILOG_MACRO "MISTER_DEBUG_NOHDMI=1"
 
 source config.tcl
+# Refuses to build a core whose macros contradict each other
+set_global_assignment -name PRE_FLOW_SCRIPT_FILE quartus_sh:scripts/config_check.tcl
 set_global_assignment -name SYSTEMVERILOG_FILE PCXT.sv
 
 source sys/sys.tcl

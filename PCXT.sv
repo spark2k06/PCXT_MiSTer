@@ -28,8 +28,31 @@
 `ifndef ENABLE_MIDI
 `define ENABLE_MIDI 1
 `endif
+// Video cards built into this image. ENABLE_EGA adds the EGA/VGA 13h card next
+// to the CGA/HGC pair; with ENABLE_CGA and ENABLE_HGC both 0 it is the only
+// card. LAYOUT_EGA selects the status-bit layout of the menu (the EGA core's);
+// without it the menu is the CGA core's, bit for bit.
+`ifndef ENABLE_EGA
+`define ENABLE_EGA 0
+`endif
+`ifndef ENABLE_VGA13
+`define ENABLE_VGA13 1
+`endif
+`ifndef ENABLE_SB
+`define ENABLE_SB 0
+`endif
+`ifndef ENABLE_UMB
+`define ENABLE_UMB 0
+`endif
+// The name the core shows in the OSD, which also names its saved configuration.
+// The profile sets it; without one it follows the machine. Every PCXT build is
+// called "PCXT", whatever its video cards.
+// Any padding of the shorter name sits in front of it, ahead of the string.
+`ifndef CORE_NAME
+`define CORE_NAME (`SYSTEM_VARIANT_TANDY ? "Tandy1000" : "PCXT")
+`endif
 `ifndef CONF_STR_SYSTEM
-`define CONF_STR_SYSTEM (`SYSTEM_VARIANT_TANDY ? (`ENABLE_MIDI ? "Tandy1000;UART115200:115200,MIDI;" : "Tandy1000;UART115200:115200;") : (`ENABLE_MIDI ? "PCXT;UART115200:115200,MIDI;" : "PCXT;UART115200:115200;"))
+`define CONF_STR_SYSTEM (`ENABLE_MIDI ? {`CORE_NAME, ";UART115200:115200,MIDI;"} : {`CORE_NAME, ";UART115200:115200;"})
 `endif
 `ifndef ENABLE_TANDY_VIDEO
 `define ENABLE_TANDY_VIDEO 0
@@ -93,21 +116,98 @@ module emu
     // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
     // XXXXX XXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXX
     // status[64]: CRTC Frame Stacking (Native / Rebuilt)
+    //
+    // The menu has two layouts of the status vector, chosen at build time:
+    //  * default: the CGA core's, except for the four options listed below;
+    //  * LAYOUT_EGA: the options that exist only on the CGA/Hercules card are
+    //    moved to bits 71..79:
+    //      71 composite   72 border   73 border CRT offsets   74 frame stacking
+    //      75 first video 76 CGA off  77 Hercules off         78 video card
+    //      79 A000 UMB off
+    //    The card itself is chosen with status[78] and is applied at reset.
+    //    Both layouts save to the same PCXT.CFG, so no bit may mean one thing
+    //    in one layout and another in the other (the EGA monitor switches
+    //    would read the CGA/Hercules graphics bits), and no two options may
+    //    share a bit within a layout. The options of the EGA layout that have
+    //    no counterpart at the same bit in the CGA layout sit above 79:
+    //      81:80 monitor  82 UMB off  83 VGA 13h+ TV 60 Hz  85:84 audio 220h
+    //      86 swap joysticks  87 Tandy sound  88 MPU-401 off
+    //      91:89 VSync width  94:92 HSync width
+    //    The CGA layout moved four options off the bits MT32-pi uses (3:4 ROM,
+    //    13 off, 40 hanging-notes reset, 41 mode), where they sat on top of it:
+    //      66 first video  68:67 EMS frame  69 A000 UMB off  95 composite
+    // Every option that XTEGACTL can override goes through xtegactl_resolve
+    // below, so the rest of the core only ever sees the eff_* values.
 
 	`include "build_id.v"
 
-    localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1oC,PCXT CGA Graphics,Yes,No;P1oD,PCXT Hercules Graphics,Yes,No;P1O4,PCXT 1st Video,CGA,Hercules;P1-;" : "");
+`ifdef LAYOUT_EGA
+    localparam bit L_EGA = 1'b1;
+`else
+    localparam bit L_EGA = 1'b0;
+`endif
+    localparam bit HAS_EGA     = (`ENABLE_EGA != 0);
+    localparam bit HAS_CGA_HGC = ((`ENABLE_CGA != 0) || (`ENABLE_HGC != 0));
+    // The card is selectable at run time only when both families are built
+    localparam bit CARD_SELECTABLE = HAS_EGA && HAS_CGA_HGC;
+
     localparam CONF_STR_ROM = (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;");
-    localparam CONF_STR_CMS = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
     localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
+    localparam CONF_STR_EMS_EGA = (`ENABLE_EMS ? "P3O5,2MB EMS D000-DFFF,Enabled,Disabled;P3-;" : "");
+    localparam CONF_STR_UMB = ((L_EGA && `ENABLE_UMB) ? "P3O[82],UMB C400-CFFF,Enabled,Disabled;P3-;" : "");
+
+`ifdef LAYOUT_EGA
+    // CGA/Hercules only items are hidden (h7) while the EGA card is selected
+    localparam CONF_STR_CARD = (CARD_SELECTABLE ? "P1O[78],PCXT Video,CGA/HGC,EGA/VGA;P1-;" : "");
+    localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "h7P1O[76],PCXT CGA Graphics,Yes,No;h7P1O[77],PCXT Hercules Graphics,Yes,No;h7P1O[75],PCXT 1st Video,CGA,Hercules;h7P1-;" : "");
+    // The EGA BIOS only matters when the EGA card is the one selected
+    localparam CONF_STR_EGABIOS = (HAS_EGA ? "h8P1FC3,ROM,EGA BIOS:;" : "");
+    // The Sound Blaster and the C/MS both live at 220h and collide on
+    // 226h/227h, so when both are built it is one three-way choice.
+    localparam CONF_STR_A220 =
+        (`ENABLE_CMS && `ENABLE_SB) ? "P2O[85:84],Audio 220h,C/MS,Sound Blaster,Disabled;" :
+        (`ENABLE_SB)                ? "P2O[85],Sound Blaster,Enabled,Disabled;"            :
+        (`ENABLE_CMS)               ? "P2O[85],C/MS Audio,Enabled,Disabled;"               : "";
+    localparam CONF_STR_TANDY_AUDIO = (`ENABLE_TANDY_AUDIO ? "P2O[87],Tandy Sound,Disabled,Enabled;" : "");
+    localparam CONF_STR_VIDEO_CGA = (HAS_CGA_HGC ? "h7P2O[72],Border,No,Yes;h9P2O[73],Border CRT offsets,No,Yes;h7P2O[74],CRTC Frame Stacking,Native,Rebuilt;h7P2O[71],Composite video,Off,On;" : "");
+    localparam CONF_STR_VIDEO_EGA = (HAS_EGA ? "h8P2O[83],VGA 13h+ CRT,Native 70Hz,TV 60Hz;" : "");
+    localparam CONF_STR_MONITOR = (HAS_EGA ? "h8P3O[81:80],Monitor,5154/ECD,5153/CGA,5151/MDA;P3-;" : "");
+    localparam CONF_STR_A000 = ((`ENABLE_A000_UMB && HAS_CGA_HGC) ? "h7P3O[79],A000 UMB,Enabled,Disabled;P3-;" : "");
+    localparam CONF_STR_JOY_SWAP = "P3O[86],Swap Joysticks,No,Yes;";
+    localparam CONF_STR_SB_IRQ = (`ENABLE_SB ? "P3O[70],Sound Blaster IRQ,5,7;" : "");
+    localparam CONF_STR_MIDI = (`ENABLE_MIDI ? "P3O[88],MPU-401,Enabled,Disabled;P3-;P3O6,USER I/O,MIDI,COM2;P3-;h3P4,MT32-pi;h3P4-;h3P4OD,Use MT32-pi,Yes,No;h3P4-;h3P4o9,MT32-pi Mode,MT-32,General MIDI;h3P4O34,MT32-pi ROM,MT-32 v1,MT-32 v2,CM-32L,Reserved;h3P4oSU,MT32-pi SoundFont,#0,#1,#2,#3,#4,#5,#6,#7;h3P4-;h3P4r8,Reset Hanging Notes;h3P4-;" : "");
+    localparam CONF_STR_VSYNC = "P2O[91:89],VSync Width,Auto,1,2,3,4,5,6,7;P2O[94:92],HSync Width,Auto,1,2,3,4,5,6,7;";
+    localparam CONF_STR_CRT = "P2o23,350-line CRT,Native,480i 15 kHz,240p 15 kHz;";
+    localparam CONF_STR_HALT = {
+        "h4-,HALTED: no PCXT BIOS selected;",
+        (HAS_EGA ? "h5-,HALTED: no EGA BIOS selected;" : "")
+    };
+    // The box is 32 columns wide; commas separate the messages, so none of
+    // them may contain one.
+    localparam CONF_STR_INFO = {
+        "I,",
+        "No PCXT BIOS selected\n",
+        "Machine halted\n",
+        "OSD: System & BIOS,",
+        (HAS_EGA ? "No EGA BIOS selected\nMachine halted\nOSD: System & BIOS," : ""),
+        "That setting is applied\n",
+        "when the machine resets;"
+    };
+    // Number of the "That setting is applied" message in the "I," section
+    localparam [7:0] PENDING_INFO_INDEX = HAS_EGA ? 8'd3 : 8'd2;
+`else
+    localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1oC,PCXT CGA Graphics,Yes,No;P1oD,PCXT Hercules Graphics,Yes,No;P1O[66],PCXT 1st Video,CGA,Hercules;P1-;" : "");
+    localparam CONF_STR_A220 = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
     localparam CONF_STR_TANDY_AUDIO = (`ENABLE_TANDY_AUDIO ? "P2o23,Tandy Volume,1,2,3,4;" : "");
+    localparam CONF_STR_VIDEO_CGA = "P2OT,Border,No,Yes;h5P2O[65],Border CRT offsets,No,Yes;P2O[64],CRTC Frame Stacking,Native,Rebuilt;P2O[95],Composite video,Off,On;";
+    localparam CONF_STR_A000 = (`ENABLE_A000_UMB ? "P3O[69],A000 UMB,Enabled,Disabled;P3-;" : "");
+    localparam CONF_STR_JOY_SWAP = "P3OS,Swap Joysticks,No,Yes;";
+    localparam CONF_STR_MIDI = (`ENABLE_MIDI ? "P3O6,USER I/O,MIDI,COM2;P3-;h3P4,MT32-pi;h3P4-;h3P4OD,Use MT32-pi,Yes,No;h3P4-;h3P4o9,MT32-pi Mode,MT-32,General MIDI;h3P4O34,MT32-pi ROM,MT-32 v1,MT-32 v2,CM-32L,Reserved;h3P4oSU,MT32-pi SoundFont,#0,#1,#2,#3,#4,#5,#6,#7;h3P4-;h3P4r8,Reset Hanging Notes;h3P4-;" : "");
+    localparam CONF_STR_VSYNC = "P2oMO,VSync Width,Auto,1,2,3,4,5,6,7;P2oPR,HSync Width,Auto,1,2,3,4,5,6,7;";
     // P2o23 occupies status[35:34].  It is shared with Tandy Volume in the
     // optional Tandy-audio build, so keep the CRT converter out of that
     // mutually exclusive configuration rather than aliasing two controls.
     localparam CONF_STR_CRT = (`ENABLE_TANDY_AUDIO ? "" : "P2o23,350-line CRT,Native,480i 15 kHz,240p 15 kHz;");
-    localparam CONF_STR_EMS = (`ENABLE_EMS ? "P3OB,Lo-tech 2MB EMS,Enabled,Disabled;P3OCD,EMS Frame,C000,D000,E000;P3-;" : "");
-    localparam CONF_STR_A000 = (`ENABLE_A000_UMB ? "P3o9,A000 UMB,Enabled,Disabled;P3-;" : "");
-    localparam CONF_STR_MIDI = (`ENABLE_MIDI ? "P3O6,USER I/O,MIDI,COM2;P3-;h3P4,MT32-pi;h3P4-;h3P4OD,Use MT32-pi,Yes,No;h3P4-;h3P4o9,MT32-pi Mode,MT-32,General MIDI;h3P4O34,MT32-pi ROM,MT-32 v1,MT-32 v2,CM-32L,Reserved;h3P4oSU,MT32-pi SoundFont,#0,#1,#2,#3,#4,#5,#6,#7;h3P4-;h3P4r8,Reset Hanging Notes;h3P4-;" : "");
     // This line is shown at the top of the menu while the required PCXT BIOS
     // is absent, so the splash hold has an actionable explanation.
     localparam CONF_STR_HALT = "h4-,HALTED: no PCXT BIOS selected;";
@@ -117,75 +217,136 @@ module emu
         "Machine halted\n",
         "OSD: System & BIOS;"
     };
+    localparam [7:0] PENDING_INFO_INDEX = 8'd2;
+`endif
 
-	localparam CONF_STR = {
-		`CONF_STR_SYSTEM,
-		CONF_STR_HALT,
-		"S0,IMGIMAVFD,Floppy A:;",
-		"S1,IMGIMAVFD,Floppy B:;",
-		"OJK,Write Protect,None,A:,B:,A: & B:;",
-		"-;",
-		"S2,VHD,IDE 0-0;",
-		"S3,VHD,IDE 0-1;",
-		"OLM,2nd SD card,Disable,IDE 0-0,IDE 0-1;",
-		"-;",
-		"OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,Max;",
-		"-;",
-		"P1,System & BIOS;",
-		"P1-;",
-		CONF_STR_HGC,
-		"P1O7,Boot Splash Screen,Yes,No;",
-		"P1oV,CPU Type,8088,8086;",
-		"P1oL,Fake 286 FLAGS,Off,On;",
-		"P1-;",
-		CONF_STR_ROM,
-		"P1FC2,ROM,EC00 BIOS:;",
-		"P1-;",
-		"P1OUV,BIOS Writable,None,EC00,Main,All;",
-		"P1-;",	
-		"P2,Audio & Video;",
-		"P2-;",
-		CONF_STR_CMS,
-		CONF_STR_OPL2,
-		"P2o01,Speaker Volume,1,2,3,4;",
-		CONF_STR_TANDY_AUDIO,
-		"P2o45,Audio Boost,No,2x,4x;",
-		"P2o67,Stereo Mix,none,25%,50%,100%;",
-		"P2-;",
-		"d6P2oEH,CRT H offset,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15;",
-		"d6P2oIK,CRT V offset,0,1,2,3,4,5,6,7;",        
-		"P2oMO,VSync Width,Auto,1,2,3,4,5,6,7;",
-		"P2oPR,HSync Width,Auto,1,2,3,4,5,6,7;",
+    localparam CONF_STR_EMS_CGA = (`ENABLE_EMS ? "P3OB,Lo-tech 2MB EMS,Enabled,Disabled;P3O[68:67],EMS Frame,C000,D000,E000;P3-;" : "");
+    localparam CONF_STR_EMS = L_EGA ? CONF_STR_EMS_EGA : CONF_STR_EMS_CGA;
+
+    // Quartus 17 mis-sizes a concatenation that contains a bare "" localparam:
+    // $size and the bits disagree, so hps_io's STRLEN no longer matches the
+    // string, the menu is read out of step and the core never starts (no
+    // BIOS is requested). The EGA-layout-only items are therefore left out of
+    // the CGA layout with the preprocessor instead of being defined as "".
+    // Empty arms of ?: are fine: they are padded to the width of the other arm.
+    localparam CONF_STR = {
+        `CONF_STR_SYSTEM,
+        CONF_STR_HALT,
+        "S0,IMGIMAVFD,Floppy A:;",
+        "S1,IMGIMAVFD,Floppy B:;",
+        "OJK,Write Protect,None,A:,B:,A: & B:;",
+        "-;",
+        "S2,VHD,IDE 0-0;",
+        "S3,VHD,IDE 0-1;",
+        "OLM,2nd SD card,Disable,IDE 0-0,IDE 0-1;",
+        "-;",
+        "OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,Max;",
+        "-;",
+        "P1,System & BIOS;",
+        "P1-;",
+`ifdef LAYOUT_EGA
+        CONF_STR_CARD,
+`endif
+        CONF_STR_HGC,
+        "P1O7,Boot Splash Screen,Yes,No;",
+        "P1oV,CPU Type,8088,8086;",
+        "P1oL,Fake 286 FLAGS,Off,On;",
+        "P1-;",
+        CONF_STR_ROM,
+        "P1FC2,ROM,EC00 BIOS:;",
+`ifdef LAYOUT_EGA
+        CONF_STR_EGABIOS,
+`endif
+        "P1-;",
+        "P1OUV,BIOS Writable,None,EC00,Main,All;",
+        "P1-;",
+        "P2,Audio & Video;",
         "P2-;",
-		"P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
-		"P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
-		"P2OT,Border,No,Yes;",
-		"h5P2O[65],Border CRT offsets,No,Yes;",
-		"P2O[64],CRTC Frame Stacking,Native,Rebuilt;",
-		"P2o8,Composite video,Off,On;",
-		"P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
-		CONF_STR_CRT,
-		"P2-;",
-		"P3,Hardware;",
-		"P3-;",
-		CONF_STR_EMS,
-		CONF_STR_A000,
-		"P3ONO,Joystick 1, Analog, Digital, Disabled;",
-		"P3OPQ,Joystick 2, Analog, Digital, Disabled;",
-		"P3OR,Sync Joy to CPU Speed,No,Yes;",
-		"P3OS,Swap Joysticks,No,Yes;",
-		"P3-;",
-		CONF_STR_MIDI,
-		"-;",
-		"R0,Reset & apply settings;",
-		"J,Fire 1,Fire 2;",
-		CONF_STR_INFO,
-		"V,v",`BUILD_DATE
-	};
+        CONF_STR_A220,
+        CONF_STR_OPL2,
+        CONF_STR_TANDY_AUDIO,
+        "P2o01,Speaker Volume,1,2,3,4;",
+        "P2o45,Audio Boost,No,2x,4x;",
+        "P2o67,Stereo Mix,none,25%,50%,100%;",
+        "P2-;",
+        "d6P2oEH,CRT H offset,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15;",
+        "d6P2oIK,CRT V offset,0,1,2,3,4,5,6,7;",
+        CONF_STR_VSYNC,
+        "P2-;",
+        "P2O12,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%;",
+        "P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+        CONF_STR_VIDEO_CGA,
+        "P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
+`ifdef LAYOUT_EGA
+        CONF_STR_VIDEO_EGA,
+`endif
+        CONF_STR_CRT,
+        "P2-;",
+        "P3,Hardware;",
+        "P3-;",
+`ifdef LAYOUT_EGA
+        CONF_STR_MONITOR,
+`endif
+        CONF_STR_EMS,
+        CONF_STR_UMB,
+        CONF_STR_A000,
+        "P3ONO,Joystick 1, Analog, Digital, Disabled;",
+        "P3OPQ,Joystick 2, Analog, Digital, Disabled;",
+        "P3OR,Sync Joy to CPU Speed,No,Yes;",
+        CONF_STR_JOY_SWAP,
+`ifdef LAYOUT_EGA
+        CONF_STR_SB_IRQ,
+`endif
+        "P3-;",
+        CONF_STR_MIDI,
+        "-;",
+        "R0,Reset & apply settings;",
+        "J,Fire 1,Fire 2;",
+        CONF_STR_INFO,
+        "V,v",`BUILD_DATE
+    };
 
     wire forced_scandoubler;
     wire [1:0] buttons;
     wire [127:0] status;
+
+    // Video card chosen at reset. card_sel_ega is what the menu asks for (it
+    // is pending until the next reset); ega_active is the card that is in use.
+    wire        card_sel_ega = HAS_EGA ? (CARD_SELECTABLE ? status[78] : 1'b1) : 1'b0;
+    wire        ega_active;
+    wire        ega_active_vid;
+    wire [5:0]  EGA_R, EGA_G, EGA_B;
+    wire        EGA_HSYNC, EGA_VSYNC, EGA_HBlank, EGA_VBlank, EGA_VBlank_border;
+    wire        EGA_std_hsyncwidth, EGA_de_o;
+    wire        ega_dot_toggle;
+    wire        ega_dot_clock_sel;
+    wire        ega_scandouble_active;
+    wire        ega_vmode_toggle;
+    wire        ega_mode350;
+    wire [11:0] ega_active_dots;
+    wire [9:0]  ega_active_lines;
+    wire        vga_mode13_active_video;
+    wire        vga_mode13_pixel_toggle;
+    wire        vga_mode13_wide_clock;
+
+    // Pending options. Everything that depends on the layout is gathered here.
+    wire        composite_osd   = L_EGA ? status[71] : status[95];
+    wire        border_osd      = L_EGA ? status[72] : status[29];
+    wire        border_crt_osd  = L_EGA ? status[73] : status[65];
+    wire        frame_stack_osd = L_EGA ? status[74] : status[64];
+    wire        hgc_first_osd   = L_EGA ? status[75] : status[66];
+    wire        cga_absent_osd  = L_EGA ? status[76] : status[44];
+    wire        hgc_absent_osd  = L_EGA ? status[77] : status[45];
+    wire        a000_off_osd    = L_EGA ? status[79] : status[69];
+    // The EGA card has no use for Native/TV 60 Hz outside Mode 13h and no
+    // physical-monitor switches in the CGA layout, where they stay at zero.
+    wire        vga_mode13_native_osd = L_EGA ? ~status[83] : 1'b1;
+    // Status bits 81:80 are the pending physical-monitor switch selection.
+    // ega_monitor_profile_applied is only updated while the machine is held
+    // in reset, just as a real EGA card samples its switches during POST.
+    wire  [1:0] ega_monitor_profile_osd = L_EGA ? status[81:80] : 2'b00;
+    wire  [1:0] ega_monitor_profile_applied;
+
     // Status bit 63 is the pending CPU selection. The value presented to the
     // BIU is latched only during reset; changing the menu alone cannot change
     // queue depth or bus width while an instruction is in flight.
@@ -198,6 +359,102 @@ module emu
     wire        is8086_applied;
     wire [7:0]  xtctl;
     wire [7:0]  uart_mode;
+    wire [1:0]  id_video_card;
+    wire        id_vga13_active;
+
+    // XTEGACTL. The register file is decoded down in the chipset; what the
+    // fields mean is resolved here, where the menu status lives. Every field
+    // reads zero as "leave it to the OSD", so with nothing written the machine
+    // behaves exactly as the menu says.
+    wire [7:0]  xtegactl_cpu, xtegactl_exp, xtegactl_vid, xtegactl_inp, xtegactl_midi, xtegactl_exp2;
+    wire [7:0]  xtegactl_crt, xtegactl_sync;
+    wire [39:0] xtegactl_status_effective;
+    wire [17:0] xtegactl_status_osd_match;
+    wire [1:0]  eff_speed;
+    wire        eff_fake286;
+    wire [1:0]  eff_opl2;
+    wire        eff_cms, eff_ems, eff_umb, eff_vga13;
+    wire        eff_sb;
+    wire  [2:0] eff_sb_irq;
+    wire [3:0]  eff_crt_h;
+    wire [2:0]  eff_crt_v;
+    wire [2:0]  eff_vsync_w, eff_hsync_w;
+    wire        eff_joy1_digital, eff_joy1_disable;
+    wire        eff_joy2_digital, eff_joy2_disable;
+    wire        eff_joy_sync, eff_joy_swap, eff_mt32_gm, eff_tandy, eff_mpu401;
+
+    // Audio at 220h in the EGA layout. With both cards built this is one
+    // three-way field in status[85:84]: 0 = C/MS, 1 = Sound Blaster, 2 =
+    // neither. With only one built, bit 85 stays the plain Enabled/Disabled
+    // and bit 84 is free. They are never both high, which 226h/227h requires.
+    wire       a220_three_way = (`ENABLE_CMS && `ENABLE_SB) ? 1'b1 : 1'b0;
+    wire [1:0] a220_sel       = status[85:84];
+    wire       a220_cms       = `ENABLE_CMS
+                             ? (a220_three_way ? (a220_sel == 2'd0) : ~status[85])
+                             : 1'b0;
+    wire       a220_sb        = `ENABLE_SB
+                             ? (a220_three_way ? (a220_sel == 2'd1) : ~status[85])
+                             : 1'b0;
+    wire [2:0] sb_irq_osd     = status[70] ? 3'd7 : 3'd5;
+    wire       sb_irq7        = (eff_sb_irq == 3'd7);
+
+    xtegactl_resolve xtegactl_apply (
+        .reg_cpu          (xtegactl_cpu),
+        .reg_exp          (xtegactl_exp),
+        .reg_vid          (xtegactl_vid),
+        .reg_inp          (xtegactl_inp),
+        .reg_midi         (xtegactl_midi),
+        .reg_exp2         (xtegactl_exp2),
+        .osd_speed        (status[18:17]),
+        .osd_fake286      (fake_286_flags_osd),
+        .osd_opl2         (status[43:42]),
+        .osd_cms          (L_EGA ? a220_cms : ~status[10]),
+        .osd_sb           (L_EGA ? a220_sb : 1'b0),
+        .osd_sb_irq       (L_EGA ? sb_irq_osd : 3'd5),
+        .build_sb         (`ENABLE_SB ? 1'b1 : 1'b0),
+        .reg_crt          (xtegactl_crt),
+        .reg_sync         (xtegactl_sync),
+        .osd_crt_h        (status[49:46]),
+        .osd_crt_v        (status[52:50]),
+        .osd_vsync_w      (L_EGA ? status[91:89] : status[56:54]),
+        .osd_hsync_w      (L_EGA ? status[94:92] : status[59:57]),
+        .osd_ems          (L_EGA ? ~status[5] : ~status[11]),
+        .osd_umb          (L_EGA ? ~status[82] : 1'b0),
+        .osd_joy1_digital (status[23]),
+        .osd_joy1_disable (status[24]),
+        .osd_joy2_digital (status[25]),
+        .osd_joy2_disable (status[26]),
+        .osd_joy_sync     (status[27]),
+        .osd_joy_swap     (L_EGA ? status[86] : status[28]),
+        .osd_mt32_gm      (status[41]),
+        .osd_tandy        (L_EGA ? status[87] : 1'b1),
+        .osd_mpu401       (L_EGA ? ~status[88] : 1'b1),
+        .build_tandy      (`ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0),
+        .eff_speed        (eff_speed),
+        .eff_fake286      (eff_fake286),
+        .eff_opl2         (eff_opl2),
+        .eff_cms          (eff_cms),
+        .eff_sb           (eff_sb),
+        .eff_sb_irq       (eff_sb_irq),
+        .eff_ems          (eff_ems),
+        .eff_umb          (eff_umb),
+        .eff_vga13        (eff_vga13),
+        .eff_joy1_digital (eff_joy1_digital),
+        .eff_joy1_disable (eff_joy1_disable),
+        .eff_joy2_digital (eff_joy2_digital),
+        .eff_joy2_disable (eff_joy2_disable),
+        .eff_joy_sync     (eff_joy_sync),
+        .eff_joy_swap     (eff_joy_swap),
+        .eff_mt32_gm      (eff_mt32_gm),
+        .eff_tandy        (eff_tandy),
+        .eff_mpu401       (eff_mpu401),
+        .eff_crt_h        (eff_crt_h),
+        .eff_crt_v        (eff_crt_v),
+        .eff_vsync_w      (eff_vsync_w),
+        .eff_hsync_w      (eff_hsync_w),
+        .status_effective (xtegactl_status_effective),
+        .status_osd_match (xtegactl_status_osd_match)
+    );
 
     //Keyboard Ps2
     wire        ps2_kbd_clk_out;
@@ -226,16 +483,25 @@ module emu
 
     wire [13:0] joy0, joy1;
     wire [15:0] joya0, joya1;
-    wire [4:0]  joy_opts = status[27:23];
+    // Bit order set by tandy_pcjr_joy: P1 type, P1 disable, P2 type, P2
+    // disable, turbo sync.
+    wire [4:0]  joy_opts = {eff_joy_sync, eff_joy2_disable, eff_joy2_digital,
+                            eff_joy1_disable, eff_joy1_digital};
 
-    wire composite = status[40] | xtctl[0];
+    // Border only exists on the CGA card. border_menu follows the pending
+    // card, so the menu already shows the right entries before the reset;
+    // border follows the card in use.
+    wire border_menu = (border_osd | xtctl[1]) & ~card_sel_ega;
+    wire composite = composite_osd | xtctl[0];
     wire [1:0] scale = status[2:1];
     wire [2:0] screen_mode = status[16:14];
     wire [1:0] ar = status[9:8];
-    wire border = status[29] | xtctl[1];
-    wire a000h = `ENABLE_A000_UMB ? (~status[41] & ~xtctl[6]) : 1'b0;
-    wire [2:0] vsync_width_osd = status[56:54];  // 0=Auto (use register), 1-7=override
-    wire [2:0] hsync_width_osd = status[59:57];  // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
+    wire border = (border_osd | xtctl[1]) & ~ega_active;
+    wire a000h = `ENABLE_A000_UMB ? (~a000_off_osd & ~xtctl[6]) : 1'b0;
+    // A zero XTEGACTL field defers to the OSD; a non-zero value is a
+    // per-program override.
+    wire [2:0] vsync_width_osd = eff_vsync_w;    // 0=Auto (use register), 1-7=override
+    wire [2:0] hsync_width_osd = eff_hsync_w;    // 0=Auto, 1-7=fixed width (Nx16 pixel clocks)
     wire [1:0] crt480i_mode = status[35:34];     // 0=native, 1=480i, 2=240p
     wire       crt480i_osd  = |crt480i_mode;
     wire       crt480i_prog = crt480i_mode[1];
@@ -255,22 +521,33 @@ module emu
     wire        video_scandoubler_en = (scale_video_ff > 0) || forced_scandoubler;
     wire        cga_scandouble_en = (scale_cga_ff > 0) || forced_scandoubler;
     reg         hercules_hw;
-    // bit0=status[5]; bit3 exposes the MT32-pi options; bit4 exposes the
-    // halted/missing-PCXT-BIOS status line at the top of the menu; bit5 is set
-    // while Border is on (it shows Border CRT offsets); bit6 is set while the OSD
-    // CRT H/V offsets act on the picture: always, except with Border on and
-    // Border CRT offsets off, where the window ignores them.
-    wire        crt_offsets_act = ~border | status[65];
-    wire [15:0] status_menumask = {9'd0, crt_offsets_act, border, bios_missing_pcxt,
-                                   ((`ENABLE_MIDI != 0) && mt32_available),
-                                   2'b00, status[5]};
+    // CGA layout: bit0=status[5]; bit3 exposes the MT32-pi options; bit4
+    // exposes the halted/missing-PCXT-BIOS status line at the top of the menu;
+    // bit5 is set while Border is on (it shows Border CRT offsets); bit6 is
+    // set while the OSD CRT H/V offsets act on the picture: always, except
+    // with Border on and Border CRT offsets off, where the window ignores them.
+    //
+    // EGA layout: bits 2:0 have no h0/h1/h2 entries; bit3 exposes MT32-pi,
+    // gated on the MPU-401 being enabled as well; bits 5:4 reveal the two
+    // "halted, no BIOS" lines; bit 6 as above; bit 7 is set while the CGA/HGC
+    // card is selected and bit 8 while the EGA card is; bit 9 is set when the
+    // CGA card is selected with Border on.
+    wire        crt_offsets_act = ~(L_EGA ? border_menu : border) | border_crt_osd;
+    wire [15:0] status_menumask = L_EGA
+        ? {6'd0, border_menu, card_sel_ega, ~card_sel_ega, crt_offsets_act,
+           bios_missing_ega, bios_missing_pcxt,
+           ((`ENABLE_MIDI != 0) && mt32_available && eff_mpu401), 3'b111}
+        : {9'd0, crt_offsets_act, border, bios_missing_pcxt,
+           ((`ENABLE_MIDI != 0) && mt32_available),
+           2'b00, status[5]};
 
     wire VGA_VBlank_border;
     wire VGA_HSYNC_REF, VGA_VSYNC_REF;
     wire std_hsyncwidth;
     wire pause_core;
     wire swap_video;
-    wire swap_video_requested = `ENABLE_HGC ? (`ENABLE_CGA ? swap_video : (`ENABLE_TANDY_VIDEO ? 1'b0 : 1'b1)) : 1'b0;
+    wire swap_video_requested = ega_active ? 1'b0 :
+                                (`ENABLE_HGC ? (`ENABLE_CGA ? swap_video : (`ENABLE_TANDY_VIDEO ? 1'b0 : 1'b1)) : 1'b0);
 
     always @(posedge clk_57_272)
     begin
@@ -280,8 +557,8 @@ module emu
         screen_mode_video_ff    <= screen_mode_video_meta;
         border_video_meta       <= border;
         border_video_ff         <= border_video_meta;
-        cga_hw                  <= `ENABLE_CGA ? (~status[44] | tandy_video_mode) : 1'b0;
-        hercules_hw             <= `ENABLE_HGC ? (`ENABLE_CGA ? ~status[45] : 1'b1) : 1'b0;
+        cga_hw                  <= `ENABLE_CGA ? (~cga_absent_osd | tandy_video_mode) : 1'b0;
+        hercules_hw             <= `ENABLE_HGC ? (`ENABLE_CGA ? ~hgc_absent_osd : 1'b1) : 1'b0;
     end
 
     // Keep static CGA configuration local to the exact CGA clock domain.
@@ -310,6 +587,7 @@ module emu
 		.status_menumask(status_menumask),
 		.info_req(info_req),
 		.info(info),
+		.new_vmode(ega_vmode_toggle),
 
 		.uart_mode(uart_mode),
 
@@ -417,11 +695,10 @@ module emu
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) logic [1:0] video_retime_reset_sync = 2'b11;
     wire video_retime_reset_local = video_retime_reset_sync[1];
 
-    // The 350-line HGC framebuffer has its own video clock domain.  Keep the
-    // reset assertion immediate, but release it synchronously there so the
-    // framebuffer state machines do not time the global reset as data.
-    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) logic [1:0] video_retime_hgc_sync = 2'b11;
-    wire video_retime_reset_hgc = video_retime_hgc_sync[1];
+    // The shared 350-line framebuffer (EGA card and HGC) runs on the 57.272 MHz
+    // clock; same idea, release only on its own clock.
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) logic [1:0] video_retime_57_sync = 2'b11;
+    wire video_retime_reset_57 = video_retime_57_sync[1];
 
     // The output retime registers assert reset immediately, but release it
     // only on their own phase-shifted video clock.
@@ -432,12 +709,13 @@ module emu
             video_retime_reset_sync <= {video_retime_reset_sync[0], 1'b0};
     end
 
-    always_ff @(posedge CLK_VIDEO_HGC or posedge video_retime_reset) begin
+    always_ff @(posedge clk_57_272 or posedge video_retime_reset) begin
         if (video_retime_reset)
-            video_retime_hgc_sync <= 2'b11;
+            video_retime_57_sync <= 2'b11;
         else
-            video_retime_hgc_sync <= {video_retime_hgc_sync[0], 1'b0};
+            video_retime_57_sync <= {video_retime_57_sync[0], 1'b0};
     end
+
     wire reset_sdram_wire = RESET | !pll_locked | !pll_system_locked;
 
     //////////////////////////////////////////////////////////////////
@@ -464,7 +742,7 @@ module emu
     logic  [1:0] ram_write_wait_cycle;
     logic        cycle_accrate;
     logic  [1:0] clk_select;
-    wire   [1:0] clk_select_next = ((xtctl[3:2] == 2'b00) && ~xtctl[7]) ? status[18:17] :
+    wire   [1:0] clk_select_next = ((xtctl[3:2] == 2'b00) && ~xtctl[7]) ? eff_speed :
                                    (xtctl[7] ? 2'b11 : xtctl[3:2] - 2'b01);
 
     always @(posedge clk_chipset, posedge reset)
@@ -526,6 +804,16 @@ module emu
         end
     end
 
+    // Track the OSD selection throughout the stretched reset interval so the
+    // final stable value is ready before the CPU starts executing the BIOS.
+    // Changes made while the machine is running remain pending until reset.
+    ega_monitor_profile_latch monitor_profile_latch (
+        .clock        (clk_chipset),
+        .reset_active (reset),
+        .selected     (ega_monitor_profile_osd),
+        .applied      (ega_monitor_profile_applied)
+    );
+
     cpu_type_latch cpu_type_apply_latch (
         .clock                 (clk_chipset),
         .reset_active          (reset),
@@ -541,7 +829,7 @@ module emu
     wire fake_286_flags_applied = fake_286_flags_meta[1];
 
     always_ff @(posedge clk_100)
-        fake_286_flags_meta <= {fake_286_flags_meta[0], fake_286_flags_osd};
+        fake_286_flags_meta <= {fake_286_flags_meta[0], eff_fake286};
 
     logic reset_cpu_ff = 1'b1;
     logic reset_cpu = 1'b1;
@@ -562,7 +850,23 @@ module emu
     // load synchronous avoids synthesis turning reset into a latch clock.
     always @(negedge clk_chipset)
         if (reset)
-            hgc_mode <= `ENABLE_HGC ? (`ENABLE_CGA ? status[4] : 1'b1) : 1'b0;
+            hgc_mode <= `ENABLE_HGC ? (`ENABLE_CGA ? hgc_first_osd : 1'b1) : 1'b0;
+
+    // The video card is chosen the same way: the menu entry is sampled while
+    // reset is active and what it says then stays in force until the next
+    // reset. With a single card built there is nothing to choose.
+    reg ega_active_r = 1'b0;
+    always @(negedge clk_chipset)
+        if (reset)
+            ega_active_r <= card_sel_ega;
+    assign ega_active = HAS_EGA ? (HAS_CGA_HGC ? ega_active_r : 1'b1) : 1'b0;
+
+    // The same, seen from the 57.272 MHz video clock. It only changes while
+    // the machine is in reset and the video path is held in reset too.
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] ega_active_vid_sync = 2'b00;
+    always @(posedge clk_57_272)
+        ega_active_vid_sync <= {ega_active_vid_sync[0], ega_active};
+    assign ega_active_vid = HAS_EGA ? (HAS_CGA_HGC ? ega_active_vid_sync[1] : 1'b1) : 1'b0;
 
     always @(negedge clk_chipset, posedge reset)
     begin
@@ -683,10 +987,13 @@ module emu
         sd_init_sync <= {sd_init_sync[0], sd_init_done};
     wire initilized_sdram = sd_init_sync[1];
 
-    // BIOS Writable: [1] F000 (main), [0] EC00.
-    reg [1:0] bios_protect_flag = 2'b11;
+    // BIOS Writable: [2] C000 (EGA option ROM, the EGA card only), [1] F000
+    // (main), [0] EC00.
+    wire ega_bios_write_protect;
+    wire ega_bios_write_complete;
+    reg [2:0] bios_protect_flag = 3'b111;
     always @(posedge clk_chipset)
-        bios_protect_flag <= ~status[31:30];
+        bios_protect_flag <= {HAS_EGA ? ega_bios_write_protect : 1'b1, ~status[31:30]};
 
     //
     // ROM loader: HPS downloads straight into the SDRAM ROM bank
@@ -701,7 +1008,7 @@ module emu
     wire        pcxt_bios_write_complete;
     wire        ec00_loaded;
 
-    rom_loader #(.ROM_TANDY(`ROM_IS_TANDY)) u_rom_loader
+    rom_loader #(.ROM_TANDY(`ROM_IS_TANDY), .ROM_EGA(`ENABLE_EGA)) u_rom_loader
     (
         .clock              (clk_chipset),
         .reset              (reset_sdram),
@@ -721,6 +1028,7 @@ module emu
         .l_done             (ldr_done),
         .write_any          (ldr_flush),
         .write_main         (pcxt_bios_write_complete),
+        .write_ega          (ega_bios_write_complete),
         .ec00_loaded        (ec00_loaded)
     );
 
@@ -805,17 +1113,28 @@ module emu
 
     //
     // Video memory (F2): CGA and HGC read their VRAM from SDRAM through vram_fetch
-    // engines. Everything here is in clk_sdram;
-    // the CGA (28.636 MHz) and HGC (57.27 MHz) sequencers come from the same PLL
-    // and are sampled by the adapters.
+    // engines; the EGA/VGA card reads its planes
+    // and the packed Mode 13h region through the frontend of the pc_common
+    // library, which has its own engines and is the third client of vid_mux.
+    // Everything here is in clk_sdram; the CGA (28.636 MHz) and HGC (57.27 MHz)
+    // sequencers come from the same PLL and are sampled by the adapters.
     //
     //   LDR port: rom_loader (through its bridge) or ram_clear, which writes zeros
     //             over the video regions once the chip is initialised
-    //   VID port: u_cga_fetch and u_hgc_fetch through vid_mux
+    //   VID port: the CGA and HGC fetch engines and the EGA frontend, through
+    //             vid_mux (only the ones that are built)
     //   snoop:    every write the arbiter captures (CPU or LDR), registered once
     //
     localparam logic [23:0] CGA_WORD_BASE = sdram_pkg::PHYS_CGA[24:1];
     localparam logic [23:0] HGC_WORD_BASE = sdram_pkg::PHYS_HGC[24:1];
+    // The EGA planes (256 KiB) and the packed 13h region (64 KiB) are one
+    // contiguous 320 KiB that ends where the CGA window starts.
+    localparam logic [23:0] EGA_WORD_BASE  = 24'h400000;
+    localparam logic [23:0] EGA_WORD_COUNT = 24'd163840;
+
+    localparam bit E_CGA = (`ENABLE_CGA != 0);
+    localparam bit E_HGC = (`ENABLE_HGC != 0);
+    localparam bit E_EGA = HAS_EGA;
 
     wire        clr_busy, clr_req, clr_ack;
     wire [23:0] clr_addr;
@@ -823,10 +1142,16 @@ module emu
     wire [63:0] clr_wdata;
     wire [7:0]  clr_wbe;
 
+    // The card is not known yet when the chip comes up, so with the EGA card
+    // built its regions are cleared as well.
+    localparam int CLR_NREG = E_EGA ? 3 : 2;
+    localparam logic [71:0] CLR_BASES_ALL = {EGA_WORD_BASE, HGC_WORD_BASE, CGA_WORD_BASE};
+    localparam logic [71:0] CLR_WORDS_ALL = {EGA_WORD_COUNT, 24'd32768, 24'd16384};   // 64 KiB, 32 KiB, 320 KiB
+
     ram_clear #(
-        .NREG   (2),
-        .BASES  ({HGC_WORD_BASE, CGA_WORD_BASE}),
-        .WORDS  ({24'd32768, 24'd16384})            // 64 KiB and 32 KiB
+        .NREG   (CLR_NREG),
+        .BASES  (CLR_BASES_ALL[24*CLR_NREG-1:0]),
+        .WORDS  (CLR_WORDS_ALL[24*CLR_NREG-1:0])
     ) u_ram_clear
     (
         .clk        (clk_sdram),
@@ -889,98 +1214,183 @@ module emu
     wire [7:0]  fx_cga_vram_d, fx_hgc_vram_d;
 
     // Engines
-    wire        cga_req_v, cga_req_r, cga_rsp_p, cga_rsp_v, cga_rsp_pop;
-    wire [23:0] cga_req_a, cga_rsp_a;
-    wire [1:0]  cga_req_l;
-    wire [15:0] cga_req_d;
-    wire [63:0] cga_rsp_d;
     wire        cga_vreq, cga_vack, cga_vrv, cga_vrl;
     wire [23:0] cga_vaddr;
     wire [1:0]  cga_vlen;
     wire [15:0] cga_vdl;
-    wire [15:0] cga_underrun, cga_mismatch, cga_late, cga_dropped;
 
-    wire        hgc_req_v, hgc_req_r, hgc_rsp_p, hgc_rsp_v, hgc_rsp_pop;
-    wire [23:0] hgc_req_a, hgc_rsp_a;
-    wire [1:0]  hgc_req_l;
-    wire [15:0] hgc_req_d;
-    wire [63:0] hgc_rsp_d;
     wire        hgc_vreq, hgc_vack, hgc_vrv, hgc_vrl;
     wire [23:0] hgc_vaddr;
     wire [1:0]  hgc_vlen;
     wire [15:0] hgc_vdl;
-    wire [15:0] hgc_underrun, hgc_mismatch, hgc_late, hgc_dropped;
+
+    // The EGA frontend, as the chipset presents it
+    wire        egaf_req, egaf_ack, egaf_rvalid, egaf_rlast;
+    wire [23:0] egaf_addr;
+    wire [1:0]  egaf_len;
+    wire [15:0] egaf_deadline;
 
     wire        vid_req, vid_ack, vid_rvalid, vid_rlast;
     wire [23:0] vid_addr;
     wire [1:0]  vid_len;
     wire [15:0] vid_deadline;
 
-    vram_fetch #(.DEPTH(3), .MAX_WORDS(1)) u_cga_fetch
-    (
-        .clk(clk_sdram), .reset(vid_reset),
-        .req_valid(cga_req_v), .req_addr(cga_req_a), .req_len(cga_req_l),
-        .req_deadline(cga_req_d), .req_ready(cga_req_r),
-        .rsp_pending(cga_rsp_p), .rsp_valid(cga_rsp_v), .rsp_data(cga_rsp_d),
-        .rsp_addr(cga_rsp_a), .rsp_len(),
-        .rsp_pop(cga_rsp_pop), .flush(1'b0),
-        .snoop_valid(sn_valid), .snoop_addr(sn_addr), .snoop_len(sn_len),
-        .snoop_wdata(sn_wdata), .snoop_wbe(sn_wbe),
-        .vid_req(cga_vreq), .vid_addr(cga_vaddr), .vid_len(cga_vlen), .vid_deadline(cga_vdl),
-        .vid_ack(cga_vack), .vid_rvalid(cga_vrv), .vid_rlast(cga_vrl), .vid_rdata(sd_rdata),
-        .underrun_count(cga_underrun), .occupancy()
-    );
+    generate
+    if (E_CGA) begin : g_cga_fetch
+        wire        cga_req_v, cga_req_r, cga_rsp_p, cga_rsp_v, cga_rsp_pop;
+        wire [23:0] cga_req_a, cga_rsp_a;
+        wire [1:0]  cga_req_l;
+        wire [15:0] cga_req_d;
+        wire [63:0] cga_rsp_d;
+        wire [15:0] cga_underrun, cga_mismatch, cga_late, cga_dropped;
 
-    cga_vram_if #(.BASE(CGA_WORD_BASE)) u_cga_vif
-    (
-        .clk(clk_sdram), .reset(vid_reset),
-        .seq_phase(fx_cga_phase), .hres(fx_cga_hres),
-        .cur_word(fx_cga_cur_word), .next_word(fx_cga_next_word),
-        .vram_d(fx_cga_vram_d),
-        .req_valid(cga_req_v), .req_addr(cga_req_a), .req_len(cga_req_l),
-        .req_deadline(cga_req_d), .req_ready(cga_req_r),
-        .rsp_pending(cga_rsp_p), .rsp_valid(cga_rsp_v), .rsp_data(cga_rsp_d),
-        .rsp_addr(cga_rsp_a), .rsp_pop(cga_rsp_pop),
-        .mismatch_count(cga_mismatch), .late_count(cga_late), .dropped_count(cga_dropped)
-    );
+        vram_fetch #(.DEPTH(3), .MAX_WORDS(1)) u_cga_fetch
+        (
+            .clk(clk_sdram), .reset(vid_reset),
+            .req_valid(cga_req_v), .req_addr(cga_req_a), .req_len(cga_req_l),
+            .req_deadline(cga_req_d), .req_ready(cga_req_r),
+            .rsp_pending(cga_rsp_p), .rsp_valid(cga_rsp_v), .rsp_data(cga_rsp_d),
+            .rsp_addr(cga_rsp_a), .rsp_len(),
+            .rsp_pop(cga_rsp_pop), .flush(1'b0),
+            .snoop_valid(sn_valid), .snoop_addr(sn_addr), .snoop_len(sn_len),
+            .snoop_wdata(sn_wdata), .snoop_wbe(sn_wbe),
+            .vid_req(cga_vreq), .vid_addr(cga_vaddr), .vid_len(cga_vlen), .vid_deadline(cga_vdl),
+            .vid_ack(cga_vack), .vid_rvalid(cga_vrv), .vid_rlast(cga_vrl), .vid_rdata(sd_rdata),
+            .underrun_count(cga_underrun), .occupancy()
+        );
 
-    vram_fetch #(.DEPTH(3), .MAX_WORDS(1)) u_hgc_fetch
-    (
-        .clk(clk_sdram), .reset(vid_reset),
-        .req_valid(hgc_req_v), .req_addr(hgc_req_a), .req_len(hgc_req_l),
-        .req_deadline(hgc_req_d), .req_ready(hgc_req_r),
-        .rsp_pending(hgc_rsp_p), .rsp_valid(hgc_rsp_v), .rsp_data(hgc_rsp_d),
-        .rsp_addr(hgc_rsp_a), .rsp_len(),
-        .rsp_pop(hgc_rsp_pop), .flush(1'b0),
-        .snoop_valid(sn_valid), .snoop_addr(sn_addr), .snoop_len(sn_len),
-        .snoop_wdata(sn_wdata), .snoop_wbe(sn_wbe),
-        .vid_req(hgc_vreq), .vid_addr(hgc_vaddr), .vid_len(hgc_vlen), .vid_deadline(hgc_vdl),
-        .vid_ack(hgc_vack), .vid_rvalid(hgc_vrv), .vid_rlast(hgc_vrl), .vid_rdata(sd_rdata),
-        .underrun_count(hgc_underrun), .occupancy()
-    );
+        cga_vram_if #(.BASE(CGA_WORD_BASE)) u_cga_vif
+        (
+            .clk(clk_sdram), .reset(vid_reset),
+            .seq_phase(fx_cga_phase), .hres(fx_cga_hres),
+            .cur_word(fx_cga_cur_word), .next_word(fx_cga_next_word),
+            .vram_d(fx_cga_vram_d),
+            .req_valid(cga_req_v), .req_addr(cga_req_a), .req_len(cga_req_l),
+            .req_deadline(cga_req_d), .req_ready(cga_req_r),
+            .rsp_pending(cga_rsp_p), .rsp_valid(cga_rsp_v), .rsp_data(cga_rsp_d),
+            .rsp_addr(cga_rsp_a), .rsp_pop(cga_rsp_pop),
+            .mismatch_count(cga_mismatch), .late_count(cga_late), .dropped_count(cga_dropped)
+        );
+    end
+    else begin : g_no_cga_fetch
+        assign cga_vreq    = 1'b0;
+        assign cga_vaddr   = 24'd0;
+        assign cga_vlen    = 2'd0;
+        assign cga_vdl     = 16'd0;
+        assign fx_cga_vram_d = 8'd0;
+    end
+    endgenerate
 
-    hgc_vram_if #(.BASE(HGC_WORD_BASE)) u_hgc_vif
-    (
-        .clk(clk_sdram), .reset(vid_reset),
-        .seq_phase(fx_hgc_phase), .grph(fx_hgc_grph), .page(fx_hgc_page),
-        .cur_word(fx_hgc_cur_word), .next_word(fx_hgc_next_word),
-        .vram_d(fx_hgc_vram_d),
-        .req_valid(hgc_req_v), .req_addr(hgc_req_a), .req_len(hgc_req_l),
-        .req_deadline(hgc_req_d), .req_ready(hgc_req_r),
-        .rsp_pending(hgc_rsp_p), .rsp_valid(hgc_rsp_v), .rsp_data(hgc_rsp_d),
-        .rsp_addr(hgc_rsp_a), .rsp_pop(hgc_rsp_pop),
-        .mismatch_count(hgc_mismatch), .late_count(hgc_late), .dropped_count(hgc_dropped)
-    );
+    generate
+    if (E_HGC) begin : g_hgc_fetch
+        wire        hgc_req_v, hgc_req_r, hgc_rsp_p, hgc_rsp_v, hgc_rsp_pop;
+        wire [23:0] hgc_req_a, hgc_rsp_a;
+        wire [1:0]  hgc_req_l;
+        wire [15:0] hgc_req_d;
+        wire [63:0] hgc_rsp_d;
+        wire [15:0] hgc_underrun, hgc_mismatch, hgc_late, hgc_dropped;
 
-    vid_mux #(.N(2)) u_vid_mux
-    (
-        .clk(clk_sdram), .reset(vid_reset),
-        .c_req({hgc_vreq, cga_vreq}), .c_addr({hgc_vaddr, cga_vaddr}),
-        .c_len({hgc_vlen, cga_vlen}), .c_deadline({hgc_vdl, cga_vdl}),
-        .c_ack({hgc_vack, cga_vack}), .c_rvalid({hgc_vrv, cga_vrv}), .c_rlast({hgc_vrl, cga_vrl}),
-        .vid_req(vid_req), .vid_addr(vid_addr), .vid_len(vid_len), .vid_deadline(vid_deadline),
-        .vid_ack(vid_ack), .vid_rvalid(vid_rvalid), .vid_rlast(vid_rlast)
-    );
+        vram_fetch #(.DEPTH(3), .MAX_WORDS(1)) u_hgc_fetch
+        (
+            .clk(clk_sdram), .reset(vid_reset),
+            .req_valid(hgc_req_v), .req_addr(hgc_req_a), .req_len(hgc_req_l),
+            .req_deadline(hgc_req_d), .req_ready(hgc_req_r),
+            .rsp_pending(hgc_rsp_p), .rsp_valid(hgc_rsp_v), .rsp_data(hgc_rsp_d),
+            .rsp_addr(hgc_rsp_a), .rsp_len(),
+            .rsp_pop(hgc_rsp_pop), .flush(1'b0),
+            .snoop_valid(sn_valid), .snoop_addr(sn_addr), .snoop_len(sn_len),
+            .snoop_wdata(sn_wdata), .snoop_wbe(sn_wbe),
+            .vid_req(hgc_vreq), .vid_addr(hgc_vaddr), .vid_len(hgc_vlen), .vid_deadline(hgc_vdl),
+            .vid_ack(hgc_vack), .vid_rvalid(hgc_vrv), .vid_rlast(hgc_vrl), .vid_rdata(sd_rdata),
+            .underrun_count(hgc_underrun), .occupancy()
+        );
+
+        hgc_vram_if #(.BASE(HGC_WORD_BASE)) u_hgc_vif
+        (
+            .clk(clk_sdram), .reset(vid_reset),
+            .seq_phase(fx_hgc_phase), .grph(fx_hgc_grph), .page(fx_hgc_page),
+            .cur_word(fx_hgc_cur_word), .next_word(fx_hgc_next_word),
+            .vram_d(fx_hgc_vram_d),
+            .req_valid(hgc_req_v), .req_addr(hgc_req_a), .req_len(hgc_req_l),
+            .req_deadline(hgc_req_d), .req_ready(hgc_req_r),
+            .rsp_pending(hgc_rsp_p), .rsp_valid(hgc_rsp_v), .rsp_data(hgc_rsp_d),
+            .rsp_addr(hgc_rsp_a), .rsp_pop(hgc_rsp_pop),
+            .mismatch_count(hgc_mismatch), .late_count(hgc_late), .dropped_count(hgc_dropped)
+        );
+    end
+    else begin : g_no_hgc_fetch
+        assign hgc_vreq    = 1'b0;
+        assign hgc_vaddr   = 24'd0;
+        assign hgc_vlen    = 2'd0;
+        assign hgc_vdl     = 16'd0;
+        assign fx_hgc_vram_d = 8'd0;
+    end
+    endgenerate
+
+    // The clients of the video port, in the order CGA, HGC, EGA frontend,
+    // whichever of them are built. One client goes straight through; two or
+    // three share vid_mux. The acknowledge and the words that come back are
+    // handed to the clients in the same positions.
+    localparam int N_VID = (E_CGA ? 1 : 0) + (E_HGC ? 1 : 0) + (E_EGA ? 1 : 0);
+
+    generate
+    if (N_VID == 3) begin : g_vid_mux3
+        wire [2:0] mx_ack, mx_rvalid, mx_rlast;
+        vid_mux #(.N(3)) u_vid_mux
+        (
+            .clk(clk_sdram), .reset(vid_reset),
+            .c_req({egaf_req, hgc_vreq, cga_vreq}), .c_addr({egaf_addr, hgc_vaddr, cga_vaddr}),
+            .c_len({egaf_len, hgc_vlen, cga_vlen}), .c_deadline({egaf_deadline, hgc_vdl, cga_vdl}),
+            .c_ack(mx_ack), .c_rvalid(mx_rvalid), .c_rlast(mx_rlast),
+            .vid_req(vid_req), .vid_addr(vid_addr), .vid_len(vid_len), .vid_deadline(vid_deadline),
+            .vid_ack(vid_ack), .vid_rvalid(vid_rvalid), .vid_rlast(vid_rlast)
+        );
+        assign {egaf_ack, hgc_vack, cga_vack}       = mx_ack;
+        assign {egaf_rvalid, hgc_vrv, cga_vrv}      = mx_rvalid;
+        assign {egaf_rlast, hgc_vrl, cga_vrl}       = mx_rlast;
+    end
+    else if (N_VID == 2) begin : g_vid_mux2
+        // CGA+HGC, CGA+EGA or HGC+EGA: the EGA frontend, when built, is second
+        wire [1:0] mx_ack, mx_rvalid, mx_rlast;
+        wire       first_req  = E_CGA ? cga_vreq : hgc_vreq;
+        wire       second_req = E_EGA ? egaf_req : hgc_vreq;
+        vid_mux #(.N(2)) u_vid_mux
+        (
+            .clk(clk_sdram), .reset(vid_reset),
+            .c_req({second_req, first_req}),
+            .c_addr({E_EGA ? egaf_addr : hgc_vaddr, E_CGA ? cga_vaddr : hgc_vaddr}),
+            .c_len({E_EGA ? egaf_len : hgc_vlen, E_CGA ? cga_vlen : hgc_vlen}),
+            .c_deadline({E_EGA ? egaf_deadline : hgc_vdl, E_CGA ? cga_vdl : hgc_vdl}),
+            .c_ack(mx_ack), .c_rvalid(mx_rvalid), .c_rlast(mx_rlast),
+            .vid_req(vid_req), .vid_addr(vid_addr), .vid_len(vid_len), .vid_deadline(vid_deadline),
+            .vid_ack(vid_ack), .vid_rvalid(vid_rvalid), .vid_rlast(vid_rlast)
+        );
+        assign cga_vack    = E_CGA ? mx_ack[0]    : 1'b0;
+        assign cga_vrv     = E_CGA ? mx_rvalid[0] : 1'b0;
+        assign cga_vrl     = E_CGA ? mx_rlast[0]  : 1'b0;
+        assign hgc_vack    = E_HGC ? (E_CGA ? mx_ack[1]    : mx_ack[0])    : 1'b0;
+        assign hgc_vrv     = E_HGC ? (E_CGA ? mx_rvalid[1] : mx_rvalid[0]) : 1'b0;
+        assign hgc_vrl     = E_HGC ? (E_CGA ? mx_rlast[1]  : mx_rlast[0])  : 1'b0;
+        assign egaf_ack    = E_EGA ? mx_ack[1]    : 1'b0;
+        assign egaf_rvalid = E_EGA ? mx_rvalid[1] : 1'b0;
+        assign egaf_rlast  = E_EGA ? mx_rlast[1]  : 1'b0;
+    end
+    else begin : g_vid_one
+        assign vid_req      = E_CGA ? cga_vreq     : (E_HGC ? hgc_vreq     : egaf_req);
+        assign vid_addr     = E_CGA ? cga_vaddr    : (E_HGC ? hgc_vaddr    : egaf_addr);
+        assign vid_len      = E_CGA ? cga_vlen     : (E_HGC ? hgc_vlen     : egaf_len);
+        assign vid_deadline = E_CGA ? cga_vdl      : (E_HGC ? hgc_vdl      : egaf_deadline);
+        assign cga_vack     = vid_ack;
+        assign cga_vrv      = vid_rvalid;
+        assign cga_vrl      = vid_rlast;
+        assign hgc_vack     = vid_ack;
+        assign hgc_vrv      = vid_rvalid;
+        assign hgc_vrl      = vid_rlast;
+        assign egaf_ack     = vid_ack;
+        assign egaf_rvalid  = vid_rvalid;
+        assign egaf_rlast   = vid_rlast;
+    end
+    endgenerate
 
     //
     // Arbiter and controller
@@ -1112,7 +1522,37 @@ module emu
         .loaded             (pcxt_bios_loaded)
     );
 
+    // The EGA option ROM (slot 3) is tracked the same way. Present, it is
+    // write-protected and advertised to the XT BIOS as an adapter with its own
+    // firmware; absent, the BIOS falls back to the CGA switch setting.
+    wire       ega_bios_loaded;
+    wire [1:0] ega_video_switches;
+    wire       ega_bios_download_active = ioctl_download && (ioctl_index[5:0] == 6'd3);
+
+    generate
+    if (HAS_EGA) begin : g_ega_bios_presence
+        ega_bios_loaded_latch ega_bios_presence (
+            .clock              (clk_chipset),
+            .reset              (reset_sdram),
+            .sdram_initialized  (initilized_sdram),
+            .download_active    (ega_bios_download_active),
+            .write_complete     (ega_bios_write_complete),
+            .loaded             (ega_bios_loaded),
+            .write_protect      (ega_bios_write_protect),
+            .video_switches     (ega_video_switches)
+        );
+    end
+    else begin : g_no_ega_bios_presence
+        assign ega_bios_loaded    = 1'b1;
+        assign ega_bios_write_protect = 1'b1;
+        assign ega_video_switches = 2'b10;
+    end
+    endgenerate
+
+    // Reported one at a time, main BIOS first. The EGA ROM is only required
+    // while the EGA card is the one that is selected.
     wire bios_missing_pcxt = ~pcxt_bios_loaded;
+    wire bios_missing_ega  = HAS_EGA & ega_active & pcxt_bios_loaded & ~ega_bios_loaded;
 
 
     //////////////////////////////////////////////////////////////////
@@ -1214,17 +1654,28 @@ module emu
     // Keep the power-on raster until the required BIOS exists. Reusing the
     // splash signal means the CPU reset, splash renderer and video timing all
     // agree on the held state.
-    wire bios_hold;
+    wire       bios_hold;
+    wire [7:0] bios_info;
+    wire       bios_info_req;
+    // Driven by reset_pending_notice, instantiated with the MMC block below
+    // (EGA menu layout only)
+    wire [7:0] pending_info;
+    wire       pending_info_req;
 
     bios_hold_notice bios_notice (
         .clock             (clk_14_318),
         .splash_boot_phase (splash_pending | splash_timed),
         .bios_missing_pcxt (bios_missing_pcxt),
-        .bios_missing_ega  (1'b0),
+        .bios_missing_ega  (bios_missing_ega),
         .hold              (bios_hold),
-        .info              (info),
-        .info_req          (info_req)
+        .info              (bios_info),
+        .info_req          (bios_info_req)
     );
+
+    // The missing-BIOS notice wins; reset_pending_notice is held off by the
+    // same signal, so in practice the two are never asked at once.
+    assign info     = L_EGA ? (bios_info_req ? bios_info : pending_info) : bios_info;
+    assign info_req = L_EGA ? (bios_info_req | pending_info_req) : bios_info_req;
 
     wire splashscreen = splash_timed | bios_hold;
     // The splash is always a native CGA raster.  Keep the shared video path on
@@ -1321,7 +1772,11 @@ module emu
     wire    [5:0]   sw_base;
     wire    [1:0]   sw_floppy;
 
-    assign  sw_base = `ENABLE_HGC ? (hgc_mode ? 6'b111101 : 6'b101101) : 6'b101101;
+    // sw_base[5:4] is the motherboard video switch pair the BIOS copies into
+    // the equipment word: 00 = EGA (its option ROM is present), 10 = CGA 80
+    // columns, 11 = monochrome.
+    wire [5:0] sw_base_cga = `ENABLE_HGC ? (hgc_mode ? 6'b111101 : 6'b101101) : 6'b101101;
+    assign  sw_base = ega_active ? {ega_video_switches, 4'b1101} : sw_base_cga;
     assign  sw_floppy = fdd_present[1] ? 2'b01 : 2'b00;
     assign  sw = {sw_floppy, sw_base}; // DIP switches (CGA and floppy count)
     assign  port_c_in[3:0] = port_b_out[3] ? sw[7:4] : sw[3:0];
@@ -1331,8 +1786,12 @@ module emu
     wire enable_hgc_sel = `ENABLE_HGC ? 1'b1 : 1'b0;
     wire [1:0] hgc_rgb_sel = `ENABLE_HGC ? 2'b10 : 2'b00;
     wire hercules_hw_sel = `ENABLE_HGC ? hercules_hw : 1'b0;
-    wire ems_enabled_sel = `ENABLE_EMS ? ~status[11] : 1'b0;
-    wire [1:0] ems_address_sel = `ENABLE_EMS ? status[13:12] : 2'b00;
+    wire ems_enabled_sel = `ENABLE_EMS ? eff_ems : 1'b0;
+    // The EGA layout fixes the frame at D000, which avoids the EGA and XT-IDE
+    // ROM conflicts; the CGA layout lets the menu choose C000/D000/E000.
+    wire [1:0] ems_address_sel = `ENABLE_EMS ? (L_EGA ? 2'b01 : status[68:67]) : 2'b00;
+    wire umb_enabled_sel = `ENABLE_UMB ? eff_umb : 1'b0;
+    wire mpu401_enabled_sel = `ENABLE_MIDI ? eff_mpu401 : 1'b0;
 
     always @(posedge clk_chipset)
     begin
@@ -1342,7 +1801,7 @@ module emu
             cpu_address <= cpu_address;
     end
 
-    CHIPSET #(.clk_rate(cur_rate), .ROM_TANDY(`ROM_IS_TANDY)) u_CHIPSET
+    CHIPSET #(.clk_rate(cur_rate), .ROM_TANDY(`ROM_IS_TANDY), .ENABLE_EGA(`ENABLE_EGA)) u_CHIPSET
 	(
 		.clock                              (clk_chipset),
 		.cpu_ce_posedge                     (cpu_ce_posedge),
@@ -1369,6 +1828,30 @@ module emu
 		.clk_vga_hgc                        (clk_57_272),
 		.enable_hgc                         (enable_hgc_sel),
 		.hgc_rgb                            (hgc_rgb_sel),
+		.ega_active                         (ega_active),
+		.EGA_R                              (EGA_R),
+		.EGA_G                              (EGA_G),
+		.EGA_B                              (EGA_B),
+		.EGA_HSYNC                          (EGA_HSYNC),
+		.EGA_VSYNC                          (EGA_VSYNC),
+		.EGA_HBlank                         (EGA_HBlank),
+		.EGA_VBlank                         (EGA_VBlank),
+		.EGA_VBlank_border                  (EGA_VBlank_border),
+		.EGA_std_hsyncwidth                 (EGA_std_hsyncwidth),
+		.EGA_de_o                           (EGA_de_o),
+		.ega_dot_toggle                     (ega_dot_toggle),
+		.ega_dot_clock_sel                  (ega_dot_clock_sel),
+		.ega_scandouble_active_out          (ega_scandouble_active),
+		.ega_vmode_toggle_out               (ega_vmode_toggle),
+		.ega_mode350                        (ega_mode350),
+		.ega_active_dots                    (ega_active_dots),
+		.ega_active_lines                   (ega_active_lines),
+		.vga_mode13_osd                     (eff_vga13),
+		.vga_mode13_native                  (vga_mode13_native_osd),
+		.ega_monitor_profile                (ega_monitor_profile_applied),
+		.vga_mode13_active_out              (vga_mode13_active_video),
+		.vga_mode13_wide_clock_out          (vga_mode13_wide_clock),
+		.vga_mode13_pixel_toggle_out        (vga_mode13_pixel_toggle),
 	//	.de_o                               (VGA_DE),
 		.VGA_R                              (r),
 		.VGA_G                              (g),
@@ -1426,14 +1909,19 @@ module emu
 		.ps2_mouseclk_out                   (ps2_mouse_clk_in),
 		.ps2_mousedat_out                   (ps2_mouse_data_in),
 		.joy_opts                           (joy_opts),           //Joy0-Disabled, Joy0-Type, Joy1-Disabled, Joy1-Type, turbo_sync
-		.joy0                               (status[28] ? joy1 : joy0),
-		.joy1                               (status[28] ? joy0 : joy1),
-		.joya0                              (status[28] ? joya1 : joya0),
-		.joya1                              (status[28] ? joya0 : joya1),
+		.joy0                               (eff_joy_swap ? joy1 : joy0),
+		.joy1                               (eff_joy_swap ? joy0 : joy1),
+		.joya0                              (eff_joy_swap ? joya1 : joya0),
+		.joya1                              (eff_joy_swap ? joya0 : joya1),
 		.jtopl2_snd_e                       (jtopl2_snd_e),
 		.tandy_snd_e                        (tandy_snd_e),
-		.opl2_io                            (xtctl[4] ? 2'b10 : status[43:42]),
-		.cms_en                             (~status[10]),
+		.tandy_en                           (eff_tandy),
+		.opl2_io                            (xtctl[4] ? 2'b10 : eff_opl2),
+		.sb_en                              (eff_sb),
+		.sb_irq7                            (sb_irq7),
+		.sb_snd_l                           (sb_snd_l),
+		.sb_snd_r                           (sb_snd_r),
+		.cms_en                             (eff_cms),
 		.o_cms_l                            (cms_l_snd_e),
 		.o_cms_r                            (cms_r_snd_e),
 		.tandy_video                        (tandy_video_mode),
@@ -1451,6 +1939,7 @@ module emu
 		.clk_midi                           (clk_midi_en),
 		.midi_rx                            (midi_rx),
 		.midi_tx                            (midi_tx),
+		.mpu401_enabled                     (mpu401_enabled_sel),
 		.mem_start                          (mem_start),
 		.mem_we                             (mem_we),
 		.mem_addr                           (mem_addr),
@@ -1462,12 +1951,27 @@ module emu
 		.mem_rdata                          (mem_rdata),
 		.mem_flush                          (ldr_flush),
 		.ec00_loaded                        (ec00_loaded),
+		.sdram_clk                          (clk_sdram),
+		.vid_req                            (egaf_req),
+		.vid_addr                           (egaf_addr),
+		.vid_len                            (egaf_len),
+		.vid_deadline                       (egaf_deadline),
+		.vid_ack                            (egaf_ack),
+		.vid_rvalid                         (egaf_rvalid),
+		.vid_rlast                          (egaf_rlast),
+		.vid_rdata                          (sd_rdata),
+		.snoop_valid                        (sn_valid),
+		.snoop_addr                         (sn_addr),
+		.snoop_len                          (sn_len),
+		.snoop_wdata                        (sn_wdata),
+		.snoop_wbe                          (sn_wbe),
 		.mem_snoop_valid                    (),
 		.mem_snoop_addr                     (),
 		.mem_snoop_data                     (),
 		.mem_snoop_be                       (),
 		.ems_enabled                        (ems_enabled_sel),
 		.ems_address                        (ems_address_sel),
+		.umb_enabled                        (umb_enabled_sel),
 		.bios_protect_flag                  (bios_protect_flag),
 		.use_mmc                            (use_mmc),
 		.spi_clk                            (spi_clk),
@@ -1484,6 +1988,18 @@ module emu
 		.fdd_request                        (mgmt_req[7:6]),
 		.ide0_request                       (mgmt_req[2:0]),
 		.xtctl                              (xtctl),
+		.xtegactl_cpu                       (xtegactl_cpu),
+		.xtegactl_exp                       (xtegactl_exp),
+		.xtegactl_vid                       (xtegactl_vid),
+		.xtegactl_inp                       (xtegactl_inp),
+		.xtegactl_midi                      (xtegactl_midi),
+		.xtegactl_exp2                      (xtegactl_exp2),
+		.xtegactl_crt                       (xtegactl_crt),
+		.xtegactl_sync                      (xtegactl_sync),
+		.xtegactl_status_effective          (xtegactl_status_effective),
+		.xtegactl_status_osd_match          (xtegactl_status_osd_match),
+		.id_video_card                      (id_video_card),
+		.id_vga13_active                    (id_vga13_active),
 		.enable_a000h                       (a000h),
 		.wait_count_clk_en                  (cpu_ce_negedge),
 		.ram_read_wait_cycle                (ram_read_wait_cycle),
@@ -1493,11 +2009,11 @@ module emu
 		.cga_scandouble_en                  (cga_scandouble_en),
 		.hercules_hw                        (hercules_hw_sel),
 		.swap_video                         (swap_video),
-		.crt_h_offset                       (status[49:46]),
-		.crt_v_offset                       (status[52:50]),
+		.crt_h_offset                       (eff_crt_h),
+		.crt_v_offset                       (eff_crt_v),
 		.vsync_width_osd                    (vsync_width_osd),
 		.hsync_width_osd                    (hsync_width_osd),
-		.cga_frame_stack_rebuild            (status[64]),
+		.cga_frame_stack_rebuild            (frame_stack_osd),
 		.fx_cga_vram_d                      (fx_cga_vram_d),
 		.fx_cga_phase                       (fx_cga_phase),
 		.fx_cga_hres                        (fx_cga_hres),
@@ -1564,9 +2080,16 @@ module emu
     wire [16:0] jtopl2_snd = {jtopl2_snd_e[15], jtopl2_snd_e};
     wire [10:0] tandy_snd_e;
     wire [16:0] tandy_snd_base = {{6{tandy_snd_e[10]}}, tandy_snd_e};
+    // The CGA layout has a "Tandy Volume" option (status[35:34]). The EGA layout
+    // has no status bit left to spend on one, so it rides the Speaker Volume
+    // setting: both are internal beeper-class sources.
     wire [16:0] tandy_snd = `ENABLE_TANDY_AUDIO ?
-                            (tandy_snd_base << ({1'b0, status[35:34]} + 3'd2)) : 17'd0;
+                            (L_EGA ? {{{2{tandy_snd_e[10]}}, {4{tandy_snd_e[10]}}, tandy_snd_e} << status[33:32], 2'b00}
+                                   : (tandy_snd_base << ({1'b0, status[35:34]} + 3'd2))) : 17'd0;
     wire [16:0] spk_vol =  {2'b00, {3'b000,~speaker_out} << status[33:32], 11'd0};
+    wire [15:0] sb_snd_l, sb_snd_r;
+    wire [16:0] sb_l_snd = `ENABLE_SB ? {sb_snd_l[15], sb_snd_l} : 17'd0;
+    wire [16:0] sb_r_snd = `ENABLE_SB ? {sb_snd_r[15], sb_snd_r} : 17'd0;
     wire        speaker_out;
 
     localparam [3:0] comp_f1 = 4;
@@ -1597,7 +2120,7 @@ module emu
     begin
         reg [16:0] tmp_l;
 
-        tmp_l <= jtopl2_snd + cms_l_snd + tandy_snd + spk_vol + mt32_l_snd;
+        tmp_l <= jtopl2_snd + cms_l_snd + tandy_snd + spk_vol + mt32_l_snd + sb_l_snd;
 
         // clamp the output
         out_l <= (^tmp_l[16:15]) ? {tmp_l[16], {15{tmp_l[15]}}} : tmp_l[15:0];
@@ -1611,7 +2134,7 @@ module emu
     begin
         reg [16:0] tmp_r;
 
-        tmp_r <= jtopl2_snd + cms_r_snd + tandy_snd + spk_vol + mt32_r_snd;
+        tmp_r <= jtopl2_snd + cms_r_snd + tandy_snd + spk_vol + mt32_r_snd + sb_r_snd;
 
         // clamp the output
         out_r <= (^tmp_r[16:15]) ? {tmp_r[16], {15{tmp_r[15]}}} : tmp_r[15:0];
@@ -1805,7 +2328,7 @@ module emu
     // mt32-pi's I2C master to give up. Mirror ao486 and use only the genuine
     // system/user resets.
     wire        mt32_reset    = status[40] | RESET | status[0] | buttons[1];
-    wire        mt32_mode_req = status[41];
+    wire        mt32_mode_req = eff_mt32_gm;
     wire  [1:0] mt32_rom_req  = status[4:3];
     wire  [7:0] mt32_sf_req   = {5'd0, status[62:60]};
 
@@ -1868,8 +2391,12 @@ module emu
 
     wire signed [16:0] mt32_i2s_l_ext = {mt32_i2s_l[15], mt32_i2s_l};
     wire signed [16:0] mt32_i2s_r_ext = {mt32_i2s_r[15], mt32_i2s_r};
-    wire [16:0] mt32_l_snd = mt32_use ? mt32_i2s_l_ext : 17'd0;
-    wire [16:0] mt32_r_snd = mt32_use ? mt32_i2s_r_ext : 17'd0;
+    // With the EGA layout MT32-pi gets some headroom before it is summed with
+    // the core audio (a resource-free -6 dB shift of the signed samples).
+    wire signed [16:0] mt32_i2s_l_attenuated = {mt32_i2s_l_ext[16], mt32_i2s_l_ext[16:1]};
+    wire signed [16:0] mt32_i2s_r_attenuated = {mt32_i2s_r_ext[16], mt32_i2s_r_ext[16:1]};
+    wire [16:0] mt32_l_snd = mt32_use ? (L_EGA ? mt32_i2s_l_attenuated : mt32_i2s_l_ext) : 17'd0;
+    wire [16:0] mt32_r_snd = mt32_use ? (L_EGA ? mt32_i2s_r_attenuated : mt32_i2s_r_ext) : 17'd0;
 
     //
     ///////////////////////   MMC     ///////////////////////
@@ -1891,9 +2418,45 @@ module emu
     assign  spi_miso    = SD_MISO;
     assign  SD_CS       = spi_cs;
 
+    // Options that the machine samples only while it is in reset: say so when
+    // one of them has been changed and is still waiting for the next reset.
+    wire reset_pending = (cpu_type_8086_osd       != is8086_applied)
+                       | (HAS_EGA && (ega_monitor_profile_osd != ega_monitor_profile_applied))
+                       | (status[22:21]           != use_mmc)
+                       | (CARD_SELECTABLE && (card_sel_ega != ega_active));
+
+    generate
+    if (L_EGA) begin : g_pending_notice
+        reset_pending_notice #(.INFO_INDEX(PENDING_INFO_INDEX)) reset_notice (
+            .clock      (clk_14_318),
+            .pending    (reset_pending),
+            .osd_status (OSD_STATUS),
+            .suppress   (bios_hold),
+            .info       (pending_info),
+            .info_req   (pending_info_req)
+        );
+    end
+    else begin : g_no_pending_notice
+        assign pending_info     = 8'd0;
+        assign pending_info_req = 1'b0;
+    end
+    endgenerate
+
+    // Identification block (XTCTL 8990h..8997h): which card is in use
+    assign id_video_card    = ega_active ? 2'd3 : ((`ENABLE_HGC && hgc_mode) ? 2'd2 : 2'd1);
+    assign id_vga13_active  = HAS_EGA & vga_mode13_active_video;
+
     //
     ///////////////////////   VIDEO   ///////////////////////
     //
+    // The CGA/HGC card and the EGA card each keep their own front end
+    // (converter, scandoubler, border window).  Past that point the machine has
+    // one video path: whichever card is in use (ega_active_vid, fixed while the
+    // machine is out of reset) feeds a single 350-line framebuffer, a single
+    // source switch and a single main video mixer on the 57.272 MHz clock.  The
+    // HGC keeps its own 114.5 MHz mixer for the native (non-framebuffer)
+    // raster, which is merged with the main path in the output clock domain.
+    // With one card built the selections below are constants and fold away.
 
     wire HBlank;
     wire HSync;
@@ -1901,23 +2464,23 @@ module emu
     wire VSync;
     reg  ce_pixel_cga = 1'b0;
     wire ce_pixel_hgc_raw;
-    wire de_o;
     wire [5:0] r, g, b;
-    reg [7:0] raux_cga, gaux_cga, baux_cga;
-    reg [7:0] raux_hgc, gaux_hgc, baux_hgc;
-	 wire [7:0] VGA_R_AUX, VGA_G_AUX, VGA_B_AUX;
+    wire [7:0] raux_cga, gaux_cga, baux_cga;
+    wire [7:0] raux_hgc, gaux_hgc, baux_hgc;
+    wire [7:0] raux_ega, gaux_ega, baux_ega;
+    wire [7:0] VGA_R_AUX, VGA_G_AUX, VGA_B_AUX;
     wire CLK_VIDEO_HGC;
-    wire CLK_VIDEO_CGA;
+    wire CLK_VIDEO_MAIN;
     wire CE_PIXEL_CREDITS;
 
-    wire  [7:0] VGA_R_cga;
-    wire  [7:0] VGA_G_cga;
-    wire  [7:0] VGA_B_cga;
-    wire        VGA_HS_cga;
-    wire        VGA_VS_cga;
-    wire        VGA_DE_cga;
-    wire [21:0] gamma_bus_cga;
-    wire        CE_PIXEL_cga;
+    wire  [7:0] VGA_R_main;
+    wire  [7:0] VGA_G_main;
+    wire  [7:0] VGA_B_main;
+    wire        VGA_HS_main;
+    wire        VGA_VS_main;
+    wire        VGA_DE_main;
+    wire [21:0] gamma_bus_main;
+    wire        CE_PIXEL_main;
     reg         ce_pixel_cga_2x = 1'b0;
     wire        ce_pixel_cga_vid = cga_scandouble_en ? ce_pixel_cga_2x : ce_pixel_cga;
 
@@ -1930,7 +2493,6 @@ module emu
     wire [21:0] gamma_bus_hgc;
     wire        CE_PIXEL_hgc;
     reg  [1:0]  ce_pixel_hgc_div = 2'b0;
-    reg         ce_pixel_hgc_raw_d = 1'b0;
     reg  [5:0]  hgc_r_meta, hgc_g_meta, hgc_b_meta;
     reg  [5:0]  hgc_r_sync, hgc_g_sync, hgc_b_sync;
     reg         hgc_hs_meta, hgc_vs_meta;
@@ -1938,29 +2500,29 @@ module emu
     reg         hgc_hb_meta, hgc_vb_meta;
     reg         hgc_hb_sync, hgc_vb_sync;
 
-    reg  [7:0]  VGA_R_cga_src = 8'd0;
-    reg  [7:0]  VGA_G_cga_src = 8'd0;
-    reg  [7:0]  VGA_B_cga_src = 8'd0;
-    reg         VGA_HS_cga_src = 1'b0;
-    reg         VGA_VS_cga_src = 1'b0;
-    reg         VGA_DE_cga_src = 1'b0;
-    reg         LHBL_cga_src = 1'b1;
-    reg         LVBL_cga_src = 1'b1;
-    reg         CE_PIXEL_cga_src = 1'b0;
-    reg  [7:0]  VGA_R_cga_ps = 8'd0;
-    reg  [7:0]  VGA_G_cga_ps = 8'd0;
-    reg  [7:0]  VGA_B_cga_ps = 8'd0;
-    reg         VGA_HS_cga_ps = 1'b0;
-    reg         VGA_VS_cga_ps = 1'b0;
-    reg         VGA_DE_cga_ps = 1'b0;
-    reg         LHBL_cga_ps = 1'b1;
-    reg         LVBL_cga_ps = 1'b1;
-    reg         CE_PIXEL_cga_ps = 1'b0;
-    reg         CE_PIXEL_cga_ps_d = 1'b0;
-    reg  [7:0]  VGA_R_cga_hdmi, VGA_G_cga_hdmi, VGA_B_cga_hdmi;
-    reg         VGA_HS_cga_hdmi, VGA_VS_cga_hdmi, VGA_DE_cga_hdmi;
-    reg         LHBL_cga_hdmi, LVBL_cga_hdmi;
-    reg         CE_PIXEL_cga_hdmi = 1'b0;
+    reg  [7:0]  VGA_R_main_src = 8'd0;
+    reg  [7:0]  VGA_G_main_src = 8'd0;
+    reg  [7:0]  VGA_B_main_src = 8'd0;
+    reg         VGA_HS_main_src = 1'b0;
+    reg         VGA_VS_main_src = 1'b0;
+    reg         VGA_DE_main_src = 1'b0;
+    reg         LHBL_main_src = 1'b1;
+    reg         LVBL_main_src = 1'b1;
+    reg         CE_PIXEL_main_src = 1'b0;
+    reg  [7:0]  VGA_R_main_ps = 8'd0;
+    reg  [7:0]  VGA_G_main_ps = 8'd0;
+    reg  [7:0]  VGA_B_main_ps = 8'd0;
+    reg         VGA_HS_main_ps = 1'b0;
+    reg         VGA_VS_main_ps = 1'b0;
+    reg         VGA_DE_main_ps = 1'b0;
+    reg         LHBL_main_ps = 1'b1;
+    reg         LVBL_main_ps = 1'b1;
+    reg         CE_PIXEL_main_ps = 1'b0;
+    reg         CE_PIXEL_main_ps_d = 1'b0;
+    reg  [7:0]  VGA_R_main_hdmi, VGA_G_main_hdmi, VGA_B_main_hdmi;
+    reg         VGA_HS_main_hdmi, VGA_VS_main_hdmi, VGA_DE_main_hdmi;
+    reg         LHBL_main_hdmi, LVBL_main_hdmi;
+    reg         CE_PIXEL_main_hdmi = 1'b0;
 
     reg  [7:0]  VGA_R_hgc_src = 8'd0;
     reg  [7:0]  VGA_G_hgc_src = 8'd0;
@@ -1989,20 +2551,11 @@ module emu
     reg         VGA_HS_hgc_56 = 1'b0, VGA_VS_hgc_56 = 1'b0, VGA_DE_hgc_56 = 1'b0;
     reg         LHBL_hgc_56 = 1'b1, credits_vb_hgc_56 = 1'b1;
     reg         CE_PIXEL_hgc_hdmi = 1'b0;
-    reg         vga_f1_hgc_ps1 = 1'b0, vga_f1_hgc_ps2 = 1'b0;
 
     assign CLK_VIDEO = clk_video_out_ps;
     assign CLK_VIDEO_HGC = clk_114_544;
-    assign CLK_VIDEO_CGA = clk_57_272;
+    assign CLK_VIDEO_MAIN = clk_57_272;
     assign ce_pixel_hgc_raw = ce_pixel_hgc_div[1];
-    // ce_pixel_hgc_raw is deliberately a two-clock level for the existing
-    // HGC mixer.  The framebuffer needs one event per converted pixel, after
-    // the converter has registered the new colour, so sample the second half
-    // of that level as a single-cycle enable.
-    wire ce_pixel_hgc_fb = ce_pixel_hgc_raw & ce_pixel_hgc_raw_d;
-
-    always @(posedge clk_114_544)
-        ce_pixel_hgc_raw_d <= ce_pixel_hgc_raw;
 
     always @(posedge clk_114_544)
         if (`ENABLE_HGC)
@@ -2020,8 +2573,8 @@ module emu
     wire tandy_16_gfx;
     wire tandy_color_16;
     wire color = (screen_mode_video_ff == 3'd0);
-    
-	 wire HBlank_VGA;
+
+    wire HBlank_VGA;
 
     reg [10:0] HBlank_counter_hgc = 0;
     reg HBlank_fixed_hgc = 1'b1;
@@ -2070,7 +2623,7 @@ module emu
         .ce        (clk_14_318),
         .hsync     (VGA_HSYNC_REF),
         .vsync     (VGA_VSYNC_REF),
-        .v_early   (status[65] ? status[52:50] : 3'd0),
+        .v_early   (border_crt_osd ? eff_crt_v : 3'd0),
         .hblank    (HBlank_win),
         .vblank    (VBlank_win),
         .hsync_out (HSync_win),
@@ -2118,7 +2671,7 @@ module emu
     // is 6 pixels later than the reference one in 80 columns and every step of
     // the offset brings it 2 pixels earlier: the picture goes where the same
     // offset puts it in 80 columns with Border off.
-    wire [3:0] crt_h_off = status[65] ? status[49:46] : 4'd0;
+    wire [3:0] crt_h_off = border_crt_osd ? eff_crt_h : 4'd0;
     wire [6:0] crt_h_pix = (crt_h_off > 4'd3) ? {2'b00, crt_h_off, 1'b0} - 7'd6 : 7'd0;
     wire [17:0] cga_pix_dly;
     cga_pixel_delay #(.W(18)) cga_border_pix_delay
@@ -2133,10 +2686,11 @@ module emu
 
     wire haux_cga, vaux_cga, hbaux_cga, vbaux_cga;
     wire haux_hgc, vaux_hgc, hbaux_hgc, vbaux_hgc;
+    wire haux_ega, vaux_ega, hbaux_ega, vbaux_ega;
 
-    video_monochrome_converter_cga video_mono_cga 
+    video_monochrome_converter_cga video_mono_cga
 	(
-		.clk_vid(CLK_VIDEO_CGA),
+		.clk_vid(CLK_VIDEO_MAIN),
 		.ce_pix(ce_pixel_cga_vid),
 
 		.R({cga_pix_dly[17:12], 2'b00}),
@@ -2186,16 +2740,114 @@ module emu
 		.VBlank_OUT(vbaux_hgc)
 	);
 
-    ///////////////////  HGC/MDA 350-LINE CRT OUTPUT  ///////////////////
+    ///////////////////////////  EGA CARD FRONT END  ///////////////////////////
     //
-    // HGC/MDA's native 350-line raster is above the progressive limit of a
-    // 15 kHz television.  Capture only this path into DDRAM and read it back
-    // as either 480i or 240p.  CGA never enters this block: its calibrated
-    // native 15 kHz path remains completely bypassed.
+    // The EGA dot rate is not a fixed 14.318 MHz: in the 16.257 MHz modes
+    // consecutive dots can land on adjacent clk_28_636 edges, which in this
+    // domain would be a single wide level with only one rising edge.  The EGA
+    // exports a toggle instead, one flip per dot.  Exactly one synchroniser
+    // stage before the XOR: both clocks come from pll_system with a 2:1 ratio
+    // and no phase shift, and a second stage would push the enable past the
+    // end of the short dots of the 16.257 MHz pattern.
+    reg         ega_dot_toggle_d = 1'b0;
+    reg         ega_dot_toggle_dd = 1'b0;
+    // vga_mode13_active_video drives either the Native VGA or 15 kHz CRT-TV
+    // raster (rtl/video/vga_mode13_timing.v), whose real pixel rate is one
+    // flip per displayed pixel, not per video-clock cycle.
+    reg         vga_mode13_pixel_toggle_d = 1'b0;
+    reg         vga_mode13_pixel_toggle_dd = 1'b0;
+
+    always @(posedge clk_57_272)
+    begin
+        ega_dot_toggle_d           <= ega_dot_toggle;
+        ega_dot_toggle_dd          <= ega_dot_toggle_d;
+        vga_mode13_pixel_toggle_d  <= vga_mode13_pixel_toggle;
+        vga_mode13_pixel_toggle_dd <= vga_mode13_pixel_toggle_d;
+    end
+
+    wire        ce_pixel_dot    = ega_dot_toggle_d ^ ega_dot_toggle_dd;
+    wire        ce_pixel_mode13 = vga_mode13_pixel_toggle_d ^ vga_mode13_pixel_toggle_dd;
+    wire        vga_video_direct = vga_mode13_active_video;
+    wire        ce_pixel_ega = ega_scandouble_active ? ce_pixel_cga_2x
+                             : vga_video_direct      ? ce_pixel_mode13
+                             : ce_pixel_dot;
+
+    wire LHBL_ega = (ega_scandouble_active || vga_video_direct) ? EGA_HBlank : ~EGA_de_o;
+    wire LVBL_ega = EGA_VBlank;
+
+    // Sync and blanking go through the converter with the colour so they come
+    // out of it with the same delay.  Mode 13h only takes the undelayed pair
+    // below in Full Color: once a monochrome Display option is picked it has
+    // to run through the converter like every other mode, both for the tint
+    // and to stay time-aligned with it, or the picture is full colour again.
+    video_monochrome_converter video_mono_ega
+	(
+		.clk_vid(CLK_VIDEO_MAIN),
+		.ce_pix(ce_pixel_ega),
+
+		.R({EGA_R, 2'b00}),
+		.G({EGA_G, 2'b00}),
+		.B({EGA_B, 2'b00}),
+
+		.HSync(EGA_HSYNC),
+		.VSync(EGA_VSYNC),
+		.HBlank(LHBL_ega),
+		.VBlank(LVBL_ega),
+
+		.gfx_mode(screen_mode_video_ff),
+
+		.R_OUT(raux_ega),
+		.G_OUT(gaux_ega),
+		.B_OUT(baux_ega),
+
+		.HSync_OUT(haux_ega),
+		.VSync_OUT(vaux_ega),
+		.HBlank_OUT(hbaux_ega),
+		.VBlank_OUT(vbaux_ega)
+	);
+
+    wire vga_video_direct_color = vga_video_direct && color;
+    wire [7:0] bypass_r = vga_video_direct_color ? {EGA_R, EGA_R[5:4]} : raux_ega;
+    wire [7:0] bypass_g = vga_video_direct_color ? {EGA_G, EGA_G[5:4]} : gaux_ega;
+    wire [7:0] bypass_b = vga_video_direct_color ? {EGA_B, EGA_B[5:4]} : baux_ega;
+    wire bypass_hs = vga_video_direct_color ? EGA_HSYNC : haux_ega;
+    wire bypass_vs = vga_video_direct_color ? EGA_VSYNC : vaux_ega;
+    wire bypass_hb = vga_video_direct_color ? LHBL_ega  : hbaux_ega;
+    wire bypass_vb = vga_video_direct_color ? LVBL_ega  : vbaux_ega;
+
+    // The detector runs in the 28.636 MHz video domain and these change once a
+    // frame. Two stages across to the 57.272 MHz clock, which is the same PLL at
+    // twice the rate.
+    reg        mode350_s1, mode350_s2;
+    reg [11:0] adots_s1, adots_s2;
+    reg [9:0]  alines_s1, alines_s2;
+
+    always @(posedge clk_57_272) begin
+        mode350_s1 <= ega_mode350;      mode350_s2 <= mode350_s1;
+        adots_s1   <= ega_active_dots;  adots_s2   <= adots_s1;
+        alines_s1  <= ega_active_lines; alines_s2  <= alines_s1;
+    end
+
+    ///////////////////  350-LINE CRT OUTPUT, 720x480i / 240p  ///////////////////
     //
-    // The HGC pipeline runs at 114.544 MHz while its native pixels are exposed
-    // by ce_pixel_hgc_raw as a two-clock level.  The capture samples the second
-    // half of that level, giving one event per converted 28.636 MHz pixel.
+    // EGA and MDA/HGC modes with more than 240 active lines scan at 18-22 kHz
+    // and no television locks to that.  They are captured into DDRAM a frame
+    // at a time and read back out on a 15.734 kHz interlaced (or progressive)
+    // raster.  CGA never enters this block: its calibrated native 15 kHz path
+    // stays completely bypassed.  The capture taps the picture after the
+    // monochrome converter, so the Display option is already applied.
+    //
+    // One capture/readout/DDRAM arbiter serves both cards, on the 57.272 MHz
+    // clock.  The HGC front end runs at 114.5 MHz and exposes its pixels as a
+    // two-clock level; the rising edge of that level, sampled here, gives one
+    // event per converted 28.636 MHz pixel with the colour already settled.
+    reg  hgc_raw_57 = 1'b0, hgc_raw_57_d = 1'b0;
+    always @(posedge clk_57_272) begin
+        hgc_raw_57   <= ce_pixel_hgc_raw;
+        hgc_raw_57_d <= hgc_raw_57;
+    end
+    wire ce_pixel_hgc_fb = hgc_raw_57 & ~hgc_raw_57_d;
+
     localparam [11:0] HGC_FB_DOTS  = 12'd720;
     localparam [9:0]  HGC_FB_LINES = 10'd350;
 
@@ -2219,8 +2871,8 @@ module emu
     // Measure the source aperture once per frame.  The result is held still
     // while the next frame is captured, so register writes during a mode set
     // cannot change the DDRAM stride or make a mixed frame appear valid.
-    always @(posedge CLK_VIDEO_HGC) begin
-        if (video_retime_reset_hgc) begin
+    always @(posedge clk_57_272) begin
+        if (video_retime_reset_57) begin
             hgc_fb_de_q          <= 1'b0;
             hgc_fb_vblank_q      <= 1'b1;
             hgc_fb_line_count   <= 10'd0;
@@ -2241,7 +2893,18 @@ module emu
         end
     end
 
-    wire fb_enable = swap_video_eff & crt480i_osd;
+    wire fb_enable = ega_active_vid ? (mode350_s2 & crt480i_osd)
+                                    : (swap_video_eff & crt480i_osd);
+
+    wire        cap_ce      = ega_active_vid ? ce_pixel_ega : ce_pixel_hgc_fb;
+    wire [7:0]  cap_r       = ega_active_vid ? bypass_r : raux_hgc;
+    wire [7:0]  cap_g       = ega_active_vid ? bypass_g : gaux_hgc;
+    wire [7:0]  cap_b       = ega_active_vid ? bypass_b : baux_hgc;
+    wire        cap_de      = ega_active_vid ? (~bypass_hb & ~bypass_vb) : hgc_fb_de;
+    wire        cap_vblank  = ega_active_vid ? bypass_vb : vbaux_hgc;
+    wire [11:0] cap_dots    = ega_active_vid ? adots_s2  : HGC_FB_DOTS;
+    wire [9:0]  cap_lines   = ega_active_vid ? alines_s2 : hgc_fb_active_lines;
+
     wire [7:0]  cap_burstcnt;
     wire [28:0] cap_addr;
     wire [63:0] cap_din;
@@ -2254,16 +2917,16 @@ module emu
     wire        fb_frame_valid;
     wire [1:0]  fb_reading_buffer;
 
-    hgc_fb_capture fb_capture_hgc (
-        .clk(CLK_VIDEO_HGC),
-        .reset(video_retime_reset_hgc),
+    ega_fb_capture fb_capture (
+        .clk(CLK_VIDEO_MAIN),
+        .reset(video_retime_reset_57),
         .enable(fb_enable),
-        .ce_pix(ce_pixel_hgc_fb),
-        .r(raux_hgc), .g(gaux_hgc), .b(baux_hgc),
-        .de(hgc_fb_de),
-        .vblank(vbaux_hgc),
-        .active_dots(HGC_FB_DOTS),
-        .active_lines(hgc_fb_active_lines),
+        .ce_pix(cap_ce),
+        .r(cap_r), .g(cap_g), .b(cap_b),
+        .de(cap_de),
+        .vblank(cap_vblank),
+        .active_dots(cap_dots),
+        .active_lines(cap_lines),
         .reading_buffer(fb_reading_buffer),
         .ddram_busy(cap_busy),
         .ddram_burstcnt(cap_burstcnt),
@@ -2286,16 +2949,17 @@ module emu
     wire        fb_rd_grant;
     wire [63:0] fb_rd_data;
     wire        fb_rd_data_valid;
+
     wire [7:0]  fb_r, fb_g, fb_b;
     wire        fb_hs, fb_vs, fb_hb, fb_vb, fb_de, fb_field, fb_ce_pix;
 
-    hgc_fb_readout #(.CLK_DIV(8)) fb_readout_hgc (
-        .clk(CLK_VIDEO_HGC),
-        .reset(video_retime_reset_hgc),
+    ega_fb_readout fb_readout (
+        .clk(CLK_VIDEO_MAIN),
+        .reset(video_retime_reset_57),
         .enable(fb_enable),
         .progressive(crt480i_prog),
-        .crt_h_offset(status[49:46]),
-        .crt_v_offset(status[52:50]),
+        .crt_h_offset(eff_crt_h),
+        .crt_v_offset(eff_crt_v),
         .frame_buffer(fb_frame_buffer),
         .frame_width(fb_frame_width),
         .frame_height(fb_frame_height),
@@ -2313,11 +2977,14 @@ module emu
         .reading_buffer(fb_reading_buffer)
     );
 
-    assign DDRAM_CLK = CLK_VIDEO_HGC;
+    // The memory runs on the video pipeline clock, so the capture, the
+    // raster that reads it back and DDRAM itself are all one domain and
+    // nothing has to cross between them.
+    assign DDRAM_CLK = CLK_VIDEO_MAIN;
 
-    hgc_ddr_arbiter fb_arbiter_hgc (
-        .clk(CLK_VIDEO_HGC),
-        .reset(video_retime_reset_hgc),
+    ega_ddr_arbiter fb_arbiter (
+        .clk(CLK_VIDEO_MAIN),
+        .reset(video_retime_reset_57),
         .ddram_busy(DDRAM_BUSY),
         .ddram_burstcnt(DDRAM_BURSTCNT),
         .ddram_addr(DDRAM_ADDR),
@@ -2341,151 +3008,148 @@ module emu
         .wr_grant()
     );
 
-    // Switch on an HGC blanking edge once a complete frame is available. It
-    // avoids exposing a half-filled DDRAM frame during a mode transition.
+    // Change over in the destination raster's own vertical blank. Requiring
+    // both rasters to be blank at once can stall when two roughly 60 Hz modes
+    // keep nearly the same phase, leaving the output on the old (already
+    // black) path while the new one is ready underneath it.
     wire crt480i_active;
-    video_source_switch crt480i_source_switch_hgc (
-        .clock(CLK_VIDEO_HGC),
-        .reset(video_retime_reset_hgc),
+
+    video_source_switch crt480i_source_switch (
+        .clock(CLK_VIDEO_MAIN),
+        .reset(video_retime_reset_57),
         .select_alt(fb_enable & fb_frame_valid),
-        .primary_hsync(haux_hgc),
-        .primary_vblank(vbaux_hgc),
+        .primary_hsync(ega_active_vid ? bypass_hs : haux_hgc),
+        .primary_vblank(ega_active_vid ? bypass_vb : vbaux_hgc),
         .alt_hsync(fb_hs),
         .alt_vblank(fb_vb),
         .alt_active(crt480i_active)
     );
 
-    wire [7:0] hgc_mixer_r = crt480i_active ? fb_r : raux_hgc;
-    wire [7:0] hgc_mixer_g = crt480i_active ? fb_g : gaux_hgc;
-    wire [7:0] hgc_mixer_b = crt480i_active ? fb_b : baux_hgc;
-    wire       hgc_mixer_hs = crt480i_active ? fb_hs : haux_hgc;
-    wire       hgc_mixer_vs = crt480i_active ? fb_vs : vaux_hgc;
-    wire       hgc_mixer_hb = crt480i_active ? fb_hb : hbaux_hgc;
-    wire       hgc_mixer_vb = crt480i_active ? fb_vb : vbaux_hgc;
-    wire       ce_pixel_hgc_mixer = crt480i_active ? fb_ce_pix : ce_pixel_hgc_raw;
+    // The main mixer carries the EGA picture, the CGA picture and, when the
+    // captured 15 kHz raster is on the wire, the HGC picture too.
+    wire [7:0] main_r  = crt480i_active ? fb_r  : (ega_active_vid ? bypass_r  : raux_cga);
+    wire [7:0] main_g  = crt480i_active ? fb_g  : (ega_active_vid ? bypass_g  : gaux_cga);
+    wire [7:0] main_b  = crt480i_active ? fb_b  : (ega_active_vid ? bypass_b  : baux_cga);
+    wire       main_hs = crt480i_active ? fb_hs : (ega_active_vid ? bypass_hs : haux_cga);
+    wire       main_vs = crt480i_active ? fb_vs : (ega_active_vid ? bypass_vs : vaux_cga);
+    wire       main_hb = crt480i_active ? fb_hb : (ega_active_vid ? bypass_hb : hbaux_cga);
+    wire       main_vb = crt480i_active ? fb_vb : (ega_active_vid ? bypass_vb : vbaux_cga);
+    wire       ce_pixel_main = crt480i_active ? fb_ce_pix
+                             : (ega_active_vid ? ce_pixel_ega : ce_pixel_cga_vid);
 
-    always @(posedge clk_video_out_ps or posedge video_retime_reset_local)
-    begin
-        if (video_retime_reset_local) begin
-            vga_f1_hgc_ps1 <= 1'b0;
-            vga_f1_hgc_ps2 <= 1'b0;
-        end else begin
-            vga_f1_hgc_ps1 <= crt480i_active & fb_field;
-            vga_f1_hgc_ps2 <= vga_f1_hgc_ps1;
-        end
+    // The credits overlay and the framework's active-window measurement follow
+    // whichever raster is actually being emitted.
+    wire LHBL_main = crt480i_active ? fb_hb : (ega_active_vid ? LHBL_ega : LHBL);
+    wire LVBL_main = crt480i_active ? fb_vb : (ega_active_vid ? LVBL_ega : LVBL);
+
+    // Which field is on the wire. It moves once per field, far slower than
+    // anything else here, so two flops across to the output clock are enough.
+    reg vga_f1_ps1 = 1'b0, vga_f1_ps2 = 1'b0;
+
+    always @(posedge clk_video_out_ps) begin
+        vga_f1_ps1 <= crt480i_active & fb_field;
+        vga_f1_ps2 <= vga_f1_ps1;
     end
 
-    assign VGA_F1 = vga_f1_hgc_ps2;
-
-    /*
-    assign VGA_R = raux;
-    assign VGA_G = gaux;
-    assign VGA_B = baux;
-    assign VGA_HS = HSync;
-    assign VGA_VS = VSync;
-    assign VGA_DE = ~(HBlank | VBlank);
-    assign CE_PIXEL = ce_pixel;
-    */
+    assign VGA_F1 = vga_f1_ps2;
 
     wire       pre2x_LHBL, pre2x_LVBL;
-    wire [7:0] pre2x_r, pre2x_g, pre2x_b;
-	 
 
-	video_mixer #(.GAMMA(1)) video_mixer_cga
+	video_mixer #(.GAMMA(1)) video_mixer_main
 	(
 		.*,
 
-		.CLK_VIDEO(CLK_VIDEO_CGA),
-		.CE_PIXEL(CE_PIXEL_cga),
-		.ce_pix(ce_pixel_cga_vid),
+		.CLK_VIDEO(CLK_VIDEO_MAIN),
+		.CE_PIXEL(CE_PIXEL_main),
+		.ce_pix(ce_pixel_main),
 
 		.freeze_sync(),
 
-		.R(raux_cga),
-		.G(gaux_cga),
-		.B(baux_cga),
+		.R(main_r),
+		.G(main_g),
+		.B(main_b),
 
-		.HBlank(hbaux_cga),
-		.VBlank(vbaux_cga),
-		.HSync(haux_cga),
-		.VSync(vaux_cga),
+		.HBlank(main_hb),
+		.VBlank(main_vb),
+		.HSync(main_hs),
+		.VSync(main_vs),
 
 		.scandoubler(1'b0),
-		.hq2x(scale_cga_ff==1),
-		.gamma_bus(gamma_bus_cga),
+		.hq2x((ega_active_vid || swap_video_eff) ? (scale_video_ff==1) : (scale_cga_ff==1)),
+		.gamma_bus(gamma_bus_main),
 
-		.VGA_R(VGA_R_cga),
-		.VGA_G(VGA_G_cga),
-		.VGA_B(VGA_B_cga),
-		.VGA_VS(VGA_VS_cga),
-		.VGA_HS(VGA_HS_cga),
-		.VGA_DE(VGA_DE_cga)
+		.VGA_R(VGA_R_main),
+		.VGA_G(VGA_G_main),
+		.VGA_B(VGA_B_main),
+		.VGA_VS(VGA_VS_main),
+		.VGA_HS(VGA_HS_main),
+		.VGA_DE(VGA_DE_main)
 
 	);
 
     always @(posedge clk_57_272)
     begin
-        VGA_R_cga_src <= VGA_R_cga;
-        VGA_G_cga_src <= VGA_G_cga;
-        VGA_B_cga_src <= VGA_B_cga;
-        VGA_HS_cga_src <= VGA_HS_cga;
-        VGA_VS_cga_src <= VGA_VS_cga;
-        VGA_DE_cga_src <= VGA_DE_cga;
-        LHBL_cga_src <= LHBL;
-        LVBL_cga_src <= LVBL;
-        CE_PIXEL_cga_src <= CE_PIXEL_cga;
+        VGA_R_main_src <= VGA_R_main;
+        VGA_G_main_src <= VGA_G_main;
+        VGA_B_main_src <= VGA_B_main;
+        VGA_HS_main_src <= VGA_HS_main;
+        VGA_VS_main_src <= VGA_VS_main;
+        VGA_DE_main_src <= VGA_DE_main;
+        LHBL_main_src <= LHBL_main;
+        LVBL_main_src <= LVBL_main;
+        CE_PIXEL_main_src <= CE_PIXEL_main;
     end
 
-    // Retimes the exact-frequency CGA output onto a phase-shifted sibling clock.
+    // Retimes the exact-frequency main output onto a phase-shifted sibling clock.
     always @(posedge clk_video_out_ps or posedge video_retime_reset_local)
     begin
         if (video_retime_reset_local)
         begin
-            VGA_R_cga_ps <= 8'd0;
-            VGA_G_cga_ps <= 8'd0;
-            VGA_B_cga_ps <= 8'd0;
-            VGA_HS_cga_ps <= 1'b0;
-            VGA_VS_cga_ps <= 1'b0;
-            VGA_DE_cga_ps <= 1'b0;
-            LHBL_cga_ps <= 1'b1;
-            LVBL_cga_ps <= 1'b1;
-            CE_PIXEL_cga_ps <= 1'b0;
-            CE_PIXEL_cga_ps_d <= 1'b0;
-            VGA_R_cga_hdmi <= 8'd0;
-            VGA_G_cga_hdmi <= 8'd0;
-            VGA_B_cga_hdmi <= 8'd0;
-            VGA_HS_cga_hdmi <= 1'b0;
-            VGA_VS_cga_hdmi <= 1'b0;
-            VGA_DE_cga_hdmi <= 1'b0;
-            LHBL_cga_hdmi <= 1'b1;
-            LVBL_cga_hdmi <= 1'b1;
-            CE_PIXEL_cga_hdmi <= 1'b0;
+            VGA_R_main_ps <= 8'd0;
+            VGA_G_main_ps <= 8'd0;
+            VGA_B_main_ps <= 8'd0;
+            VGA_HS_main_ps <= 1'b0;
+            VGA_VS_main_ps <= 1'b0;
+            VGA_DE_main_ps <= 1'b0;
+            LHBL_main_ps <= 1'b1;
+            LVBL_main_ps <= 1'b1;
+            CE_PIXEL_main_ps <= 1'b0;
+            CE_PIXEL_main_ps_d <= 1'b0;
+            VGA_R_main_hdmi <= 8'd0;
+            VGA_G_main_hdmi <= 8'd0;
+            VGA_B_main_hdmi <= 8'd0;
+            VGA_HS_main_hdmi <= 1'b0;
+            VGA_VS_main_hdmi <= 1'b0;
+            VGA_DE_main_hdmi <= 1'b0;
+            LHBL_main_hdmi <= 1'b1;
+            LVBL_main_hdmi <= 1'b1;
+            CE_PIXEL_main_hdmi <= 1'b0;
         end
         else
         begin
-            CE_PIXEL_cga_hdmi <= CE_PIXEL_cga_ps & ~CE_PIXEL_cga_ps_d;
-            if (CE_PIXEL_cga_ps & ~CE_PIXEL_cga_ps_d)
+            CE_PIXEL_main_hdmi <= CE_PIXEL_main_ps & ~CE_PIXEL_main_ps_d;
+            if (CE_PIXEL_main_ps & ~CE_PIXEL_main_ps_d)
             begin
-                VGA_R_cga_hdmi <= VGA_R_cga_ps;
-                VGA_G_cga_hdmi <= VGA_G_cga_ps;
-                VGA_B_cga_hdmi <= VGA_B_cga_ps;
-                VGA_HS_cga_hdmi <= VGA_HS_cga_ps;
-                VGA_VS_cga_hdmi <= VGA_VS_cga_ps;
-                VGA_DE_cga_hdmi <= VGA_DE_cga_ps;
-                LHBL_cga_hdmi <= LHBL_cga_ps;
-                LVBL_cga_hdmi <= LVBL_cga_ps;
+                VGA_R_main_hdmi <= VGA_R_main_ps;
+                VGA_G_main_hdmi <= VGA_G_main_ps;
+                VGA_B_main_hdmi <= VGA_B_main_ps;
+                VGA_HS_main_hdmi <= VGA_HS_main_ps;
+                VGA_VS_main_hdmi <= VGA_VS_main_ps;
+                VGA_DE_main_hdmi <= VGA_DE_main_ps;
+                LHBL_main_hdmi <= LHBL_main_ps;
+                LVBL_main_hdmi <= LVBL_main_ps;
             end
 
-            CE_PIXEL_cga_ps_d <= CE_PIXEL_cga_ps;
-            CE_PIXEL_cga_ps <= CE_PIXEL_cga_src;
-            VGA_R_cga_ps <= VGA_R_cga_src;
-            VGA_G_cga_ps <= VGA_G_cga_src;
-            VGA_B_cga_ps <= VGA_B_cga_src;
-            VGA_HS_cga_ps <= VGA_HS_cga_src;
-            VGA_VS_cga_ps <= VGA_VS_cga_src;
-            VGA_DE_cga_ps <= VGA_DE_cga_src;
-            LHBL_cga_ps <= LHBL_cga_src;
-            LVBL_cga_ps <= LVBL_cga_src;
+            CE_PIXEL_main_ps_d <= CE_PIXEL_main_ps;
+            CE_PIXEL_main_ps <= CE_PIXEL_main_src;
+            VGA_R_main_ps <= VGA_R_main_src;
+            VGA_G_main_ps <= VGA_G_main_src;
+            VGA_B_main_ps <= VGA_B_main_src;
+            VGA_HS_main_ps <= VGA_HS_main_src;
+            VGA_VS_main_ps <= VGA_VS_main_src;
+            VGA_DE_main_ps <= VGA_DE_main_src;
+            LHBL_main_ps <= LHBL_main_src;
+            LVBL_main_ps <= LVBL_main_src;
         end
     end
 
@@ -2517,22 +3181,20 @@ module emu
 
 		.CLK_VIDEO(CLK_VIDEO_HGC),
 		.CE_PIXEL(CE_PIXEL_hgc),
-		.ce_pix(ce_pixel_hgc_mixer),
+		.ce_pix(ce_pixel_hgc_raw),
 
 		.freeze_sync(),
 
-		.R(hgc_mixer_r),
-		.G(hgc_mixer_g),
-		.B(hgc_mixer_b),
+		.R(raux_hgc),
+		.G(gaux_hgc),
+		.B(baux_hgc),
 
-		.HBlank(hgc_mixer_hb),
-		.VBlank(hgc_mixer_vb),
-		.HSync(hgc_mixer_hs),
-		.VSync(hgc_mixer_vs),
+		.HBlank(hbaux_hgc),
+		.VBlank(vbaux_hgc),
+		.HSync(haux_hgc),
+		.VSync(vaux_hgc),
 
-		// The framebuffer already emits a 15 kHz raster. Applying the normal
-		// HGC scandoubler to it would turn 480i/240p back into a high-rate mode.
-		.scandoubler(scandoubler && !crt480i_active),
+		.scandoubler(scandoubler),
 		.hq2x(scale_video_ff==1),
 		.gamma_bus(gamma_bus_hgc),
 
@@ -2566,8 +3228,8 @@ module emu
             VGA_HS_hgc_src <= VGA_HS_hgc;
             VGA_VS_hgc_src <= VGA_VS_hgc;
             VGA_DE_hgc_src <= VGA_DE_hgc;
-            LHBL_hgc_src <= crt480i_active ? fb_hb : hgc_hb_sync;
-            credits_vb_hgc_src <= crt480i_active ? fb_vb : hgc_vb_sync;
+            LHBL_hgc_src <= hgc_hb_sync;
+            credits_vb_hgc_src <= hgc_vb_sync;
         end
     end
 
@@ -2645,6 +3307,8 @@ module emu
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] ar_video_out_ff = 2'b00;
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg swap_video_out_meta = 1'b0;
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg swap_video_out_ff = 1'b0;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg crt480i_out_meta = 1'b0;
+    (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg crt480i_out_ff = 1'b0;
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg border_video_out_meta = 1'b0;
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg border_video_out_ff = 1'b0;
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) reg [1:0] scale_video_out_meta = 2'b00;
@@ -2658,6 +3322,8 @@ module emu
         ar_video_out_ff       <= ar_video_out_meta;
         swap_video_out_meta   <= swap_video_eff;
         swap_video_out_ff     <= swap_video_out_meta;
+        crt480i_out_meta      <= crt480i_active;
+        crt480i_out_ff        <= crt480i_out_meta;
         border_video_out_meta <= border_video_ff;
         border_video_out_ff   <= border_video_out_meta;
         scale_video_out_meta  <= scale_video_ff;
@@ -2670,16 +3336,20 @@ module emu
     // final video clock, so take it from the synchronized copy.
     assign VGA_SL = {scale_video_out_ff==3, scale_video_out_ff==2};
 
-    assign VGA_R_AUX  =  swap_video_out_ff ? VGA_R_hgc_56   : VGA_R_cga_hdmi;
-    assign VGA_G_AUX  =  swap_video_out_ff ? VGA_G_hgc_56   : VGA_G_cga_hdmi;
-    assign VGA_B_AUX  =  swap_video_out_ff ? VGA_B_hgc_56   : VGA_B_cga_hdmi;
-    assign VGA_HS =  swap_video_out_ff ? VGA_HS_hgc_56 : VGA_HS_cga_hdmi;
-    assign VGA_VS =  swap_video_out_ff ? VGA_VS_hgc_56 : VGA_VS_cga_hdmi;
-    assign gamma_bus =  swap_video_eff ? gamma_bus_hgc : gamma_bus_cga;
-    assign CE_PIXEL  =  swap_video_out_ff ? CE_PIXEL_hgc_hdmi : CE_PIXEL_cga_hdmi;
-    assign CE_PIXEL_CREDITS = swap_video_out_ff ? CE_PIXEL_hgc_hdmi : CE_PIXEL_cga_hdmi;
-    wire credits_hb = swap_video_out_ff ? LHBL_hgc_56 : LHBL_cga_hdmi;
-    wire credits_vb = swap_video_out_ff ? credits_vb_hgc_56 : LVBL_cga_hdmi;
+    // The HGC's own mixer is on the wire only for its native raster; once the
+    // captured 15 kHz raster is up it travels through the main mixer instead.
+    wire hgc_native_out = swap_video_out_ff & ~crt480i_out_ff;
+
+    assign VGA_R_AUX  =  hgc_native_out ? VGA_R_hgc_56   : VGA_R_main_hdmi;
+    assign VGA_G_AUX  =  hgc_native_out ? VGA_G_hgc_56   : VGA_G_main_hdmi;
+    assign VGA_B_AUX  =  hgc_native_out ? VGA_B_hgc_56   : VGA_B_main_hdmi;
+    assign VGA_HS =  hgc_native_out ? VGA_HS_hgc_56 : VGA_HS_main_hdmi;
+    assign VGA_VS =  hgc_native_out ? VGA_VS_hgc_56 : VGA_VS_main_hdmi;
+    assign gamma_bus =  (swap_video_eff && !crt480i_active) ? gamma_bus_hgc : gamma_bus_main;
+    assign CE_PIXEL  =  hgc_native_out ? CE_PIXEL_hgc_hdmi : CE_PIXEL_main_hdmi;
+    assign CE_PIXEL_CREDITS = hgc_native_out ? CE_PIXEL_hgc_hdmi : CE_PIXEL_main_hdmi;
+    wire credits_hb = hgc_native_out ? LHBL_hgc_56 : LHBL_main_hdmi;
+    wire credits_vb = hgc_native_out ? credits_vb_hgc_56 : LVBL_main_hdmi;
     wire credits_border = swap_video_out_ff ? 1'b0 : border_video_out_ff;
     jtframe_credits #(
         .PAGES  (4),
@@ -2715,10 +3385,10 @@ module emu
 
     // The credits block registers RGB once on CE_PIXEL, even while its overlay
     // is disabled. Register the already-processed DE on that same event; using
-    // the selected CGA/HGC DE directly opens the active window one pixel before
-    // the corresponding RGB output sample and clips the last pixel instead.
+    // the selected DE directly opens the active window one pixel before the
+    // corresponding RGB output sample and clips the last pixel instead.
     reg VGA_DE_credits = 1'b0;
-    wire VGA_DE_selected = swap_video_out_ff ? VGA_DE_hgc_56 : VGA_DE_cga_hdmi;
+    wire VGA_DE_selected = hgc_native_out ? VGA_DE_hgc_56 : VGA_DE_main_hdmi;
     always @(posedge clk_video_out_ps or posedge video_retime_reset_local) begin
         if (video_retime_reset_local)
             VGA_DE_credits <= 1'b0;

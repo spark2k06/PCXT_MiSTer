@@ -18,7 +18,7 @@ set CLOCK_14_318    {emu:emu|clk_14_318|q}
 # clk_14_318 derives from clk_28_636 (PLL video - precise frequency)
 create_generated_clock -name clk_14_318 -source [get_pins $CLOCK_VGA_CGA] -divide_by 2 [get_pins $CLOCK_14_318]
 # SDRAM. The controller has its own clock, which also
-# serves as the HGC video clock: 114.545 MHz (general[2]). The chip's clock
+# serves as the HGC pixel clock: 114.545 MHz (general[2]). The chip's clock
 # leaves through a DDIO register (emu|sdram_clk_ddr): a separate PLL output
 # (general[4]) half a period after the controller clock.
 foreach_in_collection a [get_all_global_assignments -name VERILOG_MACRO] {
@@ -91,9 +91,19 @@ set_clock_groups -asynchronous \
 set_false_path -from [get_registers {pll_hdmi_adj:pll_hdmi_adj|i_vss_delay}] \
               -to   [get_registers {pll_hdmi_adj:pll_hdmi_adj|ivss}]
 set_false_path -to [get_registers {emu:emu|video_retime_reset_sync[*] \
-                                    emu:emu|video_retime_hgc_sync[*]}]
+                                    emu:emu|video_retime_57_sync[*]}]
 set_false_path -to [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_reset_cga_sync[*] \
                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|video_reset_hgc_sync[*]}]
+# Video card selected at reset (ENABLE_EGA builds). ega_active is applied on the
+# chipset clock and only read through these level synchronisers; it never
+# changes while the machine runs. The EGA card's own reset releases on the
+# clock that consumes it (video_reset_clock_sync lives in the EGA_CARD generate
+# block, so the wildcard skips whatever scope name Quartus gives it).
+set_false_path -to [get_registers {emu:emu|ega_active_vid_sync[*] \
+                                   emu:emu|crt480i_out_meta}]
+set_false_path -to [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|ega_active_cga_sync[*] \
+                                   emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|ega_active_hgc_sync[*] \
+                                   emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*video_reset_clock_sync[*]}]
 set_false_path -to [get_registers {sysmem_lite:sysmem|ram1_reset_0 \
                                     sysmem_lite:sysmem|ram2_reset_0 \
                                     sysmem_lite:sysmem|vbuf_reset_0}]
@@ -150,6 +160,18 @@ set_max_delay -from [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERI
 
 set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|HGC_CRTC_DOUT_1[*] \
                                     emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|HGC_CRTC_OE_1}] $VIDEO_TO_SYSYEM_DELAY
+
+# EGA card I/O. The write stretcher posts each cycle with a guaranteed width;
+# the first register on the card's clock may take up to VIDEO_TO_SYSYEM_DELAY.
+# The wildcards skip the EGA_CARD generate scope in the instance path.
+set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_address_sync1[*] \
+                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_data_sync1[*] \
+                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_write_n_sync1 \
+                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_read_n_sync1 \
+                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_address_enable_n_sync1}] $VIDEO_TO_SYSYEM_DELAY
+
+set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*EGA_IO_DOUT_SYNC1[*] \
+                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*EGA_IO_OE_SYNC1}] $VIDEO_TO_SYSYEM_DELAY
 
 # The Hercules graphics page crosses to the chipset clock for the memory map
 # (the video memory is in SDRAM now, there is no HGC BRAM to write any more).
@@ -247,14 +269,15 @@ set_multicycle_path -from [get_clocks SDRAM_CLK] -to [get_clocks $CLOCK_SDRAM] -
 #============================================================
 # DDRAM / HPS f2h bridge
 #
-# The HGC 350-line framebuffer clocks the f2h DDRAM port from the video PLL.
-# The HPS bridge and the audio PLL are independent clock domains which share
-# the DDRAM wrapper. The wrapper provides the protocol crossings, so do not
-# make TimeQuest close false synchronous relationships between these domains.
+# The shared 350-line framebuffer (EGA card and HGC) clocks the f2h DDRAM port
+# from the 57.27 MHz video clock (general[1]). The HPS bridge and the audio
+# PLL are independent clock domains which share the DDRAM wrapper. The wrapper
+# provides the protocol crossings, so do not make TimeQuest close false
+# synchronous relationships between these domains.
 #============================================================
 set CLOCK_AUDIO {pll_audio|pll_audio_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}
 
 set_clock_groups -asynchronous \
-    -group [get_clocks $CLOCK_VIDEO_MDA] \
+    -group [get_clocks $CLOCK_VGA_MDA] \
     -group [get_clocks $CLOCK_H2F]      \
     -group [get_clocks $CLOCK_AUDIO]
