@@ -13,13 +13,18 @@
 //
 //  * The physical address comes from mem_map; this module knows no machine.
 //
-//  * Reads are closed loop at every speed: memory_access_ready is low from
-//    the strobe until the data is here. With KFSDRAM on the chipset clock the
-//    answer was known to come back in time and the readiness could be left
-//    high; with the controller on its own clock it cannot be assumed. The
-//    READY logic only turns a late answer into a wait state if it is later
-//    than the point where the bus cycle samples it, which is what
-//    cpu_sdram_e2e_tb measures for every speed.
+//  * Readiness is closed loop, but late. READY.sv turns any dip of
+//    memory_access_ready, however short and wherever in the bus cycle, into a
+//    whole wait state, so a dip at the strobe (when the data is not yet in
+//    data_reg, even a clock before it arrives) costs the CPU a clock on every
+//    read. Below Max the readiness therefore stays high until the last chipset
+//    clocks in which a wait state can still be requested (the half clock after
+//    the first CPU clock edge inside the strobe, see dip_ok) and only dips
+//    then if the access has still not been accepted (write) or answered
+//    (read). RAM.sv gave no wait states there either; at Max it is closed loop
+//    from the strobe, as RAM.sv was. This is what keeps 4.77 and 7.16 MHz
+//    exactly as they were (cpu_sdram_e2e_tb, with the READY of the real
+//    chipset: AEN low for CPU cycles).
 //
 //  * Writes are posted: accepted at once (ready stays high), carried out in
 //    the background. A following access waits only if the bridge is still
@@ -67,7 +72,8 @@ module cpu_mem_port (
     input  logic        map_protect,
 
     // Wait profile and speed (0 4.77, 1 7.16, 2 9.54, 3 Max)
-    input  logic        wait_count_clk_en,
+    input  logic        cpu_ce_posedge,
+    input  logic        wait_count_clk_en,    // cpu_ce_negedge
     input  logic [1:0]  ram_read_wait_cycle,
     input  logic [1:0]  ram_write_wait_cycle,
     input  logic [1:0]  clk_select,
@@ -302,11 +308,32 @@ module cpu_mem_port (
             write_wait_count <= write_wait_count - 2'd1;
     end
 
-    // A write is ready in the very clock it is accepted: the READY logic
-    // turns even one clock of "not ready" into a whole wait state, and
-    // RAM.sv never showed one for a write below Max.
-    wire access_ready = read_command  ? (owned & rd_valid)
-                      : write_command ? (owned | accept_write)
+    // Where a wait state can still be requested. The strobe starts one chipset
+    // clock after a CPU clock rising edge; the READY logic samples the first
+    // edge after that one (the bus cycle's last chance at 4.77 MHz) and the next
+    // one decides. A dip after the half clock that follows the first edge is
+    // the last that still reaches the second.
+    logic pos_seen, dip_ok;
+    always_ff @(posedge clock) begin
+        if (reset || !cmd_active) begin
+            pos_seen <= 1'b0;
+            dip_ok   <= 1'b0;
+        end
+        else begin
+            if (cpu_ce_posedge)
+                pos_seen <= 1'b1;
+            if (wait_count_clk_en && pos_seen)
+                dip_ok <= 1'b1;
+        end
+    end
+
+    // The READY logic turns even one clock of "not ready" into a whole wait
+    // state, so below Max readiness only dips when the answer is really late
+    // (see the header). At Max it dips from the strobe, as RAM.sv did.
+    wire strict  = (clk_select == 2'b11);
+    wire may_dip = strict | dip_ok;
+    wire access_ready = read_command  ? ((accept_hit & ~strict) | (owned & rd_valid) | ~may_dip)
+                      : write_command ? (owned | accept_write | ~may_dip)
                       :                 1'b1;
 
     assign memory_access_ready = (map_select & (~memory_read_n | ~memory_write_n))

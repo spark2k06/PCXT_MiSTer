@@ -498,6 +498,7 @@ module CHIPSET #(
         .map_select                         (map_select),
         .map_phys                           (map_phys),
         .map_protect                        (map_protect),
+        .cpu_ce_posedge                     (cpu_ce_posedge),
         .wait_count_clk_en                  (wait_count_clk_en),
         .ram_read_wait_cycle                (ram_read_wait_cycle),
         .ram_write_wait_cycle               (ram_write_wait_cycle),
