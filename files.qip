@@ -3,6 +3,11 @@ set_global_assignment -name QIP_FILE rtl/pll.qip
 set_global_assignment -name QIP_FILE rtl/common/common.qip
 set_global_assignment -name QIP_FILE rtl/video/video.qip
 set_global_assignment -name QIP_FILE rtl/uart/uart.qip
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/sound/soundblaster.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/sound/sb_dsp.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/sound/sb_mixer.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/sound/sb_volume.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/sound/sb_dma_glue.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/sound/saa1099.sv"
 set_global_assignment -name QIP_FILE rtl/sound/jt89/hdl/jt89.qip
 set_global_assignment -name QIP_FILE rtl/sound/jtopl/hdl/jtopl2.qip
@@ -48,6 +53,13 @@ set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/Bus_Arbiter.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/splash_f12_pause.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/rom_presence_latch.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/bios_hold_notice.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/ega_io_stretch.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/reset_pending_notice.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/xtegactl.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/xtegactl_resolve.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/ega_bios_loaded_latch.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/keyboard_warm_reset.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/warm_boot_marker_detector.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/hps_ext.v"
 # Keep the HDMI PLL where every MiSTer core has it. sys/pll_cfg/pll_cfg_hdmi.v
 # reprograms a fixed physical output counter; if the fitter moves pll_hdmi to

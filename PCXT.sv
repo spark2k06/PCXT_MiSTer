@@ -1220,6 +1220,7 @@ module emu
         .clock             (clk_14_318),
         .splash_boot_phase (splash_pending | splash_timed),
         .bios_missing_pcxt (bios_missing_pcxt),
+        .bios_missing_ega  (1'b0),
         .hold              (bios_hold),
         .info              (info),
         .info_req          (info_req)
