@@ -10,8 +10,8 @@
 //   python3 TESTBENCH/cga_frame_stack_trace.py stim <capture.csv.gz> /tmp/lake \
 //       --font cga.hex --scale 1.03 --jitter 8 --latency 40
 //   iverilog -g2012 -o /tmp/lake.vvp TESTBENCH/cga_frame_stack_tb.sv cga.v \
-//       UM6845R.v cga_sequencer.v cga_pixel.sv cga_attrib.v \
-//       cga_splash_renderer.v video_scandoubler.v vram.v \
+//       UM6845R_cga.v cga_sequencer.v cga_pixel.sv cga_attrib.v \
+//       cga_splash_renderer.v video_scandoubler_cga.v vram.v \
 //       ../common/jtframe_dual_ram.v
 //   vvp /tmp/lake.vvp +stim=/tmp/lake.stim +vram=/tmp/lake.vram.hex \
 //       +dump=/tmp/lake.dump +rebuild=1

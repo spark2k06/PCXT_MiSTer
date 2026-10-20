@@ -2133,7 +2133,7 @@ module emu
     wire haux_cga, vaux_cga, hbaux_cga, vbaux_cga;
     wire haux_hgc, vaux_hgc, hbaux_hgc, vbaux_hgc;
 
-    video_monochrome_converter video_mono_cga 
+    video_monochrome_converter_cga video_mono_cga 
 	(
 		.clk_vid(CLK_VIDEO_CGA),
 		.ce_pix(ce_pixel_cga_vid),
@@ -2159,7 +2159,7 @@ module emu
 		.VBlank_OUT(vbaux_cga)
 	);
 
-    video_monochrome_converter video_mono_hgc
+    video_monochrome_converter_cga video_mono_hgc
 	(
 		.clk_vid(CLK_VIDEO_HGC),
 		.ce_pix(ce_pixel_hgc_raw),

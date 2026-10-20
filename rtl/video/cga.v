@@ -331,7 +331,7 @@ module cga(
     end 
 	 
 	
-    UM6845R crtc (
+    UM6845R_cga crtc (
         .CLOCK(clk),
 		  .CLKEN(crtc_clk), 
 		  // .nCLKEN(),
@@ -487,7 +487,7 @@ module cga(
         end
     end
 
-    video_scandoubler #(
+    video_scandoubler_cga #(
         .PIXEL_WIDTH(4),
         .H_TOTAL_MAX(912)
     ) scandoubler (

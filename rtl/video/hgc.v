@@ -191,7 +191,7 @@ module hgc(
         end
     end
 
-    UM6845R crtc (
+    UM6845R_cga crtc (
         .CLOCK(clk),
 		  .CLKEN(crtc_clk), 
 		  // .nCLKEN(),

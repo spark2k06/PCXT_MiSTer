@@ -1425,7 +1425,7 @@ end
     // The decoder above runs at the native CGA rate.  Only the decoded RGB
     // stream is doubled for the digital output, preserving the original line
     // sample sequence and its carrier phase.
-    video_scandoubler #(
+    video_scandoubler_cga #(
         .PIXEL_WIDTH(18),
         .H_TOTAL_MAX(912)
     ) cga_rgb_scandoubler (

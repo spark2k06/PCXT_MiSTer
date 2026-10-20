@@ -93,7 +93,7 @@ module cga_crtc_composite_tb #(
         .tandy_color_16(tandy_color_16)
     );
 
-    UM6845R #(
+    UM6845R_cga #(
         .H_TOTAL(8'd113),
         .H_DISP(8'd80),
         .H_SYNCPOS(8'd90),

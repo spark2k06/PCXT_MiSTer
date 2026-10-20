@@ -66,7 +66,7 @@ module cga_vram_pixel_latency_tb;
         .tandy_color_16(tandy_color_16)
     );
 
-    UM6845R #(
+    UM6845R_cga #(
         .H_TOTAL(8'd113), .H_DISP(8'd80), .H_SYNCPOS(8'd90),
         .H_SYNCWIDTH(4'd10), .V_TOTAL(7'd31), .V_TOTALADJ(5'd6),
         .V_DISP(7'd25), .V_SYNCPOS(7'd28), .V_MAXSCAN(5'd7),

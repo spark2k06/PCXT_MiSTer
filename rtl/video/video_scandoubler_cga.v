@@ -21,7 +21,7 @@
 
 `default_nettype wire
 
-module video_scandoubler #(
+module video_scandoubler_cga #(
     parameter PIXEL_WIDTH = 4,
     parameter H_TOTAL_MAX = 912
 ) (
