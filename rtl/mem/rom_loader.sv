@@ -13,7 +13,8 @@
 //     raises bios_hold and the reset, and sets it again from write_main.
 //
 // Slots (ioctl index): 0 PCXT BIOS (first 64 KiB of the file), 1 Tandy BIOS
-// (ROM_VARIANT_TANDY builds only), 2 EC00 (16 KiB window, wraps as before),
+// (ROM_VARIANT_TANDY builds only; there it is the main BIOS: write_main and the
+// "BIOS present" state follow it, and the PCXT slot is not offered), 2 EC00 (16 KiB window, wraps as before),
 // 3 EGA BIOS (ROM_EGA builds, 16 KiB window).
 //
 module rom_loader #(
@@ -104,7 +105,7 @@ module rom_loader #(
                     else if (ioctl_wr && selected) begin
                         l_addr     <= dest[24:1];
                         l_wdata    <= ioctl_data;
-                        main_slot  <= sel_pcxt;
+                        main_slot  <= ROM_TANDY ? sel_tandy : sel_pcxt;
                         ec00_slot  <= sel_ec00;
                         ega_slot   <= sel_ega;
                         ioctl_wait <= 1'b1;

@@ -3,6 +3,10 @@
 // engine, against an ideal video memory.
 //
 //   CARD = 0  cga + cga_vram_if      CARD = 1  hgc + hgc_vram_if
+//   CARD = 0 with TANDY = 1: the CGA as a Tandy 1000 video: the
+//            words are read from a 128 KiB block of system RAM that port A0h
+//            chose, page by port 3DFh, and the golden card is the 128 KiB BRAM
+//            the Tandy1000 core had, addressed as it did
 //
 // The card runs on its own clock (28.636 or 57.27 MHz) derived from the 114.545
 // MHz clock of the arbiter by an integer divider, as in the core. A CPU model
@@ -27,7 +31,8 @@ module video_fetch_chain_tb #(
     parameter int TARGET    = 3,        // 1 in TARGET characters gets a write aimed at it
     parameter int FRAMES    = 1,        // frames per phase
     parameter int PHASES    = 99,       // number of phases to run (for quick runs)
-    parameter int CMP       = 0         // no CPU writes, and a card on a BRAM model beside it, compared pixel by pixel
+    parameter int CMP       = 0,        // no CPU writes, and a card on a BRAM model beside it, compared pixel by pixel
+    parameter int TANDY     = 0         // CARD 0 only: Tandy 1000 video memory
 );
     import sdram_pkg::*;
 
@@ -35,8 +40,13 @@ module video_fetch_chain_tb #(
     localparam real LEAD = 2.0;
     localparam real TCO  = 3.0;
 
-    localparam logic [23:0] BASE = (CARD == 0) ? PHYS_CGA[24:1] : PHYS_HGC[24:1];
-    localparam int          NW   = (CARD == 0) ? 8192 : 32768;      // words of the region
+    // Tandy: the video memory is the CPU image, block 5 of 128 KiB until a phase moves it
+    localparam int          TBLK0 = 5;
+    localparam logic [23:0] BASE = (CARD == 0) ? (TANDY ? 24'(TBLK0) << 16 : PHYS_CGA[24:1]) : PHYS_HGC[24:1];
+    localparam int          NW   = (CARD == 0) ? (TANDY ? 65536 : 8192) : 32768;      // words of the region
+
+    logic [2:0] t_block = 3'(TBLK0);    // A0h bits 3:1
+    logic [5:0] t_page  = 6'd0;         // 3DFh
 
     // ------------------------------------------------------------------
     // Clocks: 114.545 (arbiter), 57.27 (HGC), 28.636 (CGA), all from one edge
@@ -199,7 +209,7 @@ module video_fetch_chain_tb #(
                 .hsync(hsync), .hblank(hblank), .raw_hblank(), .dbl_hsync(), .vsync(vsync), .vblank(vblank),
                 .vblank_border(), .raw_vblank(), .hsync_ref(), .vsync_ref(), .std_hsyncwidth(),
                 .de_o(), .raw_de_o(), .video(video), .dbl_video(), .comp_video(),
-                .splashscreen(1'b0), .composite(1'b0), .thin_font(1'b0), .tandy_video(1'b0),
+                .splashscreen(1'b0), .composite(1'b0), .thin_font(1'b0), .tandy_video(TANDY != 0),
                 .scandouble_en(1'b0), .grph_mode(c_grph), .hres_mode(c_hres), .bw_mode(), .mode_640(),
                 .composite_hsync_width(), .composite_border_color(), .composite_phase(), .tandy_color_16(),
                 .cga_hw(1'b1), .crt_h_offset(4'd0), .crt_v_offset(3'd0),
@@ -212,9 +222,16 @@ module video_fetch_chain_tb #(
             wire [18:0] ram_a_r;
             wire        ram_we_r;
             wire [7:0]  ram_d_r;
+            wire        grph_r, hres_r;
+            // The address of the Tandy1000 core's BRAM port B (Peripherals.sv): with
+            // the 32 KiB timing the card's bit 14 is an address bit and 3DFh[2:1]
+            // pick the page, else bit 14 is dropped and 3DFh[2:0] pick it
+            wire [16:0] ref_addrb = (TANDY == 0)  ? {3'b000, ram_a_r[13:0]} :
+                                    (grph_r & hres_r) ? {t_page[2:1], ram_a_r[14:0]} :
+                                                        {t_page[2:0], ram_a_r[13:0]};
             vram #(.AW(17)) ref_bram (
                 .clka(clk28), .ena(1'b0), .wea(1'b0), .addra(17'd0), .dina(8'd0), .douta(),
-                .clkb(clk28), .enb(ram_we_r), .web(1'b0), .addrb({3'b000, ram_a_r[13:0]}), .dinb(8'd0), .doutb(ram_d_r)
+                .clkb(clk28), .enb(ram_we_r), .web(1'b0), .addrb(ref_addrb), .dinb(8'd0), .doutb(ram_d_r)
             );
             cga card_ref (
                 .clk(clk28), .reset(card_reset), .clkdiv(),
@@ -225,8 +242,8 @@ module video_fetch_chain_tb #(
                 .hsync(hsync_r), .hblank(hblank_r), .raw_hblank(), .dbl_hsync(), .vsync(vsync_r), .vblank(vblank_r),
                 .vblank_border(), .raw_vblank(), .hsync_ref(), .vsync_ref(), .std_hsyncwidth(),
                 .de_o(), .raw_de_o(), .video(video_r), .dbl_video(), .comp_video(),
-                .splashscreen(1'b0), .composite(1'b0), .thin_font(1'b0), .tandy_video(1'b0),
-                .scandouble_en(1'b0), .grph_mode(), .hres_mode(), .bw_mode(), .mode_640(),
+                .splashscreen(1'b0), .composite(1'b0), .thin_font(1'b0), .tandy_video(TANDY != 0),
+                .scandouble_en(1'b0), .grph_mode(grph_r), .hres_mode(hres_r), .bw_mode(), .mode_640(),
                 .composite_hsync_width(), .composite_border_color(), .composite_phase(), .tandy_color_16(),
                 .cga_hw(1'b1), .crt_h_offset(4'd0), .crt_v_offset(3'd0),
                 .vsync_width_osd(3'd0), .hsync_width_osd(3'd0), .frame_stack_rebuild(1'b0),
@@ -253,6 +270,8 @@ module video_fetch_chain_tb #(
             cga_vram_if #(.BASE(BASE)) vif (
                 .clk(clk), .reset(vreset),
                 .seq_phase(c_phase), .hres(c_hres), .cur_word(c_cur_word), .next_word(c_next_word),
+                .tandy(TANDY != 0), .tandy_block(t_block), .tandy_crt_page(t_page[2:0]),
+                .tandy_wide(c_grph & c_hres),
                 .vram_d(vram_d),
                 .req_valid(req_v), .req_addr(req_a), .req_len(req_l), .req_deadline(req_d), .req_ready(req_r),
                 .rsp_pending(rsp_p), .rsp_valid(rsp_v), .rsp_data(rsp_d), .rsp_addr(rsp_a), .rsp_pop(rsp_pop),
@@ -541,16 +560,23 @@ module video_fetch_chain_tb #(
 
         if (CARD == 0) begin
             // 3D8 = 29h at power-up: 80x25 text, video on; the defaults of the CRTC are 80x25
+            // With TANDY the CRT page (3DFh) changes with every phase: 16 KiB pages in
+            // all but the last, which has the 32 KiB timing (3DFh[2:1] = 3, the top 32 KiB)
             io_write(15'h3D8, 8'h29);
             ph++; if (ph <= PHASES) begin crtc_regs(bios80); phase("CGA text 80x25 (mode 3)", FRAMES);
+                  if (TANDY) t_page = 6'o03;
                   new_start(12'h140); phase("CGA text 80x25, new start address", FRAMES); end
-            ph++; if (ph <= PHASES) begin io_write(15'h3D8, 8'h28); crtc_regs(bios40); new_start(0);
+            ph++; if (ph <= PHASES) begin if (TANDY) t_page = 6'o05;
+                  io_write(15'h3D8, 8'h28); crtc_regs(bios40); new_start(0);
                   phase("CGA text 40x25 (mode 1)", FRAMES); end
-            ph++; if (ph <= PHASES) begin io_write(15'h3D8, 8'h0A); crtc_regs(gfx320);
+            ph++; if (ph <= PHASES) begin if (TANDY) t_page = 6'o07;
+                  io_write(15'h3D8, 8'h0A); crtc_regs(gfx320);
                   phase("CGA graphics 320x200 (mode 4)", FRAMES); end
-            ph++; if (ph <= PHASES) begin io_write(15'h3D8, 8'h1E); crtc_regs(gfx640);
+            ph++; if (ph <= PHASES) begin if (TANDY) t_page = 6'o02;
+                  io_write(15'h3D8, 8'h1E); crtc_regs(gfx640);
                   phase("CGA graphics 640x200 (mode 6)", FRAMES); end
-            ph++; if (ph <= PHASES) begin io_write(15'h3D8, 8'h0B); crtc_regs(bios80); new_start(12'h080);
+            ph++; if (ph <= PHASES) begin if (TANDY) t_page = 6'o06;
+                  io_write(15'h3D8, 8'h0B); crtc_regs(bios80); new_start(12'h080);
                   phase("CGA graphics, 80-column timing", FRAMES); end
         end
         else begin

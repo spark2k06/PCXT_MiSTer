@@ -289,6 +289,11 @@ module PERIPHERALS #(
         output  logic           fx_cga_hres,
         output  logic   [13:0]  fx_cga_cur_word,
         output  logic   [13:0]  fx_cga_next_word,
+        // Tandy 1000 video memory (shared RAM): the block A0h chose
+        // and the page register 3DFh, for the memory map and the CRT's fetch
+        output  logic           tandy_vram_en,
+        output  logic   [2:0]   tandy_vram_block,
+        output  logic   [5:0]   tandy_vram_page,
         input   logic   [7:0]   fx_hgc_vram_d,
         output  logic   [4:0]   fx_hgc_phase,
         output  logic           fx_hgc_grph,
@@ -517,12 +522,10 @@ module PERIPHERALS #(
     //
     // I/O Ports
     //
-    // Address
+    // Address. The Tandy 1000 window onto its video RAM is translated by
+    // mem_map (reads and writes alike); the address is passed on as it is.
     always_comb begin
-        if (`ENABLE_TANDY_VIDEO && cga_mem_select && ~memory_write_n && tandy_video_en)
-            latch_address   = {nmi_mask_register_data[3:1], tandy_page_data[3] ? {tandy_page_data[5:3], video_ram_address[13:0]} : {tandy_page_data[5:4], video_ram_address[14:0]}};
-        else
-            latch_address   = address;
+        latch_address   = address;
     end
 
     always_ff @(posedge clock, posedge reset)
@@ -1093,6 +1096,9 @@ end
 	 reg [7:0] lpt_enable_irq = 8'h00;
     reg [7:0] tandy_page_data = 8'h00;
     reg [7:0] nmi_mask_register_data = 8'hFF;
+    assign tandy_vram_en    = tandy_video_en;
+    assign tandy_vram_block = nmi_mask_register_data[3:1];
+    assign tandy_vram_page  = tandy_page_data[5:0];
     always_ff @(posedge clock, posedge reset)
     begin
         if (reset)        

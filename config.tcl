@@ -4,6 +4,7 @@
 #   mister_pcxt_ega           EGA + VGA 13h+ + Sound Blaster Pro (the PCXT core with EGA)
 #   mister_pcxt_full          both video families, the card is chosen at reset
 #   mister_pcxt_full_novga13  mister_pcxt_full without the VGA 13h+ extension
+#   mister_tandy1000          Tandy 1000 (CGA + Tandy video, Tandy BIOS), CORE_NAME "Tandy1000"
 #
 # Pick one with the PCXT_PROFILE environment variable before running Quartus,
 # for instance PCXT_PROFILE=mister_pcxt_full quartus_sh --flow compile PCXT

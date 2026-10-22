@@ -178,15 +178,17 @@ module emu
     localparam CONF_STR_MIDI = (`ENABLE_MIDI ? "P3O[88],MPU-401,Enabled,Disabled;P3-;P3O6,USER I/O,MIDI,COM2;P3-;h3P4,MT32-pi;h3P4-;h3P4OD,Use MT32-pi,Yes,No;h3P4-;h3P4o9,MT32-pi Mode,MT-32,General MIDI;h3P4O34,MT32-pi ROM,MT-32 v1,MT-32 v2,CM-32L,Reserved;h3P4oSU,MT32-pi SoundFont,#0,#1,#2,#3,#4,#5,#6,#7;h3P4-;h3P4r8,Reset Hanging Notes;h3P4-;" : "");
     localparam CONF_STR_VSYNC = "P2O[91:89],VSync Width,Auto,1,2,3,4,5,6,7;P2O[94:92],HSync Width,Auto,1,2,3,4,5,6,7;";
     localparam CONF_STR_CRT = "P2o23,350-line CRT,Native,480i 15 kHz,240p 15 kHz;";
+    localparam CONF_STR_HALT_BIOS = (`ROM_IS_TANDY ? "h4-,HALTED: no Tandy BIOS selected;" : "h4-,HALTED: no PCXT BIOS selected;");
+    localparam CONF_STR_INFO_BIOS = (`ROM_IS_TANDY ? "No Tandy BIOS selected\n" : "No PCXT BIOS selected\n");
     localparam CONF_STR_HALT = {
-        "h4-,HALTED: no PCXT BIOS selected;",
+        CONF_STR_HALT_BIOS,
         (HAS_EGA ? "h5-,HALTED: no EGA BIOS selected;" : "")
     };
     // The box is 32 columns wide; commas separate the messages, so none of
     // them may contain one.
     localparam CONF_STR_INFO = {
         "I,",
-        "No PCXT BIOS selected\n",
+        CONF_STR_INFO_BIOS,
         "Machine halted\n",
         "OSD: System & BIOS,",
         (HAS_EGA ? "No EGA BIOS selected\nMachine halted\nOSD: System & BIOS," : ""),
@@ -210,10 +212,11 @@ module emu
     localparam CONF_STR_CRT = (`ENABLE_TANDY_AUDIO ? "" : "P2o23,350-line CRT,Native,480i 15 kHz,240p 15 kHz;");
     // This line is shown at the top of the menu while the required PCXT BIOS
     // is absent, so the splash hold has an actionable explanation.
-    localparam CONF_STR_HALT = "h4-,HALTED: no PCXT BIOS selected;";
+    localparam CONF_STR_HALT = (`ROM_IS_TANDY ? "h4-,HALTED: no Tandy BIOS selected;" : "h4-,HALTED: no PCXT BIOS selected;");
+    localparam CONF_STR_INFO_BIOS = (`ROM_IS_TANDY ? "No Tandy BIOS selected\n" : "No PCXT BIOS selected\n");
     localparam CONF_STR_INFO = {
         "I,",
-        "No PCXT BIOS selected\n",
+        CONF_STR_INFO_BIOS,
         "Machine halted\n",
         "OSD: System & BIOS;"
     };
@@ -1213,6 +1216,14 @@ module emu
     wire [13:0] fx_cga_cur_word, fx_cga_next_word, fx_hgc_cur_word, fx_hgc_next_word;
     wire [7:0]  fx_cga_vram_d, fx_hgc_vram_d;
 
+    // Tandy 1000 video memory: the CGA reads the block of system RAM
+    // that port A0h chose, page by port 3DFh
+    wire        tandy_vram_en;
+    wire [2:0]  tandy_vram_block;
+    wire [5:0]  tandy_vram_page;
+    wire        tandy_16_gfx;
+    wire        tandy_color_16;
+
     // Engines
     wire        cga_vreq, cga_vack, cga_vrv, cga_vrl;
     wire [23:0] cga_vaddr;
@@ -1264,6 +1275,8 @@ module emu
             .clk(clk_sdram), .reset(vid_reset),
             .seq_phase(fx_cga_phase), .hres(fx_cga_hres),
             .cur_word(fx_cga_cur_word), .next_word(fx_cga_next_word),
+            .tandy(tandy_vram_en), .tandy_block(tandy_vram_block),
+            .tandy_crt_page(tandy_vram_page[2:0]), .tandy_wide(tandy_16_gfx),
             .vram_d(fx_cga_vram_d),
             .req_valid(cga_req_v), .req_addr(cga_req_a), .req_len(cga_req_l),
             .req_deadline(cga_req_d), .req_ready(cga_req_r),
@@ -1510,7 +1523,8 @@ module emu
     // The ROM loader writes the selected image one word at a time. A slot is
     // recorded as present once a word of the download has reached the SDRAM;
     // starting a new download clears it, which re-arms the hold.
-    wire pcxt_bios_download_active = ioctl_download && (ioctl_index[5:0] == 6'd0);
+    // The main BIOS is the Tandy one (slot 1) in a Tandy build, the PCXT one (slot 0) otherwise
+    wire pcxt_bios_download_active = ioctl_download && (ioctl_index[5:0] == (`ROM_IS_TANDY ? 6'd1 : 6'd0));
     wire pcxt_bios_loaded;
 
     rom_presence_latch pcxt_bios_presence (
@@ -2019,6 +2033,9 @@ module emu
 		.fx_cga_hres                        (fx_cga_hres),
 		.fx_cga_cur_word                    (fx_cga_cur_word),
 		.fx_cga_next_word                   (fx_cga_next_word),
+		.tandy_vram_en                      (tandy_vram_en),
+		.tandy_vram_block                   (tandy_vram_block),
+		.tandy_vram_page                    (tandy_vram_page),
 		.fx_hgc_vram_d                      (fx_hgc_vram_d),
 		.fx_hgc_phase                       (fx_hgc_phase),
 		.fx_hgc_grph                        (fx_hgc_grph),
@@ -2570,8 +2587,6 @@ module emu
 
     reg [24:0] HBlank_del;
     reg [24:0] HBlank_del_hgc;
-    wire tandy_16_gfx;
-    wire tandy_color_16;
     wire color = (screen_mode_video_ff == 3'd0);
 
     wire HBlank_VGA;

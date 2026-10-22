@@ -6,7 +6,9 @@
 //
 `timescale 1ns / 1ps
 
-module rom_loader_tb;
+module rom_loader_tb #(
+    parameter bit TANDY = 1'b0       // a ROM_VARIANT_TANDY build: the Tandy slot is the main BIOS
+);
     import sdram_pkg::*;
 
     logic clock = 0;
@@ -24,7 +26,7 @@ module rom_loader_tb;
     logic        l_busy = 0, l_done = 0;
     wire         write_any, write_main, ec00_loaded;
 
-    rom_loader #(.ROM_TANDY(1'b0)) dut (
+    rom_loader #(.ROM_TANDY(TANDY)) dut (
         .clock(clock), .reset(reset), .sdram_ready(1'b1),
         .ioctl_download(ioctl_download), .ioctl_index(ioctl_index), .ioctl_wr(ioctl_wr),
         .ioctl_addr(ioctl_addr), .ioctl_data(ioctl_data), .ioctl_wait(ioctl_wait),
@@ -105,11 +107,25 @@ module rom_loader_tb;
 
         if (ec00_loaded) err("EC00 flagged as loaded before any download");
         writes = 0; mains = 0;
-        download(8'd0, 300, 1);
-        if (ec00_loaded) err("EC00 flagged as loaded by the PCXT BIOS");
-        verify((PHYS_ROM_BANK + ROM_PCXT_BIOS) >> 1, 300, 1, 0, "PCXT BIOS");
-        if (writes != 300) err($sformatf("PCXT BIOS: %0d writes", writes));
-        if (mains != 300) err($sformatf("write_main pulsed %0d times", mains));
+        if (!TANDY) begin
+            download(8'd0, 300, 1);
+            if (ec00_loaded) err("EC00 flagged as loaded by the PCXT BIOS");
+            verify((PHYS_ROM_BANK + ROM_PCXT_BIOS) >> 1, 300, 1, 0, "PCXT BIOS");
+            if (writes != 300) err($sformatf("PCXT BIOS: %0d writes", writes));
+            if (mains != 300) err($sformatf("write_main pulsed %0d times", mains));
+        end
+        else begin
+            // The Tandy BIOS is the main one: it is what write_main (the machine's
+            // "BIOS present") follows, and a PCXT BIOS does not count
+            download(8'd0, 40, 5);
+            if (mains != 0) err("write_main for the PCXT slot in a Tandy build");
+            writes = 0; mains = 0;
+            download(8'd1, 300, 1);
+            if (ec00_loaded) err("EC00 flagged as loaded by the Tandy BIOS");
+            verify((PHYS_ROM_BANK + ROM_TANDY_BIOS) >> 1, 300, 1, 0, "Tandy BIOS");
+            if (writes != 300) err($sformatf("Tandy BIOS: %0d writes", writes));
+            if (mains != 300) err($sformatf("write_main pulsed %0d times for the Tandy BIOS", mains));
+        end
 
         writes = 0; mains = 0;
         download(8'd2, 9000, 7);         // 18000 bytes: wraps inside 16 KiB
@@ -118,8 +134,10 @@ module rom_loader_tb;
         if (!ec00_loaded) err("EC00 not flagged as loaded after its download");
 
         writes = 0;
-        download(8'd1, 50, 9);           // Tandy slot: not in a PCXT build
-        if (writes != 0) err("Tandy slot written in a PCXT build");
+        if (!TANDY) begin
+            download(8'd1, 50, 9);       // Tandy slot: not in a PCXT build
+            if (writes != 0) err("Tandy slot written in a PCXT build");
+        end
 
         writes = 0;
         download(8'd3, 50, 9);           // unknown index: ignored

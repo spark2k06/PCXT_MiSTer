@@ -226,6 +226,7 @@ module cpu_sdram_e2e_tb #(
         .address(n_addr), .map_ems(no_ems), .ems_b1(1'b0), .ems_b2(1'b0), .ems_b3(1'b0),
         .ems_b4(1'b0), .enable_a000h(1'b1), .bios_protect_flag(2'b00), .ec00_loaded(1'b1),
         .en_cga(1'b0), .en_hgc(1'b0), .hgc_page(1'b0),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0),
         .select(n_select), .phys(n_phys), .protect(n_protect),
         .vclass(n_vclass), .phys2(n_phys2), .phys2_valid(n_phys2_valid)
     );

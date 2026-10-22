@@ -71,6 +71,13 @@ if {[dict get $cga ENABLE_EGA] != 0 || [dict exists $cga LAYOUT_EGA]} {
     fail "mister_pcxt_cga must be the CGA layout without an EGA card"
 }
 
+lassign [evaluate_profile mister_tandy1000] tandy1000 _
+if {[dict get $tandy1000 SYSTEM_VARIANT_TANDY] != 1 || [dict get $tandy1000 ENABLE_TANDY_VIDEO] != 1
+    || [dict get $tandy1000 ENABLE_HGC] != 0 || [dict get $tandy1000 ENABLE_EGA] != 0
+    || [dict exists $tandy1000 LAYOUT_EGA]} {
+    fail "mister_tandy1000 must be a Tandy machine with the CGA family only and the CGA layout"
+}
+
 # --- wrong combinations -----------------------------------------------------
 set base [dict create LAYOUT_EGA 1 ENABLE_CGA 1 ENABLE_HGC 1 ENABLE_EGA 1 ENABLE_VGA13 1 ENABLE_SB 1 ENABLE_OPL2 1]
 
@@ -94,6 +101,11 @@ expect_error "no video card" \
     [dict replace $base ENABLE_CGA 0 ENABLE_HGC 0 ENABLE_EGA 0 ENABLE_VGA13 0] "*without any video card*"
 expect_error "EGA in a Tandy machine" \
     [dict replace $base SYSTEM_VARIANT_TANDY 1] "*SYSTEM_VARIANT_TANDY=1*"
+set tandy_ok [dict create ENABLE_CGA 1 ENABLE_HGC 0 ENABLE_EGA 0 ENABLE_VGA13 0 SYSTEM_VARIANT_TANDY 1 ROM_VARIANT_TANDY 1 ENABLE_TANDY_VIDEO 1]
+expect_error "Tandy video without the CGA"     [dict replace $tandy_ok ENABLE_CGA 0 ENABLE_HGC 1] "*ENABLE_TANDY_VIDEO=1 needs ENABLE_CGA=1*"
+expect_error "Tandy video with Hercules"     [dict replace $tandy_ok ENABLE_HGC 1] "*ENABLE_TANDY_VIDEO=1 with ENABLE_HGC=1*"
+expect_error "Tandy video with the EGA card"     [dict replace $tandy_ok ENABLE_EGA 1 LAYOUT_EGA 1] "*ENABLE_TANDY_VIDEO=1 with ENABLE_EGA=1*"
+expect_error "a Tandy machine without Tandy video"     [dict replace $tandy_ok ENABLE_TANDY_VIDEO 0] "*SYSTEM_VARIANT_TANDY=1 needs ENABLE_TANDY_VIDEO=1*"
 expect_error "a switch that is not 0 or 1" \
     [dict replace $base ENABLE_SB 2] "*ENABLE_SB must be 0 or 1*"
 

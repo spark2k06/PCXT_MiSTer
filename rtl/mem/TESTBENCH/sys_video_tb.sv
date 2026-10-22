@@ -282,6 +282,7 @@ module sys_video_tb #(
     cga_vram_if #(.BASE(CGA_WORD_BASE)) u_cga_vif (
         .clk(clk), .reset(vid_reset),
         .seq_phase(fx_cga_phase), .hres(fx_cga_hres), .cur_word(fx_cga_cur_word), .next_word(fx_cga_next_word),
+        .tandy(1'b0), .tandy_block(3'd0), .tandy_crt_page(3'd0), .tandy_wide(1'b0),
         .vram_d(fx_cga_vram_d),
         .req_valid(cga_req_v), .req_addr(cga_req_a), .req_len(cga_req_l), .req_deadline(cga_req_d), .req_ready(cga_req_r),
         .rsp_pending(cga_rsp_p), .rsp_valid(cga_rsp_v), .rsp_data(cga_rsp_d), .rsp_addr(cga_rsp_a), .rsp_pop(cga_rsp_pop),

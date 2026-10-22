@@ -2,7 +2,8 @@
 // CPU memory map, combinational.
 //
 // F1 implements the PCXT table with CGA + HGC/MDA only; the EGA, Tandy and
-// PCjr rows come with their phases. For a 20-bit bus address it gives:
+// PCjr rows come with their phases. F5 adds the Tandy 1000 window. For a
+// 20-bit bus address it gives:
 //
 //   select   the address is memory this port serves (not a disabled UMB
 //            window, not a video window without its card) - the old RAM.sv
@@ -16,7 +17,11 @@
 //   B0000-B7FFF  HGC page 0 (page bit 0)
 //   B8000-BFFFF  CGA, 16 KiB mirrored; with the HGC graphics page selected
 //                (page bit 1) it is also HGC page 1: a write goes to both, a
-//                read returns the CGA, as the BRAMs did
+//                read returns the CGA, as the BRAMs did.
+//                Tandy 1000 (tandy_video): a window onto the 128 KiB block of
+//                system RAM that port A0h chose (tandy_block), 16 or 32 KiB
+//                page by port 3DFh: the video memory is
+//                CPU image, there is no copy of it
 //   C0000-EFFFF  CPU image, or the Lo-tech EMS frame when it is mapped
 //   EC000-EFFFF  EC00 ROM slot (XTIDE), unless the EMS frame covers it. With
 //                no EC00 ROM loaded the window is not memory (open bus: reads
@@ -40,6 +45,9 @@ module mem_map #(
     input  logic        en_cga,              // the card exists (compile-time in the core)
     input  logic        en_hgc,
     input  logic        hgc_page,            // Hercules graphics page (control bit 7)
+    input  logic        tandy_video,         // Tandy 1000 video: the CGA window is shared RAM
+    input  logic [2:0]  tandy_block,         // A0h bits 3:1: the 128 KiB block of video memory
+    input  logic [2:0]  tandy_cpu_page,      // 3DFh bits 5:3: CPU page; bit 0 set = 16 KiB pages
     output logic        select,
     output logic [24:0] phys,
     output logic        protect,
@@ -58,8 +66,8 @@ module mem_map #(
 
     wire seg_b    = (address[19:16] == 4'hB);
     wire cga_hit  = en_cga && (address[19:15] == 5'b10111);
-    wire hgc_hit  = en_hgc && ((address[19:15] == 5'b10110 && !hgc_page)
-                            || (address[19:15] == 5'b10111 &&  hgc_page));
+    wire hgc_hit  = en_hgc && !tandy_video && ((address[19:15] == 5'b10110 && !hgc_page)
+                                            || (address[19:15] == 5'b10111 &&  hgc_page));
     wire video    = cga_hit | hgc_hit;
 
     assign select = ~(seg_b & ~video) & ~(~enable_a000h & (address[19:16] == 4'hA))
@@ -67,12 +75,22 @@ module mem_map #(
 
     wire [24:0] hgc_phys = PHYS_HGC + {9'd0, hgc_page, address[14:0]};
 
+    // Offset in the 128 KiB block: 16 KiB pages when 3DFh bit 3 is set, 32 KiB
+    // pages otherwise
+    wire [16:0] tandy_off  = tandy_cpu_page[0] ? {tandy_cpu_page, address[13:0]}
+                                               : {tandy_cpu_page[2:1], address[14:0]};
+    wire [24:0] tandy_phys = PHYS_CPU_IMAGE + {5'd0, tandy_block, tandy_off};
+
     always_comb begin
         protect     = 1'b0;
         vclass      = VC_NONE;
         phys2       = hgc_phys;
         phys2_valid = 1'b0;
-        if (cga_hit) begin
+        if (cga_hit && tandy_video) begin
+            phys   = tandy_phys;
+            vclass = VC_CGA;
+        end
+        else if (cga_hit) begin
             phys        = PHYS_CGA + {11'd0, address[13:0]};
             vclass      = VC_CGA;
             phys2_valid = hgc_hit;

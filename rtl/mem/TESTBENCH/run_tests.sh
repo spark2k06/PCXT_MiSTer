@@ -76,6 +76,8 @@ BENCHES=(
     "e2e_mph_check|cpu_sdram_e2e_tb|-GOPTION_A=0 -GIS8086=0 -GPROG=1|$E2E"
     "mem_map|mem_map_tb||$PKG $MAP $TB/mem_map_tb.sv"
     "rom_loader|rom_loader_tb||$PKG $LOADER $TB/rom_loader_tb.sv"
+    # A Tandy build: the Tandy BIOS slot is the main BIOS (what "BIOS present" follows)
+    "rom_loader_tandy|rom_loader_tb|-GTANDY=1|$PKG $LOADER $TB/rom_loader_tb.sv"
     # Video fetch engines against the real arbiter and chip model, with the CPU writing
     # into the words being fetched (coherence, ordering, late pops, flush).
     "vram_fetch|vram_fetch_tb||$PKG $CTRL $ARB $MODEL $VFETCH $TB/vram_fetch_tb.sv"
@@ -86,6 +88,10 @@ BENCHES=(
     "video_chain_cga_cmp|video_fetch_chain_tb|-GCARD=0 -GCMP=1|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
     "video_chain_hgc_cmp|video_fetch_chain_tb|-GCARD=1 -GCMP=1|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
     "video_chain_cga_busy|video_fetch_chain_tb|-GCARD=0 -GWR_GAP=2 -GTARGET=1 -GPHASES=2|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
+    # The CGA as the Tandy 1000 video: 128 KiB block of the CPU image, page by 3DFh
+    "video_chain_tandy|video_fetch_chain_tb|-GCARD=0 -GTANDY=1 -DENABLE_TANDY_VIDEO=1|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
+    "video_chain_tandy_cmp|video_fetch_chain_tb|-GCARD=0 -GTANDY=1 -GCMP=1 -DENABLE_TANDY_VIDEO=1|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
+    "video_chain_tandy_busy|video_fetch_chain_tb|-GCARD=0 -GTANDY=1 -GWR_GAP=2 -GTARGET=1 -GPHASES=5 -DENABLE_TANDY_VIDEO=1|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
     "video_chain_hgc_busy|video_fetch_chain_tb|-GCARD=1 -GWR_GAP=2 -GTARGET=1 -GPHASES=2|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
     # The whole machine around the video memory: CPU program, chipset, CGA, HGC, SDRAM.
     "sys_video_4_77|sys_video_tb|-GSPEED=0|$SYSV"

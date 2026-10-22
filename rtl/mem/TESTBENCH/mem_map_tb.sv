@@ -22,6 +22,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(1'b0), .en_hgc(1'b0), .hgc_page(1'b0),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0),
         .select(select_x), .phys(phys_x), .protect(protect_x),
         .vclass(), .phys2(), .phys2_valid()
     );
@@ -30,6 +31,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(1'b0), .en_hgc(1'b0), .hgc_page(1'b0),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0),
         .select(select_t), .phys(phys_t), .protect(protect_t),
         .vclass(), .phys2(), .phys2_valid()
     );
@@ -44,9 +46,39 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(en_cga), .en_hgc(en_hgc), .hgc_page(hgc_page),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0),
         .select(select_v), .phys(phys_v), .protect(protect_v),
         .vclass(vclass_v), .phys2(phys2_v), .phys2_valid(phys2_valid_v)
     );
+
+    // The Tandy 1000 video memory (F5): the CGA window is a window of the CPU image
+    logic        t_video = 1'b1;
+    logic [2:0]  t_block, t_page;
+    wire         select_tv, protect_tv, phys2_valid_tv;
+    wire  [24:0] phys_tv, phys2_tv;
+    wire  [1:0]  vclass_tv;
+    mem_map #(.ROM_TANDY(1'b1)) dut_tv (
+        .address(address), .map_ems(map_ems), .ems_b1(ems_b[0]), .ems_b2(ems_b[1]),
+        .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
+        .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
+        .en_cga(en_cga), .en_hgc(en_hgc), .hgc_page(hgc_page),
+        .tandy_video(t_video), .tandy_block(t_block), .tandy_cpu_page(t_page),
+        .select(select_tv), .phys(phys_tv), .protect(protect_tv),
+        .vclass(vclass_tv), .phys2(phys2_tv), .phys2_valid(phys2_valid_tv)
+    );
+
+    // Tandy rows: the physical target (0 and select 0 when nothing)
+    task automatic check_tv(input string what, input logic sel, input logic [1:0] cls, input logic [24:0] ph);
+        #1;
+        checks++;
+        if (select_tv !== sel || (sel && (vclass_tv !== cls || phys_tv !== ph ||
+                                          phys2_valid_tv !== 1'b0 || protect_tv !== 1'b0))) begin
+            errors++;
+            if (errors <= 20)
+                $display("ERROR %s @%05h block %0d page %0d: select %b class %0d phys %07h phys2 %b, expected %b %0d %07h",
+                         what, address, t_block, t_page, select_tv, vclass_tv, phys_tv, phys2_valid_tv, sel, cls, ph);
+        end
+    endtask
 
     // Video rows: select, class, primary target, second target (0 = none)
     task automatic check_vid(input string what, input logic sel, input logic [1:0] cls,
@@ -202,6 +234,58 @@ module mem_map_tb;
                 end
             end
         end
+
+        // Tandy 1000: B8000-BFFFF is a window onto the 128 KiB block of the
+        // CPU image that A0h[3:1] chose. 3DFh[5:3] = CPU page: bit 3 set = 16 KiB pages
+        // (the page is 3DFh[5:3], so 1, 3, 5 or 7, and the offset is address[13:0]),
+        // clear = 32 KiB pages (3DFh[5:4], address[14:0]). The HGC is not there.
+        t_video = 1;
+        en_cga = 1; en_hgc = 1; hgc_page = 0;
+        t_block = 3'd0; t_page = 3'b001;          // 16 KiB page 1 of block 0
+        address = 20'hB8000; check_tv("T 16K p1 start",  1, VC_CGA, 25'h000_4000);
+        address = 20'hBBFFF; check_tv("T 16K p1 end",    1, VC_CGA, 25'h000_7FFF);
+        address = 20'hBC000; check_tv("T 16K p1 mirror", 1, VC_CGA, 25'h000_4000);
+        address = 20'hBFFFF; check_tv("T 16K p1 top",    1, VC_CGA, 25'h000_7FFF);
+        t_page = 3'b111;                          // 16 KiB page 7: the last 16 KiB
+        address = 20'hB8001; check_tv("T 16K p7 start",  1, VC_CGA, 25'h001_C001);
+        address = 20'hBBFFF; check_tv("T 16K p7 end",    1, VC_CGA, 25'h001_FFFF);
+        t_page = 3'b011;                          // 16 KiB page 3
+        address = 20'hB9234; check_tv("T 16K p3",        1, VC_CGA, 25'h000_D234);
+        t_page = 3'b000;                          // 32 KiB page 0
+        address = 20'hB8000; check_tv("T 32K p0 start",  1, VC_CGA, 25'h000_0000);
+        address = 20'hBFFFF; check_tv("T 32K p0 end",    1, VC_CGA, 25'h000_7FFF);
+        t_page = 3'b100;                          // 32 KiB page 2 (3DFh[5:4] = 2)
+        address = 20'hB8000; check_tv("T 32K p2 start",  1, VC_CGA, 25'h001_0000);
+        address = 20'hBFFFF; check_tv("T 32K p2 end",    1, VC_CGA, 25'h001_7FFF);
+        t_page = 3'b110;                          // 32 KiB page 3, the top
+        address = 20'hBABCD; check_tv("T 32K p3",        1, VC_CGA, 25'h001_ABCD);
+        t_block = 3'd5; t_page = 3'b011;          // block 5 (A0h[3:1] = 5): +0xA0000
+        address = 20'hB8000; check_tv("T block 5 16K p3", 1, VC_CGA, 25'h00A_C000);
+        t_block = 3'd7; t_page = 3'b111;          // the last byte of the 1 MiB of RAM
+        address = 20'hBBFFF; check_tv("T block 7 top",   1, VC_CGA, 25'h00F_FFFF);
+        // Outside the window the map is the plain one, and the HGC is gone
+        address = 20'hB7FFF; check_tv("T below B8000 (HGC gone)", 0, VC_NONE, 0);
+        address = 20'hB0000; check_tv("T B0000 nothing", 0, VC_NONE, 0);
+        address = 20'hC0000; check_tv("T above window",  1, VC_NONE, 25'h00C_0000);
+        address = 20'hAFFFF; check_tv("T below B000",    1, VC_NONE, 25'h00A_FFFF);
+        // The window does not depend on the Hercules page, and the enable still gates it
+        hgc_page = 1; t_block = 3'd1; t_page = 3'b001;
+        address = 20'hB8000; check_tv("T hgc_page ignored", 1, VC_CGA, 25'h002_4000);
+        en_cga = 0;
+        address = 20'hB8000; check_tv("T no CGA: nothing", 0, VC_NONE, 0);
+        en_cga = 1; hgc_page = 0;
+        // Every block, page and window offset against arithmetic written here
+        for (int blk = 0; blk < 8; blk++)
+        for (int pg = 0; pg < 8; pg++)
+        for (int off = 0; off < 32'h8000; off += 32'h1F3) begin
+            logic [24:0] exp;
+            t_block = 3'(blk); t_page = 3'(pg);
+            address = 20'hB8000 + 20'(off);
+            if (pg % 2 == 1) exp = 25'(blk * 32'h20000 + pg * 32'h4000 + (off % 32'h4000));
+            else             exp = 25'(blk * 32'h20000 + (pg / 2) * 32'h8000 + off);
+            check_tv("T sweep", 1, VC_CGA, exp);
+        end
+        t_video = 0;
         en_cga = 0; en_hgc = 0; hgc_page = 0;
 
         // Sweep every 2 KiB in every combination.

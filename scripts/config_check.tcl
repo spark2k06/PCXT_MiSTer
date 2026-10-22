@@ -82,6 +82,22 @@ proc pcxt_check_config {assigned} {
     if {$ega && !$layout_ega} {
         lappend errors "ENABLE_EGA=1 needs LAYOUT_EGA=1: the CGA layout of the OSD has no status bits for the EGA options"
     }
+    # Tandy video: the video memory is the system RAM, the CGA window
+    # is a view of a block of it. The Hercules and EGA windows would collide
+    # with it, and a Tandy machine without its video is not one.
+    set tandy_video [pcxt_on $m ENABLE_TANDY_VIDEO]
+    if {$tandy_video && !$cga} {
+        lappend errors "ENABLE_TANDY_VIDEO=1 needs ENABLE_CGA=1 (the Tandy video modes live in the CGA)"
+    }
+    if {$tandy_video && $hgc} {
+        lappend errors "ENABLE_TANDY_VIDEO=1 with ENABLE_HGC=1: the Tandy video RAM is shared system RAM, there is no Hercules card in a Tandy 1000"
+    }
+    if {$tandy_video && $ega} {
+        lappend errors "ENABLE_TANDY_VIDEO=1 with ENABLE_EGA=1: the EGA card is a PCXT card"
+    }
+    if {$tandy && !$tandy_video} {
+        lappend errors "SYSTEM_VARIANT_TANDY=1 needs ENABLE_TANDY_VIDEO=1"
+    }
     if {$ega && $tandy} {
         lappend errors "ENABLE_EGA=1 with SYSTEM_VARIANT_TANDY=1: the EGA card is a PCXT card"
     }

@@ -11,8 +11,16 @@
 // All CGA signals are registered or settled in the 28.636 MHz domain, which is
 // phase-locked to clk_sdram (114.545 MHz, 4:1), and are sampled here.
 //
+// Tandy 1000: the video memory is system RAM, in the
+// 128 KiB block of the CPU image that port A0h chose, so the words are read
+// from there instead of from the CGA region. Port 3DFh adds the CRT page: with
+// the 640x200 / 320x200x16 timing (tandy_wide) the pages are 32 KiB (the card's
+// bit 14 is a real address bit) and 3DFh bits 2:1 pick one, else they are
+// 16 KiB and bits 2:0 pick one (the card's bit 14 is dropped).
+//
 module cga_vram_if #(
-    parameter logic [23:0] BASE = 24'h042_8000      // word address of the CGA region
+    parameter logic [23:0] BASE  = 24'h042_8000,    // word address of the CGA region
+    parameter logic [23:0] TBASE = 24'h000_0000     // word address of the CPU image (Tandy)
 ) (
     input  logic        clk,                // clk_sdram
     input  logic        reset,
@@ -21,6 +29,10 @@ module cga_vram_if #(
     input  logic        hres,               // 80-column timing (hres_mode)
     input  logic [13:0] cur_word,           // ram_a[14:1]: word being addressed
     input  logic [13:0] next_word,          // fx_next_word: word of the next character
+    input  logic        tandy,              // Tandy 1000 video: read the shared RAM
+    input  logic [2:0]  tandy_block,        // A0h bits 3:1
+    input  logic [2:0]  tandy_crt_page,     // 3DFh bits 2:0
+    input  logic        tandy_wide,         // 32 KiB pages (tandy_16_gfx)
     output logic [7:0]  vram_d,
 
     output logic        req_valid,
@@ -48,6 +60,9 @@ module cga_vram_if #(
     logic [4:0]  ph_s, ph_p;
     logic        hres_s;
     logic [13:0] cur_s, nxt_s;
+    logic        t_s;
+    logic [2:0]  tb_s, tp_s;
+    logic        tw_s;
 
     always_ff @(posedge clk) begin
         ph_s   <= seq_phase;
@@ -55,6 +70,10 @@ module cga_vram_if #(
         hres_s <= hres;
         cur_s  <= cur_word;
         nxt_s  <= next_word;
+        t_s    <= tandy;
+        tb_s   <= tandy_block;
+        tp_s   <= tandy_crt_page;
+        tw_s   <= tandy_wide;
     end
 
     wire ph_ev = (ph_s != ph_p);
@@ -69,8 +88,13 @@ module cga_vram_if #(
     // takes it as urgent once it is within T_URGENT of this.
     wire [15:0] deadline = hres_s ? 16'd64 : 16'd128;
 
-    wire [23:0] cur_addr  = BASE + {10'd0, cur_s};
-    wire [23:0] next_addr = BASE + {10'd0, nxt_s};
+    // Word offset in the 128 KiB (64 Ki words) block
+    function automatic logic [15:0] t_off(input logic [13:0] w);
+        t_off = tw_s ? {tp_s[2:1], w} : {tp_s, w[12:0]};
+    endfunction
+
+    wire [23:0] cur_addr  = t_s ? TBASE + {5'd0, tb_s, t_off(cur_s)} : BASE + {10'd0, cur_s};
+    wire [23:0] next_addr = t_s ? TBASE + {5'd0, tb_s, t_off(nxt_s)} : BASE + {10'd0, nxt_s};
 
     assign dbg_ev_req = ev_req;
     assign dbg_ev_chr = ev_chr;
