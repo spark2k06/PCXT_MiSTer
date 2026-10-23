@@ -553,7 +553,10 @@ module PERIPHERALS #(
     assign  ems_b3                  = `ENABLE_EMS ? (ems_enabled && ~iorq && ena_ems[2] && (address[19:14] == {ems_page_address, 2'b10})) : 1'b0; // C8000h - D8000h - E0000h
     assign  ems_b4                  = `ENABLE_EMS ? (ems_enabled && ~iorq && ena_ems[3] && (address[19:14] == {ems_page_address, 2'b11})) : 1'b0; // CC000h - DC000h - EC000h
     wire    ide0_chip_select_n      = ~(iorq && ~address_enable_n && ({address[15:4], 4'd0} == 16'h0300));
-    wire    floppy0_chip_select_n   = ~(~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
+    // The diskette adapter of the PCjr answers at F0h-F5h (programmed I/O); the
+    // PCXT one at 3F0h-3F7h (DMA)
+    wire    floppy0_chip_select_n   = pcjr_en ? ~(~address_enable_n && ({address[15:3], 3'd0} == 16'h00F0) && (address[2:0] <= 3'd5))
+                                    : ~(~address_enable_n && (({address[15:2], 2'd0} == 16'h03F0) || ({address[15:1], 1'd0} == 16'h03F4) || ({address[15:0]} == 16'h03F7)));
 
     logic   [1:0]   ems_access_address;
     logic           ems_write_enable;
@@ -2592,6 +2595,7 @@ end
     logic           fdd_io_read;
     logic           fdd_io_read_1;
     logic           fdd_io_write;
+    logic           fdd_write_cycle_to_fdd = 1'b0;
     logic   [7:0]   fdd_readdata_wire;
     logic   [7:0]   fdd_dma_readdata;
     logic   [7:0]   fdd_readdata;
@@ -2622,7 +2626,13 @@ end
         fdd_io_address     <= address[2:0];
         fdd_io_read        <= ~io_read_n & prev_io_read_n   & ~floppy0_chip_select_n;
         fdd_io_read_1      <= fdd_io_read;
-        fdd_io_write       <= io_write_n & ~prev_io_write_n & ~floppy0_chip_select_n;
+        // PCjr: the select is latched at the start of the write and used at its
+        // end, as the I/O ports F0h-F5h are written by the 8088 at the end of its cycle
+        if ((~io_write_n) && prev_io_write_n)
+            fdd_write_cycle_to_fdd <= ~floppy0_chip_select_n;
+        else if (io_write_n && ~prev_io_write_n)
+            fdd_write_cycle_to_fdd <= 1'b0;
+        fdd_io_write       <= io_write_n & ~prev_io_write_n & (pcjr_en ? fdd_write_cycle_to_fdd : ~floppy0_chip_select_n);
     end
 
     assign  fdd_dma_read    = fdd_dma_ack & ~io_read_n;
@@ -2649,6 +2659,7 @@ end
     (
         .clk                        (clock),
         .rst_n                      (~reset),
+        .pcjr_mode                  (pcjr_en),
 
         //dma
         .dma_req                    (fdd_dma_req_wire),
