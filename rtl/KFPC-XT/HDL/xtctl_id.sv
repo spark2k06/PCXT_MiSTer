@@ -5,7 +5,7 @@
 // is running on, where the RTC lives, what the build contains, and a couple of
 // debug counters. Every register is read-only, so a stray write is ignored.
 //
-//   8990h  model              00h = PCXT (01h Tandy 1000 and 02h PCjr reserved)
+//   8990h  model              00h = PCXT, 01h = Tandy 1000 (02h PCjr reserved)
 //   8991h  video card         [1:0] 1 = CGA, 2 = Hercules/MDA, 3 = EGA
 //                             [7]   VGA 13h+ extension is switched on
 //   8992h  block version      01h
@@ -23,7 +23,6 @@
 `default_nettype none
 
 module xtctl_id #(
-    parameter [7:0] MODEL        = 8'h00,
     parameter [7:0] VERSION      = 8'h01,
     parameter [7:0] CAPABILITIES = 8'h00
 ) (
@@ -38,6 +37,7 @@ module xtctl_id #(
     output wire        output_enable,
 
     // What the machine is running on right now
+    input  wire        tandy_machine,
     input  wire  [1:0] video_card,
     input  wire        vga13_active,
     input  wire [15:0] rtc_port,
@@ -51,7 +51,7 @@ module xtctl_id #(
     reg [7:0] read_mux;
     always @(*) begin
         case (address[2:0])
-            3'd0:    read_mux = MODEL;
+            3'd0:    read_mux = {7'd0, tandy_machine};
             3'd1:    read_mux = {vga13_active, 5'd0, video_card};
             3'd2:    read_mux = VERSION;
             3'd3:    read_mux = rtc_port[7:0];

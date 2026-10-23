@@ -67,6 +67,21 @@ module mem_map_tb;
         .vclass(vclass_tv), .phys2(phys2_tv), .phys2_valid(phys2_valid_tv)
     );
 
+    // A build that chooses the machine at run time (ROM_TANDY = 0): F000 holds the
+    // Tandy BIOS while tandy_video says the machine is a Tandy 1000
+    logic        rt_tandy = 1'b0;
+    wire         select_rt, protect_rt;
+    wire  [24:0] phys_rt;
+    mem_map #(.ROM_TANDY(1'b0)) dut_rt (
+        .address(address), .map_ems(map_ems), .ems_b1(ems_b[0]), .ems_b2(ems_b[1]),
+        .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
+        .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
+        .en_cga(1'b1), .en_hgc(1'b0), .hgc_page(1'b0),
+        .tandy_video(rt_tandy), .tandy_block(3'd0), .tandy_cpu_page(3'd0),
+        .select(select_rt), .phys(phys_rt), .protect(protect_rt),
+        .vclass(), .phys2(), .phys2_valid()
+    );
+
     // Tandy rows: the physical target (0 and select 0 when nothing)
     task automatic check_tv(input string what, input logic sel, input logic [1:0] cls, input logic [24:0] ph);
         #1;
@@ -287,6 +302,25 @@ module mem_map_tb;
         end
         t_video = 0;
         en_cga = 0; en_hgc = 0; hgc_page = 0;
+
+        // The machine model chooses the F000 slot (and nothing else of the map)
+        ems_on = 0; ena = 4'd0; ec00_loaded = 1'b1; bios_protect_flag = 2'b10;
+        for (int m = 0; m < 2; m++) begin
+            rt_tandy = m[0];
+            for (int a = 20'hF0000; a < 32'h100000; a += 32'h1ABC) begin
+                address = 20'(a);
+                #1;
+                checks++;
+                if (select_rt !== 1'b1 || protect_rt !== 1'b1 ||
+                    phys_rt !== 25'(25'h010_0000 + (rt_tandy ? 25'h1_0000 : 25'h0) + (a - 32'hF0000))) begin
+                    errors++;
+                    if (errors <= 20)
+                        $display("ERROR F000 slot, tandy %0d @%05h: select %b protect %b phys %07h",
+                                 rt_tandy, address, select_rt, protect_rt, phys_rt);
+                end
+            end
+        end
+        rt_tandy = 1'b0;
 
         // Sweep every 2 KiB in every combination.
         for (int f = 0; f < 3; f++)

@@ -128,8 +128,11 @@ module cga(
     wire video_enabled;
     wire blink_enabled;
 	 
-    wire tandy_border_en = `ENABLE_TANDY_VIDEO ? tandy_modesel[2] : 1'b0;
-    wire tandy_color_4 = `ENABLE_TANDY_VIDEO ? tandy_modesel[3] : 1'b0;
+    // The Tandy video logic is built (ENABLE_TANDY_VIDEO) but only a Tandy 1000
+    // uses it (tandy_video): in a PCXT it must neither answer 3DEh nor change
+    // the address of a graphics mode.
+    wire tandy_border_en = `ENABLE_TANDY_VIDEO ? (tandy_video & tandy_modesel[2]) : 1'b0;
+    wire tandy_color_4 = `ENABLE_TANDY_VIDEO ? (tandy_video & tandy_modesel[3]) : 1'b0;
 
     wire hsync_int;
     wire hblank_crtc;
@@ -250,7 +253,7 @@ module cga(
     // Mapped IO
     assign crtc_cs = (bus_a[14:3] == IO_BASE_ADDR[14:3]) & ~bus_aen & cga_hw; // 3D4/3D5
     assign status_cs = (bus_a == IO_BASE_ADDR + 20'hA) & ~bus_aen & cga_hw;
-    assign tandy_newcolorsel_cs = `ENABLE_TANDY_VIDEO ? ((bus_a == IO_BASE_ADDR + 20'hE) & ~bus_aen & cga_hw) : 1'b0;
+    assign tandy_newcolorsel_cs = `ENABLE_TANDY_VIDEO ? ((bus_a == IO_BASE_ADDR + 20'hE) & ~bus_aen & cga_hw & tandy_video) : 1'b0;
     assign control_cs = (bus_a == IO_BASE_ADDR + 16'h8) & ~bus_aen & cga_hw;
     assign colorsel_cs = (bus_a == IO_BASE_ADDR + 20'h9) & ~bus_aen & cga_hw;
     // Memory-mapped from B0000 to B7FFF
@@ -301,7 +304,7 @@ module cga(
     assign mode_640 = cga_control_reg[4]; // 1=640x200 mode, 0=others
     assign blink_enabled = cga_control_reg[5];
 	 
-    assign tandy_color_16 = `ENABLE_TANDY_VIDEO ? tandy_modesel[4] : 1'b0;
+    assign tandy_color_16 = `ENABLE_TANDY_VIDEO ? (tandy_video & tandy_modesel[4]) : 1'b0;
     assign std_hsyncwidth = (hsync_width_crtc == STD_HSYNCWIDTH);
     assign vblank_border = vblank;
 
@@ -316,7 +319,7 @@ module cga(
                 cga_control_reg <= bus_d;
             end else if (colorsel_cs) begin
                 cga_color_reg <= bus_d;
-            end else if (`ENABLE_TANDY_VIDEO && status_cs) begin
+            end else if (`ENABLE_TANDY_VIDEO && tandy_video && status_cs) begin
                 tandy_color_reg <= bus_d;
             end else if (`ENABLE_TANDY_VIDEO && tandy_newcolorsel_cs && tandy_color_reg[7:4] == 4'b0001) begin // Palette Mask Register
                 tandy_newcolor <= bus_d[3:0];
@@ -391,11 +394,11 @@ module cga(
     assign pixel_addr13 = grph_mode ? row_addr[0] : crtc_addr[12];
 
     // Address bit 14 is only used for Tandy modes (32K RAM)
-    assign pixel_addr14 = `ENABLE_TANDY_VIDEO ? (grph_mode ? row_addr[1] : 1'b0) : 1'b0;
+    assign pixel_addr14 = (`ENABLE_TANDY_VIDEO && tandy_video) ? (grph_mode ? row_addr[1] : 1'b0) : 1'b0;
 
     // The same address mapping as ram_a, for the character after this one
     wire fx_pixel_addr13 = grph_mode ? row_addr_next[0] : crtc_addr_next[12];
-    wire fx_pixel_addr14 = `ENABLE_TANDY_VIDEO ? (grph_mode ? row_addr_next[1] : 1'b0) : 1'b0;
+    wire fx_pixel_addr14 = (`ENABLE_TANDY_VIDEO && tandy_video) ? (grph_mode ? row_addr_next[1] : 1'b0) : 1'b0;
     always @(posedge clk)
         fx_next_word <= {fx_pixel_addr14, fx_pixel_addr13, crtc_addr_next[11:0]};
 

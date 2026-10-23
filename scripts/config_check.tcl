@@ -11,6 +11,7 @@
 proc pcxt_macro_defaults {} {
     return [dict create \
         SYSTEM_VARIANT_TANDY 0 \
+        ENABLE_MODEL_TANDY   0 \
         ENABLE_TANDY_VIDEO   0 \
         ENABLE_TANDY_AUDIO   0 \
         ENABLE_TANDY_KBD     0 \
@@ -30,7 +31,7 @@ proc pcxt_macro_defaults {} {
 # Macros that are on/off switches (the rest carry a number or a name)
 proc pcxt_switch_macros {} {
     return {
-        SYSTEM_VARIANT_TANDY ROM_VARIANT_TANDY ROM_IS_TANDY ENABLE_TANDY_VIDEO
+        SYSTEM_VARIANT_TANDY ROM_VARIANT_TANDY ROM_IS_TANDY ENABLE_MODEL_TANDY ENABLE_TANDY_VIDEO
         ENABLE_TANDY_AUDIO ENABLE_TANDY_KBD ENABLE_CGA ENABLE_HGC ENABLE_EGA
         ENABLE_VGA13 ENABLE_OPL2 ENABLE_CMS ENABLE_SB ENABLE_EMS ENABLE_UMB
         ENABLE_A000_UMB ENABLE_MIDI LAYOUT_EGA
@@ -85,15 +86,40 @@ proc pcxt_check_config {assigned} {
     # Tandy video: the video memory is the system RAM, the CGA window
     # is a view of a block of it. The Hercules and EGA windows would collide
     # with it, and a Tandy machine without its video is not one.
+    #
+    # A build that chooses the machine in the OSD (ENABLE_MODEL_TANDY) carries
+    # the Hercules and EGA cards for its PCXT: the Tandy 1000 it can become
+    # switches them off at reset (the cards and the Tandy video do not coexist).
     set tandy_video [pcxt_on $m ENABLE_TANDY_VIDEO]
+    set model       [pcxt_on $m ENABLE_MODEL_TANDY]
     if {$tandy_video && !$cga} {
         lappend errors "ENABLE_TANDY_VIDEO=1 needs ENABLE_CGA=1 (the Tandy video modes live in the CGA)"
     }
-    if {$tandy_video && $hgc} {
+    if {$tandy_video && $hgc && !$model} {
         lappend errors "ENABLE_TANDY_VIDEO=1 with ENABLE_HGC=1: the Tandy video RAM is shared system RAM, there is no Hercules card in a Tandy 1000"
     }
-    if {$tandy_video && $ega} {
+    if {$tandy_video && $ega && !$model} {
         lappend errors "ENABLE_TANDY_VIDEO=1 with ENABLE_EGA=1: the EGA card is a PCXT card"
+    }
+    if {$tandy_video && !$rom_tandy && !$model} {
+        lappend errors "ENABLE_TANDY_VIDEO=1 needs a Tandy BIOS slot: a Tandy ROM (ROM_VARIANT_TANDY=1) or ENABLE_MODEL_TANDY=1"
+    }
+    # The machine chosen in the OSD
+    if {$model} {
+        if {!$layout_ega} {
+            lappend errors "ENABLE_MODEL_TANDY=1 needs LAYOUT_EGA=1: only that layout of the OSD has a status bit for the machine"
+        }
+        if {!$cga} {
+            lappend errors "ENABLE_MODEL_TANDY=1 needs ENABLE_CGA=1 (the Tandy 1000 video is the CGA's)"
+        }
+        foreach {name what} {ENABLE_TANDY_VIDEO "video" ENABLE_TANDY_KBD "keyboard" ENABLE_TANDY_AUDIO "sound"} {
+            if {![pcxt_on $m $name]} {
+                lappend errors "ENABLE_MODEL_TANDY=1 needs $name=1 (the Tandy 1000 $what must be built in)"
+            }
+        }
+        if {$tandy || $rom_tandy} {
+            lappend errors "ENABLE_MODEL_TANDY=1 with a Tandy machine fixed by the build (SYSTEM_VARIANT_TANDY/ROM_VARIANT_TANDY/ROM_IS_TANDY): the machine is chosen in the OSD"
+        }
     }
     if {$tandy && !$tandy_video} {
         lappend errors "SYSTEM_VARIANT_TANDY=1 needs ENABLE_TANDY_VIDEO=1"

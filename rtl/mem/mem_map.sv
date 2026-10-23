@@ -57,7 +57,9 @@ module mem_map #(
 );
     import sdram_pkg::*;
 
-    localparam logic [19:0] MAIN_ROM = ROM_TANDY ? ROM_TANDY_BIOS : ROM_PCXT_BIOS;
+    // F000 is the Tandy BIOS slot in a build that is only a Tandy (ROM_TANDY) and
+    // while the machine is a Tandy 1000 (tandy_video) in a build that chooses
+    wire [19:0] MAIN_ROM = (ROM_TANDY || tandy_video) ? ROM_TANDY_BIOS : ROM_PCXT_BIOS;
 
     wire seg_f    = (address[19:16] == 4'hF);
     wire seg_ec00 = (address[19:14] == 6'b111011);

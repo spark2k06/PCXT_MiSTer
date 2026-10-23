@@ -18,7 +18,10 @@ module bios_hold_notice #(
     // open, so re-arm just inside that window: long enough not to fight the OSD,
     // short enough that the message never blinks out.
     parameter [24:0] INFO_PERIOD = 25'd21477000,   // 1.5 s at 14.318 MHz
-    parameter [24:0] INFO_WIDTH  = 25'd256
+    parameter [24:0] INFO_WIDTH  = 25'd256,
+    // Number of the Tandy BIOS notice in the "I," section of the config string
+    // (the PCXT BIOS notice is 1, the EGA one 2)
+    parameter [7:0]  TANDY_INFO_INDEX = 8'd3
 ) (
     input  logic       clock,
     // High for as long as the ordinary power-on splash owns the screen.  Both
@@ -27,6 +30,9 @@ module bios_hold_notice #(
     // Asynchronous to `clock`; they are driven from the chipset domain.
     input  logic       bios_missing_pcxt,
     input  logic       bios_missing_ega,
+    // The machine is a Tandy 1000 and its BIOS is absent (a build that chooses
+    // the machine at run time; tie to 0 otherwise)
+    input  logic       bios_missing_tandy,
     output logic       hold,
     output logic [7:0] info,
     output logic       info_req
@@ -34,14 +40,16 @@ module bios_hold_notice #(
 
     (* ASYNC_REG = "TRUE" *) logic [1:0] missing_pcxt_sync = 2'b00;
     (* ASYNC_REG = "TRUE" *) logic [1:0] missing_ega_sync  = 2'b00;
+    (* ASYNC_REG = "TRUE" *) logic [1:0] missing_tandy_sync = 2'b00;
 
     logic [24:0] info_cnt = 25'd0;
 
-    assign hold = ~splash_boot_phase & (missing_pcxt_sync[1] | missing_ega_sync[1]);
+    assign hold = ~splash_boot_phase & (missing_pcxt_sync[1] | missing_tandy_sync[1] | missing_ega_sync[1]);
 
     always_ff @(posedge clock) begin
         missing_pcxt_sync <= {missing_pcxt_sync[0], bios_missing_pcxt};
         missing_ega_sync  <= {missing_ega_sync[0],  bios_missing_ega};
+        missing_tandy_sync <= {missing_tandy_sync[0], bios_missing_tandy};
 
         if (!hold) begin
             info_cnt <= 25'd0;
@@ -57,7 +65,8 @@ module bios_hold_notice #(
             // Index into the "I," section of the config string, 1 based.  The
             // main BIOS is named first: an EGA option ROM is no use without a
             // machine to run it on, so reporting both at once would be noise.
-            info     <= missing_pcxt_sync[1] ? 8'd1 : 8'd2;
+            info     <= missing_pcxt_sync[1]  ? 8'd1 :
+                        missing_tandy_sync[1] ? TANDY_INFO_INDEX : 8'd2;
             info_req <= info_cnt < INFO_WIDTH;
         end
     end

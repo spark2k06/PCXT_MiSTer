@@ -78,6 +78,20 @@ if {[dict get $tandy1000 SYSTEM_VARIANT_TANDY] != 1 || [dict get $tandy1000 ENAB
     fail "mister_tandy1000 must be a Tandy machine with the CGA family only and the CGA layout"
 }
 
+foreach p {mister_pcxt_full mister_pcxt_full_novga13} {
+    lassign [evaluate_profile $p] pm _
+    if {[dict get $pm ENABLE_MODEL_TANDY] != 1 || [dict get $pm ENABLE_TANDY_VIDEO] != 1
+        || [dict get $pm ENABLE_TANDY_KBD] != 1} {
+        fail "$p must choose the machine in the OSD (Tandy video and keyboard built in)"
+    }
+}
+foreach p {mister_pcxt_cga mister_pcxt_ega mister_tandy1000} {
+    lassign [evaluate_profile $p] pm _
+    if {[dict exists $pm ENABLE_MODEL_TANDY] && [dict get $pm ENABLE_MODEL_TANDY] != 0} {
+        fail "$p has a fixed machine and must not choose it in the OSD"
+    }
+}
+
 # --- wrong combinations -----------------------------------------------------
 set base [dict create LAYOUT_EGA 1 ENABLE_CGA 1 ENABLE_HGC 1 ENABLE_EGA 1 ENABLE_VGA13 1 ENABLE_SB 1 ENABLE_OPL2 1]
 
@@ -106,6 +120,18 @@ expect_error "Tandy video without the CGA"     [dict replace $tandy_ok ENABLE_CG
 expect_error "Tandy video with Hercules"     [dict replace $tandy_ok ENABLE_HGC 1] "*ENABLE_TANDY_VIDEO=1 with ENABLE_HGC=1*"
 expect_error "Tandy video with the EGA card"     [dict replace $tandy_ok ENABLE_EGA 1 LAYOUT_EGA 1] "*ENABLE_TANDY_VIDEO=1 with ENABLE_EGA=1*"
 expect_error "a Tandy machine without Tandy video"     [dict replace $tandy_ok ENABLE_TANDY_VIDEO 0] "*SYSTEM_VARIANT_TANDY=1 needs ENABLE_TANDY_VIDEO=1*"
+# The machine chosen in the OSD
+set model_ok [dict merge $base [dict create ENABLE_TANDY_VIDEO 1 ENABLE_TANDY_KBD 1 ENABLE_TANDY_AUDIO 1 ENABLE_MODEL_TANDY 1]]
+lassign [pcxt_check_config $model_ok] errors warnings
+if {[llength $errors]} { fail "machine choice with both card families rejected: $errors" } else { puts "ok:   machine choice accepted" }
+expect_error "machine choice without the EGA layout" [dict remove $model_ok LAYOUT_EGA] "*ENABLE_MODEL_TANDY=1 needs LAYOUT_EGA=1*"
+expect_error "machine choice without the CGA"         [dict replace $model_ok ENABLE_CGA 0 ENABLE_HGC 0] "*ENABLE_MODEL_TANDY=1 needs ENABLE_CGA=1*"
+expect_error "machine choice without Tandy video"     [dict replace $model_ok ENABLE_TANDY_VIDEO 0] "*ENABLE_MODEL_TANDY=1 needs ENABLE_TANDY_VIDEO=1*"
+expect_error "machine choice without the Tandy keyboard" [dict replace $model_ok ENABLE_TANDY_KBD 0] "*ENABLE_MODEL_TANDY=1 needs ENABLE_TANDY_KBD=1*"
+expect_error "machine choice without Tandy sound"     [dict replace $model_ok ENABLE_TANDY_AUDIO 0] "*ENABLE_MODEL_TANDY=1 needs ENABLE_TANDY_AUDIO=1*"
+expect_error "machine choice with a fixed Tandy"      [dict replace $model_ok ROM_VARIANT_TANDY 1] "*ENABLE_MODEL_TANDY=1 with a Tandy machine fixed*"
+expect_error "Tandy video in a PCXT without a Tandy BIOS slot" \
+    [dict create ENABLE_CGA 1 ENABLE_TANDY_VIDEO 1] "*needs a Tandy BIOS slot*"
 expect_error "a switch that is not 0 or 1" \
     [dict replace $base ENABLE_SB 2] "*ENABLE_SB must be 0 or 1*"
 

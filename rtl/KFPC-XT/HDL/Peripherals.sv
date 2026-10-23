@@ -331,6 +331,13 @@ module PERIPHERALS #(
     always_ff @(posedge clk_vga_cga)
         ega_active_cga_sync <= {ega_active_cga_sync[0], ega_active};
 
+    // The machine model (PCXT or Tandy 1000) is static in the same way: it is
+    // chosen at reset, and the CGA reads it through a synchroniser.
+    (* ASYNC_REG = "TRUE" *) logic [1:0] tandy_video_cga_sync = 2'b00;
+    always_ff @(posedge clk_vga_cga)
+        tandy_video_cga_sync <= {tandy_video_cga_sync[0], `ENABLE_TANDY_VIDEO ? tandy_video : 1'b0};
+    wire tandy_video_cga = tandy_video_cga_sync[1];
+
     always_ff @(posedge clk_vga_hgc)
         ega_active_hgc_sync <= {ega_active_hgc_sync[0], ega_active};
 
@@ -350,7 +357,9 @@ module PERIPHERALS #(
 
     wire tandy_video_en = `ENABLE_TANDY_VIDEO ? tandy_video : 1'b0;
     wire tandy_audio_en = `ENABLE_TANDY_AUDIO ? tandy_en : 1'b0;
-    wire tandy_kbd_en = `ENABLE_TANDY_KBD ? 1'b1 : 1'b0;
+    // The Tandy keyboard converter is built with ENABLE_TANDY_KBD; with the Tandy
+    // video it is used only while the machine is a Tandy 1000
+    wire tandy_kbd_en = `ENABLE_TANDY_KBD ? (`ENABLE_TANDY_VIDEO ? tandy_video : 1'b1) : 1'b0;
 
     wire tandy_io_en = tandy_video_en | tandy_audio_en;
 
@@ -1295,6 +1304,7 @@ end
         .io_read_n        (io_read_n),
         .data_out         (xtctl_id_data),
         .output_enable    (xtctl_id_oe),
+        .tandy_machine    (`ENABLE_TANDY_VIDEO ? tandy_video : 1'b0),
         .video_card       (id_video_card),
         .vga13_active     (id_vga13_active),
         .rtc_port         (rtc_port),
@@ -1742,7 +1752,7 @@ end
         .splashscreen               (splashscreen),
         .composite                  (composite_cga),
         .thin_font                  (thin_font),
-        .tandy_video                (tandy_video_en),
+        .tandy_video                (tandy_video_cga),
         .scandouble_en              (cga_scandouble_en),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),

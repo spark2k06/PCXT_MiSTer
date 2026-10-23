@@ -12,12 +12,15 @@
 //     rom_presence_latch drops "loaded" when the download starts, which
 //     raises bios_hold and the reset, and sets it again from write_main.
 //
-// Slots (ioctl index): 0 PCXT BIOS (first 64 KiB of the file), 1 Tandy BIOS
-// (ROM_VARIANT_TANDY builds only; there it is the main BIOS: write_main and the
-// "BIOS present" state follow it, and the PCXT slot is not offered), 2 EC00 (16 KiB window, wraps as before),
-// 3 EGA BIOS (ROM_EGA builds, 16 KiB window).
+// Slots (ioctl index): 0 PCXT BIOS (first 64 KiB of the file; ROM_PCXT), 1 Tandy
+// BIOS (ROM_TANDY), 2 EC00 (16 KiB window, wraps as before), 3 EGA BIOS (ROM_EGA
+// builds, 16 KiB window). A build that is only a Tandy 1000 sets
+// ROM_PCXT to 0 and the PCXT slot is not offered; a build that chooses the
+// machine at run time has both, each in its own place in the ROM bank, and
+// write_main / write_tandy tell which of the two has been written.
 //
 module rom_loader #(
+    parameter bit ROM_PCXT  = 1'b1,
     parameter bit ROM_TANDY = 1'b0,
     parameter bit ROM_EGA   = 1'b0
 ) (
@@ -43,13 +46,14 @@ module rom_loader #(
     input  logic        l_done,
 
     output logic        write_any,      // a word is being written (lookahead flush)
-    output logic        write_main,     // a word of slot 0 has been written
+    output logic        write_main,     // a word of slot 0 (PCXT BIOS) has been written
+    output logic        write_tandy,    // a word of slot 1 (Tandy BIOS) has been written
     output logic        write_ega,      // a word of slot 3 has been written
     output logic        ec00_loaded     // a word of the EC00 slot has been written since reset
 );
     import sdram_pkg::*;
 
-    wire sel_pcxt  = (ioctl_index[5:0] == 6'd0) && (ioctl_addr[24:16] == 9'd0);
+    wire sel_pcxt  = ROM_PCXT && (ioctl_index[5:0] == 6'd0) && (ioctl_addr[24:16] == 9'd0);
     wire sel_tandy = ROM_TANDY && (ioctl_index[5:0] == 6'd1) && (ioctl_addr[24:16] == 9'd0);
     wire sel_ec00  = (ioctl_index == 8'd2);
     wire sel_ega   = ROM_EGA && (ioctl_index[5:0] == 6'd3) && (ioctl_addr[24:16] == 9'd0);
@@ -64,6 +68,7 @@ module rom_loader #(
     typedef enum logic [1:0] {L_IDLE, L_ARMED, L_WRITE} lstate_t;
     lstate_t state;
     logic    main_slot;
+    logic    tandy_slot;
     logic    ec00_slot;
     logic    ega_slot;
 
@@ -79,15 +84,18 @@ module rom_loader #(
             l_addr       <= 24'd0;
             l_wdata      <= 16'h0000;
             main_slot    <= 1'b0;
+            tandy_slot   <= 1'b0;
             ec00_slot    <= 1'b0;
             ega_slot     <= 1'b0;
             ec00_loaded  <= 1'b0;
             write_main   <= 1'b0;
+            write_tandy  <= 1'b0;
             write_ega    <= 1'b0;
         end
         else begin
-            write_main <= 1'b0;
-            write_ega  <= 1'b0;
+            write_main  <= 1'b0;
+            write_tandy <= 1'b0;
+            write_ega   <= 1'b0;
             case (state)
                 L_IDLE: begin
                     hold_request <= ioctl_download;
@@ -105,7 +113,8 @@ module rom_loader #(
                     else if (ioctl_wr && selected) begin
                         l_addr     <= dest[24:1];
                         l_wdata    <= ioctl_data;
-                        main_slot  <= ROM_TANDY ? sel_tandy : sel_pcxt;
+                        main_slot  <= sel_pcxt;
+                        tandy_slot <= sel_tandy;
                         ec00_slot  <= sel_ec00;
                         ega_slot   <= sel_ega;
                         ioctl_wait <= 1'b1;
@@ -116,8 +125,9 @@ module rom_loader #(
                 end
                 L_WRITE:
                     if (l_done) begin
-                        write_main <= main_slot;
-                        write_ega  <= ega_slot;
+                        write_main  <= main_slot;
+                        write_tandy <= tandy_slot;
+                        write_ega   <= ega_slot;
                         if (ec00_slot)
                             ec00_loaded <= 1'b1;
                         ioctl_wait <= 1'b0;

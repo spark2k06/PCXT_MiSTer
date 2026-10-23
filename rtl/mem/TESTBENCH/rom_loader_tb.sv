@@ -7,8 +7,13 @@
 `timescale 1ns / 1ps
 
 module rom_loader_tb #(
-    parameter bit TANDY = 1'b0       // a ROM_VARIANT_TANDY build: the Tandy slot is the main BIOS
+    // 0: a PCXT build (slot 0 only), 1: a build that is only a Tandy 1000 (slot 1
+    // only), 2: a build that chooses the machine at run time (both slots)
+    parameter int MODEL = 0
 );
+    localparam bit HAS_PCXT  = (MODEL != 1);
+    localparam bit HAS_TANDY = (MODEL != 0);
+
     import sdram_pkg::*;
 
     logic clock = 0;
@@ -24,15 +29,16 @@ module rom_loader_tb #(
     logic        hold_granted = 0;
     wire         l_start;  wire [23:0] l_addr;  wire [15:0] l_wdata;
     logic        l_busy = 0, l_done = 0;
-    wire         write_any, write_main, ec00_loaded;
+    wire         write_any, write_main, write_tandy, ec00_loaded;
 
-    rom_loader #(.ROM_TANDY(TANDY)) dut (
+    rom_loader #(.ROM_PCXT(HAS_PCXT), .ROM_TANDY(HAS_TANDY)) dut (
         .clock(clock), .reset(reset), .sdram_ready(1'b1),
         .ioctl_download(ioctl_download), .ioctl_index(ioctl_index), .ioctl_wr(ioctl_wr),
         .ioctl_addr(ioctl_addr), .ioctl_data(ioctl_data), .ioctl_wait(ioctl_wait),
         .hold_request(hold_request), .hold_granted(hold_granted),
         .l_start(l_start), .l_addr(l_addr), .l_wdata(l_wdata), .l_busy(l_busy), .l_done(l_done),
-        .write_any(write_any), .write_main(write_main), .ec00_loaded(ec00_loaded)
+        .write_any(write_any), .write_main(write_main), .write_tandy(write_tandy),
+        .ec00_loaded(ec00_loaded)
     );
 
     int errors = 0;
@@ -50,7 +56,7 @@ module rom_loader_tb #(
     // Transaction port: busy for 3..12 clocks, then done.
     int     busy_left = 0;
     logic [15:0] mem [int unsigned];
-    int     writes = 0, mains = 0;
+    int     writes = 0, mains = 0, tandys = 0;
     always @(posedge clock) begin
         l_done <= 0;
         if (l_start && !l_busy) begin
@@ -65,6 +71,7 @@ module rom_loader_tb #(
             else busy_left--;
         end
         if (write_main) mains++;
+        if (write_tandy) tandys++;
     end
 
     // hps_io side
@@ -106,35 +113,42 @@ module rom_loader_tb #(
         repeat (4) @(posedge clock);
 
         if (ec00_loaded) err("EC00 flagged as loaded before any download");
-        writes = 0; mains = 0;
-        if (!TANDY) begin
+        writes = 0; mains = 0; tandys = 0;
+        if (HAS_PCXT) begin
             download(8'd0, 300, 1);
             if (ec00_loaded) err("EC00 flagged as loaded by the PCXT BIOS");
             verify((PHYS_ROM_BANK + ROM_PCXT_BIOS) >> 1, 300, 1, 0, "PCXT BIOS");
             if (writes != 300) err($sformatf("PCXT BIOS: %0d writes", writes));
             if (mains != 300) err($sformatf("write_main pulsed %0d times", mains));
+            if (tandys != 0) err("write_tandy for the PCXT slot");
         end
         else begin
-            // The Tandy BIOS is the main one: it is what write_main (the machine's
-            // "BIOS present") follows, and a PCXT BIOS does not count
+            // A build that is only a Tandy 1000 does not offer the PCXT slot
             download(8'd0, 40, 5);
-            if (mains != 0) err("write_main for the PCXT slot in a Tandy build");
-            writes = 0; mains = 0;
-            download(8'd1, 300, 1);
-            if (ec00_loaded) err("EC00 flagged as loaded by the Tandy BIOS");
-            verify((PHYS_ROM_BANK + ROM_TANDY_BIOS) >> 1, 300, 1, 0, "Tandy BIOS");
-            if (writes != 300) err($sformatf("Tandy BIOS: %0d writes", writes));
-            if (mains != 300) err($sformatf("write_main pulsed %0d times for the Tandy BIOS", mains));
+            if (writes != 0 || mains != 0) err("PCXT slot written in a Tandy-only build");
         end
 
-        writes = 0; mains = 0;
+        if (HAS_TANDY) begin
+            writes = 0; mains = 0; tandys = 0;
+            download(8'd1, 200, 3);
+            if (ec00_loaded) err("EC00 flagged as loaded by the Tandy BIOS");
+            verify((PHYS_ROM_BANK + ROM_TANDY_BIOS) >> 1, 200, 3, 0, "Tandy BIOS");
+            if (writes != 200) err($sformatf("Tandy BIOS: %0d writes", writes));
+            if (tandys != 200) err($sformatf("write_tandy pulsed %0d times", tandys));
+            if (mains != 0) err("write_main for the Tandy slot");
+            // Both images sit in their own place: the Tandy one did not overwrite the PCXT one
+            if (HAS_PCXT)
+                verify((PHYS_ROM_BANK + ROM_PCXT_BIOS) >> 1, 300, 1, 0, "PCXT BIOS after the Tandy one");
+        end
+
+        writes = 0; mains = 0; tandys = 0;
         download(8'd2, 9000, 7);         // 18000 bytes: wraps inside 16 KiB
         verify((PHYS_ROM_BANK + ROM_EC00) >> 1, 9000, 7, 8192, "EC00 (16 KiB window)");
-        if (mains != 0) err("write_main for EC00");
+        if (mains != 0 || tandys != 0) err("write_main / write_tandy for EC00");
         if (!ec00_loaded) err("EC00 not flagged as loaded after its download");
 
         writes = 0;
-        if (!TANDY) begin
+        if (!HAS_TANDY) begin
             download(8'd1, 50, 9);       // Tandy slot: not in a PCXT build
             if (writes != 0) err("Tandy slot written in a PCXT build");
         end

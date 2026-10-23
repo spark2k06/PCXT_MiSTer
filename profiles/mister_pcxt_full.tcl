@@ -10,12 +10,16 @@ if {![info exists pcxt_enable_vga13]} { set pcxt_enable_vga13 1 }
 # Option layout of the OSD: the EGA one (it carries the card selector)
 set_global_assignment -name VERILOG_MACRO "LAYOUT_EGA=1"
 
-# Machine: a plain PCXT with Tandy 1000 sound only
+# Machine: a PCXT or a Tandy 1000, chosen in the OSD and applied at reset.
+# The Tandy 1000 has the CGA with its Tandy video modes (shared RAM),
+# the Tandy keyboard and sound, and its own BIOS slot; it has no Hercules and no
+# EGA card, so the video-card entries of the menu are hidden when it is chosen.
 set_global_assignment -name VERILOG_MACRO "SYSTEM_VARIANT_TANDY=0"
 set_global_assignment -name VERILOG_MACRO "ROM_VARIANT_TANDY=0"
-set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_VIDEO=0"
+set_global_assignment -name VERILOG_MACRO "ENABLE_MODEL_TANDY=1"
+set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_VIDEO=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_AUDIO=1"
-set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_KBD=0"
+set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_KBD=1"
 
 # Video: both families, the EGA with the VGA 13h+ extension (unless trimmed)
 set_global_assignment -name VERILOG_MACRO "ENABLE_CGA=1"

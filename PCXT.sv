@@ -54,6 +54,12 @@
 `ifndef CONF_STR_SYSTEM
 `define CONF_STR_SYSTEM (`ENABLE_MIDI ? {`CORE_NAME, ";UART115200:115200,MIDI;"} : {`CORE_NAME, ";UART115200:115200;"})
 `endif
+// The machine is chosen in the OSD, PCXT or Tandy 1000, and applied at reset
+// (LAYOUT_EGA menu only). It needs the Tandy video, keyboard and sound built in
+// and a PCXT build otherwise (see scripts/config_check.tcl).
+`ifndef ENABLE_MODEL_TANDY
+`define ENABLE_MODEL_TANDY 0
+`endif
 `ifndef ENABLE_TANDY_VIDEO
 `define ENABLE_TANDY_VIDEO 0
 `endif
@@ -132,6 +138,7 @@ module emu
     //    no counterpart at the same bit in the CGA layout sit above 79:
     //      81:80 monitor  82 UMB off  83 VGA 13h+ TV 60 Hz  85:84 audio 220h
     //      86 swap joysticks  87 Tandy sound  88 MPU-401 off
+    //      96 machine (PCXT / Tandy 1000), ENABLE_MODEL_TANDY builds
     //      91:89 VSync width  94:92 HSync width
     //    The CGA layout moved four options off the bits MT32-pi uses (3:4 ROM,
     //    13 off, 40 hanging-notes reset, 41 mode), where they sat on top of it:
@@ -150,16 +157,30 @@ module emu
     localparam bit HAS_CGA_HGC = ((`ENABLE_CGA != 0) || (`ENABLE_HGC != 0));
     // The card is selectable at run time only when both families are built
     localparam bit CARD_SELECTABLE = HAS_EGA && HAS_CGA_HGC;
+    // The machine (PCXT or Tandy 1000) is chosen in the OSD
+    localparam bit HAS_MODEL = (`ENABLE_MODEL_TANDY != 0);
 
-    localparam CONF_STR_ROM = (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;");
+    // With the machine selectable, the entries that belong to one of the two are
+    // shown only for it: hA PCXT, hB Tandy 1000 (see status_menumask).
+    localparam CONF_STR_ROM = HAS_MODEL
+        ? "hAP1FC0,ROM,PCXT BIOS:;hBP1FC1,ROM,Tandy BIOS:;"
+        : (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;");
     localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
     localparam CONF_STR_EMS_EGA = (`ENABLE_EMS ? "P3O5,2MB EMS D000-DFFF,Enabled,Disabled;P3-;" : "");
     localparam CONF_STR_UMB = ((L_EGA && `ENABLE_UMB) ? "P3O[82],UMB C400-CFFF,Enabled,Disabled;P3-;" : "");
 
 `ifdef LAYOUT_EGA
     // CGA/Hercules only items are hidden (h7) while the EGA card is selected
-    localparam CONF_STR_CARD = (CARD_SELECTABLE ? "P1O[78],PCXT Video,CGA/HGC,EGA/VGA;P1-;" : "");
-    localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "h7P1O[76],PCXT CGA Graphics,Yes,No;h7P1O[77],PCXT Hercules Graphics,Yes,No;h7P1O[75],PCXT 1st Video,CGA,Hercules;h7P1-;" : "");
+    // A Tandy 1000 has only the CGA with its Tandy modes: no card choice, no
+    // Hercules (hA hides them, hD is "CGA/HGC card selected on a PCXT").
+    localparam CONF_STR_MACHINE = (HAS_MODEL ? "P1O[96],Machine,IBM PCXT,Tandy 1000;P1-;" : "");
+    localparam CONF_STR_CARD = CARD_SELECTABLE
+        ? (HAS_MODEL ? "hAP1O[78],PCXT Video,CGA/HGC,EGA/VGA;hAP1-;" : "P1O[78],PCXT Video,CGA/HGC,EGA/VGA;P1-;")
+        : "";
+    localparam CONF_STR_HGC = (`ENABLE_HGC && `ENABLE_CGA)
+        ? (HAS_MODEL ? "hDP1O[76],PCXT CGA Graphics,Yes,No;hDP1O[77],PCXT Hercules Graphics,Yes,No;hDP1O[75],PCXT 1st Video,CGA,Hercules;hDP1-;"
+                     : "h7P1O[76],PCXT CGA Graphics,Yes,No;h7P1O[77],PCXT Hercules Graphics,Yes,No;h7P1O[75],PCXT 1st Video,CGA,Hercules;h7P1-;")
+        : "";
     // The EGA BIOS only matters when the EGA card is the one selected
     localparam CONF_STR_EGABIOS = (HAS_EGA ? "h8P1FC3,ROM,EGA BIOS:;" : "");
     // The Sound Blaster and the C/MS both live at 220h and collide on
@@ -168,7 +189,10 @@ module emu
         (`ENABLE_CMS && `ENABLE_SB) ? "P2O[85:84],Audio 220h,C/MS,Sound Blaster,Disabled;" :
         (`ENABLE_SB)                ? "P2O[85],Sound Blaster,Enabled,Disabled;"            :
         (`ENABLE_CMS)               ? "P2O[85],C/MS Audio,Enabled,Disabled;"               : "";
-    localparam CONF_STR_TANDY_AUDIO = (`ENABLE_TANDY_AUDIO ? "P2O[87],Tandy Sound,Disabled,Enabled;" : "");
+    // A Tandy 1000 always has its sound chip
+    localparam CONF_STR_TANDY_AUDIO = `ENABLE_TANDY_AUDIO
+        ? (HAS_MODEL ? "hAP2O[87],Tandy Sound,Disabled,Enabled;" : "P2O[87],Tandy Sound,Disabled,Enabled;")
+        : "";
     localparam CONF_STR_VIDEO_CGA = (HAS_CGA_HGC ? "h7P2O[72],Border,No,Yes;h9P2O[73],Border CRT offsets,No,Yes;h7P2O[74],CRTC Frame Stacking,Native,Rebuilt;h7P2O[71],Composite video,Off,On;" : "");
     localparam CONF_STR_VIDEO_EGA = (HAS_EGA ? "h8P2O[83],VGA 13h+ CRT,Native 70Hz,TV 60Hz;" : "");
     localparam CONF_STR_MONITOR = (HAS_EGA ? "h8P3O[81:80],Monitor,5154/ECD,5153/CGA,5151/MDA;P3-;" : "");
@@ -182,7 +206,8 @@ module emu
     localparam CONF_STR_INFO_BIOS = (`ROM_IS_TANDY ? "No Tandy BIOS selected\n" : "No PCXT BIOS selected\n");
     localparam CONF_STR_HALT = {
         CONF_STR_HALT_BIOS,
-        (HAS_EGA ? "h5-,HALTED: no EGA BIOS selected;" : "")
+        (HAS_EGA ? "h5-,HALTED: no EGA BIOS selected;" : ""),
+        (HAS_MODEL ? "hC-,HALTED: no Tandy BIOS selected;" : "")
     };
     // The box is 32 columns wide; commas separate the messages, so none of
     // them may contain one.
@@ -192,11 +217,14 @@ module emu
         "Machine halted\n",
         "OSD: System & BIOS,",
         (HAS_EGA ? "No EGA BIOS selected\nMachine halted\nOSD: System & BIOS," : ""),
+        (HAS_MODEL ? "No Tandy BIOS selected\nMachine halted\nOSD: System & BIOS," : ""),
         "That setting is applied\n",
         "when the machine resets;"
     };
-    // Number of the "That setting is applied" message in the "I," section
-    localparam [7:0] PENDING_INFO_INDEX = HAS_EGA ? 8'd3 : 8'd2;
+    // Number of the Tandy BIOS notice and of the "That setting is applied"
+    // message in the "I," section
+    localparam [7:0] TANDY_INFO_INDEX   = HAS_EGA ? 8'd3 : 8'd2;
+    localparam [7:0] PENDING_INFO_INDEX = TANDY_INFO_INDEX + (HAS_MODEL ? 8'd1 : 8'd0);
 `else
     localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1oC,PCXT CGA Graphics,Yes,No;P1oD,PCXT Hercules Graphics,Yes,No;P1O[66],PCXT 1st Video,CGA,Hercules;P1-;" : "");
     localparam CONF_STR_A220 = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
@@ -221,6 +249,8 @@ module emu
         "OSD: System & BIOS;"
     };
     localparam [7:0] PENDING_INFO_INDEX = 8'd2;
+    // The CGA layout cannot choose the machine; the index is never used
+    localparam [7:0] TANDY_INFO_INDEX   = 8'd3;
 `endif
 
     localparam CONF_STR_EMS_CGA = (`ENABLE_EMS ? "P3OB,Lo-tech 2MB EMS,Enabled,Disabled;P3O[68:67],EMS Frame,C000,D000,E000;P3-;" : "");
@@ -248,6 +278,7 @@ module emu
         "P1,System & BIOS;",
         "P1-;",
 `ifdef LAYOUT_EGA
+        CONF_STR_MACHINE,
         CONF_STR_CARD,
 `endif
         CONF_STR_HGC,
@@ -315,7 +346,14 @@ module emu
 
     // Video card chosen at reset. card_sel_ega is what the menu asks for (it
     // is pending until the next reset); ega_active is the card that is in use.
-    wire        card_sel_ega = HAS_EGA ? (CARD_SELECTABLE ? status[78] : 1'b1) : 1'b0;
+    // A Tandy 1000 has only the CGA.
+    wire        tandy_sel_osd = HAS_MODEL ? status[96] : 1'b0;
+    reg         tandy_applied_r = 1'b0;     // the machine in use, latched at reset
+    wire        tandy_applied = HAS_MODEL ? tandy_applied_r : 1'b0;
+    // Whether the machine is a Tandy 1000: fixed by the build or chosen at reset.
+    // It drives the Tandy video, keyboard and BIOS slot wherever they are built.
+    wire        tandy_video_mode = (`ENABLE_TANDY_VIDEO != 0) ? (HAS_MODEL ? tandy_applied : 1'b1) : 1'b0;
+    wire        card_sel_ega = HAS_EGA ? (CARD_SELECTABLE ? (status[78] & ~tandy_sel_osd) : 1'b1) : 1'b0;
     wire        ega_active;
     wire        ega_active_vid;
     wire [5:0]  EGA_R, EGA_G, EGA_B;
@@ -430,7 +468,7 @@ module emu
         .osd_joy_sync     (status[27]),
         .osd_joy_swap     (L_EGA ? status[86] : status[28]),
         .osd_mt32_gm      (status[41]),
-        .osd_tandy        (L_EGA ? status[87] : 1'b1),
+        .osd_tandy        (L_EGA ? (status[87] | tandy_video_mode) : 1'b1),
         .osd_mpu401       (L_EGA ? ~status[88] : 1'b1),
         .build_tandy      (`ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0),
         .eff_speed        (eff_speed),
@@ -536,8 +574,11 @@ module emu
     // card is selected and bit 8 while the EGA card is; bit 9 is set when the
     // CGA card is selected with Border on.
     wire        crt_offsets_act = ~(L_EGA ? border_menu : border) | border_crt_osd;
+    //   machine selectable (ENABLE_MODEL_TANDY): bit 10 PCXT chosen, 11 Tandy 1000
+    //   chosen, 12 the Tandy BIOS is absent, 13 PCXT chosen with the CGA/HGC card.
     wire [15:0] status_menumask = L_EGA
-        ? {6'd0, border_menu, card_sel_ega, ~card_sel_ega, crt_offsets_act,
+        ? {2'd0, ~card_sel_ega & ~tandy_sel_osd, bios_missing_tandy, tandy_sel_osd, ~tandy_sel_osd,
+           border_menu, card_sel_ega, ~card_sel_ega, crt_offsets_act,
            bios_missing_ega, bios_missing_pcxt,
            ((`ENABLE_MIDI != 0) && mt32_available && eff_mpu401), 3'b111}
         : {9'd0, crt_offsets_act, border, bios_missing_pcxt,
@@ -550,7 +591,7 @@ module emu
     wire pause_core;
     wire swap_video;
     wire swap_video_requested = ega_active ? 1'b0 :
-                                (`ENABLE_HGC ? (`ENABLE_CGA ? swap_video : (`ENABLE_TANDY_VIDEO ? 1'b0 : 1'b1)) : 1'b0);
+                                (`ENABLE_HGC ? (`ENABLE_CGA ? (swap_video & ~tandy_video_mode) : (`ENABLE_TANDY_VIDEO ? 1'b0 : 1'b1)) : 1'b0);
 
     always @(posedge clk_57_272)
     begin
@@ -561,7 +602,7 @@ module emu
         border_video_meta       <= border;
         border_video_ff         <= border_video_meta;
         cga_hw                  <= `ENABLE_CGA ? (~cga_absent_osd | tandy_video_mode) : 1'b0;
-        hercules_hw             <= `ENABLE_HGC ? (`ENABLE_CGA ? ~hgc_absent_osd : 1'b1) : 1'b0;
+        hercules_hw             <= `ENABLE_HGC ? (`ENABLE_CGA ? (~hgc_absent_osd & ~tandy_video_mode) : 1'b1) : 1'b0;
     end
 
     // Keep static CGA configuration local to the exact CGA clock domain.
@@ -846,14 +887,18 @@ module emu
             reset_cpu_ff <= reset;
     end
 
-    localparam tandy_video_mode = `ENABLE_TANDY_VIDEO;
     reg hgc_mode = 0;
 
     // hgc_mode is sampled while reset is active. Keeping the data-dependent
     // load synchronous avoids synthesis turning reset into a latch clock.
     always @(negedge clk_chipset)
         if (reset)
-            hgc_mode <= `ENABLE_HGC ? (`ENABLE_CGA ? hgc_first_osd : 1'b1) : 1'b0;
+            hgc_mode <= `ENABLE_HGC ? (`ENABLE_CGA ? (hgc_first_osd & ~tandy_sel_osd) : 1'b1) : 1'b0;
+
+    // The machine is chosen the same way (and the video card follows from it)
+    always @(negedge clk_chipset)
+        if (reset)
+            tandy_applied_r <= tandy_sel_osd;
 
     // The video card is chosen the same way: the menu entry is sampled while
     // reset is active and what it says then stays in force until the next
@@ -1009,9 +1054,12 @@ module emu
     wire [23:0] ldr_addr;
     wire [15:0] ldr_wdata;
     wire        pcxt_bios_write_complete;
+    wire        tandy_bios_write_complete;
     wire        ec00_loaded;
 
-    rom_loader #(.ROM_TANDY(`ROM_IS_TANDY), .ROM_EGA(`ENABLE_EGA)) u_rom_loader
+    // The PCXT BIOS slot is offered unless the build is only a Tandy; the Tandy
+    // one when the build is a Tandy or chooses the machine
+    rom_loader #(.ROM_PCXT(!`ROM_IS_TANDY), .ROM_TANDY(`ROM_IS_TANDY || HAS_MODEL), .ROM_EGA(`ENABLE_EGA)) u_rom_loader
     (
         .clock              (clk_chipset),
         .reset              (reset_sdram),
@@ -1031,6 +1079,7 @@ module emu
         .l_done             (ldr_done),
         .write_any          (ldr_flush),
         .write_main         (pcxt_bios_write_complete),
+        .write_tandy        (tandy_bios_write_complete),
         .write_ega          (ega_bios_write_complete),
         .ec00_loaded        (ec00_loaded)
     );
@@ -1523,18 +1572,33 @@ module emu
     // The ROM loader writes the selected image one word at a time. A slot is
     // recorded as present once a word of the download has reached the SDRAM;
     // starting a new download clears it, which re-arms the hold.
-    // The main BIOS is the Tandy one (slot 1) in a Tandy build, the PCXT one (slot 0) otherwise
-    wire pcxt_bios_download_active = ioctl_download && (ioctl_index[5:0] == (`ROM_IS_TANDY ? 6'd1 : 6'd0));
-    wire pcxt_bios_loaded;
+    // Each BIOS slot has its own flag: slot 0 PCXT, slot 1 Tandy 1000.
+    wire pcxt_slot_download  = ioctl_download && (ioctl_index[5:0] == 6'd0);
+    wire tandy_slot_download = ioctl_download && (ioctl_index[5:0] == 6'd1);
+    wire pcxt_slot_loaded, tandy_slot_loaded;
 
     rom_presence_latch pcxt_bios_presence (
         .clock              (clk_chipset),
         .reset              (reset_sdram),
         .sdram_initialized  (initilized_sdram),
-        .download_active    (pcxt_bios_download_active),
+        .download_active    (pcxt_slot_download),
         .write_complete     (pcxt_bios_write_complete),
-        .loaded             (pcxt_bios_loaded)
+        .loaded             (pcxt_slot_loaded)
     );
+
+    rom_presence_latch tandy_bios_presence (
+        .clock              (clk_chipset),
+        .reset              (reset_sdram),
+        .sdram_initialized  (initilized_sdram),
+        .download_active    (tandy_slot_download),
+        .write_complete     (tandy_bios_write_complete),
+        .loaded             (tandy_slot_loaded)
+    );
+
+    // The main BIOS is the one of the machine: the Tandy one in a Tandy build,
+    // the PCXT one in a PCXT build, and the chosen one when the build chooses.
+    wire pcxt_bios_loaded = HAS_MODEL ? (tandy_applied ? tandy_slot_loaded : pcxt_slot_loaded)
+                                      : (`ROM_IS_TANDY ? tandy_slot_loaded : pcxt_slot_loaded);
 
     // The EGA option ROM (slot 3) is tracked the same way. Present, it is
     // write-protected and advertised to the XT BIOS as an adapter with its own
@@ -1565,7 +1629,10 @@ module emu
 
     // Reported one at a time, main BIOS first. The EGA ROM is only required
     // while the EGA card is the one that is selected.
-    wire bios_missing_pcxt = ~pcxt_bios_loaded;
+    wire bios_missing_pcxt  = ~pcxt_bios_loaded & ~tandy_applied;
+    // The Tandy notice and menu line exist only when the machine is chosen; a
+    // build that is only a Tandy reports its BIOS as the main one (above)
+    wire bios_missing_tandy = HAS_MODEL & tandy_applied & ~tandy_slot_loaded;
     wire bios_missing_ega  = HAS_EGA & ega_active & pcxt_bios_loaded & ~ega_bios_loaded;
 
 
@@ -1676,11 +1743,12 @@ module emu
     wire [7:0] pending_info;
     wire       pending_info_req;
 
-    bios_hold_notice bios_notice (
+    bios_hold_notice #(.TANDY_INFO_INDEX(TANDY_INFO_INDEX)) bios_notice (
         .clock             (clk_14_318),
         .splash_boot_phase (splash_pending | splash_timed),
         .bios_missing_pcxt (bios_missing_pcxt),
         .bios_missing_ega  (bios_missing_ega),
+        .bios_missing_tandy(bios_missing_tandy),
         .hold              (bios_hold),
         .info              (bios_info),
         .info_req          (bios_info_req)
@@ -2440,7 +2508,8 @@ module emu
     wire reset_pending = (cpu_type_8086_osd       != is8086_applied)
                        | (HAS_EGA && (ega_monitor_profile_osd != ega_monitor_profile_applied))
                        | (status[22:21]           != use_mmc)
-                       | (CARD_SELECTABLE && (card_sel_ega != ega_active));
+                       | (CARD_SELECTABLE && (card_sel_ega != ega_active))
+                       | (HAS_MODEL && (tandy_sel_osd != tandy_applied));
 
     generate
     if (L_EGA) begin : g_pending_notice

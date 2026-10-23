@@ -21,6 +21,7 @@ module bios_hold_notice_tb;
     logic splash_boot_phase = 1'b1;
     logic bios_missing_pcxt = 1'b1;
     logic bios_missing_ega  = 1'b0;
+    logic bios_missing_tandy = 1'b0;
     wire  hold;
     wire [7:0] info;
     wire  info_req;
@@ -36,6 +37,7 @@ module bios_hold_notice_tb;
         .splash_boot_phase (splash_boot_phase),
         .bios_missing_pcxt (bios_missing_pcxt),
         .bios_missing_ega  (bios_missing_ega),
+        .bios_missing_tandy(bios_missing_tandy),
         .hold              (hold),
         .info              (info),
         .info_req          (info_req)
@@ -104,6 +106,19 @@ module bios_hold_notice_tb;
         bios_missing_pcxt = 1'b1;
         repeat (10) @(posedge clock);
         check(hold, 1'b1, "hold retaken when an image is replaced");
+
+        // A Tandy 1000 without its BIOS: held, with the Tandy notice
+        bios_missing_pcxt  = 1'b0;
+        bios_missing_tandy = 1'b1;
+        repeat (10) @(posedge clock);
+        check(hold, 1'b1, "held with the Tandy BIOS missing");
+        if (info !== 8'd3) begin
+            $display("FAIL: expected info index 3, got %0d", info);
+            errors = errors + 1;
+        end
+        bios_missing_tandy = 1'b0;
+        repeat (10) @(posedge clock);
+        check(hold, 1'b0, "released once the Tandy BIOS is present");
 
         if (errors == 0)
             $display("PASS: BIOS hold covers the splash handover and repeats its notice");

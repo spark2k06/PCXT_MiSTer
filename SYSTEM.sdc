@@ -99,10 +99,12 @@ set_false_path -to [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIP
 # changes while the machine runs. The EGA card's own reset releases on the
 # clock that consumes it (video_reset_clock_sync lives in the EGA_CARD generate
 # block, so the wildcard skips whatever scope name Quartus gives it).
+# The machine model (PCXT / Tandy 1000) is applied the same way.
 set_false_path -to [get_registers {emu:emu|ega_active_vid_sync[*] \
                                    emu:emu|crt480i_out_meta}]
 set_false_path -to [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|ega_active_cga_sync[*] \
                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|ega_active_hgc_sync[*] \
+                                   emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|tandy_video_cga_sync[*] \
                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*video_reset_clock_sync[*]}]
 set_false_path -to [get_registers {sysmem_lite:sysmem|ram1_reset_0 \
                                     sysmem_lite:sysmem|ram2_reset_0 \

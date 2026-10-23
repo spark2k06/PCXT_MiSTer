@@ -76,8 +76,9 @@ BENCHES=(
     "e2e_mph_check|cpu_sdram_e2e_tb|-GOPTION_A=0 -GIS8086=0 -GPROG=1|$E2E"
     "mem_map|mem_map_tb||$PKG $MAP $TB/mem_map_tb.sv"
     "rom_loader|rom_loader_tb||$PKG $LOADER $TB/rom_loader_tb.sv"
-    # A Tandy build: the Tandy BIOS slot is the main BIOS (what "BIOS present" follows)
-    "rom_loader_tandy|rom_loader_tb|-GTANDY=1|$PKG $LOADER $TB/rom_loader_tb.sv"
+    # A build that is only a Tandy 1000, and one that chooses the machine at run time
+    "rom_loader_tandy|rom_loader_tb|-GMODEL=1|$PKG $LOADER $TB/rom_loader_tb.sv"
+    "rom_loader_both|rom_loader_tb|-GMODEL=2|$PKG $LOADER $TB/rom_loader_tb.sv"
     # Video fetch engines against the real arbiter and chip model, with the CPU writing
     # into the words being fetched (coherence, ordering, late pops, flush).
     "vram_fetch|vram_fetch_tb||$PKG $CTRL $ARB $MODEL $VFETCH $TB/vram_fetch_tb.sv"
