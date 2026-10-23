@@ -11,7 +11,7 @@ module uart_16750(input CLK, input RST, input BAUDCE, input CS, input WR, input 
                   output [7:0] DOUT, output DDIS, output INT, output OUT1N, output OUT2N, input RCLK, output BAUDOUTN,
                   output RTSN, output DTRN, input CTSN, input DSRN, input DCDN, input RIN, input SIN, output SOUT,
                   output LSR_DR, output TXRDY, output RXRDY, output LSR_THRE, output LSR_TEMT, output LSR_OE,
-                  output LSR_PE, output LSR_FE, output LSR_BI, output [7:0] RBR, output [7:0] LCR);
+                  output LSR_PE, output LSR_FE, output LSR_BI, output [7:0] RBR, output [7:0] LCR, input PCJR_TEST);
     assign DOUT = 8'd0;
 endmodule
 

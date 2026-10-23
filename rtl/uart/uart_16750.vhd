@@ -62,7 +62,8 @@ entity uart_16750 is
         SIN         : in std_logic;                             -- Receiver input
         SOUT        : out std_logic;                            -- Transmitter output
         LSR_DR      : out std_logic;                            -- LSR: Data ready (register-independent)
-        LSR_THRE    : out std_logic                             -- LSR: Transmitter holding register empty (register-independent)
+        LSR_THRE    : out std_logic;                            -- LSR: Transmitter holding register empty (register-independent)
+        PCJR_TEST   : in std_logic                              -- IBM PCjr: what its BIOS POST needs (writable LSR/MSR, loopback deltas)
     );
 end uart_16750;
 
@@ -222,6 +223,8 @@ architecture rtl of uart_16750 is
     signal iMCRWrite        : std_logic;                        -- Write to MCR
     signal iLSRRead         : std_logic;                        -- Read from LSR
     signal iMSRRead         : std_logic;                        -- Read from MSR
+    signal iLSRWrite        : std_logic;                        -- Write to LSR (PCJR_TEST only)
+    signal iMSRWrite        : std_logic;                        -- Write to MSR (PCJR_TEST only)
     signal iSCRWrite        : std_logic;                        -- Write to SCR
 
     -- UART registers
@@ -285,6 +288,19 @@ architecture rtl of uart_16750 is
     signal iLSR_THRE        : std_logic;                        -- LSR: Transmitter holding register empty
     signal iLSR_TEMT        : std_logic;                        -- LSR: Transmitter empty
     signal iLSR_FIFOERR     : std_logic;                        -- LSR: Error in receiver FIFO
+
+    -- Forced LSR/MSR bits: the PCjr BIOS POST writes these registers to raise the
+    -- interrupts it then expects
+    signal iLSR_DR_forced   : std_logic;
+    signal iLSR_OE_forced   : std_logic;
+    signal iLSR_PE_forced   : std_logic;
+    signal iLSR_FE_forced   : std_logic;
+    signal iLSR_BI_forced   : std_logic;
+    signal iLSR_THRE_forced : std_logic;
+    signal iMSR_dCTS_forced : std_logic;
+    signal iMSR_dDSR_forced : std_logic;
+    signal iMSR_TERI_forced : std_logic;
+    signal iMSR_dDCD_forced : std_logic;
 
     -- MSR register signals
     signal iMSR_dCTS        : std_logic;                        -- MSR: Delta CTS
@@ -402,6 +418,8 @@ begin
     iMCRWrite <= '1' when iWrite = '1' and iA = "100" else '0';
     iLSRRead  <= '1' when iRead  = '1' and iA = "101" else '0';
     iMSRRead  <= '1' when iRead  = '1' and iA = "110" else '0';
+    iLSRWrite <= '1' when iWrite = '1' and iA = "101" and PCJR_TEST = '1' else '0';
+    iMSRWrite <= '1' when iWrite = '1' and iA = "110" and PCJR_TEST = '1' else '0';
     iSCRWrite <= '1' when iWrite = '1' and iA = "111" else '0';
 
     -- Async. input synchronization
@@ -484,15 +502,16 @@ begin
         if (RST = '1') then
             iTHRInterrupt <= '0';
         elsif (CLK'event and CLK = '1') then
-            if (iLSR_THRERE = '1' or iFCR_TXFIFOReset = '1' or (iIERWrite = '1' and iDIN(1) = '1' and iLSR_THRE = '1')) then
-                iTHRInterrupt <= '1';           -- Set on THRE, TX FIFO reset (FIFO enable) or ETBEI enable
+            if (iLSR_THRERE = '1' or iFCR_TXFIFOReset = '1' or (iIERWrite = '1' and iDIN(1) = '1' and iLSR_THRE = '1') or
+                (iLSRWrite = '1' and iDIN(5) = '1')) then
+                iTHRInterrupt <= '1';           -- Set on THRE, TX FIFO reset (FIFO enable), ETBEI enable or (PCjr) LSR write
             elsif ((iIIRRead = '1' and iIIR(3 downto 1) = "001") or iTHRWrite = '1') then
                 iTHRInterrupt <= '0';           -- Clear on IIR read (if source of interrupt) or THR write
             end if;
         end if;
     end process;
 
-    iRDAInterrupt <= '1' when (iFCR_FIFOEnable = '0' and iLSR_DR = '1') or
+    iRDAInterrupt <= '1' when (iFCR_FIFOEnable = '0' and (iLSR_DR = '1' or iLSR_DR_forced = '1')) or
                               (iFCR_FIFOEnable = '1' and iRXFIFOTrigger = '1') else '0';
     iIIR_PI     <= iIIR(0);
     iIIR_ID0    <= iIIR(1);
@@ -683,12 +702,48 @@ begin
     iFEIncrement    <= '1' when iRXFIFOWrite = '1' and iRXFIFOD(10 downto 8) /= "000" else '0';
     iFEDecrement    <= '1' when iFECounter /= 0 and iRXFIFOEmpty = '0' and (iPERE = '1' or iFERE = '1' or iBIRE = '1') else '0';
 
-    iLSR(0)         <= iLSR_DR;
-    iLSR(1)         <= iLSR_OE;
-    iLSR(2)         <= iLSR_PE;
-    iLSR(3)         <= iLSR_FE;
-    iLSR(4)         <= iLSR_BI;
-    iLSR(5)         <= iLSR_THRE;
+    -- PCJR_TEST: writing LSR sets its bits as if the condition had happened; they
+    -- go away the way the real ones do (RBR read, LSR read, THR write)
+    UART_LSR_WRITE: process (CLK, RST)
+    begin
+        if (RST = '1') then
+            iLSR_DR_forced   <= '0';
+            iLSR_OE_forced   <= '0';
+            iLSR_PE_forced   <= '0';
+            iLSR_FE_forced   <= '0';
+            iLSR_BI_forced   <= '0';
+            iLSR_THRE_forced <= '0';
+        elsif (CLK'event and CLK = '1') then
+            if (iLSRWrite = '1') then
+                iLSR_DR_forced   <= iDIN(0);
+                iLSR_OE_forced   <= iDIN(1);
+                iLSR_PE_forced   <= iDIN(2);
+                iLSR_FE_forced   <= iDIN(3);
+                iLSR_BI_forced   <= iDIN(4);
+                iLSR_THRE_forced <= iDIN(5);
+            else
+                if (iRBRRead = '1') then
+                    iLSR_DR_forced <= '0';
+                end if;
+                if (iLSRRead = '1') then
+                    iLSR_OE_forced <= '0';
+                    iLSR_PE_forced <= '0';
+                    iLSR_FE_forced <= '0';
+                    iLSR_BI_forced <= '0';
+                end if;
+                if (iTHRWrite = '1') then
+                    iLSR_THRE_forced <= '0';
+                end if;
+            end if;
+        end if;
+    end process;
+
+    iLSR(0)         <= iLSR_DR or iLSR_DR_forced;
+    iLSR(1)         <= iLSR_OE or iLSR_OE_forced;
+    iLSR(2)         <= iLSR_PE or iLSR_PE_forced;
+    iLSR(3)         <= iLSR_FE or iLSR_FE_forced;
+    iLSR(4)         <= iLSR_BI or iLSR_BI_forced;
+    iLSR(5)         <= iLSR_THRE or iLSR_THRE_forced;
     iLSR(6)         <= iLSR_TEMT;
     iLSR(7)         <= '1' when iFCR_FIFOEnable = '1' and iLSR_FIFOERR = '1' else '0';
     iLSR_DR         <= '1' when iRXFIFOEmpty = '0' or iRXFIFOWrite = '1' else '0';
@@ -699,7 +754,9 @@ begin
     iLSR_TEMT       <= '1' when iTXRunning = '0' and iLSR_THRE = '1' else '0';
 
     -- Modem status register
-    iMSR_CTS <= '1' when (iMCR_LOOP = '1' and iRTS = '1')      or (iMCR_LOOP = '0' and iCTSn = '0') else '0';
+    -- PCJR_TEST: in loopback CTS follows the MCR bit at once (iRTS has the AFC delay)
+    iMSR_CTS <= '1' when (iMCR_LOOP = '1' and ((PCJR_TEST = '0' and iRTS = '1') or (PCJR_TEST = '1' and iMCR_RTS = '1')))
+                         or (iMCR_LOOP = '0' and iCTSn = '0') else '0';
     iMSR_DSR <= '1' when (iMCR_LOOP = '1' and iMCR_DTR = '1')  or (iMCR_LOOP = '0' and iDSRn = '0') else '0';
     iMSR_RI  <= '1' when (iMCR_LOOP = '1' and iMCR_OUT1 = '1') or (iMCR_LOOP = '0' and iRIn  = '0') else '0';
     iMSR_DCD <= '1' when (iMCR_LOOP = '1' and iMCR_OUT2 = '1') or (iMCR_LOOP = '0' and iDCDn = '0') else '0';
@@ -711,6 +768,8 @@ begin
     UART_ED_DCD: slib_edge_detect port map (CLK => CLK, RST => RST, D => iMSR_DCD, RE => iDCDnRE, FE => iDCDnFE);
 
     UART_MSR: process (CLK, RST)
+        -- PCJR_TEST: an MCR write in loopback shows its deltas in the same cycle
+        variable vLoopbackWrite : std_logic;
     begin
         if (RST = '1') then
             iMSR_dCTS <= '0';
@@ -742,13 +801,51 @@ begin
             elsif (iMSRRead = '1') then
                 iMSR_dDCD <= '0';
             end if;
+            vLoopbackWrite := PCJR_TEST and iMCRWrite and (iMCR_LOOP or iDIN(4));
+            if (vLoopbackWrite = '1') then
+                if (iDIN(1) /= iMCR_RTS) then
+                    iMSR_dCTS <= '1';
+                end if;
+                if (iDIN(0) /= iMCR_DTR) then
+                    iMSR_dDSR <= '1';
+                end if;
+                if (iMCR_OUT1 = '1' and iDIN(2) = '0') then
+                    iMSR_TERI <= '1';
+                end if;
+                if (iDIN(3) /= iMCR_OUT2) then
+                    iMSR_dDCD <= '1';
+                end if;
+            end if;
         end if;
     end process;
 
-    iMSR(0)     <= iMSR_dCTS;
-    iMSR(1)     <= iMSR_dDSR;
-    iMSR(2)     <= iMSR_TERI;
-    iMSR(3)     <= iMSR_dDCD;
+    -- PCJR_TEST: writing MSR sets its delta bits; a read clears them
+    UART_MSR_WRITE: process (CLK, RST)
+    begin
+        if (RST = '1') then
+            iMSR_dCTS_forced <= '0';
+            iMSR_dDSR_forced <= '0';
+            iMSR_TERI_forced <= '0';
+            iMSR_dDCD_forced <= '0';
+        elsif (CLK'event and CLK = '1') then
+            if (iMSRWrite = '1') then
+                iMSR_dCTS_forced <= iDIN(0);
+                iMSR_dDSR_forced <= iDIN(1);
+                iMSR_TERI_forced <= iDIN(2);
+                iMSR_dDCD_forced <= iDIN(3);
+            elsif (iMSRRead = '1') then
+                iMSR_dCTS_forced <= '0';
+                iMSR_dDSR_forced <= '0';
+                iMSR_TERI_forced <= '0';
+                iMSR_dDCD_forced <= '0';
+            end if;
+        end if;
+    end process;
+
+    iMSR(0)     <= iMSR_dCTS or iMSR_dCTS_forced;
+    iMSR(1)     <= iMSR_dDSR or iMSR_dDSR_forced;
+    iMSR(2)     <= iMSR_TERI or iMSR_TERI_forced;
+    iMSR(3)     <= iMSR_dDCD or iMSR_dDCD_forced;
     iMSR(4)     <= iMSR_CTS;
     iMSR(5)     <= iMSR_DSR;
     iMSR(6)     <= iMSR_RI;

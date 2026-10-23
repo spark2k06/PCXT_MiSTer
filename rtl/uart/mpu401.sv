@@ -158,7 +158,8 @@ uart_16750 uart_16750
     .SIN        (midi_rx),
     .SOUT       (midi_tx),
     .LSR_DR     (lsr_dr),
-    .LSR_THRE   (lsr_thre)
+    .LSR_THRE   (lsr_thre),
+    .PCJR_TEST  (1'b0)
 );
 
 endmodule

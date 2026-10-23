@@ -1250,7 +1250,8 @@ end
         .dsr_n             (0),
         .ri_n              (1),
         .rts_n             (rts_n),
-        .irq               (uart_irq)
+        .irq               (uart_irq),
+        .pcjr_mode         (pcjr_en)
     );
 	 
 
@@ -1276,7 +1277,8 @@ end
         .dtr_n             (uart2_dtr_n),
         .ri_n              (1),
 
-        .irq               (uart2_irq)
+        .irq               (uart2_irq),
+        .pcjr_mode         (pcjr_en)
     );
 
     mpu401 mpu401_inst

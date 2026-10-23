@@ -24,7 +24,10 @@ module uart
 	output           br_out,
 	output           dtr_n,
 
-	output           irq
+	output           irq,
+
+	// IBM PCjr: the writable LSR/MSR and loopback deltas its BIOS POST tests
+	input            pcjr_mode
 );
 
 wire [7:0] data;
@@ -56,7 +59,9 @@ uart_16750 #(.RX_MIDSTOP(RX_MIDSTOP)) uart_16750
 	.SIN(rx),
 	.SOUT(tx),
 
-	.INT(irq)
+	.INT(irq),
+
+	.PCJR_TEST(pcjr_mode)
 
 );
 
