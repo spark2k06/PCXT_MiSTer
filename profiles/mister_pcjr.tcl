@@ -29,8 +29,9 @@ set_global_assignment -name VERILOG_MACRO "ENABLE_UMB=0"
 set_global_assignment -name VERILOG_MACRO "ENABLE_OPL2=0"
 set_global_assignment -name VERILOG_MACRO "ENABLE_CMS=0"
 set_global_assignment -name VERILOG_MACRO "ENABLE_SB=0"
-# MPU-401 / MT32-pi and HPS USB MIDI support (set to 0 to omit it from the build).
-set_global_assignment -name VERILOG_MACRO "ENABLE_MIDI=1"
+# No MPU-401 / MT32-pi / USB MIDI: a PCjr has no expansion slots (the reference core
+# has none either), and the USER port is left to the serial port.
+set_global_assignment -name VERILOG_MACRO "ENABLE_MIDI=0"
 
 # Clock networks: keep the 114.5 MHz SDRAM controller clock on a global line (see
 # config.tcl and mister_tandy1000).

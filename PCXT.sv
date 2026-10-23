@@ -176,6 +176,11 @@ module emu
     localparam bit HAS_MODEL = (`ENABLE_MODEL_TANDY != 0);
     localparam bit HAS_PCJR_MODEL = HAS_MODEL && (`ENABLE_PCJR != 0);
     localparam bit HAS_PCJR = (`ENABLE_PCJR != 0);
+    // The PCjr has no expansion slots, second drive, hard disk, speed choice or
+    // writable ROM. While it is the machine chosen at run time the entries of all
+    // that are hidden (h2: "the machine is not a PCjr", see status_menumask); a
+    // build that is only a PCjr leaves them out.
+    localparam PJ_H2 = HAS_PCJR_MODEL ? "h2" : "";
 
     // With the machine selectable, the entries that belong to one of the two are
     // shown only for it: hA PCXT, hB Tandy 1000, hE PCjr (see status_menumask).
@@ -192,9 +197,9 @@ module emu
                                  : (HAS_PCJR ? "P1O[101:98],PCjr RAM,128K,192K,256K,320K,384K,448K,512K,576K,640K;" : "");
     localparam CONF_STR_PCJR_TAPE = HAS_PCJR_MODEL ? "hEP2O[102],Tape sound,Disabled,Enabled;"
                                   : (HAS_PCJR ? "P2O[102],Tape sound,Disabled,Enabled;" : "");
-    localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
-    localparam CONF_STR_EMS_EGA = (`ENABLE_EMS ? "P3O5,2MB EMS D000-DFFF,Enabled,Disabled;P3-;" : "");
-    localparam CONF_STR_UMB = ((L_EGA && `ENABLE_UMB) ? "P3O[82],UMB C400-CFFF,Enabled,Disabled;P3-;" : "");
+    localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? {PJ_H2, "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;"} : "");
+    localparam CONF_STR_EMS_EGA = (`ENABLE_EMS ? {PJ_H2, "P3O5,2MB EMS D000-DFFF,Enabled,Disabled;", PJ_H2, "P3-;"} : "");
+    localparam CONF_STR_UMB = ((L_EGA && `ENABLE_UMB) ? {PJ_H2, "P3O[82],UMB C400-CFFF,Enabled,Disabled;", PJ_H2, "P3-;"} : "");
 
 `ifdef LAYOUT_EGA
     // CGA/Hercules only items are hidden (h7) while the EGA card is selected
@@ -214,9 +219,9 @@ module emu
     // The Sound Blaster and the C/MS both live at 220h and collide on
     // 226h/227h, so when both are built it is one three-way choice.
     localparam CONF_STR_A220 =
-        (`ENABLE_CMS && `ENABLE_SB) ? "P2O[85:84],Audio 220h,C/MS,Sound Blaster,Disabled;" :
-        (`ENABLE_SB)                ? "P2O[85],Sound Blaster,Enabled,Disabled;"            :
-        (`ENABLE_CMS)               ? "P2O[85],C/MS Audio,Enabled,Disabled;"               : "";
+        (`ENABLE_CMS && `ENABLE_SB) ? {PJ_H2, "P2O[85:84],Audio 220h,C/MS,Sound Blaster,Disabled;"} :
+        (`ENABLE_SB)                ? {PJ_H2, "P2O[85],Sound Blaster,Enabled,Disabled;"}            :
+        (`ENABLE_CMS)               ? {PJ_H2, "P2O[85],C/MS Audio,Enabled,Disabled;"}               : "";
     // A Tandy 1000 always has its sound chip
     localparam CONF_STR_TANDY_AUDIO = `ENABLE_TANDY_AUDIO
         ? (HAS_MODEL ? "hAP2O[87],Tandy Sound,Disabled,Enabled;" : "P2O[87],Tandy Sound,Disabled,Enabled;")
@@ -224,10 +229,11 @@ module emu
     localparam CONF_STR_VIDEO_CGA = (HAS_CGA_HGC ? "h7P2O[72],Border,No,Yes;h9P2O[73],Border CRT offsets,No,Yes;h7P2O[74],CRTC Frame Stacking,Native,Rebuilt;h7P2O[71],Composite video,Off,On;" : "");
     localparam CONF_STR_VIDEO_EGA = (HAS_EGA ? "h8P2O[83],VGA 13h+ CRT,Native 70Hz,TV 60Hz;" : "");
     localparam CONF_STR_MONITOR = (HAS_EGA ? "h8P3O[81:80],Monitor,5154/ECD,5153/CGA,5151/MDA;P3-;" : "");
-    localparam CONF_STR_A000 = ((`ENABLE_A000_UMB && HAS_CGA_HGC) ? "h7P3O[79],A000 UMB,Enabled,Disabled;P3-;" : "");
+    // h7 is "the CGA card"; with the PCjr to choose, h1 is "the CGA card, on a PCXT or Tandy"
+    localparam CONF_STR_A000 = ((`ENABLE_A000_UMB && HAS_CGA_HGC) ? {HAS_PCJR_MODEL ? "h1" : "h7", "P3O[79],A000 UMB,Enabled,Disabled;P3-;"} : "");
     localparam CONF_STR_JOY_SWAP = "P3O[86],Swap Joysticks,No,Yes;";
-    localparam CONF_STR_SB_IRQ = (`ENABLE_SB ? "P3O[70],Sound Blaster IRQ,5,7;" : "");
-    localparam CONF_STR_MIDI = (`ENABLE_MIDI ? "P3O[88],MPU-401,Enabled,Disabled;P3-;P3O6,USER I/O,MIDI,COM2;P3-;h3P4,MT32-pi;h3P4-;h3P4OD,Use MT32-pi,Yes,No;h3P4-;h3P4o9,MT32-pi Mode,MT-32,General MIDI;h3P4O34,MT32-pi ROM,MT-32 v1,MT-32 v2,CM-32L,Reserved;h3P4oSU,MT32-pi SoundFont,#0,#1,#2,#3,#4,#5,#6,#7;h3P4-;h3P4r8,Reset Hanging Notes;h3P4-;" : "");
+    localparam CONF_STR_SB_IRQ = (`ENABLE_SB ? {PJ_H2, "P3O[70],Sound Blaster IRQ,5,7;"} : "");
+    localparam CONF_STR_MIDI = (`ENABLE_MIDI ? {PJ_H2, "P3O[88],MPU-401,Enabled,Disabled;", PJ_H2, "P3-;", PJ_H2, "P3O6,USER I/O,MIDI,COM2;", PJ_H2, "P3-;", "h3P4,MT32-pi;h3P4-;h3P4OD,Use MT32-pi,Yes,No;h3P4-;h3P4o9,MT32-pi Mode,MT-32,General MIDI;h3P4O34,MT32-pi ROM,MT-32 v1,MT-32 v2,CM-32L,Reserved;h3P4oSU,MT32-pi SoundFont,#0,#1,#2,#3,#4,#5,#6,#7;h3P4-;h3P4r8,Reset Hanging Notes;h3P4-;"} : "");
     localparam CONF_STR_VSYNC = "P2O[91:89],VSync Width,Auto,1,2,3,4,5,6,7;P2O[94:92],HSync Width,Auto,1,2,3,4,5,6,7;";
     localparam CONF_STR_CRT = "P2o23,350-line CRT,Native,480i 15 kHz,240p 15 kHz;";
     localparam CONF_STR_HALT_BIOS = (`ROM_IS_PCJR ? "h4-,HALTED: no PCjr BIOS selected;" : (`ROM_IS_TANDY ? "h4-,HALTED: no Tandy BIOS selected;" : "h4-,HALTED: no PCXT BIOS selected;"));
@@ -294,19 +300,32 @@ module emu
     // BIOS is requested). The EGA-layout-only items are therefore left out of
     // the CGA layout with the preprocessor instead of being defined as "".
     // Empty arms of ?: are fine: they are padded to the width of the other arm.
+    // No second drive, no hard disk, 4.77 MHz 8088 only, ROM that cannot be written
+    // (the PCjr of the reference core has none of them). The write protect of the
+    // single drive is a Yes/No choice.
+    localparam CONF_STR_PJ_FLOPPYB = `ROM_IS_PCJR ? "" : {PJ_H2, "S1,IMGIMAVFD,Floppy B:;"};
+    localparam CONF_STR_PJ_WP = `ROM_IS_PCJR ? "OJ,Write Protect,No,Yes;"
+        : (HAS_PCJR_MODEL ? "h2OJK,Write Protect,None,A:,B:,A: & B:;hEOJ,Write Protect,No,Yes;"
+                          : "OJK,Write Protect,None,A:,B:,A: & B:;");
+    localparam CONF_STR_PJ_IDE = `ROM_IS_PCJR ? ""
+        : {PJ_H2, "S2,VHD,IDE 0-0;", PJ_H2, "S3,VHD,IDE 0-1;", PJ_H2, "OLM,2nd SD card,Disable,IDE 0-0,IDE 0-1;", PJ_H2, "-;"};
+    localparam CONF_STR_PJ_SPEED = `ROM_IS_PCJR ? ""
+        : {PJ_H2, "OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,Max;", PJ_H2, "-;"};
+    localparam CONF_STR_PJ_CPU = `ROM_IS_PCJR ? ""
+        : {PJ_H2, "P1oV,CPU Type,8088,8086;", PJ_H2, "P1oL,Fake 286 FLAGS,Off,On;"};
+    localparam CONF_STR_PJ_BIOSW = `ROM_IS_PCJR ? ""
+        : {PJ_H2, "P1OUV,BIOS Writable,None,EC00,Main,All;", PJ_H2, "P1-;"};
+    localparam CONF_STR_PJ_SYNCJOY = `ROM_IS_PCJR ? "" : {PJ_H2, "P3OR,Sync Joy to CPU Speed,No,Yes;"};
+
     localparam CONF_STR = {
         `CONF_STR_SYSTEM,
         CONF_STR_HALT,
         "S0,IMGIMAVFD,Floppy A:;",
-        "S1,IMGIMAVFD,Floppy B:;",
-        "OJK,Write Protect,None,A:,B:,A: & B:;",
+        CONF_STR_PJ_FLOPPYB,
+        CONF_STR_PJ_WP,
         "-;",
-        "S2,VHD,IDE 0-0;",
-        "S3,VHD,IDE 0-1;",
-        "OLM,2nd SD card,Disable,IDE 0-0,IDE 0-1;",
-        "-;",
-        "OHI,CPU Speed,4.77MHz,7.16MHz,9.54MHz,Max;",
-        "-;",
+        CONF_STR_PJ_IDE,
+        CONF_STR_PJ_SPEED,
         "P1,System & BIOS;",
         "P1-;",
 `ifdef LAYOUT_EGA
@@ -315,8 +334,7 @@ module emu
 `endif
         CONF_STR_HGC,
         "P1O7,Boot Splash Screen,Yes,No;",
-        "P1oV,CPU Type,8088,8086;",
-        "P1oL,Fake 286 FLAGS,Off,On;",
+        CONF_STR_PJ_CPU,
         "P1-;",
         CONF_STR_ROM,
         CONF_STR_EC00,
@@ -325,8 +343,7 @@ module emu
         CONF_STR_EGABIOS,
 `endif
         "P1-;",
-        "P1OUV,BIOS Writable,None,EC00,Main,All;",
-        "P1-;",
+        CONF_STR_PJ_BIOSW,
         "P2,Audio & Video;",
         "P2-;",
         CONF_STR_A220,
@@ -360,7 +377,7 @@ module emu
         CONF_STR_A000,
         "P3ONO,Joystick 1, Analog, Digital, Disabled;",
         "P3OPQ,Joystick 2, Analog, Digital, Disabled;",
-        "P3OR,Sync Joy to CPU Speed,No,Yes;",
+        CONF_STR_PJ_SYNCJOY,
         CONF_STR_JOY_SWAP,
 `ifdef LAYOUT_EGA
         CONF_STR_SB_IRQ,
@@ -385,6 +402,8 @@ module emu
     // Tandy video family (tandy_sel_osd / tandy_applied); the PCjr is the one with
     // pcjr_sel_osd / pcjr_applied.
     wire        pcjr_sel_osd  = HAS_PCJR_MODEL ? status[97] : 1'b0;
+    // The machine to be a PCjr: chosen in the OSD, or the only one the build is
+    wire        pcjr_chosen   = HAS_PCJR_MODEL ? pcjr_sel_osd : (HAS_PCJR && (`ROM_IS_PCJR != 0));
     wire        tandy_sel_osd = HAS_MODEL ? (status[96] | pcjr_sel_osd) : 1'b0;
     reg         tandy_applied_r = 1'b0;     // the machine in use, latched at reset
     reg         pcjr_applied_r  = 1'b0;
@@ -437,7 +456,7 @@ module emu
     // Status bit 63 is the pending CPU selection. The value presented to the
     // BIU is latched only during reset; changing the menu alone cannot change
     // queue depth or bus width while an instruction is in flight.
-    wire        cpu_type_8086_osd = status[63];
+    wire        cpu_type_8086_osd = status[63] & ~pcjr_chosen;
     // Status bit 53 makes PUSHF report zero in reserved FLAGS bits 12:15,
     // matching a real-mode 80286 for legacy CPU probes.  Unlike the CPU type
     // this is applied live: it only gates a mux on the PUSHF operand path, so
@@ -462,6 +481,9 @@ module emu
     wire [1:0]  eff_opl2;
     wire        eff_cms, eff_ems, eff_umb, eff_vga13;
     wire        eff_sb;
+    // What the menu and XTEGACTL ask for, before the PCjr takes away what it has not
+    wire [1:0]  res_speed, res_opl2;
+    wire        res_fake286, res_cms, res_ems, res_umb, res_sb, res_mpu401;
     wire  [2:0] eff_sb_irq;
     wire [3:0]  eff_crt_h;
     wire [2:0]  eff_crt_v;
@@ -517,14 +539,14 @@ module emu
         .osd_tandy        (L_EGA ? (status[87] | tandy_video_mode) : 1'b1),
         .osd_mpu401       (L_EGA ? ~status[88] : 1'b1),
         .build_tandy      (`ENABLE_TANDY_AUDIO ? 1'b1 : 1'b0),
-        .eff_speed        (eff_speed),
-        .eff_fake286      (eff_fake286),
-        .eff_opl2         (eff_opl2),
-        .eff_cms          (eff_cms),
-        .eff_sb           (eff_sb),
+        .eff_speed        (res_speed),
+        .eff_fake286      (res_fake286),
+        .eff_opl2         (res_opl2),
+        .eff_cms          (res_cms),
+        .eff_sb           (res_sb),
         .eff_sb_irq       (eff_sb_irq),
-        .eff_ems          (eff_ems),
-        .eff_umb          (eff_umb),
+        .eff_ems          (res_ems),
+        .eff_umb          (res_umb),
         .eff_vga13        (eff_vga13),
         .eff_joy1_digital (eff_joy1_digital),
         .eff_joy1_disable (eff_joy1_disable),
@@ -534,7 +556,7 @@ module emu
         .eff_joy_swap     (eff_joy_swap),
         .eff_mt32_gm      (eff_mt32_gm),
         .eff_tandy        (eff_tandy),
-        .eff_mpu401       (eff_mpu401),
+        .eff_mpu401       (res_mpu401),
         .eff_crt_h        (eff_crt_h),
         .eff_crt_v        (eff_crt_v),
         .eff_vsync_w      (eff_vsync_w),
@@ -542,6 +564,18 @@ module emu
         .status_effective (xtegactl_status_effective),
         .status_osd_match (xtegactl_status_osd_match)
     );
+
+    // A PCjr has no expansion slots (no Sound Blaster, C/MS, AdLib, MPU-401, EMS
+    // or UMB card), no turbo (4.77 MHz) and no 286 FLAGS probe; the machine
+    // applied at reset decides, so a menu or XTEGACTL value cannot bring them back.
+    assign eff_speed   = pcjr_video_mode ? 2'b00 : res_speed;
+    assign eff_fake286 = pcjr_video_mode ? 1'b0  : res_fake286;
+    assign eff_opl2    = pcjr_video_mode ? 2'b10 : res_opl2;
+    assign eff_cms     = pcjr_video_mode ? 1'b0  : res_cms;
+    assign eff_sb      = pcjr_video_mode ? 1'b0  : res_sb;
+    assign eff_ems     = pcjr_video_mode ? 1'b0  : res_ems;
+    assign eff_umb     = pcjr_video_mode ? 1'b0  : res_umb;
+    assign eff_mpu401  = pcjr_video_mode ? 1'b0  : res_mpu401;
 
     //Keyboard Ps2
     wire        ps2_kbd_clk_out;
@@ -584,7 +618,7 @@ module emu
     wire [2:0] screen_mode = status[16:14];
     wire [1:0] ar = status[9:8];
     wire border = (border_osd | xtctl[1]) & ~ega_active;
-    wire a000h = `ENABLE_A000_UMB ? (~a000_off_osd & ~xtctl[6]) : 1'b0;
+    wire a000h = `ENABLE_A000_UMB ? (~a000_off_osd & ~xtctl[6] & ~pcjr_video_mode) : 1'b0;
     // A zero XTEGACTL field defers to the OSD; a non-zero value is a
     // per-program override.
     wire [2:0] vsync_width_osd = eff_vsync_w;    // 0=Auto (use register), 1-7=override
@@ -623,13 +657,15 @@ module emu
     //   machine selectable (ENABLE_MODEL_TANDY): bit 10 PCXT chosen, 11 Tandy 1000
     //   chosen, 12 the Tandy BIOS is absent, 13 PCXT chosen with the CGA/HGC card.
     //   with the PCjr built in as well: bit 11 is the Tandy 1000 only, 14 the PCjr
-    //   chosen, 15 the PCjr BIOS is absent, 2 the machine is not a PCjr.
+    //   chosen, 15 the PCjr BIOS is absent, 2 the machine is not a PCjr, 1 the
+    //   CGA card of a machine that is not a PCjr (A000 UMB); bit 3 is off for a PCjr.
     wire [15:0] status_menumask = L_EGA
         ? {bios_missing_pcjr, pcjr_sel_osd, ~card_sel_ega & ~tandy_sel_osd, bios_missing_tandy,
            tandy_sel_osd & ~pcjr_sel_osd, ~tandy_sel_osd,
            border_menu, card_sel_ega, ~card_sel_ega, crt_offsets_act,
            bios_missing_ega, bios_missing_pcxt,
-           ((`ENABLE_MIDI != 0) && mt32_available && eff_mpu401), ~pcjr_sel_osd, 2'b11}
+           ((`ENABLE_MIDI != 0) && mt32_available && eff_mpu401 && ~pcjr_sel_osd), ~pcjr_sel_osd,
+           ~card_sel_ega & ~pcjr_sel_osd, 1'b1}
         : {9'd0, crt_offsets_act, border, bios_missing_pcxt,
            ((`ENABLE_MIDI != 0) && mt32_available),
            2'b00, status[5]};
@@ -849,7 +885,8 @@ module emu
     logic  [1:0] ram_write_wait_cycle;
     logic        cycle_accrate;
     logic  [1:0] clk_select;
-    wire   [1:0] clk_select_next = ((xtctl[3:2] == 2'b00) && ~xtctl[7]) ? eff_speed :
+    wire   [1:0] clk_select_next = pcjr_video_mode ? 2'b00 :
+                                   ((xtctl[3:2] == 2'b00) && ~xtctl[7]) ? eff_speed :
                                    (xtctl[7] ? 2'b11 : xtctl[3:2] - 2'b01);
 
     always @(posedge clk_chipset, posedge reset)
@@ -1107,7 +1144,7 @@ module emu
     wire ega_bios_write_complete;
     reg [2:0] bios_protect_flag = 3'b111;
     always @(posedge clk_chipset)
-        bios_protect_flag <= {HAS_EGA ? ega_bios_write_protect : 1'b1, ~status[31:30]};
+        bios_protect_flag <= {HAS_EGA ? ega_bios_write_protect : 1'b1, ~(status[31:30] & {2{~pcjr_video_mode}})};
 
     //
     // ROM loader: HPS downloads straight into the SDRAM ROM bank
@@ -2485,7 +2522,7 @@ module emu
     // MT32-pi bridge below - only one can be connected at a time.
     // Default (0) is MT32-pi, matching ao486: at core load, before the saved
     // config arrives, we must already be in the safe non-driving state.
-    wire user_io_mt32 = `ENABLE_MIDI && ~status[6];
+    wire user_io_mt32 = `ENABLE_MIDI && ~status[6] && ~pcjr_video_mode;
 
     // The COM2-over-USER_IO path is dead code in this core: uart2_tx/rts/dtr have
     // no driver, so they synthesise to constant 0 and would actively pull pins
