@@ -22,7 +22,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(1'b0), .en_hgc(1'b0), .hgc_page(1'b0),
-        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0), .pcjr_ram_size(4'd8), .cart1_seg(8'h00), .cart1_len(17'd0), .cart2_seg(8'h00), .cart2_len(17'd0),
         .select(select_x), .phys(phys_x), .protect(protect_x),
         .vclass(), .phys2(), .phys2_valid()
     );
@@ -31,7 +31,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(1'b0), .en_hgc(1'b0), .hgc_page(1'b0),
-        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0), .pcjr_ram_size(4'd8), .cart1_seg(8'h00), .cart1_len(17'd0), .cart2_seg(8'h00), .cart2_len(17'd0),
         .select(select_t), .phys(phys_t), .protect(protect_t),
         .vclass(), .phys2(), .phys2_valid()
     );
@@ -46,7 +46,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(en_cga), .en_hgc(en_hgc), .hgc_page(hgc_page),
-        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0), .pcjr_ram_size(4'd8), .cart1_seg(8'h00), .cart1_len(17'd0), .cart2_seg(8'h00), .cart2_len(17'd0),
         .select(select_v), .phys(phys_v), .protect(protect_v),
         .vclass(vclass_v), .phys2(phys2_v), .phys2_valid(phys2_valid_v)
     );
@@ -62,7 +62,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(en_cga), .en_hgc(en_hgc), .hgc_page(hgc_page),
-        .tandy_video(t_video), .tandy_block(t_block), .tandy_cpu_page(t_page), .pcjr(1'b0), .pcjr_32k(1'b0),
+        .tandy_video(t_video), .tandy_block(t_block), .tandy_cpu_page(t_page), .pcjr(1'b0), .pcjr_32k(1'b0), .pcjr_ram_size(4'd8), .cart1_seg(8'h00), .cart1_len(17'd0), .cart2_seg(8'h00), .cart2_len(17'd0),
         .select(select_tv), .phys(phys_tv), .protect(protect_tv),
         .vclass(vclass_tv), .phys2(phys2_tv), .phys2_valid(phys2_valid_tv)
     );
@@ -71,6 +71,9 @@ module mem_map_tb;
     // wide; with 32 KiB CRT pages (pj_32k) the CPU page is {3DFh[5:4], 0}; F000 holds
     // the PCjr BIOS (slot 4)
     logic        pj_32k = 1'b0;
+    logic [3:0]  pj_ram = 4'd8;
+    logic [7:0]  pj_c1seg = 8'h00, pj_c2seg = 8'h00;
+    logic [16:0] pj_c1len = 17'd0, pj_c2len = 17'd0;
     logic [2:0]  pj_page;
     wire         select_pj, protect_pj, phys2_valid_pj;
     wire  [24:0] phys_pj, phys2_pj;
@@ -80,7 +83,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(en_cga), .en_hgc(en_hgc), .hgc_page(hgc_page),
-        .tandy_video(1'b1), .tandy_block(3'd0), .tandy_cpu_page(pj_page), .pcjr(1'b1), .pcjr_32k(pj_32k),
+        .tandy_video(1'b1), .tandy_block(3'd0), .tandy_cpu_page(pj_page), .pcjr(1'b1), .pcjr_32k(pj_32k), .pcjr_ram_size(pj_ram), .cart1_seg(pj_c1seg), .cart1_len(pj_c1len), .cart2_seg(pj_c2seg), .cart2_len(pj_c2len),
         .select(select_pj), .phys(phys_pj), .protect(protect_pj),
         .vclass(vclass_pj), .phys2(phys2_pj), .phys2_valid(phys2_valid_pj)
     );
@@ -95,7 +98,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(1'b1), .en_hgc(1'b0), .hgc_page(1'b0),
-        .tandy_video(rt_tandy), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0),
+        .tandy_video(rt_tandy), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0), .pcjr_ram_size(4'd8), .cart1_seg(8'h00), .cart1_len(17'd0), .cart2_seg(8'h00), .cart2_len(17'd0),
         .select(select_rt), .phys(phys_rt), .protect(protect_rt),
         .vclass(), .phys2(), .phys2_valid()
     );
@@ -357,6 +360,69 @@ module mem_map_tb;
         address = 20'hB7FFF; #1; checks++;
         if (select_pj !== 1'b0) begin errors++; $display("ERROR PCjr B7FFF is not memory"); end
         pj_32k = 0;
+
+        // PCjr RAM size: 128 KiB + 64 KiB per step; above it nothing answers, below
+        // it the image is plain (the window checks above were at 640 KiB)
+        for (int sz = 0; sz <= 8; sz++)
+        for (int blk = 0; blk < 10; blk++) begin
+            pj_ram = 4'(sz);
+            address = 20'(blk * 32'h10000 + 32'h1234);
+            #1;
+            checks++;
+            if (select_pj !== (blk < sz + 2) ||
+                (blk < sz + 2 && phys_pj !== 25'(address))) begin
+                errors++;
+                if (errors <= 20)
+                    $display("ERROR PCjr RAM size %0d block %0d: select %b phys %07h", sz, blk, select_pj, phys_pj);
+            end
+        end
+        pj_ram = 4'd8;
+
+        // PCjr cartridges: a read-only window of len bytes at seg*4096 in
+        // C0000-EFFFF, each cartridge in its own 64 KiB of the ROM bank; no
+        // cartridge, no memory there
+        for (int a = 20'hC0000; a < 32'hF0000; a += 32'h2F5D) begin
+            address = 20'(a); #1; checks++;
+            if (select_pj !== 1'b0) begin errors++; $display("ERROR PCjr C0000-EFFFF without cartridge answers @%05h", a); end
+        end
+        pj_c1seg = 8'hD0; pj_c1len = 17'h4000;       // 16 KiB at D0000
+        pj_c2seg = 8'hE0; pj_c2len = 17'h10000;      // 64 KiB at E0000
+        for (int off = 0; off < 32'h10000; off += 32'h1F7) begin
+            address = 20'(32'hD0000 + off); #1; checks++;
+            if (off < 32'h4000) begin
+                if (select_pj !== 1'b1 || protect_pj !== 1'b1 ||
+                    phys_pj !== 25'(25'h010_0000 + 25'h4_0000 + off)) begin
+                    errors++;
+                    $display("ERROR PCjr cartridge 1 @%05h: select %b protect %b phys %07h", address, select_pj, protect_pj, phys_pj);
+                end
+            end
+            else if (select_pj !== 1'b0) begin
+                errors++; $display("ERROR PCjr cartridge 1 answers past its end @%05h", address);
+            end
+            address = 20'(32'hE0000 + off); #1; checks++;
+            if (select_pj !== 1'b1 || protect_pj !== 1'b1 ||
+                phys_pj !== 25'(25'h010_0000 + 25'h5_0000 + off)) begin
+                errors++;
+                $display("ERROR PCjr cartridge 2 @%05h: select %b protect %b phys %07h", address, select_pj, protect_pj, phys_pj);
+            end
+        end
+        address = 20'hCFFFF; #1; checks++;
+        if (select_pj !== 1'b0) begin errors++; $display("ERROR PCjr below cartridge 1 answers"); end
+        address = 20'hD3FFF; #1; checks++;
+        if (select_pj !== 1'b1) begin errors++; $display("ERROR PCjr last byte of cartridge 1 is not memory"); end
+        address = 20'hD4000; #1; checks++;
+        if (select_pj !== 1'b0) begin errors++; $display("ERROR PCjr first byte past cartridge 1 is memory"); end
+        // An odd length: the last byte is the last one the file had
+        pj_c1len = 17'h0801 + 17'h0001;
+        address = 20'hD0801; #1; checks++;
+        if (select_pj !== 1'b1) begin errors++; $display("ERROR PCjr cartridge odd end"); end
+        address = 20'hD0802; #1; checks++;
+        if (select_pj !== 1'b0) begin errors++; $display("ERROR PCjr cartridge past odd end"); end
+        // Cartridge 1 wins where they overlap
+        pj_c1seg = 8'hE0; pj_c1len = 17'h1000;
+        address = 20'hE0010; #1; checks++;
+        if (phys_pj !== 25'(25'h010_0000 + 25'h4_0000 + 32'h10)) begin errors++; $display("ERROR PCjr overlapping cartridges: cartridge 1 must win"); end
+        pj_c1seg = 8'h00; pj_c1len = 17'd0; pj_c2seg = 8'h00; pj_c2len = 17'd0;
         en_cga = 0; en_hgc = 0;
 
         // The machine model chooses the F000 slot (and nothing else of the map)

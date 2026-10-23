@@ -164,6 +164,11 @@ module CHIPSET #(
         // IBM PCjr (implies tandy_video)
         input   logic           pcjr,
         output  logic           pcjr_vram_32k,
+        input   logic   [3:0]   pcjr_ram_size,   // 0 = 128 KiB ... 8 = 640 KiB
+        input   logic   [7:0]   cart1_seg,       // cartridges: where they are mapped and how long they are
+        input   logic   [16:0]  cart1_len,
+        input   logic   [7:0]   cart2_seg,
+        input   logic   [16:0]  cart2_len,
         output  logic           nmi_to_cpu,
         output  logic           cassette_out,
         output  logic           cassette_motor,
@@ -314,6 +319,7 @@ module CHIPSET #(
     logic   [7:0]   internal_data_bus_chipset;
     logic   [7:0]   internal_data_bus_ram;
     logic   [15:0]  internal_data_bus_ram_word;
+    logic           pcjr_cold_override;
     logic           data_bus_out_from_chipset;
     logic           internal_data_bus_direction;
     logic           no_command_state;
@@ -768,6 +774,11 @@ module CHIPSET #(
         .tandy_cpu_page                     (tandy_vram_page[5:3]),
         .pcjr                               (pcjr),
         .pcjr_32k                           (pcjr_vram_32k),
+        .pcjr_ram_size                      (pcjr_ram_size),
+        .cart1_seg                          (cart1_seg),
+        .cart1_len                          (cart1_len),
+        .cart2_seg                          (cart2_seg),
+        .cart2_len                          (cart2_len),
         .select                             (map_select_cga),
         .phys                               (map_phys_cga),
         .protect                            (map_protect_cga),
@@ -824,6 +835,18 @@ module CHIPSET #(
     end
     wire    early_read = ale_q & ~ale_qq
                        & ((processor_status == 3'b100) | (processor_status == 3'b101));
+
+    // PCjr: the BIOS finds no warm-start flag after a reset of the machine
+    pcjr_cold_boot u_pcjr_cold_boot
+    (
+        .clock                              (clock),
+        .reset                              (reset),
+        .pcjr                               (pcjr),
+        .address                            (latch_address),
+        .select                             (map_select),
+        .memory_write_n                     (memory_write_n),
+        .override                           (pcjr_cold_override)
+    );
 
     cpu_mem_port u_cpu_mem_port
     (
@@ -917,7 +940,7 @@ module CHIPSET #(
     // one destination, it is only meaningful for the cycle the CPU asked a
     // word for, and putting it through the same arbitration would mean giving
     // every other device a 16-bit port it has nothing to put on.
-    assign  data_bus_word = internal_data_bus_ram_word;
+    assign  data_bus_word = pcjr_cold_override ? 16'h0000 : internal_data_bus_ram_word;
 
     // map_select is combinational on the latched address, so this settles as
     // soon as the address does and is available to the CPU well before it has
@@ -936,7 +959,7 @@ module CHIPSET #(
         end
         else if ((map_select) && (~memory_read_n))
         begin
-            internal_data_bus_ext = internal_data_bus_ram;
+            internal_data_bus_ext = pcjr_cold_override ? 8'h00 : internal_data_bus_ram;
             data_bus_direction    = 1'b0;
         end
         else

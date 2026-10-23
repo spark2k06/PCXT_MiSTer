@@ -26,6 +26,7 @@ module xtctl_id_tb;
     wire         output_enable;
 
     logic        tandy_machine    = 1'b0;
+    logic        pcjr_machine     = 1'b0;
     logic  [1:0] video_card       = 2'd1;
     logic        vga13_active     = 1'b0;
     logic [15:0] rtc_port         = 16'h02C0;
@@ -43,6 +44,7 @@ module xtctl_id_tb;
         .data_out         (data_out),
         .output_enable    (output_enable),
         .tandy_machine    (tandy_machine),
+        .pcjr_machine     (pcjr_machine),
         .video_card       (video_card),
         .vga13_active     (vga13_active),
         .rtc_port         (rtc_port),
@@ -106,6 +108,10 @@ module xtctl_id_tb;
         // the machine chosen at reset
         tandy_machine = 1'b1;
         expect_reg(16'h8990, 8'h01, "model Tandy 1000");
+        // a PCjr is a member of the Tandy video family: it reports 02h
+        pcjr_machine = 1'b1;
+        expect_reg(16'h8990, 8'h02, "model PCjr");
+        pcjr_machine = 1'b0;
         tandy_machine = 1'b0;
 
         // live inputs

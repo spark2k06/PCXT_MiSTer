@@ -32,15 +32,18 @@ module rom_loader_tb #(
     wire         l_start;  wire [23:0] l_addr;  wire [15:0] l_wdata;
     logic        l_busy = 0, l_done = 0;
     wire         write_any, write_main, write_tandy, write_pcjr, ec00_loaded;
+    wire  [7:0]  cart1_seg, cart2_seg;
+    wire  [16:0] cart1_len, cart2_len;
 
-    rom_loader #(.ROM_PCXT(HAS_PCXT), .ROM_TANDY(HAS_TANDY), .ROM_PCJR(HAS_PCJR)) dut (
+    rom_loader #(.ROM_PCXT(HAS_PCXT), .ROM_TANDY(HAS_TANDY), .ROM_PCJR(HAS_PCJR), .ROM_PCJR_CART(HAS_PCJR)) dut (
         .clock(clock), .reset(reset), .sdram_ready(1'b1),
         .ioctl_download(ioctl_download), .ioctl_index(ioctl_index), .ioctl_wr(ioctl_wr),
         .ioctl_addr(ioctl_addr), .ioctl_data(ioctl_data), .ioctl_wait(ioctl_wait),
         .hold_request(hold_request), .hold_granted(hold_granted),
         .l_start(l_start), .l_addr(l_addr), .l_wdata(l_wdata), .l_busy(l_busy), .l_done(l_done),
         .write_any(write_any), .write_main(write_main), .write_tandy(write_tandy),
-        .write_pcjr(write_pcjr), .ec00_loaded(ec00_loaded)
+        .write_pcjr(write_pcjr), .ec00_loaded(ec00_loaded),
+        .cart1_seg(cart1_seg), .cart1_len(cart1_len), .cart2_seg(cart2_seg), .cart2_len(cart2_len)
     );
 
     int errors = 0;
@@ -86,6 +89,29 @@ module rom_loader_tb #(
             while (ioctl_wait) @(posedge clock);
             ioctl_addr <= 25'(i * 2);
             ioctl_data <= 16'(i * 3 + seed);
+            ioctl_wr   <= 1;
+            @(posedge clock);
+            ioctl_wr   <= 0;
+            repeat ($urandom_range(1, 4)) @(posedge clock);
+        end
+        while (ioctl_wait) @(posedge clock);
+        repeat (3) @(posedge clock);
+        ioctl_download <= 0;
+        repeat (5) @(posedge clock);
+        if (hold_request) err("HOLD still requested after the download");
+    endtask
+
+    // A JRC cartridge: 256 words of header (the word at byte 1CEh carries the
+    // address in its high byte), then the ROM
+    task automatic download_cart(input logic [7:0] index, input int rom_words, input int seed,
+                                 input logic [7:0] seg);
+        ioctl_index    <= index;
+        ioctl_download <= 1;
+        @(posedge clock);
+        for (int i = 0; i < 256 + rom_words; i++) begin
+            while (ioctl_wait) @(posedge clock);
+            ioctl_addr <= 25'(i * 2);
+            ioctl_data <= (i == 231) ? {seg, 8'h12} : (i < 256) ? 16'(i + 1000) : 16'((i - 256) * 3 + seed);
             ioctl_wr   <= 1;
             @(posedge clock);
             ioctl_wr   <= 0;
@@ -156,6 +182,31 @@ module rom_loader_tb #(
         else begin
             download(8'd4, 50, 11);      // PCjr slot: not in a PCXT or Tandy build
             if (writes != 0 || pcjrs != 0) err("PCjr slot written in a build without it");
+        end
+
+        // Cartridges: the ROM only goes to its slot, the header gives the address
+        if (HAS_PCJR) begin
+            if (cart1_len !== 17'd0 || cart2_len !== 17'd0) err("cartridge lengths not zero at reset");
+            writes = 0;
+            download_cart(8'd5, 3000, 21, 8'hD0);
+            verify((PHYS_ROM_BANK + ROM_PCJR_CART1) >> 1, 3000, 21, 0, "cartridge 1");
+            if (writes != 3000) err($sformatf("cartridge 1: %0d writes (the header must not be stored)", writes));
+            if (cart1_seg !== 8'hD0 || cart1_len !== 17'd6000) err($sformatf("cartridge 1: seg %02h len %0d", cart1_seg, cart1_len));
+            if (cart2_len !== 17'd0) err("cartridge 2 changed by cartridge 1");
+            writes = 0;
+            download_cart(8'd6, 32768, 33, 8'hE0);           // 64 KiB, the largest
+            verify((PHYS_ROM_BANK + ROM_PCJR_CART2) >> 1, 32768, 33, 0, "cartridge 2 (64 KiB)");
+            if (cart2_seg !== 8'hE0 || cart2_len !== 17'd65536) err($sformatf("cartridge 2: seg %02h len %0d", cart2_seg, cart2_len));
+            if (cart1_len !== 17'd6000) err("cartridge 1 changed by cartridge 2");
+            verify((PHYS_ROM_BANK + ROM_PCJR_CART1) >> 1, 3000, 21, 0, "cartridge 1 after cartridge 2");
+            // Loading a new image empties the slot at once and keeps the other one
+            download_cart(8'd5, 100, 5, 8'hC8);
+            if (cart1_seg !== 8'hC8 || cart1_len !== 17'd200) err($sformatf("cartridge 1 reloaded: seg %02h len %0d", cart1_seg, cart1_len));
+            if (ec00_loaded) err("EC00 flagged as loaded by a cartridge");
+        end
+        else begin
+            download(8'd5, 50, 9);
+            if (cart1_len !== 17'd0) err("cartridge written in a build without them");
         end
 
         writes = 0; mains = 0; tandys = 0; pcjrs = 0;

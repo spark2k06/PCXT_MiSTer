@@ -15,7 +15,11 @@
 // Slots (ioctl index): 0 PCXT BIOS (first 64 KiB of the file; ROM_PCXT), 1 Tandy
 // BIOS (ROM_TANDY), 2 EC00 (16 KiB window, wraps as before), 3 EGA BIOS (ROM_EGA
 // builds, 16 KiB window), 4 PCjr BIOS (ROM_PCJR; first 64 KiB of
-// the file). A build that is only a Tandy 1000 sets
+// the file), 5 and 6 PCjr cartridges 1 and 2 (ROM_PCJR_CART). A cartridge
+// is a JRC file: a 512 byte header, whose byte 1CFh is the high byte of the
+// address it is mapped at (D0 = D0000h), and the ROM, at most 64 KiB. Only the ROM
+// goes to the bank; the loader keeps where it lives (cartN_seg) and how long it is
+// (cartN_len, 0 = no cartridge) for mem_map. A build that is only a Tandy 1000 sets
 // ROM_PCXT to 0 and the PCXT slot is not offered; a build that chooses the
 // machine at run time has both, each in its own place in the ROM bank, and
 // write_main / write_tandy tell which of the two has been written.
@@ -24,7 +28,8 @@ module rom_loader #(
     parameter bit ROM_PCXT  = 1'b1,
     parameter bit ROM_TANDY = 1'b0,
     parameter bit ROM_EGA   = 1'b0,
-    parameter bit ROM_PCJR  = 1'b0
+    parameter bit ROM_PCJR  = 1'b0,
+    parameter bit ROM_PCJR_CART = 1'b0
 ) (
     input  logic        clock,
     input  logic        reset,
@@ -52,7 +57,11 @@ module rom_loader #(
     output logic        write_tandy,    // a word of slot 1 (Tandy BIOS) has been written
     output logic        write_ega,      // a word of slot 3 has been written
     output logic        write_pcjr,     // a word of slot 4 (PCjr BIOS) has been written
-    output logic        ec00_loaded     // a word of the EC00 slot has been written since reset
+    output logic [7:0]  cart1_seg,      // JRC header: address bits 19:12 of the cartridge in slot 5
+    output logic [16:0] cart1_len,      // its ROM size in bytes (0: empty)
+    output logic [7:0]  cart2_seg,
+    output logic [16:0] cart2_len,
+output logic        ec00_loaded     // a word of the EC00 slot has been written since reset
 );
     import sdram_pkg::*;
 
@@ -60,14 +69,24 @@ module rom_loader #(
     wire sel_tandy = ROM_TANDY && (ioctl_index[5:0] == 6'd1) && (ioctl_addr[24:16] == 9'd0);
     wire sel_pcjr  = ROM_PCJR && (ioctl_index[5:0] == 6'd4) && (ioctl_addr[24:16] == 9'd0);
     wire sel_ec00  = (ioctl_index == 8'd2);
+    // A cartridge: the ROM after the 512 byte header (at most 64 KiB); the header
+    // word at 1CEh only gives the address
+    wire [24:0] cart_off  = ioctl_addr - 25'h200;
+    wire        cart_rom  = (ioctl_addr >= 25'h200) && (ioctl_addr < 25'h10200);
+    wire        sel_cart1 = ROM_PCJR_CART && (ioctl_index[5:0] == 6'd5) && cart_rom;
+    wire        sel_cart2 = ROM_PCJR_CART && (ioctl_index[5:0] == 6'd6) && cart_rom;
+    wire        hdr_cart1 = ROM_PCJR_CART && (ioctl_index[5:0] == 6'd5) && (ioctl_addr == 25'h1CE);
+    wire        hdr_cart2 = ROM_PCJR_CART && (ioctl_index[5:0] == 6'd6) && (ioctl_addr == 25'h1CE);
     wire sel_ega   = ROM_EGA && (ioctl_index[5:0] == 6'd3) && (ioctl_addr[24:16] == 9'd0);
-    wire selected  = sel_pcxt | sel_tandy | sel_ec00 | sel_ega | sel_pcjr;
+    wire selected  = sel_pcxt | sel_tandy | sel_ec00 | sel_ega | sel_pcjr | sel_cart1 | sel_cart2;
 
     wire [24:0] dest = PHYS_ROM_BANK
                      + (sel_ec00  ? {5'd0, ROM_EC00[19:14], ioctl_addr[13:0]} :
                         sel_ega   ? {5'd0, ROM_EGA_BIOS[19:14], ioctl_addr[13:0]} :
                         sel_tandy ? {5'd0, ROM_TANDY_BIOS[19:16], ioctl_addr[15:0]} :
                         sel_pcjr  ? {5'd0, ROM_PCJR_BIOS[19:16], ioctl_addr[15:0]} :
+                        sel_cart1 ? {5'd0, ROM_PCJR_CART1[19:16], cart_off[15:0]} :
+                        sel_cart2 ? {5'd0, ROM_PCJR_CART2[19:16], cart_off[15:0]} :
                                     {5'd0, ROM_PCXT_BIOS[19:16], ioctl_addr[15:0]});
 
     typedef enum logic [1:0] {L_IDLE, L_ARMED, L_WRITE} lstate_t;
@@ -94,6 +113,10 @@ module rom_loader #(
             ec00_slot    <= 1'b0;
             ega_slot     <= 1'b0;
             pcjr_slot    <= 1'b0;
+            cart1_seg    <= 8'h00;
+            cart1_len    <= 17'd0;
+            cart2_seg    <= 8'h00;
+            cart2_len    <= 17'd0;
             ec00_loaded  <= 1'b0;
             write_main   <= 1'b0;
             write_tandy  <= 1'b0;
@@ -107,6 +130,9 @@ module rom_loader #(
             write_pcjr  <= 1'b0;
             case (state)
                 L_IDLE: begin
+                    // A new download of a cartridge empties its slot at once
+                    if (ioctl_download && ROM_PCJR_CART && ioctl_index[5:0] == 6'd5) cart1_len <= 17'd0;
+                    if (ioctl_download && ROM_PCJR_CART && ioctl_index[5:0] == 6'd6) cart2_len <= 17'd0;
                     hold_request <= ioctl_download;
                     ioctl_wait   <= ioctl_download;
                     if (ioctl_download && hold_granted)
@@ -119,6 +145,12 @@ module rom_loader #(
                         ioctl_wait   <= 1'b0;
                         state        <= L_IDLE;
                     end
+                    else if (ioctl_wr && (hdr_cart1 || hdr_cart2)) begin
+                        // The header word is not stored, only the address in it
+                        if (hdr_cart1) cart1_seg <= ioctl_data[15:8];
+                        if (hdr_cart2) cart2_seg <= ioctl_data[15:8];
+                        ioctl_wait <= 1'b0;
+                    end
                     else if (ioctl_wr && selected) begin
                         l_addr     <= dest[24:1];
                         l_wdata    <= ioctl_data;
@@ -127,6 +159,8 @@ module rom_loader #(
                         ec00_slot  <= sel_ec00;
                         ega_slot   <= sel_ega;
                         pcjr_slot  <= sel_pcjr;
+                        if (sel_cart1) cart1_len <= cart_off[16:0] + 17'd2;
+                        if (sel_cart2) cart2_len <= cart_off[16:0] + 17'd2;
                         ioctl_wait <= 1'b1;
                         state      <= L_WRITE;
                     end

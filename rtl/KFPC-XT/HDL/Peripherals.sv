@@ -1382,6 +1382,7 @@ end
         .data_out         (xtctl_id_data),
         .output_enable    (xtctl_id_oe),
         .tandy_machine    (`ENABLE_TANDY_VIDEO ? tandy_video : 1'b0),
+        .pcjr_machine     (pcjr_en),
         .video_card       (id_video_card),
         .vga13_active     (id_vga13_active),
         .rtc_port         (rtc_port),

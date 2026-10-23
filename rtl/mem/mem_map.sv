@@ -28,6 +28,11 @@
 //                come back as FF, writes are ignored), like a PC without the card
 //   F0000-FFFFF  PCXT BIOS slot (Tandy BIOS slot in a ROM_VARIANT_TANDY build)
 //
+// IBM PCjr (pcjr): the RAM ends where the machine was told (pcjr_ram_size: 128 KiB
+// plus 64 KiB per step, up to 640 KiB; nothing above answers), the BIOS is slot 4,
+// and C0000-EFFFF is not RAM but the two cartridges, each a read-only window of
+// cartN_len bytes at cartN_seg*4096. Where no cartridge sits it is open bus.
+//
 // The EMS frame wins over the EC00 window, as it did in RAM.sv.
 //
 module mem_map #(
@@ -50,7 +55,12 @@ module mem_map #(
     input  logic [2:0]  tandy_cpu_page,      // 3DFh bits 5:3: CPU page; bit 0 set = 16 KiB pages
     input  logic        pcjr,                // IBM PCjr (implies tandy_video): block 0, BIOS in its own slot
     input  logic        pcjr_32k,            // 3DFh bits 7:6 = 11: 32 KiB CRT pages, CPU page bit 0 is 0
-output logic        select,
+    input  logic [3:0]  pcjr_ram_size,       // PCjr RAM: 0 = 128 KiB ... 8 = 640 KiB
+    input  logic [7:0]  cart1_seg,           // PCjr cartridges: address bits 19:12 ...
+    input  logic [16:0] cart1_len,           // ... and ROM size in bytes (0: no cartridge)
+    input  logic [7:0]  cart2_seg,
+    input  logic [16:0] cart2_len,
+    output logic        select,
     output logic [24:0] phys,
     output logic        protect,
     output logic [1:0]  vclass,
@@ -75,8 +85,21 @@ output logic        select,
                                             || (address[19:15] == 5'b10111 &&  hgc_page));
     wire video    = cga_hit | hgc_hit;
 
+    // PCjr cartridges: C0000-EFFFF, a window per cartridge. The 20 bit subtraction
+    // is 8 bits wide in practice: the base is a multiple of 4 KiB
+    wire        seg_cde    = (address[19:16] == 4'hC) || (address[19:16] == 4'hD) || (address[19:16] == 4'hE);
+    wire [19:0] cart1_off  = address - {cart1_seg, 12'h000};
+    wire [19:0] cart2_off  = address - {cart2_seg, 12'h000};
+    wire        cart1_hit  = pcjr && seg_cde && (cart1_off[19:17] == 3'd0) && ({1'b0, cart1_off[16:0]} < {2'b00, cart1_len});
+    wire        cart2_hit  = pcjr && seg_cde && !cart1_hit && (cart2_off[19:17] == 3'd0) && ({1'b0, cart2_off[16:0]} < {2'b00, cart2_len});
+    // RAM below A0000 stops after pcjr_ram_size + 2 blocks of 64 KiB
+    wire [4:0]  pcjr_ram_blocks = {1'b0, pcjr_ram_size} + 5'd2;
+    wire        pcjr_no_ram    = pcjr && (address[19:16] < 4'hA) && ({1'b0, address[19:16]} >= pcjr_ram_blocks);
+    wire        pcjr_no_cart   = pcjr && seg_cde && !cart1_hit && !cart2_hit;
+
     assign select = ~(seg_b & ~video) & ~(~enable_a000h & (address[19:16] == 4'hA))
-                  & ~(seg_ec00 & ~ems_hit & ~ec00_loaded);
+                  & ~(seg_ec00 & ~ems_hit & ~ec00_loaded & ~cart1_hit & ~cart2_hit)
+                  & ~pcjr_no_ram & ~pcjr_no_cart;
 
     wire [24:0] hgc_phys = PHYS_HGC + {9'd0, hgc_page, address[14:0]};
 
@@ -105,6 +128,14 @@ output logic        select,
         else if (hgc_hit) begin
             phys   = hgc_phys;
             vclass = VC_HGC;
+        end
+        else if (cart1_hit) begin
+            phys    = PHYS_ROM_BANK + {5'd0, ROM_PCJR_CART1[19:16], cart1_off[15:0]};
+            protect = 1'b1;
+        end
+        else if (cart2_hit) begin
+            phys    = PHYS_ROM_BANK + {5'd0, ROM_PCJR_CART2[19:16], cart2_off[15:0]};
+            protect = 1'b1;
         end
         else if (ems_b1)
             phys = PHYS_EMS + {4'd0, map_ems[0], address[13:0]};

@@ -172,14 +172,26 @@ module emu
     localparam bit HAS_CGA_HGC = ((`ENABLE_CGA != 0) || (`ENABLE_HGC != 0));
     // The card is selectable at run time only when both families are built
     localparam bit CARD_SELECTABLE = HAS_EGA && HAS_CGA_HGC;
-    // The machine (PCXT or Tandy 1000) is chosen in the OSD
+    // The machine (PCXT, Tandy 1000 or, if built, IBM PCjr) is chosen in the OSD
     localparam bit HAS_MODEL = (`ENABLE_MODEL_TANDY != 0);
+    localparam bit HAS_PCJR_MODEL = HAS_MODEL && (`ENABLE_PCJR != 0);
+    localparam bit HAS_PCJR = (`ENABLE_PCJR != 0);
 
     // With the machine selectable, the entries that belong to one of the two are
-    // shown only for it: hA PCXT, hB Tandy 1000 (see status_menumask).
+    // shown only for it: hA PCXT, hB Tandy 1000, hE PCjr (see status_menumask).
     localparam CONF_STR_ROM = HAS_MODEL
-        ? "hAP1FC0,ROM,PCXT BIOS:;hBP1FC1,ROM,Tandy BIOS:;"
+        ? (HAS_PCJR_MODEL ? "hAP1FC0,ROM,PCXT BIOS:;hBP1FC1,ROM,Tandy BIOS:;hEP1FC4,ROM,PCjr BIOS:;"
+                          : "hAP1FC0,ROM,PCXT BIOS:;hBP1FC1,ROM,Tandy BIOS:;")
         : (`ROM_IS_PCJR ? "P1FC4,ROM,PCjr BIOS:;P1-;" : (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;"));
+    // The PCjr has no EC00 ROM card: its two cartridge slots take that place
+    // (h2 is "the machine is not a PCjr" in a build that chooses it)
+    localparam CONF_STR_EC00 = HAS_PCJR_MODEL ? "h2P1FC2,ROM,EC00 BIOS:;hEP1FC5,JRC,PCjr Cartridge 1:;hEP1FC6,JRC,PCjr Cartridge 2:;"
+                             : (HAS_PCJR ? "P1FC5,JRC,PCjr Cartridge 1:;P1FC6,JRC,PCjr Cartridge 2:;" : "P1FC2,ROM,EC00 BIOS:;");
+    // PCjr RAM (applied at reset) and the tape sound
+    localparam CONF_STR_PCJR_RAM = HAS_PCJR_MODEL ? "hEP1O[101:98],PCjr RAM,128K,192K,256K,320K,384K,448K,512K,576K,640K;"
+                                 : (HAS_PCJR ? "P1O[101:98],PCjr RAM,128K,192K,256K,320K,384K,448K,512K,576K,640K;" : "");
+    localparam CONF_STR_PCJR_TAPE = HAS_PCJR_MODEL ? "hEP2O[102],Tape sound,Disabled,Enabled;"
+                                  : (HAS_PCJR ? "P2O[102],Tape sound,Disabled,Enabled;" : "");
     localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
     localparam CONF_STR_EMS_EGA = (`ENABLE_EMS ? "P3O5,2MB EMS D000-DFFF,Enabled,Disabled;P3-;" : "");
     localparam CONF_STR_UMB = ((L_EGA && `ENABLE_UMB) ? "P3O[82],UMB C400-CFFF,Enabled,Disabled;P3-;" : "");
@@ -188,7 +200,8 @@ module emu
     // CGA/Hercules only items are hidden (h7) while the EGA card is selected
     // A Tandy 1000 has only the CGA with its Tandy modes: no card choice, no
     // Hercules (hA hides them, hD is "CGA/HGC card selected on a PCXT").
-    localparam CONF_STR_MACHINE = (HAS_MODEL ? "P1O[96],Machine,IBM PCXT,Tandy 1000;P1-;" : "");
+    localparam CONF_STR_MACHINE = HAS_PCJR_MODEL ? "P1O[97:96],Machine,IBM PCXT,Tandy 1000,IBM PCjr;P1-;"
+                                : (HAS_MODEL ? "P1O[96],Machine,IBM PCXT,Tandy 1000;P1-;" : "");
     localparam CONF_STR_CARD = CARD_SELECTABLE
         ? (HAS_MODEL ? "hAP1O[78],PCXT Video,CGA/HGC,EGA/VGA;hAP1-;" : "P1O[78],PCXT Video,CGA/HGC,EGA/VGA;P1-;")
         : "";
@@ -222,7 +235,8 @@ module emu
     localparam CONF_STR_HALT = {
         CONF_STR_HALT_BIOS,
         (HAS_EGA ? "h5-,HALTED: no EGA BIOS selected;" : ""),
-        (HAS_MODEL ? "hC-,HALTED: no Tandy BIOS selected;" : "")
+        (HAS_MODEL ? "hC-,HALTED: no Tandy BIOS selected;" : ""),
+        (HAS_PCJR_MODEL ? "hF-,HALTED: no PCjr BIOS selected;" : "")
     };
     // The box is 32 columns wide; commas separate the messages, so none of
     // them may contain one.
@@ -233,13 +247,15 @@ module emu
         "OSD: System & BIOS,",
         (HAS_EGA ? "No EGA BIOS selected\nMachine halted\nOSD: System & BIOS," : ""),
         (HAS_MODEL ? "No Tandy BIOS selected\nMachine halted\nOSD: System & BIOS," : ""),
+        (HAS_PCJR_MODEL ? "No PCjr BIOS selected\nMachine halted\nOSD: System & BIOS," : ""),
         "That setting is applied\n",
         "when the machine resets;"
     };
     // Number of the Tandy BIOS notice and of the "That setting is applied"
     // message in the "I," section
     localparam [7:0] TANDY_INFO_INDEX   = HAS_EGA ? 8'd3 : 8'd2;
-    localparam [7:0] PENDING_INFO_INDEX = TANDY_INFO_INDEX + (HAS_MODEL ? 8'd1 : 8'd0);
+    localparam [7:0] PCJR_INFO_INDEX    = TANDY_INFO_INDEX + 8'd1;
+    localparam [7:0] PENDING_INFO_INDEX = TANDY_INFO_INDEX + (HAS_MODEL ? 8'd1 : 8'd0) + (HAS_PCJR_MODEL ? 8'd1 : 8'd0);
 `else
     localparam CONF_STR_HGC = ((`ENABLE_HGC && `ENABLE_CGA) ? "P1oC,PCXT CGA Graphics,Yes,No;P1oD,PCXT Hercules Graphics,Yes,No;P1O[66],PCXT 1st Video,CGA,Hercules;P1-;" : "");
     localparam CONF_STR_A220 = (`ENABLE_CMS ? "P2OA,C/MS Audio,Enabled,Disabled;" : "");
@@ -266,6 +282,7 @@ module emu
     localparam [7:0] PENDING_INFO_INDEX = 8'd2;
     // The CGA layout cannot choose the machine; the index is never used
     localparam [7:0] TANDY_INFO_INDEX   = 8'd3;
+    localparam [7:0] PCJR_INFO_INDEX    = 8'd4;
 `endif
 
     localparam CONF_STR_EMS_CGA = (`ENABLE_EMS ? "P3OB,Lo-tech 2MB EMS,Enabled,Disabled;P3O[68:67],EMS Frame,C000,D000,E000;P3-;" : "");
@@ -302,7 +319,8 @@ module emu
         "P1oL,Fake 286 FLAGS,Off,On;",
         "P1-;",
         CONF_STR_ROM,
-        "P1FC2,ROM,EC00 BIOS:;",
+        CONF_STR_EC00,
+        CONF_STR_PCJR_RAM,
 `ifdef LAYOUT_EGA
         CONF_STR_EGABIOS,
 `endif
@@ -314,6 +332,7 @@ module emu
         CONF_STR_A220,
         CONF_STR_OPL2,
         CONF_STR_TANDY_AUDIO,
+        CONF_STR_PCJR_TAPE,
         "P2o01,Speaker Volume,1,2,3,4;",
         "P2o45,Audio Boost,No,2x,4x;",
         "P2o67,Stereo Mix,none,25%,50%,100%;",
@@ -362,14 +381,24 @@ module emu
     // Video card chosen at reset. card_sel_ega is what the menu asks for (it
     // is pending until the next reset); ega_active is the card that is in use.
     // A Tandy 1000 has only the CGA.
-    wire        tandy_sel_osd = HAS_MODEL ? status[96] : 1'b0;
+    // status[97:96]: 0 PCXT, 1 Tandy 1000, 2 PCjr. Both Tandy and PCjr are of the
+    // Tandy video family (tandy_sel_osd / tandy_applied); the PCjr is the one with
+    // pcjr_sel_osd / pcjr_applied.
+    wire        pcjr_sel_osd  = HAS_PCJR_MODEL ? status[97] : 1'b0;
+    wire        tandy_sel_osd = HAS_MODEL ? (status[96] | pcjr_sel_osd) : 1'b0;
     reg         tandy_applied_r = 1'b0;     // the machine in use, latched at reset
+    reg         pcjr_applied_r  = 1'b0;
     wire        tandy_applied = HAS_MODEL ? tandy_applied_r : 1'b0;
+    wire        pcjr_applied  = HAS_PCJR_MODEL ? pcjr_applied_r : 1'b0;
     // Whether the machine is a Tandy 1000: fixed by the build or chosen at reset.
     // It drives the Tandy video, keyboard and BIOS slot wherever they are built.
     wire        tandy_video_mode = (`ENABLE_TANDY_VIDEO != 0) ? (HAS_MODEL ? tandy_applied : 1'b1) : 1'b0;
     // Whether the machine is a PCjr (a member of the Tandy video family)
-    wire        pcjr_video_mode = (`ENABLE_PCJR != 0) ? (`ROM_IS_PCJR != 0) : 1'b0;
+    wire        pcjr_video_mode = (`ENABLE_PCJR != 0) ? (HAS_MODEL ? pcjr_applied : (`ROM_IS_PCJR != 0)) : 1'b0;
+    // PCjr RAM: 128 KiB plus 64 KiB per step, taken at reset (the menu has nine
+    // sizes; a larger value is the largest)
+    reg   [3:0] pcjr_ram_size_r = 4'd8;
+    wire  [3:0] pcjr_ram_size = HAS_PCJR ? pcjr_ram_size_r : 4'd8;
     wire        card_sel_ega = HAS_EGA ? (CARD_SELECTABLE ? (status[78] & ~tandy_sel_osd) : 1'b1) : 1'b0;
     wire        ega_active;
     wire        ega_active_vid;
@@ -593,11 +622,14 @@ module emu
     wire        crt_offsets_act = ~(L_EGA ? border_menu : border) | border_crt_osd;
     //   machine selectable (ENABLE_MODEL_TANDY): bit 10 PCXT chosen, 11 Tandy 1000
     //   chosen, 12 the Tandy BIOS is absent, 13 PCXT chosen with the CGA/HGC card.
+    //   with the PCjr built in as well: bit 11 is the Tandy 1000 only, 14 the PCjr
+    //   chosen, 15 the PCjr BIOS is absent, 2 the machine is not a PCjr.
     wire [15:0] status_menumask = L_EGA
-        ? {2'd0, ~card_sel_ega & ~tandy_sel_osd, bios_missing_tandy, tandy_sel_osd, ~tandy_sel_osd,
+        ? {bios_missing_pcjr, pcjr_sel_osd, ~card_sel_ega & ~tandy_sel_osd, bios_missing_tandy,
+           tandy_sel_osd & ~pcjr_sel_osd, ~tandy_sel_osd,
            border_menu, card_sel_ega, ~card_sel_ega, crt_offsets_act,
            bios_missing_ega, bios_missing_pcxt,
-           ((`ENABLE_MIDI != 0) && mt32_available && eff_mpu401), 3'b111}
+           ((`ENABLE_MIDI != 0) && mt32_available && eff_mpu401), ~pcjr_sel_osd, 2'b11}
         : {9'd0, crt_offsets_act, border, bios_missing_pcxt,
            ((`ENABLE_MIDI != 0) && mt32_available),
            2'b00, status[5]};
@@ -751,7 +783,21 @@ module emu
         .locked(pll_system_locked)
     );
 
-    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked  | splashscreen | splash_reset_hold | splash_pending;
+    // PCjr: a cartridge is seen by the BIOS at power on only, so the machine
+    // restarts when one has been loaded (about 2 ms of reset)
+    wire        cart_download = pcjr_video_mode && ioctl_download && ((ioctl_index[5:0] == 6'd5) || (ioctl_index[5:0] == 6'd6));
+    logic       cart_download_d = 1'b0;
+    logic [17:0] cart_reset_count = 18'd0;
+    always @(posedge clk_chipset) begin
+        cart_download_d <= cart_download;
+        if (cart_download_d && !cart_download)
+            cart_reset_count <= 18'h3FFFF;
+        else if (cart_reset_count != 18'd0)
+            cart_reset_count <= cart_reset_count - 18'd1;
+    end
+    wire cart_reset_hold = (cart_reset_count != 18'd0);
+
+    wire reset_wire = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked  | splashscreen | splash_reset_hold | splash_pending | cart_reset_hold;
     wire video_retime_reset = RESET | status[0] | buttons[1] | !pll_locked | !pll_system_locked | splash_pending;
     (* altera_attribute = "-name SYNCHRONIZER_IDENTIFICATION FORCED_IF_ASYNCHRONOUS" *) logic [1:0] video_retime_reset_sync = 2'b11;
     wire video_retime_reset_local = video_retime_reset_sync[1];
@@ -914,8 +960,11 @@ module emu
 
     // The machine is chosen the same way (and the video card follows from it)
     always @(negedge clk_chipset)
-        if (reset)
+        if (reset) begin
             tandy_applied_r <= tandy_sel_osd;
+            pcjr_applied_r  <= pcjr_sel_osd;
+            pcjr_ram_size_r <= (status[101:98] > 4'd8) ? 4'd8 : status[101:98];
+        end
 
     // The video card is chosen the same way: the menu entry is sampled while
     // reset is active and what it says then stays in force until the next
@@ -1074,11 +1123,13 @@ module emu
     wire        tandy_bios_write_complete;
     wire        pcjr_bios_write_complete;
     wire        ec00_loaded;
+    wire [7:0]  cart1_seg, cart2_seg;
+    wire [16:0] cart1_len, cart2_len;
 
     // The PCXT BIOS slot is offered unless the build is only a Tandy; the Tandy
     // one when the build is a Tandy or chooses the machine
     rom_loader #(.ROM_PCXT(!`ROM_IS_TANDY && !`ROM_IS_PCJR), .ROM_TANDY(`ROM_IS_TANDY || HAS_MODEL), .ROM_EGA(`ENABLE_EGA),
-                 .ROM_PCJR(`ROM_IS_PCJR != 0)) u_rom_loader
+                 .ROM_PCJR((`ROM_IS_PCJR != 0) || HAS_PCJR_MODEL), .ROM_PCJR_CART(HAS_PCJR)) u_rom_loader
     (
         .clock              (clk_chipset),
         .reset              (reset_sdram),
@@ -1101,6 +1152,10 @@ module emu
         .write_tandy        (tandy_bios_write_complete),
         .write_ega          (ega_bios_write_complete),
         .write_pcjr         (pcjr_bios_write_complete),
+        .cart1_seg          (cart1_seg),
+        .cart1_len          (cart1_len),
+        .cart2_seg          (cart2_seg),
+        .cart2_len          (cart2_len),
         .ec00_loaded        (ec00_loaded)
     );
 
@@ -1630,7 +1685,7 @@ module emu
 
     // The main BIOS is the one of the machine: the Tandy one in a Tandy build,
     // the PCXT one in a PCXT build, and the chosen one when the build chooses.
-    wire pcxt_bios_loaded = HAS_MODEL ? (tandy_applied ? tandy_slot_loaded : pcxt_slot_loaded)
+    wire pcxt_bios_loaded = HAS_MODEL ? (pcjr_applied ? pcjr_slot_loaded : tandy_applied ? tandy_slot_loaded : pcxt_slot_loaded)
                                       : (`ROM_IS_PCJR ? pcjr_slot_loaded :
                                          `ROM_IS_TANDY ? tandy_slot_loaded : pcxt_slot_loaded);
 
@@ -1666,7 +1721,8 @@ module emu
     wire bios_missing_pcxt  = ~pcxt_bios_loaded & ~tandy_applied;
     // The Tandy notice and menu line exist only when the machine is chosen; a
     // build that is only a Tandy reports its BIOS as the main one (above)
-    wire bios_missing_tandy = HAS_MODEL & tandy_applied & ~tandy_slot_loaded;
+    wire bios_missing_tandy = HAS_MODEL & tandy_applied & ~pcjr_applied & ~tandy_slot_loaded;
+    wire bios_missing_pcjr  = HAS_PCJR_MODEL & pcjr_applied & ~pcjr_slot_loaded;
     wire bios_missing_ega  = HAS_EGA & ega_active & pcxt_bios_loaded & ~ega_bios_loaded;
 
 
@@ -1777,12 +1833,13 @@ module emu
     wire [7:0] pending_info;
     wire       pending_info_req;
 
-    bios_hold_notice #(.TANDY_INFO_INDEX(TANDY_INFO_INDEX)) bios_notice (
+    bios_hold_notice #(.TANDY_INFO_INDEX(TANDY_INFO_INDEX), .PCJR_INFO_INDEX(PCJR_INFO_INDEX)) bios_notice (
         .clock             (clk_14_318),
         .splash_boot_phase (splash_pending | splash_timed),
         .bios_missing_pcxt (bios_missing_pcxt),
         .bios_missing_ega  (bios_missing_ega),
         .bios_missing_tandy(bios_missing_tandy),
+        .bios_missing_pcjr (bios_missing_pcjr),
         .hold              (bios_hold),
         .info              (bios_info),
         .info_req          (bios_info_req)
@@ -2045,6 +2102,11 @@ module emu
 		.tandy_color_16                     (tandy_color_16),
 		.pcjr                               (pcjr_video_mode),
 		.pcjr_vram_32k                      (pcjr_vram_32k),
+		.pcjr_ram_size                      (pcjr_ram_size),
+		.cart1_seg                          (cart1_seg),
+		.cart1_len                          (cart1_len),
+		.cart2_seg                          (cart2_seg),
+		.cart2_len                          (cart2_len),
 		.nmi_to_cpu                         (nmi_to_cpu),
 		.cassette_out                       (cassette_out),
 		.cassette_motor                     (cassette_motor),
@@ -2211,6 +2273,22 @@ module emu
                             (L_EGA ? {{{2{tandy_snd_e[10]}}, {4{tandy_snd_e[10]}}, tandy_snd_e} << status[33:32], 2'b00}
                                    : (tandy_snd_base << ({1'b0, status[35:34]} + 3'd2))) : 17'd0;
     wire [16:0] spk_vol =  {2'b00, {3'b000,~speaker_out} << status[33:32], 11'd0};
+
+    // PCjr: what the BASIC SAVE puts on the cassette line is heard as long as the
+    // motor is on and the line keeps changing (about 2.5 ms without an edge is
+    // silence), at the speaker volume
+    localparam [17:0] CASS_OUT_ACTIVE_AGE = 18'd150000;
+    logic        cassette_out_d = 1'b0;
+    logic [17:0] cassette_out_age = {18{1'b1}};
+    always @(posedge clk_chipset) begin
+        cassette_out_d <= cassette_out;
+        if (cassette_out_d != cassette_out)
+            cassette_out_age <= 18'd0;
+        else if (cassette_out_age != {18{1'b1}})
+            cassette_out_age <= cassette_out_age + 18'd1;
+    end
+    wire        tape_audio = pcjr_video_mode && status[102] && cassette_motor && (cassette_out_age < CASS_OUT_ACTIVE_AGE);
+    wire [16:0] tape_snd = tape_audio ? {2'b00, {3'b000,cassette_out} << status[33:32], 11'd0} : 17'd0;
     wire [15:0] sb_snd_l, sb_snd_r;
     wire [16:0] sb_l_snd = `ENABLE_SB ? {sb_snd_l[15], sb_snd_l} : 17'd0;
     wire [16:0] sb_r_snd = `ENABLE_SB ? {sb_snd_r[15], sb_snd_r} : 17'd0;
@@ -2244,7 +2322,7 @@ module emu
     begin
         reg [16:0] tmp_l;
 
-        tmp_l <= jtopl2_snd + cms_l_snd + tandy_snd + spk_vol + mt32_l_snd + sb_l_snd;
+        tmp_l <= jtopl2_snd + cms_l_snd + tandy_snd + spk_vol + tape_snd + mt32_l_snd + sb_l_snd;
 
         // clamp the output
         out_l <= (^tmp_l[16:15]) ? {tmp_l[16], {15{tmp_l[15]}}} : tmp_l[15:0];
@@ -2258,7 +2336,7 @@ module emu
     begin
         reg [16:0] tmp_r;
 
-        tmp_r <= jtopl2_snd + cms_r_snd + tandy_snd + spk_vol + mt32_r_snd + sb_r_snd;
+        tmp_r <= jtopl2_snd + cms_r_snd + tandy_snd + spk_vol + tape_snd + mt32_r_snd + sb_r_snd;
 
         // clamp the output
         out_r <= (^tmp_r[16:15]) ? {tmp_r[16], {15{tmp_r[15]}}} : tmp_r[15:0];
@@ -2548,7 +2626,9 @@ module emu
                        | (HAS_EGA && (ega_monitor_profile_osd != ega_monitor_profile_applied))
                        | (status[22:21]           != use_mmc)
                        | (CARD_SELECTABLE && (card_sel_ega != ega_active))
-                       | (HAS_MODEL && (tandy_sel_osd != tandy_applied));
+                       | (HAS_MODEL && (tandy_sel_osd != tandy_applied))
+                       | (HAS_PCJR_MODEL && (pcjr_sel_osd != pcjr_applied))
+                       | (HAS_PCJR && (((status[101:98] > 4'd8) ? 4'd8 : status[101:98]) != pcjr_ram_size_r));
 
     generate
     if (L_EGA) begin : g_pending_notice

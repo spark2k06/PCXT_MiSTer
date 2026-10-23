@@ -153,6 +153,9 @@ proc pcxt_check_config {assigned} {
             lappend errors "ENABLE_PCJR=1 needs ENABLE_CGA=1 (the PCjr video gate array is the CGA's)"
         }
     }
+    if {$pcjr && !$rom_pcjr && !$model} {
+        lappend errors "ENABLE_PCJR=1 needs a PCjr BIOS slot: ROM_IS_PCJR=1 (a PCjr core) or ENABLE_MODEL_TANDY=1 (the machine chosen in the OSD)"
+    }
     if {($pcjr_sys || $rom_pcjr) && !$pcjr} {
         lappend errors "SYSTEM_VARIANT_PCJR/ROM_VARIANT_PCJR/ROM_IS_PCJR need ENABLE_PCJR=1"
     }

@@ -21,7 +21,9 @@ module bios_hold_notice #(
     parameter [24:0] INFO_WIDTH  = 25'd256,
     // Number of the Tandy BIOS notice in the "I," section of the config string
     // (the PCXT BIOS notice is 1, the EGA one 2)
-    parameter [7:0]  TANDY_INFO_INDEX = 8'd3
+    parameter [7:0]  TANDY_INFO_INDEX = 8'd3,
+    // and of the PCjr BIOS notice (the one after the Tandy one)
+    parameter [7:0]  PCJR_INFO_INDEX  = 8'd4
 ) (
     input  logic       clock,
     // High for as long as the ordinary power-on splash owns the screen.  Both
@@ -33,6 +35,8 @@ module bios_hold_notice #(
     // The machine is a Tandy 1000 and its BIOS is absent (a build that chooses
     // the machine at run time; tie to 0 otherwise)
     input  logic       bios_missing_tandy,
+    // The machine is a PCjr and its BIOS is absent (same: tie to 0 otherwise)
+    input  logic       bios_missing_pcjr,
     output logic       hold,
     output logic [7:0] info,
     output logic       info_req
@@ -41,15 +45,17 @@ module bios_hold_notice #(
     (* ASYNC_REG = "TRUE" *) logic [1:0] missing_pcxt_sync = 2'b00;
     (* ASYNC_REG = "TRUE" *) logic [1:0] missing_ega_sync  = 2'b00;
     (* ASYNC_REG = "TRUE" *) logic [1:0] missing_tandy_sync = 2'b00;
+    (* ASYNC_REG = "TRUE" *) logic [1:0] missing_pcjr_sync = 2'b00;
 
     logic [24:0] info_cnt = 25'd0;
 
-    assign hold = ~splash_boot_phase & (missing_pcxt_sync[1] | missing_tandy_sync[1] | missing_ega_sync[1]);
+    assign hold = ~splash_boot_phase & (missing_pcxt_sync[1] | missing_tandy_sync[1] | missing_pcjr_sync[1] | missing_ega_sync[1]);
 
     always_ff @(posedge clock) begin
         missing_pcxt_sync <= {missing_pcxt_sync[0], bios_missing_pcxt};
         missing_ega_sync  <= {missing_ega_sync[0],  bios_missing_ega};
         missing_tandy_sync <= {missing_tandy_sync[0], bios_missing_tandy};
+        missing_pcjr_sync <= {missing_pcjr_sync[0], bios_missing_pcjr};
 
         if (!hold) begin
             info_cnt <= 25'd0;
@@ -66,7 +72,8 @@ module bios_hold_notice #(
             // main BIOS is named first: an EGA option ROM is no use without a
             // machine to run it on, so reporting both at once would be noise.
             info     <= missing_pcxt_sync[1]  ? 8'd1 :
-                        missing_tandy_sync[1] ? TANDY_INFO_INDEX : 8'd2;
+                        missing_tandy_sync[1] ? TANDY_INFO_INDEX :
+                        missing_pcjr_sync[1]  ? PCJR_INFO_INDEX : 8'd2;
             info_req <= info_cnt < INFO_WIDTH;
         end
     end

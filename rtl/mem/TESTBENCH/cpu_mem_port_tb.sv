@@ -68,7 +68,7 @@ module cpu_mem_port_tb #(
         .address(address), .map_ems(ems), .ems_b1(1'b0), .ems_b2(1'b0), .ems_b3(1'b0),
         .ems_b4(1'b0), .enable_a000h(1'b1), .bios_protect_flag(protect_flags), .ec00_loaded(1'b1),
         .en_cga(1'b1), .en_hgc(1'b1), .hgc_page(hgc_page),
-        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0), .pcjr_ram_size(4'd8), .cart1_seg(8'h00), .cart1_len(17'd0), .cart2_seg(8'h00), .cart2_len(17'd0),
         .select(sel), .phys(phys), .protect(prot),
         .vclass(vclass), .phys2(phys2), .phys2_valid(phys2_valid)
     );

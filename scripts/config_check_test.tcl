@@ -92,6 +92,9 @@ foreach p {mister_pcxt_full mister_pcxt_full_novga13} {
         || [dict get $pm ENABLE_TANDY_KBD] != 1} {
         fail "$p must choose the machine in the OSD (Tandy video and keyboard built in)"
     }
+    if {[dict get $pm ENABLE_PCJR] != 1} {
+        fail "$p must offer the PCjr as the third machine"
+    }
 }
 foreach p {mister_pcxt_cga mister_pcxt_ega mister_tandy1000} {
     lassign [evaluate_profile $p] pm _
@@ -150,6 +153,7 @@ expect_error "PCjr without the Tandy sound"  [dict replace $pcjr_ok ENABLE_TANDY
 expect_error "PCjr without the CGA"          [dict replace $pcjr_ok ENABLE_CGA 0 ENABLE_HGC 1] "*ENABLE_PCJR=1 needs ENABLE_CGA=1*"
 expect_error "PCjr BIOS without the machine" [dict replace $pcjr_ok ENABLE_PCJR 0] "*need ENABLE_PCJR=1*"
 expect_error "PCjr named without its BIOS"   [dict replace $pcjr_ok ROM_IS_PCJR 0] "*needs the PCjr BIOS slot*"
+expect_error "PCjr nobody can choose"      [dict replace $pcjr_ok SYSTEM_VARIANT_PCJR 0 ROM_VARIANT_PCJR 0] "*needs a PCjr BIOS slot*"
 expect_error "PCjr that is also a Tandy"     [dict replace $pcjr_ok SYSTEM_VARIANT_TANDY 1] "*cannot also be a Tandy*"
 expect_error "PCjr with Hercules"            [dict replace $pcjr_ok ENABLE_HGC 1] "*has only the CGA*"
 expect_error "PCjr with the EGA layout"      [dict replace $pcjr_ok LAYOUT_EGA 1] "*LAYOUT_EGA=1 with a PCjr ROM*"

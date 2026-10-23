@@ -20,6 +20,10 @@ set_global_assignment -name VERILOG_MACRO "ENABLE_MODEL_TANDY=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_VIDEO=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_AUDIO=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_KBD=1"
+# and the IBM PCjr as the third machine: the CGA with its gate array, the infrared
+# keyboard, the cartridges and the diskette adapter by programmed I/O. Like the
+# Tandy 1000 it has only the CGA, and its own BIOS slot.
+set_global_assignment -name VERILOG_MACRO "ENABLE_PCJR=1"
 
 # Video: both families, the EGA with the VGA 13h+ extension (unless trimmed)
 set_global_assignment -name VERILOG_MACRO "ENABLE_CGA=1"
