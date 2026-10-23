@@ -8,11 +8,13 @@
 
 module rom_loader_tb #(
     // 0: a PCXT build (slot 0 only), 1: a build that is only a Tandy 1000 (slot 1
-    // only), 2: a build that chooses the machine at run time (both slots)
+    // only), 2: a build that chooses the machine at run time (both slots), 3: a
+    // build that is only a PCjr (slot 4 only)
     parameter int MODEL = 0
 );
-    localparam bit HAS_PCXT  = (MODEL != 1);
-    localparam bit HAS_TANDY = (MODEL != 0);
+    localparam bit HAS_PCXT  = (MODEL != 1) && (MODEL != 3);
+    localparam bit HAS_TANDY = (MODEL != 0) && (MODEL != 3);
+    localparam bit HAS_PCJR  = (MODEL == 3);
 
     import sdram_pkg::*;
 
@@ -29,16 +31,16 @@ module rom_loader_tb #(
     logic        hold_granted = 0;
     wire         l_start;  wire [23:0] l_addr;  wire [15:0] l_wdata;
     logic        l_busy = 0, l_done = 0;
-    wire         write_any, write_main, write_tandy, ec00_loaded;
+    wire         write_any, write_main, write_tandy, write_pcjr, ec00_loaded;
 
-    rom_loader #(.ROM_PCXT(HAS_PCXT), .ROM_TANDY(HAS_TANDY)) dut (
+    rom_loader #(.ROM_PCXT(HAS_PCXT), .ROM_TANDY(HAS_TANDY), .ROM_PCJR(HAS_PCJR)) dut (
         .clock(clock), .reset(reset), .sdram_ready(1'b1),
         .ioctl_download(ioctl_download), .ioctl_index(ioctl_index), .ioctl_wr(ioctl_wr),
         .ioctl_addr(ioctl_addr), .ioctl_data(ioctl_data), .ioctl_wait(ioctl_wait),
         .hold_request(hold_request), .hold_granted(hold_granted),
         .l_start(l_start), .l_addr(l_addr), .l_wdata(l_wdata), .l_busy(l_busy), .l_done(l_done),
         .write_any(write_any), .write_main(write_main), .write_tandy(write_tandy),
-        .ec00_loaded(ec00_loaded)
+        .write_pcjr(write_pcjr), .ec00_loaded(ec00_loaded)
     );
 
     int errors = 0;
@@ -56,7 +58,7 @@ module rom_loader_tb #(
     // Transaction port: busy for 3..12 clocks, then done.
     int     busy_left = 0;
     logic [15:0] mem [int unsigned];
-    int     writes = 0, mains = 0, tandys = 0;
+    int     writes = 0, mains = 0, tandys = 0, pcjrs = 0;
     always @(posedge clock) begin
         l_done <= 0;
         if (l_start && !l_busy) begin
@@ -72,6 +74,7 @@ module rom_loader_tb #(
         end
         if (write_main) mains++;
         if (write_tandy) tandys++;
+        if (write_pcjr) pcjrs++;
     end
 
     // hps_io side
@@ -141,10 +144,24 @@ module rom_loader_tb #(
                 verify((PHYS_ROM_BANK + ROM_PCXT_BIOS) >> 1, 300, 1, 0, "PCXT BIOS after the Tandy one");
         end
 
-        writes = 0; mains = 0; tandys = 0;
+        writes = 0; mains = 0; tandys = 0; pcjrs = 0;
+        if (HAS_PCJR) begin
+            download(8'd4, 150, 11);
+            if (ec00_loaded) err("EC00 flagged as loaded by the PCjr BIOS");
+            verify((PHYS_ROM_BANK + ROM_PCJR_BIOS) >> 1, 150, 11, 0, "PCjr BIOS");
+            if (writes != 150) err($sformatf("PCjr BIOS: %0d writes", writes));
+            if (pcjrs != 150) err($sformatf("write_pcjr pulsed %0d times", pcjrs));
+            if (mains != 0 || tandys != 0) err("write_main / write_tandy for the PCjr slot");
+        end
+        else begin
+            download(8'd4, 50, 11);      // PCjr slot: not in a PCXT or Tandy build
+            if (writes != 0 || pcjrs != 0) err("PCjr slot written in a build without it");
+        end
+
+        writes = 0; mains = 0; tandys = 0; pcjrs = 0;
         download(8'd2, 9000, 7);         // 18000 bytes: wraps inside 16 KiB
         verify((PHYS_ROM_BANK + ROM_EC00) >> 1, 9000, 7, 8192, "EC00 (16 KiB window)");
-        if (mains != 0 || tandys != 0) err("write_main / write_tandy for EC00");
+        if (mains != 0 || tandys != 0 || pcjrs != 0) err("write_main / write_tandy / write_pcjr for EC00");
         if (!ec00_loaded) err("EC00 not flagged as loaded after its download");
 
         writes = 0;

@@ -48,7 +48,9 @@ module mem_map #(
     input  logic        tandy_video,         // Tandy 1000 video: the CGA window is shared RAM
     input  logic [2:0]  tandy_block,         // A0h bits 3:1: the 128 KiB block of video memory
     input  logic [2:0]  tandy_cpu_page,      // 3DFh bits 5:3: CPU page; bit 0 set = 16 KiB pages
-    output logic        select,
+    input  logic        pcjr,                // IBM PCjr (implies tandy_video): block 0, BIOS in its own slot
+    input  logic        pcjr_32k,            // 3DFh bits 7:6 = 11: 32 KiB CRT pages, CPU page bit 0 is 0
+output logic        select,
     output logic [24:0] phys,
     output logic        protect,
     output logic [1:0]  vclass,
@@ -59,7 +61,8 @@ module mem_map #(
 
     // F000 is the Tandy BIOS slot in a build that is only a Tandy (ROM_TANDY) and
     // while the machine is a Tandy 1000 (tandy_video) in a build that chooses
-    wire [19:0] MAIN_ROM = (ROM_TANDY || tandy_video) ? ROM_TANDY_BIOS : ROM_PCXT_BIOS;
+    wire [19:0] MAIN_ROM = pcjr ? ROM_PCJR_BIOS :
+                           (ROM_TANDY || tandy_video) ? ROM_TANDY_BIOS : ROM_PCXT_BIOS;
 
     wire seg_f    = (address[19:16] == 4'hF);
     wire seg_ec00 = (address[19:14] == 6'b111011);
@@ -79,7 +82,9 @@ module mem_map #(
 
     // Offset in the 128 KiB block: 16 KiB pages when 3DFh bit 3 is set, 32 KiB
     // pages otherwise
-    wire [16:0] tandy_off  = tandy_cpu_page[0] ? {tandy_cpu_page, address[13:0]}
+    // PCjr: always the 16 KiB window; with 32 KiB CRT pages the CPU page is {3DFh[5:4], 0}
+    wire [16:0] tandy_off  = pcjr ? {tandy_cpu_page[2:1], (tandy_cpu_page[0] & ~pcjr_32k), address[13:0]} :
+                             tandy_cpu_page[0] ? {tandy_cpu_page, address[13:0]}
                                                : {tandy_cpu_page[2:1], address[14:0]};
     wire [24:0] tandy_phys = PHYS_CPU_IMAGE + {5'd0, tandy_block, tandy_off};
 

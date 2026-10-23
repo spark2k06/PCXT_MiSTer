@@ -13,6 +13,9 @@
 `ifndef ENABLE_TANDY_KBD
 `define ENABLE_TANDY_KBD 0
 `endif
+`ifndef ENABLE_PCJR
+`define ENABLE_PCJR 0
+`endif
 `ifndef ENABLE_CGA
 `define ENABLE_CGA 1
 `endif
@@ -206,6 +209,12 @@ module PERIPHERALS #(
         output  logic           tandy_snd_rdy,
         output  logic           tandy_16_gfx,
         output  logic           tandy_color_16,
+        // IBM PCjr (implies tandy_video): the machine is a PCjr
+        input   logic           pcjr,
+        output  logic           pcjr_vram_32k,      // 3DFh bits 7:6 = 11: 32 KiB CRT pages
+        output  logic           nmi_to_cpu,         // keyboard NMI
+        output  logic           cassette_out,       // PIT channel 2: the tape signal
+        output  logic           cassette_motor,
         // UART
         input   logic           clk_uart,
         input   logic           clk_uart_com2,      // 1.8432 MHz reference for COM2 only
@@ -362,12 +371,35 @@ module PERIPHERALS #(
     wire tandy_kbd_en = `ENABLE_TANDY_KBD ? (`ENABLE_TANDY_VIDEO ? tandy_video : 1'b1) : 1'b0;
 
     wire tandy_io_en = tandy_video_en | tandy_audio_en;
+    // The PCjr is a member of the Tandy video family: the gate array in the CGA
+    // takes the place of the Tandy registers, and the IR keyboard, NMI and
+    // IRQ5 of the machine are enabled
+    wire pcjr_en = `ENABLE_PCJR ? (tandy_video_en & pcjr) : 1'b0;
+    wire tandy_16_gfx_cga;
+    wire crtc_2x;
+    wire pcjr_vsync_irq;
+    wire ir_key_clear;
+    wire ir_keyb_in;
+    wire ir_latch;
+    wire [7:0] pcjr_port_c_in;
+    reg [7:0] tandy_page_data = 8'h00;
+    reg [7:0] nmi_mask_register_data = 8'hFF;
+    (* ASYNC_REG = "TRUE" *) logic [1:0] pcjr_cga_sync = 2'b00;
+    (* ASYNC_REG = "TRUE" *) logic [1:0] pcjr_addr_mode_sync0 = 2'b00;
+    (* ASYNC_REG = "TRUE" *) logic [1:0] pcjr_addr_mode_sync1 = 2'b00;
+    always_ff @(posedge clk_vga_cga) begin
+        pcjr_cga_sync        <= {pcjr_cga_sync[0], pcjr_en};
+        pcjr_addr_mode_sync0 <= tandy_page_data[7:6];
+        pcjr_addr_mode_sync1 <= pcjr_addr_mode_sync0;
+    end
+    wire       pcjr_cga = pcjr_cga_sync[1];
+    wire [1:0] pcjr_addr_mode_cga = pcjr_addr_mode_sync1;
 
     wire hgc_enable = `ENABLE_HGC ? (enable_hgc & ~ega_active) : 1'b0;
     wire hgc_grph_mode;
     wire hgc_grph_page;
 
-    assign tandy_16_gfx = `ENABLE_CGA ? (tandy_video_en & grph_mode & hres_mode) : 1'b0;
+    assign tandy_16_gfx = `ENABLE_CGA ? (pcjr_en ? tandy_16_gfx_cga : (tandy_video_en & grph_mode & hres_mode)) : 1'b0;
 
     // Handed between the shared decoders below and the EGA block at the end
     // of the video section.
@@ -458,8 +490,8 @@ module PERIPHERALS #(
     wire    video_mem_select        = `ENABLE_TANDY_VIDEO ? (tandy_video_en && ~iorq && ~address_enable_n & (address[19:17] == nmi_mask_register_data[3:1])) : 1'b0; // 128KB
     wire    cga_mem_select          = `ENABLE_CGA ? (~iorq && ~address_enable_n && enable_cga & ~ega_active & (address[19:15] == 5'b10111)) : 1'b0; // B8000 - BFFFF (16 KB / 32 KB)
     wire    hgc_mem_select          = `ENABLE_HGC ? (~iorq && ~address_enable_n && hgc_enable & (address[19:15] == {5'b1011, hgc_grph_page})) : 1'b0; // B0000 - BFFFF (32KB / 64 KB)
-    wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == 16'h03F8);
-    wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == 16'h02F8);
+    wire    uart_chip_select        = (~address_enable_n && {address[15:3], 3'd0} == (pcjr_en ? 16'h02F8 : 16'h03F8));
+    wire    uart2_chip_select       = (~address_enable_n && {address[15:3], 3'd0} == (pcjr_en ? 16'h03F8 : 16'h02F8));
     // NOTE: deliberately no `iorq` term here, matching uart_chip_select above.
     // This select is qualified by iorq_uart, which pulses on the *trailing* edge
     // of io_write_n - by then iorq has already dropped, so including it would
@@ -618,11 +650,11 @@ module PERIPHERALS #(
         .interrupt_to_cpu           (interrupt_to_cpu_buf),
         .interrupt_request          ({interrupt_request[7] | (sb_interrupt & sb_irq7),
                                         fdd_interrupt,
-                                        interrupt_request[5] | (sb_interrupt & ~sb_irq7),
-                                        uart_interrupt,
-                                        uart2_interrupt,
+                                        interrupt_request[5] | (sb_interrupt & ~sb_irq7) | pcjr_vsync_irq,
+                                        pcjr_en ? uart2_interrupt : uart_interrupt,
+                                        pcjr_en ? uart_interrupt : uart2_interrupt,
                                         mpu_interrupt,
-                                        keybord_interrupt,
+                                        keybord_interrupt & ~pcjr_en,
                                         timer_interrupt})
     );
 
@@ -670,7 +702,7 @@ module PERIPHERALS #(
         .counter_0_clock            (timer_clock),
         .counter_0_gate             (1'b1),
         .counter_0_out              (timer_counter_out[0]),
-        .counter_1_clock            (timer_clock),
+        .counter_1_clock            (pcjr_en && nmi_mask_register_data[5] ? timer_counter_out[0] : timer_clock),
         .counter_1_gate             (1'b1),
         .counter_1_out              (timer_counter_out[1]),
         .counter_2_clock            (timer_clock),
@@ -680,6 +712,8 @@ module PERIPHERALS #(
 
     assign  timer_interrupt = timer_counter_out[0];
     assign  speaker_out     = timer_counter_out[2] & spkdata;
+    assign  cassette_out    = timer_counter_out[2];
+    assign  cassette_motor  = ~port_b_out[3];
 
     //
     // 8255
@@ -706,10 +740,17 @@ module PERIPHERALS #(
         .port_b_in                  (port_b_in),
         .port_b_out                 (port_b_out),
         .port_b_io                  (port_b_io),
-        .port_c_in                  (port_c_in),
+        .port_c_in                  (pcjr_en ? pcjr_port_c_in : port_c_in),
         .port_c_out                 (port_c_out),
         .port_c_io                  (port_c_io)
     );
+
+    // PCjr port C: bit 7 cable, bit 6 the IR line, bit 5 the tape signal
+    // (PIT channel 2), bit 4 the tape input (none) or the same signal while
+    // PB3 is set, bits 3:1 the switches, bit 0 the keyboard latch
+    assign pcjr_port_c_in = {1'b0, ir_keyb_in, cassette_out,
+                             port_b_out[3] ? cassette_out : 1'b0,
+                             port_c_in[3:1], ir_latch};
 
     //
     // KFPS2KB
@@ -730,7 +771,7 @@ module PERIPHERALS #(
     localparam [15:0] KEYBOARD_WARM_RESET_HOLD = 16'd5000;
     wire            keyboard_warm_reset_active;
 
-    wire    clear_keycode = port_b_out[7];
+    wire    clear_keycode = pcjr_en ? ir_key_clear : port_b_out[7];
     wire    ps2_reset_n   = ~tandy_video ? port_b_out[6] : 1'b1;
 
     always_ff @(posedge clock, posedge reset)
@@ -803,6 +844,40 @@ module PERIPHERALS #(
         .convert_data               (tandy_keycode_conv)
     );
     wire [7:0] tandy_keycode = `ENABLE_TANDY_KBD ? tandy_keycode_conv : keycode;
+
+    // PCjr keyboard: the PS/2 codes are played as the infrared frame of the
+    // PCjr, which raises the NMI through the latch that port A0h read clears
+    generate
+    if (`ENABLE_PCJR) begin : g_pcjr_kbd
+        pcjr_ir_kbd #(
+            .HALF_BIT_CYCLES  (int'(clk_rate / 4545)),      // 220 us
+            .TYPEMATIC_CYCLES (int'(clk_rate / 10))         // 100 ms
+        ) u_pcjr_ir_kbd (
+            .clock      (clock),
+            .reset      (reset),
+            .key_valid  (keybord_irq),
+            .key_code   (keycode_buf),
+            .key_clear  (ir_key_clear),
+            .ack        (nmi_mask_register && ~io_read_n),
+            .keyb_in    (ir_keyb_in),
+            .latch      (ir_latch)
+        );
+    end
+    else begin : g_no_pcjr_kbd
+        assign ir_key_clear = 1'b0;
+        assign ir_keyb_in   = 1'b0;
+        assign ir_latch     = 1'b0;
+    end
+    endgenerate
+
+    // NMI: A0h bit 7 enables it. The PCjr clears it at reset.
+    logic pcjr_nmi_enable;
+    always_ff @(posedge clock, posedge reset)
+        if (reset)
+            pcjr_nmi_enable <= 1'b0;
+        else if (pcjr_en && nmi_mask_register && ~io_write_n)
+            pcjr_nmi_enable <= internal_data_bus[7];
+    assign nmi_to_cpu = pcjr_en & pcjr_nmi_enable & ir_latch;
 
     always_ff @(posedge clock, posedge reset)
     begin
@@ -1096,17 +1171,16 @@ end
         else
         begin
             keycode_ff  <= tandy_kbd_en ? tandy_keycode : keycode;
-            port_a_in   <= keycode_ff;
+            port_a_in   <= pcjr_en ? 8'hFF : keycode_ff;
         end
     end
 
     reg [7:0] lpt_reg = 8'hFF;
 	 reg [7:0] lpt_ctrl = 8'h00;
 	 reg [7:0] lpt_enable_irq = 8'h00;
-    reg [7:0] tandy_page_data = 8'h00;
-    reg [7:0] nmi_mask_register_data = 8'hFF;
     assign tandy_vram_en    = tandy_video_en;
-    assign tandy_vram_block = nmi_mask_register_data[3:1];
+    assign tandy_vram_block = pcjr_en ? 3'd0 : nmi_mask_register_data[3:1];
+    assign pcjr_vram_32k    = pcjr_en & (tandy_page_data[7:6] == 2'b11);
     assign tandy_vram_page  = tandy_page_data[5:0];
     always_ff @(posedge clock, posedge reset)
     begin
@@ -1465,6 +1539,12 @@ end
     wire       hsync_cga_raw;
     wire       hsync_cga_rgbi_sd;
     wire       vsync_cga_raw;
+
+    // IRQ5 is the vertical retrace, level (the PCjr video gate array)
+    logic [1:0] pcjr_vsync_sync = 2'b00;
+    always_ff @(posedge clock)
+        pcjr_vsync_sync <= {pcjr_vsync_sync[0], vsync_cga_raw};
+    assign pcjr_vsync_irq = pcjr_en & pcjr_vsync_sync[1];
     wire       vblank_cga_raw;
     wire       hblank_cga_raw;
     wire       vblank_cga_crtc;
@@ -1753,6 +1833,10 @@ end
         .composite                  (composite_cga),
         .thin_font                  (thin_font),
         .tandy_video                (tandy_video_cga),
+        .pcjr                       (pcjr_cga),
+        .pcjr_addr_mode             (pcjr_addr_mode_cga),
+        .crtc_2x                    (crtc_2x),
+        .tandy_16_gfx_o             (tandy_16_gfx_cga),
         .scandouble_en              (cga_scandouble_en),
         .grph_mode                  (grph_mode),
         .hres_mode                  (hres_mode),
@@ -1801,7 +1885,7 @@ end
     assign HGC_VRAM_DOUT = fx_hgc_vram_d;
 
     assign fx_cga_phase     = clkdiv;
-    assign fx_cga_hres      = hres_mode;
+    assign fx_cga_hres      = crtc_2x;
     assign fx_cga_cur_word  = CGA_VRAM_ADDR[14:1];
     assign fx_hgc_grph      = hgc_grph_mode;
     assign fx_hgc_page      = hgc_grph_page;
@@ -2729,7 +2813,7 @@ end
         else if ((~ppi_chip_select_n) && (~io_read_n))
         begin
             data_bus_out_from_chipset <= 1'b1;
-            data_bus_out <= ppi_data_bus_out;
+            data_bus_out <= (pcjr_en && address[1:0] == 2'b10) ? pcjr_port_c_in : ppi_data_bus_out;
         end
         else if (`ENABLE_CGA && CGA_CRTC_OE_2)
         begin

@@ -25,6 +25,21 @@
 `ifndef ROM_IS_TANDY
 `define ROM_IS_TANDY `ROM_VARIANT_TANDY
 `endif
+// IBM PCjr: SYSTEM_VARIANT_PCJR names the core, ROM_VARIANT_PCJR / ROM_IS_PCJR
+// say that the main BIOS is the PCjr one (slot 4), ENABLE_PCJR builds the PCjr
+// machine (gate array, IR keyboard, IRQ5, NMI) into the video and chipset.
+`ifndef SYSTEM_VARIANT_PCJR
+`define SYSTEM_VARIANT_PCJR 0
+`endif
+`ifndef ROM_VARIANT_PCJR
+`define ROM_VARIANT_PCJR `SYSTEM_VARIANT_PCJR
+`endif
+`ifndef ROM_IS_PCJR
+`define ROM_IS_PCJR `ROM_VARIANT_PCJR
+`endif
+`ifndef ENABLE_PCJR
+`define ENABLE_PCJR 0
+`endif
 `ifndef ENABLE_MIDI
 `define ENABLE_MIDI 1
 `endif
@@ -49,7 +64,7 @@
 // called "PCXT", whatever its video cards.
 // Any padding of the shorter name sits in front of it, ahead of the string.
 `ifndef CORE_NAME
-`define CORE_NAME (`SYSTEM_VARIANT_TANDY ? "Tandy1000" : "PCXT")
+`define CORE_NAME (`SYSTEM_VARIANT_PCJR ? "PCjr" : (`SYSTEM_VARIANT_TANDY ? "Tandy1000" : "PCXT"))
 `endif
 `ifndef CONF_STR_SYSTEM
 `define CONF_STR_SYSTEM (`ENABLE_MIDI ? {`CORE_NAME, ";UART115200:115200,MIDI;"} : {`CORE_NAME, ";UART115200:115200;"})
@@ -164,7 +179,7 @@ module emu
     // shown only for it: hA PCXT, hB Tandy 1000 (see status_menumask).
     localparam CONF_STR_ROM = HAS_MODEL
         ? "hAP1FC0,ROM,PCXT BIOS:;hBP1FC1,ROM,Tandy BIOS:;"
-        : (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;");
+        : (`ROM_IS_PCJR ? "P1FC4,ROM,PCjr BIOS:;P1-;" : (`ROM_IS_TANDY ? "P1FC1,ROM,Tandy BIOS:;P1-;" : "P1FC0,ROM,PCXT BIOS:;"));
     localparam CONF_STR_OPL2 = (`ENABLE_OPL2 ? "P2oAB,OPL2,Adlib 388h,SB FM 388h/228h, Disabled;" : "");
     localparam CONF_STR_EMS_EGA = (`ENABLE_EMS ? "P3O5,2MB EMS D000-DFFF,Enabled,Disabled;P3-;" : "");
     localparam CONF_STR_UMB = ((L_EGA && `ENABLE_UMB) ? "P3O[82],UMB C400-CFFF,Enabled,Disabled;P3-;" : "");
@@ -202,8 +217,8 @@ module emu
     localparam CONF_STR_MIDI = (`ENABLE_MIDI ? "P3O[88],MPU-401,Enabled,Disabled;P3-;P3O6,USER I/O,MIDI,COM2;P3-;h3P4,MT32-pi;h3P4-;h3P4OD,Use MT32-pi,Yes,No;h3P4-;h3P4o9,MT32-pi Mode,MT-32,General MIDI;h3P4O34,MT32-pi ROM,MT-32 v1,MT-32 v2,CM-32L,Reserved;h3P4oSU,MT32-pi SoundFont,#0,#1,#2,#3,#4,#5,#6,#7;h3P4-;h3P4r8,Reset Hanging Notes;h3P4-;" : "");
     localparam CONF_STR_VSYNC = "P2O[91:89],VSync Width,Auto,1,2,3,4,5,6,7;P2O[94:92],HSync Width,Auto,1,2,3,4,5,6,7;";
     localparam CONF_STR_CRT = "P2o23,350-line CRT,Native,480i 15 kHz,240p 15 kHz;";
-    localparam CONF_STR_HALT_BIOS = (`ROM_IS_TANDY ? "h4-,HALTED: no Tandy BIOS selected;" : "h4-,HALTED: no PCXT BIOS selected;");
-    localparam CONF_STR_INFO_BIOS = (`ROM_IS_TANDY ? "No Tandy BIOS selected\n" : "No PCXT BIOS selected\n");
+    localparam CONF_STR_HALT_BIOS = (`ROM_IS_PCJR ? "h4-,HALTED: no PCjr BIOS selected;" : (`ROM_IS_TANDY ? "h4-,HALTED: no Tandy BIOS selected;" : "h4-,HALTED: no PCXT BIOS selected;"));
+    localparam CONF_STR_INFO_BIOS = (`ROM_IS_PCJR ? "No PCjr BIOS selected\n" : (`ROM_IS_TANDY ? "No Tandy BIOS selected\n" : "No PCXT BIOS selected\n"));
     localparam CONF_STR_HALT = {
         CONF_STR_HALT_BIOS,
         (HAS_EGA ? "h5-,HALTED: no EGA BIOS selected;" : ""),
@@ -240,8 +255,8 @@ module emu
     localparam CONF_STR_CRT = (`ENABLE_TANDY_AUDIO ? "" : "P2o23,350-line CRT,Native,480i 15 kHz,240p 15 kHz;");
     // This line is shown at the top of the menu while the required PCXT BIOS
     // is absent, so the splash hold has an actionable explanation.
-    localparam CONF_STR_HALT = (`ROM_IS_TANDY ? "h4-,HALTED: no Tandy BIOS selected;" : "h4-,HALTED: no PCXT BIOS selected;");
-    localparam CONF_STR_INFO_BIOS = (`ROM_IS_TANDY ? "No Tandy BIOS selected\n" : "No PCXT BIOS selected\n");
+    localparam CONF_STR_HALT = (`ROM_IS_PCJR ? "h4-,HALTED: no PCjr BIOS selected;" : (`ROM_IS_TANDY ? "h4-,HALTED: no Tandy BIOS selected;" : "h4-,HALTED: no PCXT BIOS selected;"));
+    localparam CONF_STR_INFO_BIOS = (`ROM_IS_PCJR ? "No PCjr BIOS selected\n" : (`ROM_IS_TANDY ? "No Tandy BIOS selected\n" : "No PCXT BIOS selected\n"));
     localparam CONF_STR_INFO = {
         "I,",
         CONF_STR_INFO_BIOS,
@@ -353,6 +368,8 @@ module emu
     // Whether the machine is a Tandy 1000: fixed by the build or chosen at reset.
     // It drives the Tandy video, keyboard and BIOS slot wherever they are built.
     wire        tandy_video_mode = (`ENABLE_TANDY_VIDEO != 0) ? (HAS_MODEL ? tandy_applied : 1'b1) : 1'b0;
+    // Whether the machine is a PCjr (a member of the Tandy video family)
+    wire        pcjr_video_mode = (`ENABLE_PCJR != 0) ? (`ROM_IS_PCJR != 0) : 1'b0;
     wire        card_sel_ega = HAS_EGA ? (CARD_SELECTABLE ? (status[78] & ~tandy_sel_osd) : 1'b1) : 1'b0;
     wire        ega_active;
     wire        ega_active_vid;
@@ -1055,11 +1072,13 @@ module emu
     wire [15:0] ldr_wdata;
     wire        pcxt_bios_write_complete;
     wire        tandy_bios_write_complete;
+    wire        pcjr_bios_write_complete;
     wire        ec00_loaded;
 
     // The PCXT BIOS slot is offered unless the build is only a Tandy; the Tandy
     // one when the build is a Tandy or chooses the machine
-    rom_loader #(.ROM_PCXT(!`ROM_IS_TANDY), .ROM_TANDY(`ROM_IS_TANDY || HAS_MODEL), .ROM_EGA(`ENABLE_EGA)) u_rom_loader
+    rom_loader #(.ROM_PCXT(!`ROM_IS_TANDY && !`ROM_IS_PCJR), .ROM_TANDY(`ROM_IS_TANDY || HAS_MODEL), .ROM_EGA(`ENABLE_EGA),
+                 .ROM_PCJR(`ROM_IS_PCJR != 0)) u_rom_loader
     (
         .clock              (clk_chipset),
         .reset              (reset_sdram),
@@ -1081,6 +1100,7 @@ module emu
         .write_main         (pcxt_bios_write_complete),
         .write_tandy        (tandy_bios_write_complete),
         .write_ega          (ega_bios_write_complete),
+        .write_pcjr         (pcjr_bios_write_complete),
         .ec00_loaded        (ec00_loaded)
     );
 
@@ -1272,6 +1292,9 @@ module emu
     wire [5:0]  tandy_vram_page;
     wire        tandy_16_gfx;
     wire        tandy_color_16;
+    wire        pcjr_vram_32k;
+    wire        nmi_to_cpu;
+    wire        cassette_out, cassette_motor;
 
     // Engines
     wire        cga_vreq, cga_vack, cga_vrv, cga_vrl;
@@ -1325,7 +1348,7 @@ module emu
             .seq_phase(fx_cga_phase), .hres(fx_cga_hres),
             .cur_word(fx_cga_cur_word), .next_word(fx_cga_next_word),
             .tandy(tandy_vram_en), .tandy_block(tandy_vram_block),
-            .tandy_crt_page(tandy_vram_page[2:0]), .tandy_wide(tandy_16_gfx),
+            .tandy_crt_page(tandy_vram_page[2:0]), .tandy_wide(pcjr_video_mode ? pcjr_vram_32k : tandy_16_gfx),
             .vram_d(fx_cga_vram_d),
             .req_valid(cga_req_v), .req_addr(cga_req_a), .req_len(cga_req_l),
             .req_deadline(cga_req_d), .req_ready(cga_req_r),
@@ -1575,7 +1598,8 @@ module emu
     // Each BIOS slot has its own flag: slot 0 PCXT, slot 1 Tandy 1000.
     wire pcxt_slot_download  = ioctl_download && (ioctl_index[5:0] == 6'd0);
     wire tandy_slot_download = ioctl_download && (ioctl_index[5:0] == 6'd1);
-    wire pcxt_slot_loaded, tandy_slot_loaded;
+    wire pcjr_slot_download  = ioctl_download && (ioctl_index[5:0] == 6'd4);
+    wire pcxt_slot_loaded, tandy_slot_loaded, pcjr_slot_loaded;
 
     rom_presence_latch pcxt_bios_presence (
         .clock              (clk_chipset),
@@ -1584,6 +1608,15 @@ module emu
         .download_active    (pcxt_slot_download),
         .write_complete     (pcxt_bios_write_complete),
         .loaded             (pcxt_slot_loaded)
+    );
+
+    rom_presence_latch pcjr_bios_presence (
+        .clock              (clk_chipset),
+        .reset              (reset_sdram),
+        .sdram_initialized  (initilized_sdram),
+        .download_active    (pcjr_slot_download),
+        .write_complete     (pcjr_bios_write_complete),
+        .loaded             (pcjr_slot_loaded)
     );
 
     rom_presence_latch tandy_bios_presence (
@@ -1598,7 +1631,8 @@ module emu
     // The main BIOS is the one of the machine: the Tandy one in a Tandy build,
     // the PCXT one in a PCXT build, and the chosen one when the build chooses.
     wire pcxt_bios_loaded = HAS_MODEL ? (tandy_applied ? tandy_slot_loaded : pcxt_slot_loaded)
-                                      : (`ROM_IS_TANDY ? tandy_slot_loaded : pcxt_slot_loaded);
+                                      : (`ROM_IS_PCJR ? pcjr_slot_loaded :
+                                         `ROM_IS_TANDY ? tandy_slot_loaded : pcxt_slot_loaded);
 
     // The EGA option ROM (slot 3) is tracked the same way. Present, it is
     // write-protected and advertised to the XT BIOS as an adapter with its own
@@ -2009,6 +2043,11 @@ module emu
 		.tandy_video                        (tandy_video_mode),
 		.tandy_16_gfx                       (tandy_16_gfx),
 		.tandy_color_16                     (tandy_color_16),
+		.pcjr                               (pcjr_video_mode),
+		.pcjr_vram_32k                      (pcjr_vram_32k),
+		.nmi_to_cpu                         (nmi_to_cpu),
+		.cassette_out                       (cassette_out),
+		.cassette_motor                     (cassette_motor),
 		.clk_uart                           (clk_uart2_en),
 		.clk_uart_com2                      (clk_com2_en),
 		.uart2_rx                           (uart_rx),
@@ -2122,7 +2161,7 @@ module emu
 
 		.RESET(reset_cpu),
 		.READY(processor_ready && ~pause_core),
-		.NMI(1'b0),
+		.NMI(nmi_to_cpu),
 		.INTR(interrupt_to_cpu),
 
 		.ad_out(cpu_ad_out),

@@ -14,7 +14,8 @@
 //
 // Slots (ioctl index): 0 PCXT BIOS (first 64 KiB of the file; ROM_PCXT), 1 Tandy
 // BIOS (ROM_TANDY), 2 EC00 (16 KiB window, wraps as before), 3 EGA BIOS (ROM_EGA
-// builds, 16 KiB window). A build that is only a Tandy 1000 sets
+// builds, 16 KiB window), 4 PCjr BIOS (ROM_PCJR; first 64 KiB of
+// the file). A build that is only a Tandy 1000 sets
 // ROM_PCXT to 0 and the PCXT slot is not offered; a build that chooses the
 // machine at run time has both, each in its own place in the ROM bank, and
 // write_main / write_tandy tell which of the two has been written.
@@ -22,7 +23,8 @@
 module rom_loader #(
     parameter bit ROM_PCXT  = 1'b1,
     parameter bit ROM_TANDY = 1'b0,
-    parameter bit ROM_EGA   = 1'b0
+    parameter bit ROM_EGA   = 1'b0,
+    parameter bit ROM_PCJR  = 1'b0
 ) (
     input  logic        clock,
     input  logic        reset,
@@ -49,20 +51,23 @@ module rom_loader #(
     output logic        write_main,     // a word of slot 0 (PCXT BIOS) has been written
     output logic        write_tandy,    // a word of slot 1 (Tandy BIOS) has been written
     output logic        write_ega,      // a word of slot 3 has been written
+    output logic        write_pcjr,     // a word of slot 4 (PCjr BIOS) has been written
     output logic        ec00_loaded     // a word of the EC00 slot has been written since reset
 );
     import sdram_pkg::*;
 
     wire sel_pcxt  = ROM_PCXT && (ioctl_index[5:0] == 6'd0) && (ioctl_addr[24:16] == 9'd0);
     wire sel_tandy = ROM_TANDY && (ioctl_index[5:0] == 6'd1) && (ioctl_addr[24:16] == 9'd0);
+    wire sel_pcjr  = ROM_PCJR && (ioctl_index[5:0] == 6'd4) && (ioctl_addr[24:16] == 9'd0);
     wire sel_ec00  = (ioctl_index == 8'd2);
     wire sel_ega   = ROM_EGA && (ioctl_index[5:0] == 6'd3) && (ioctl_addr[24:16] == 9'd0);
-    wire selected  = sel_pcxt | sel_tandy | sel_ec00 | sel_ega;
+    wire selected  = sel_pcxt | sel_tandy | sel_ec00 | sel_ega | sel_pcjr;
 
     wire [24:0] dest = PHYS_ROM_BANK
                      + (sel_ec00  ? {5'd0, ROM_EC00[19:14], ioctl_addr[13:0]} :
                         sel_ega   ? {5'd0, ROM_EGA_BIOS[19:14], ioctl_addr[13:0]} :
                         sel_tandy ? {5'd0, ROM_TANDY_BIOS[19:16], ioctl_addr[15:0]} :
+                        sel_pcjr  ? {5'd0, ROM_PCJR_BIOS[19:16], ioctl_addr[15:0]} :
                                     {5'd0, ROM_PCXT_BIOS[19:16], ioctl_addr[15:0]});
 
     typedef enum logic [1:0] {L_IDLE, L_ARMED, L_WRITE} lstate_t;
@@ -71,6 +76,7 @@ module rom_loader #(
     logic    tandy_slot;
     logic    ec00_slot;
     logic    ega_slot;
+    logic    pcjr_slot;
 
     // l_busy rises on the edge that takes l_start and falls with l_done.
     assign l_start   = (state == L_WRITE) & ~l_busy & ~l_done;
@@ -87,15 +93,18 @@ module rom_loader #(
             tandy_slot   <= 1'b0;
             ec00_slot    <= 1'b0;
             ega_slot     <= 1'b0;
+            pcjr_slot    <= 1'b0;
             ec00_loaded  <= 1'b0;
             write_main   <= 1'b0;
             write_tandy  <= 1'b0;
             write_ega    <= 1'b0;
+            write_pcjr   <= 1'b0;
         end
         else begin
             write_main  <= 1'b0;
             write_tandy <= 1'b0;
             write_ega   <= 1'b0;
+            write_pcjr  <= 1'b0;
             case (state)
                 L_IDLE: begin
                     hold_request <= ioctl_download;
@@ -117,6 +126,7 @@ module rom_loader #(
                         tandy_slot <= sel_tandy;
                         ec00_slot  <= sel_ec00;
                         ega_slot   <= sel_ega;
+                        pcjr_slot  <= sel_pcjr;
                         ioctl_wait <= 1'b1;
                         state      <= L_WRITE;
                     end
@@ -128,6 +138,7 @@ module rom_loader #(
                         write_main  <= main_slot;
                         write_tandy <= tandy_slot;
                         write_ega   <= ega_slot;
+                        write_pcjr  <= pcjr_slot;
                         if (ec00_slot)
                             ec00_loaded <= 1'b1;
                         ioctl_wait <= 1'b0;

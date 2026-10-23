@@ -171,4 +171,5 @@ rtl/KFPC-XT/HDL/xtegactl_resolve.sv
 rtl/KFPC-XT/HDL/xtctl_id.sv
 rtl/KFPC-XT/HDL/ega_bios_loaded_latch.sv
 rtl/KFPC-XT/HDL/keyboard_warm_reset.sv
+rtl/KFPC-XT/HDL/pcjr_ir_kbd.sv
 rtl/KFPC-XT/HDL/warm_boot_marker_detector.sv

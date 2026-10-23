@@ -22,7 +22,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(1'b0), .en_hgc(1'b0), .hgc_page(1'b0),
-        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0),
         .select(select_x), .phys(phys_x), .protect(protect_x),
         .vclass(), .phys2(), .phys2_valid()
     );
@@ -31,7 +31,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(1'b0), .en_hgc(1'b0), .hgc_page(1'b0),
-        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0),
         .select(select_t), .phys(phys_t), .protect(protect_t),
         .vclass(), .phys2(), .phys2_valid()
     );
@@ -46,7 +46,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(en_cga), .en_hgc(en_hgc), .hgc_page(hgc_page),
-        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0),
+        .tandy_video(1'b0), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0),
         .select(select_v), .phys(phys_v), .protect(protect_v),
         .vclass(vclass_v), .phys2(phys2_v), .phys2_valid(phys2_valid_v)
     );
@@ -62,9 +62,27 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(en_cga), .en_hgc(en_hgc), .hgc_page(hgc_page),
-        .tandy_video(t_video), .tandy_block(t_block), .tandy_cpu_page(t_page),
+        .tandy_video(t_video), .tandy_block(t_block), .tandy_cpu_page(t_page), .pcjr(1'b0), .pcjr_32k(1'b0),
         .select(select_tv), .phys(phys_tv), .protect(protect_tv),
         .vclass(vclass_tv), .phys2(phys2_tv), .phys2_valid(phys2_valid_tv)
+    );
+
+    // The IBM PCjr (F6): the same window, always block 0 of the CPU image and 16 KiB
+    // wide; with 32 KiB CRT pages (pj_32k) the CPU page is {3DFh[5:4], 0}; F000 holds
+    // the PCjr BIOS (slot 4)
+    logic        pj_32k = 1'b0;
+    logic [2:0]  pj_page;
+    wire         select_pj, protect_pj, phys2_valid_pj;
+    wire  [24:0] phys_pj, phys2_pj;
+    wire  [1:0]  vclass_pj;
+    mem_map #(.ROM_TANDY(1'b0)) dut_pj (
+        .address(address), .map_ems(map_ems), .ems_b1(ems_b[0]), .ems_b2(ems_b[1]),
+        .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
+        .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
+        .en_cga(en_cga), .en_hgc(en_hgc), .hgc_page(hgc_page),
+        .tandy_video(1'b1), .tandy_block(3'd0), .tandy_cpu_page(pj_page), .pcjr(1'b1), .pcjr_32k(pj_32k),
+        .select(select_pj), .phys(phys_pj), .protect(protect_pj),
+        .vclass(vclass_pj), .phys2(phys2_pj), .phys2_valid(phys2_valid_pj)
     );
 
     // A build that chooses the machine at run time (ROM_TANDY = 0): F000 holds the
@@ -77,7 +95,7 @@ module mem_map_tb;
         .ems_b3(ems_b[2]), .ems_b4(ems_b[3]), .enable_a000h(enable_a000h),
         .bios_protect_flag(bios_protect_flag), .ec00_loaded(ec00_loaded),
         .en_cga(1'b1), .en_hgc(1'b0), .hgc_page(1'b0),
-        .tandy_video(rt_tandy), .tandy_block(3'd0), .tandy_cpu_page(3'd0),
+        .tandy_video(rt_tandy), .tandy_block(3'd0), .tandy_cpu_page(3'd0), .pcjr(1'b0), .pcjr_32k(1'b0),
         .select(select_rt), .phys(phys_rt), .protect(protect_rt),
         .vclass(), .phys2(), .phys2_valid()
     );
@@ -302,6 +320,44 @@ module mem_map_tb;
         end
         t_video = 0;
         en_cga = 0; en_hgc = 0; hgc_page = 0;
+
+        // IBM PCjr (F6): B8000-BFFFF is a 16 KiB window (mirrored) onto the CPU image.
+        // 3DFh[5:3] chooses the 16 KiB page; with 3DFh[7:6] = 11 the CPU page is
+        // {3DFh[5:4], 0}. No A0h block, no Hercules. F000 is the PCjr BIOS slot.
+        en_cga = 1; en_hgc = 1; hgc_page = 0;
+        for (int k = 0; k < 2; k++)
+        for (int pg = 0; pg < 8; pg++)
+        for (int off = 0; off < 32'h8000; off += 32'h1F3) begin
+            logic [24:0] exp;
+            pj_32k = k[0]; pj_page = 3'(pg);
+            address = 20'hB8000 + 20'(off);
+            exp = 25'((k == 1 ? (pg & 6) : pg) * 32'h4000 + (off % 32'h4000));
+            #1;
+            checks++;
+            if (select_pj !== 1'b1 || vclass_pj !== VC_CGA || phys_pj !== exp ||
+                phys2_valid_pj !== 1'b0 || protect_pj !== 1'b0) begin
+                errors++;
+                if (errors <= 20)
+                    $display("ERROR PCjr window 32k %0d page %0d @%05h: select %b class %0d phys %07h, expected %07h",
+                             k, pg, address, select_pj, vclass_pj, phys_pj, exp);
+            end
+        end
+        ems_on = 0; ena = 4'd0; ec00_loaded = 1'b1; bios_protect_flag = 2'b10;
+        for (int a = 20'hF0000; a < 32'h100000; a += 32'h1ABC) begin
+            address = 20'(a);
+            #1;
+            checks++;
+            if (select_pj !== 1'b1 || protect_pj !== 1'b1 ||
+                phys_pj !== 25'(25'h010_0000 + 25'h2_0000 + (a - 32'hF0000))) begin
+                errors++;
+                if (errors <= 20)
+                    $display("ERROR PCjr BIOS slot @%05h: select %b protect %b phys %07h", address, select_pj, protect_pj, phys_pj);
+            end
+        end
+        address = 20'hB7FFF; #1; checks++;
+        if (select_pj !== 1'b0) begin errors++; $display("ERROR PCjr B7FFF is not memory"); end
+        pj_32k = 0;
+        en_cga = 0; en_hgc = 0;
 
         // The machine model chooses the F000 slot (and nothing else of the map)
         ems_on = 0; ena = 4'd0; ec00_loaded = 1'b1; bios_protect_flag = 2'b10;

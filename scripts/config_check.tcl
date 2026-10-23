@@ -11,6 +11,8 @@
 proc pcxt_macro_defaults {} {
     return [dict create \
         SYSTEM_VARIANT_TANDY 0 \
+        SYSTEM_VARIANT_PCJR  0 \
+        ENABLE_PCJR          0 \
         ENABLE_MODEL_TANDY   0 \
         ENABLE_TANDY_VIDEO   0 \
         ENABLE_TANDY_AUDIO   0 \
@@ -32,6 +34,7 @@ proc pcxt_macro_defaults {} {
 proc pcxt_switch_macros {} {
     return {
         SYSTEM_VARIANT_TANDY ROM_VARIANT_TANDY ROM_IS_TANDY ENABLE_MODEL_TANDY ENABLE_TANDY_VIDEO
+        SYSTEM_VARIANT_PCJR ROM_VARIANT_PCJR ROM_IS_PCJR ENABLE_PCJR
         ENABLE_TANDY_AUDIO ENABLE_TANDY_KBD ENABLE_CGA ENABLE_HGC ENABLE_EGA
         ENABLE_VGA13 ENABLE_OPL2 ENABLE_CMS ENABLE_SB ENABLE_EMS ENABLE_UMB
         ENABLE_A000_UMB ENABLE_MIDI LAYOUT_EGA
@@ -73,6 +76,16 @@ proc pcxt_check_config {assigned} {
         set rom_tandy $tandy
     }
 
+    # The ROM is the PCjr one the same way (slot 4)
+    set pcjr_sys [pcxt_on $m SYSTEM_VARIANT_PCJR]
+    if {[dict exists $m ROM_IS_PCJR]} {
+        set rom_pcjr [pcxt_on $m ROM_IS_PCJR]
+    } elseif {[dict exists $m ROM_VARIANT_PCJR]} {
+        set rom_pcjr [pcxt_on $m ROM_VARIANT_PCJR]
+    } else {
+        set rom_pcjr $pcjr_sys
+    }
+
     # Video cards
     if {!$tandy && !$cga && !$hgc && !$ega} {
         lappend errors "PCXT without any video card: set ENABLE_CGA, ENABLE_HGC or ENABLE_EGA"
@@ -101,7 +114,7 @@ proc pcxt_check_config {assigned} {
     if {$tandy_video && $ega && !$model} {
         lappend errors "ENABLE_TANDY_VIDEO=1 with ENABLE_EGA=1: the EGA card is a PCXT card"
     }
-    if {$tandy_video && !$rom_tandy && !$model} {
+    if {$tandy_video && !$rom_tandy && !$rom_pcjr && !$model} {
         lappend errors "ENABLE_TANDY_VIDEO=1 needs a Tandy BIOS slot: a Tandy ROM (ROM_VARIANT_TANDY=1) or ENABLE_MODEL_TANDY=1"
     }
     # The machine chosen in the OSD
@@ -123,6 +136,39 @@ proc pcxt_check_config {assigned} {
     }
     if {$tandy && !$tandy_video} {
         lappend errors "SYSTEM_VARIANT_TANDY=1 needs ENABLE_TANDY_VIDEO=1"
+    }
+
+    # IBM PCjr: a member of the Tandy video family, whose gate
+    # array takes the place of the Tandy registers. The machine fixed by the
+    # build (the core is called PCjr, its BIOS is the PCjr one) cannot also be
+    # a Tandy or carry the PCXT cards.
+    set pcjr [pcxt_on $m ENABLE_PCJR]
+    if {$pcjr} {
+        foreach {name what} {ENABLE_TANDY_VIDEO "video family" ENABLE_TANDY_AUDIO "sound chip"} {
+            if {![pcxt_on $m $name]} {
+                lappend errors "ENABLE_PCJR=1 needs $name=1 (the PCjr shares the Tandy $what)"
+            }
+        }
+        if {!$cga} {
+            lappend errors "ENABLE_PCJR=1 needs ENABLE_CGA=1 (the PCjr video gate array is the CGA's)"
+        }
+    }
+    if {($pcjr_sys || $rom_pcjr) && !$pcjr} {
+        lappend errors "SYSTEM_VARIANT_PCJR/ROM_VARIANT_PCJR/ROM_IS_PCJR need ENABLE_PCJR=1"
+    }
+    if {$pcjr_sys && !$rom_pcjr} {
+        lappend errors "SYSTEM_VARIANT_PCJR=1 needs the PCjr BIOS slot (ROM_VARIANT_PCJR/ROM_IS_PCJR=1)"
+    }
+    if {$rom_pcjr} {
+        if {$tandy || $rom_tandy || $model} {
+            lappend errors "a PCjr machine fixed by the build (ROM_IS_PCJR) cannot also be a Tandy (SYSTEM_VARIANT_TANDY/ROM_IS_TANDY/ENABLE_MODEL_TANDY)"
+        }
+        if {$hgc || $ega} {
+            lappend errors "a PCjr machine fixed by the build (ROM_IS_PCJR) has only the CGA: ENABLE_HGC and ENABLE_EGA must be 0"
+        }
+        if {$layout_ega} {
+            lappend errors "LAYOUT_EGA=1 with a PCjr ROM (ROM_IS_PCJR): the EGA layout has no PCjr BIOS slot"
+        }
     }
     if {$ega && $tandy} {
         lappend errors "ENABLE_EGA=1 with SYSTEM_VARIANT_TANDY=1: the EGA card is a PCXT card"

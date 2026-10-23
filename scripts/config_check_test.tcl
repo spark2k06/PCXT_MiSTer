@@ -78,6 +78,14 @@ if {[dict get $tandy1000 SYSTEM_VARIANT_TANDY] != 1 || [dict get $tandy1000 ENAB
     fail "mister_tandy1000 must be a Tandy machine with the CGA family only and the CGA layout"
 }
 
+lassign [evaluate_profile mister_pcjr] pcjr_prof _
+if {[dict get $pcjr_prof SYSTEM_VARIANT_PCJR] != 1 || [dict get $pcjr_prof ENABLE_PCJR] != 1
+    || [dict get $pcjr_prof ENABLE_TANDY_VIDEO] != 1 || [dict get $pcjr_prof ENABLE_HGC] != 0
+    || [dict get $pcjr_prof ENABLE_EGA] != 0 || [dict exists $pcjr_prof LAYOUT_EGA]
+    || [dict exists $pcjr_prof SYSTEM_VARIANT_TANDY]} {
+    fail "mister_pcjr must be a PCjr machine with the CGA family only and the CGA layout"
+}
+
 foreach p {mister_pcxt_full mister_pcxt_full_novga13} {
     lassign [evaluate_profile $p] pm _
     if {[dict get $pm ENABLE_MODEL_TANDY] != 1 || [dict get $pm ENABLE_TANDY_VIDEO] != 1
@@ -132,6 +140,19 @@ expect_error "machine choice without Tandy sound"     [dict replace $model_ok EN
 expect_error "machine choice with a fixed Tandy"      [dict replace $model_ok ROM_VARIANT_TANDY 1] "*ENABLE_MODEL_TANDY=1 with a Tandy machine fixed*"
 expect_error "Tandy video in a PCXT without a Tandy BIOS slot" \
     [dict create ENABLE_CGA 1 ENABLE_TANDY_VIDEO 1] "*needs a Tandy BIOS slot*"
+# IBM PCjr
+set pcjr_ok [dict create ENABLE_CGA 1 ENABLE_HGC 0 ENABLE_EGA 0 ENABLE_VGA13 0 SYSTEM_VARIANT_PCJR 1 ROM_VARIANT_PCJR 1 \
+    ENABLE_PCJR 1 ENABLE_TANDY_VIDEO 1 ENABLE_TANDY_AUDIO 1]
+lassign [pcxt_check_config $pcjr_ok] errors warnings
+if {[llength $errors]} { fail "PCjr combination rejected: $errors" } else { puts "ok:   PCjr accepted" }
+expect_error "PCjr without the Tandy video"  [dict replace $pcjr_ok ENABLE_TANDY_VIDEO 0] "*ENABLE_PCJR=1 needs ENABLE_TANDY_VIDEO=1*"
+expect_error "PCjr without the Tandy sound"  [dict replace $pcjr_ok ENABLE_TANDY_AUDIO 0] "*ENABLE_PCJR=1 needs ENABLE_TANDY_AUDIO=1*"
+expect_error "PCjr without the CGA"          [dict replace $pcjr_ok ENABLE_CGA 0 ENABLE_HGC 1] "*ENABLE_PCJR=1 needs ENABLE_CGA=1*"
+expect_error "PCjr BIOS without the machine" [dict replace $pcjr_ok ENABLE_PCJR 0] "*need ENABLE_PCJR=1*"
+expect_error "PCjr named without its BIOS"   [dict replace $pcjr_ok ROM_IS_PCJR 0] "*needs the PCjr BIOS slot*"
+expect_error "PCjr that is also a Tandy"     [dict replace $pcjr_ok SYSTEM_VARIANT_TANDY 1] "*cannot also be a Tandy*"
+expect_error "PCjr with Hercules"            [dict replace $pcjr_ok ENABLE_HGC 1] "*has only the CGA*"
+expect_error "PCjr with the EGA layout"      [dict replace $pcjr_ok LAYOUT_EGA 1] "*LAYOUT_EGA=1 with a PCjr ROM*"
 expect_error "a switch that is not 0 or 1" \
     [dict replace $base ENABLE_SB 2] "*ENABLE_SB must be 0 or 1*"
 

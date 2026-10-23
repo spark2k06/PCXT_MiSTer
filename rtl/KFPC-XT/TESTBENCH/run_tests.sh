@@ -65,6 +65,7 @@ declare -A SOURCES=(
     [warm_boot_marker_detector_tb]="HDL/warm_boot_marker_detector.sv"
     [xtegactl_tb]="HDL/xtegactl.sv HDL/xtegactl_resolve.sv"
     [xtctl_id_tb]="HDL/xtctl_id.sv"
+    [pcjr_ir_kbd_tb]="HDL/pcjr_ir_kbd.sv"
     [ega_bios_loaded_latch_tb]="HDL/ega_bios_loaded_latch.sv HDL/rom_presence_latch.sv"
     [KF8253_tb]="HDL/KF8253/HDL/KF8253.sv HDL/KF8253/HDL/KF8253_Counter.sv HDL/KF8253/HDL/KF8253_Control_Logic.sv"
     [KF8255_tb]="HDL/KF8255/HDL/KF8255.sv HDL/KF8255/HDL/KF8255_Group.sv HDL/KF8255/HDL/KF8255_Port.sv HDL/KF8255/HDL/KF8255_Port_C.sv HDL/KF8255/HDL/KF8255_Control_Logic.sv"
