@@ -117,7 +117,7 @@ module sys_video_base_tb #(
         .port_b_in(8'd0), .port_c_in(8'h00),
         .ps2_clock(1'b1), .ps2_data(1'b1), .ps2_mouseclk_in(1'b1), .ps2_mousedat_in(1'b1),
         .joy_opts(5'd0), .joy0(14'd0), .joy1(14'd0), .joya0(16'd0), .joya1(16'd0),
-        .opl2_io(2'b11), .cms_en(1'b0), .tandy_video(1'b0),
+        .opl2_io(2'b11), .cms_en(1'b0), .tandy_video(1'b0), .pcjr(1'b0),
         .clk_uart(1'b0), .uart2_rx(1'b1), .uart2_cts_n(1'b1), .uart2_dcd_n(1'b1), .uart2_dsr_n(1'b1),
         .clk_midi(1'b0), .midi_rx(1'b1),
         .mem_start(mem_start), .mem_we(mem_we), .mem_addr(mem_addr), .mem_len(mem_len),

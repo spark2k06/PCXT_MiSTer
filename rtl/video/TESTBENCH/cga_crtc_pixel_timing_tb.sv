@@ -154,6 +154,7 @@ module cga_crtc_pixel_timing_tb;
         .tandy_bordercol(tandy_bordercol),
         .tandy_color_4(tandy_color_4),
         .tandy_color_16(tandy_color_16),
+        .pcjr_video(1'b0), .pcjr_mode_640x200x2(1'b0), .pcjr_palette_mask(4'hf),
         .video(video)
     );
 

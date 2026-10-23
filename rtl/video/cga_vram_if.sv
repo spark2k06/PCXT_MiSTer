@@ -32,8 +32,8 @@ module cga_vram_if #(
     input  logic        tandy,              // Tandy 1000 video: read the shared RAM
     input  logic [2:0]  tandy_block,        // A0h bits 3:1
     input  logic [2:0]  tandy_crt_page,     // 3DFh bits 2:0
-    input  logic        tandy_wide,         // 32 KiB pages (tandy_16_gfx)
-    output logic [7:0]  vram_d,
+    input  logic        tandy_wide,         // 32 KiB pages (tandy_16_gfx; PCjr: 3DFh bits 7:6 = 11)
+output logic [7:0]  vram_d,
 
     output logic        req_valid,
     output logic [23:0] req_addr,

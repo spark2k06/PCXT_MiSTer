@@ -30,6 +30,8 @@ module cga_attrib(
     input [3:0] tandy_bordercol,
 	 input tandy_color_4,
 	 input tandy_color_16,
+    input pcjr_video,
+    input pcjr_mode_640x200x2,
     output reg[3:0] pix_out,
 	 output wire overscan
     );
@@ -76,13 +78,14 @@ module cga_attrib(
     assign mux_b = grph_mode | ~display_enable;
 
     // Shutter closes when video is blanked during sync
-    assign shutter = (hsync | vsync) | ((mode_640 & ~tandy_color_4) ? ~(display_enable & pix_640) : 1'b0);
+    assign shutter = (hsync | vsync) |
+                     (((mode_640 & ~tandy_color_4) & ~pcjr_mode_640x200x2) ? ~(display_enable & pix_640) : 1'b0);
 
     // Blue palette selection bit
     assign selblue = bw_mode ? c0 : cga_color_reg[5];
 
 	 assign active_area = tandy_color_4 ? {1'b0, c1, c0, 1'b0} :
-	 (tandy_16_mode | tandy_color_16) ? pix_tandy : {cga_color_reg[4], c1, c0, selblue};
+	 ((tandy_16_mode & ~pcjr_video) | tandy_color_16) ? pix_tandy : {cga_color_reg[4], c1, c0, selblue};
 	 
 	 assign overscan = (mux_b & mux_a);
     	 

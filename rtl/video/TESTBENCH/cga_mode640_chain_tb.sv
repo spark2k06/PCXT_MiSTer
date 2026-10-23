@@ -67,7 +67,8 @@ module cga_mode640_chain_tb;
         .tandy_palette_color(tandy_palette_color),
         .tandy_newcolor(tandy_newcolor), .tandy_palette_set(tandy_palette_set),
         .tandy_bordercol(tandy_bordercol), .tandy_color_4(tandy_color_4),
-        .tandy_color_16(tandy_color_16), .video(video)
+        .tandy_color_16(tandy_color_16), .pcjr_video(1'b0), .pcjr_mode_640x200x2(1'b0),
+        .pcjr_palette_mask(4'hf), .video(video)
     );
 
     cga_vgaport decoder (

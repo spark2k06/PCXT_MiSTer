@@ -36,6 +36,10 @@ module cga_pixel(
     input[3:0] tandy_bordercol,
 	 input tandy_color_4,
 	 input tandy_color_16,
+    // IBM PCjr gate array: its palette, mask and 640x200x2 mode
+    input pcjr_video,
+    input pcjr_mode_640x200x2,
+    input[3:0] pcjr_palette_mask,
     output logic[3:0] video
     );
 
@@ -53,6 +57,11 @@ module cga_pixel(
     reg[3:0] tandy_bits;
 	 reg overscan;
 	 
+    reg[3:0] pcjr_mode06_bits_left = 4'd0;
+    reg[15:0] pcjr_mode06_shift = 16'd0;
+    reg[15:0] pcjr_mode06_pending_word = 16'd0;
+    reg pcjr_mode06_pending_valid = 1'b0;
+
     reg[3:0] tandy_palette[0:15];
     initial begin
         tandy_palette[0]  = 4'h0;
@@ -83,10 +92,31 @@ module cga_pixel(
     reg[7:0] char_rom[0:4095];
     initial $readmemh("cga.hex", char_rom, 0, 4095);
 
+    wire pcjr_mode06_pix = pcjr_mode06_shift[15];
+
+    // The index into the palette in a PCjr mode: the 16 colours and the text
+    // attribute as they are, the 4 colour modes from the two bits of the
+    // pixel, 640x200x2 from the serialiser of its 16 bit words
+    wire [3:0] pcjr_pixel_index =
+        !grph_mode ? video_out :
+        tandy_color_16 ? video_out :
+        pcjr_mode_640x200x2 ? {3'b000, pcjr_mode06_pix} :
+        (mode_640 && !tandy_color_4) ? {3'b000, pix_640} :
+        {2'b00, video_out[2:1]};
+    // The palette mask applies to text, 16 colour and 640x200x4; not to
+    // 320x200x4 (fixed entries 0-3) nor to 640x200x2 (entries 0-1)
+    wire pcjr_apply_mask = ~grph_mode || tandy_color_16 || (tandy_color_4 && mode_640);
+    wire [3:0] pcjr_masked_index = pcjr_apply_mask ? (pcjr_pixel_index & pcjr_palette_mask) : pcjr_pixel_index;
+
     always_comb
     begin
         if (tandy_16_mode) begin
-				if (overscan)
+				if (pcjr_video) begin
+					if (overscan)
+						video = video_out;
+					else
+						video = tandy_palette[pcjr_masked_index];
+				end else if (overscan)
 					video = tandy_color_4 ? video_out : tandy_palette[video_out];
 				else if (tandy_color_4)
 					video = tandy_palette[{ 2'b00, video_out[2:1] }];
@@ -219,6 +249,35 @@ module cga_pixel(
         end
     end
 
+    // PCjr 640x200x2 is a 16 bit 1 bpp stream, MSB first. The next word is
+    // captured on the pipeline event, then loaded and shifted on the pixel
+    // cadence of the 640 pixel output path.
+    wire pcjr_mode06_emit = clk_seq[0];
+    always @ (posedge clk)
+    begin
+        if (pcjr_video && pcjr_mode_640x200x2) begin
+            if (disp_pipeline) begin
+                pcjr_mode06_pending_word <= {char_byte_del, attr_byte};
+                pcjr_mode06_pending_valid <= 1'b1;
+            end
+            if (pcjr_mode06_emit) begin
+                if (pcjr_mode06_pending_valid) begin
+                    pcjr_mode06_shift <= pcjr_mode06_pending_word;
+                    pcjr_mode06_bits_left <= 4'd15;
+                    pcjr_mode06_pending_valid <= 1'b0;
+                end else if (pcjr_mode06_bits_left != 4'd0) begin
+                    pcjr_mode06_shift <= {pcjr_mode06_shift[14:0], 1'b0};
+                    pcjr_mode06_bits_left <= pcjr_mode06_bits_left - 1'b1;
+                end
+            end
+        end else begin
+            pcjr_mode06_shift <= 16'd0;
+            pcjr_mode06_bits_left <= 4'd0;
+            pcjr_mode06_pending_word <= 16'd0;
+            pcjr_mode06_pending_valid <= 1'b0;
+        end
+    end
+
     // Add one clk cycle delay to match up pixel data with attribute byte
     // data.
     always @ (posedge clk)
@@ -235,7 +294,9 @@ module cga_pixel(
         .grph_mode(grph_mode),
         .bw_mode(bw_mode),
         .mode_640(mode_640),
-        .tandy_16_mode(tandy_16_mode && hres_mode),
+        // The PCjr uses the gate array palette and border in the low
+        // resolution modes too (320x200x4, text)
+        .tandy_16_mode((tandy_16_mode && hres_mode) || pcjr_video),
         .display_enable(display_enable_del[0]),
         .blink_enabled(blink_enabled),
         .blink(blink),
@@ -250,6 +311,8 @@ module cga_pixel(
         .tandy_bordercol(tandy_bordercol),
         .tandy_color_4(tandy_color_4),
 		  .tandy_color_16(tandy_color_16),
+        .pcjr_video(pcjr_video),
+        .pcjr_mode_640x200x2(pcjr_mode_640x200x2),
         .pix_out(video_out),
         .overscan(overscan)
     );

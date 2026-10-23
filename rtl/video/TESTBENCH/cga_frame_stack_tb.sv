@@ -72,6 +72,8 @@ module cga_frame_stack_tb;
         .composite(1'b0),
         .thin_font(1'b0),
         .tandy_video(1'b0),
+        .pcjr(1'b0),
+        .pcjr_addr_mode(2'b00),
         .scandouble_en(1'b0),
         .grph_mode(),
         .hres_mode(),
