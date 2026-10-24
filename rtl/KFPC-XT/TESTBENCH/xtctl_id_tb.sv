@@ -28,7 +28,6 @@ module xtctl_id_tb;
     logic        tandy_machine    = 1'b0;
     logic        pcjr_machine     = 1'b0;
     logic  [1:0] video_card       = 2'd1;
-    logic        vga13_active     = 1'b0;
     logic [15:0] rtc_port         = 16'h02C0;
     logic [15:0] video_underruns  = 16'd0;
     logic  [7:0] cpu_latency_max  = 8'd0;
@@ -46,7 +45,6 @@ module xtctl_id_tb;
         .tandy_machine    (tandy_machine),
         .pcjr_machine     (pcjr_machine),
         .video_card       (video_card),
-        .vga13_active     (vga13_active),
         .rtc_port         (rtc_port),
         .video_underruns  (video_underruns),
         .cpu_latency_max  (cpu_latency_max)
@@ -115,9 +113,9 @@ module xtctl_id_tb;
         tandy_machine = 1'b0;
 
         // live inputs
-        video_card = 2'd3; vga13_active = 1'b1; rtc_port = 16'h0340;
+        video_card = 2'd3; rtc_port = 16'h0340;
         video_underruns = 16'd7; cpu_latency_max = 8'd42;
-        expect_reg(16'h8991, 8'h83, "EGA with 13h");
+        expect_reg(16'h8991, 8'h03, "EGA");
         expect_reg(16'h8993, 8'h40, "moved rtc low");
         expect_reg(16'h8994, 8'h03, "moved rtc high");
         expect_reg(16'h8996, 8'h07, "underruns");

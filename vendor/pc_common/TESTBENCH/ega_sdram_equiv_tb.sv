@@ -1,39 +1,36 @@
 // NEEDS: engine
 //
-// The EGA/VGA core on SDRAM against the same core on BRAM.
+// The EGA core on SDRAM against the same core on BRAM.
 //
 // Two complete video paths get the same I/O writes and the same memory
 // contents:
 //
-//   ref   the reconciled core as it was before the SDRAM retiming
+//   ref   the core as it was before the SDRAM retiming
 //         (TESTBENCH/ref_rtl, modules ref_*), BRAM frontends
-//   new   ega_top with SDRAM_LEAD_DOTS / SDRAM_PRIV_EXTRA, ega_vram_sdram_frontend,
+//   new   ega_top with SDRAM_LEAD_DOTS, ega_vram_sdram_frontend,
 //         the F2 vram_fetch engines and a behavioural arbiter port with random
 //         latency (pc_port_model)
 //
 // The picture must be the same, later by exactly the retiming: the new outputs
 // (sync, blank, display enable, colour) have to equal the reference ones
-// LEAD dots earlier on the classic EGA path (sampled on every dot) and EXTRA
-// clocks earlier on the private VGA routes (sampled on every clock). The
-// bench counts mismatches for a few shifts around the expected one, so a wrong
-// constant shows as a clean minimum at another shift instead of just "fail".
+// LEAD dots earlier (sampled on every dot). The bench counts mismatches for a
+// few shifts around the expected one, so a wrong constant shows as a clean
+// minimum at another shift instead of just "fail".
 //
 // What it covers: text 80x25 (8 and 9 dot, 14.318 and 16.257 MHz), text 40x25
-// (halved dot clock), 640x200 / 640x350 / 320x200 graphics, MDA mode 7, and
-// the three private VGA routes. Memory is filled behind the frontends'
-// backs so the two systems start from the same bytes; a few CPU writes and
-// reads go through both frontends in vertical blank (no race with the beam,
-// so the result has to be the same).
+// (halved dot clock), 640x200 / 640x350 / 320x200 graphics and MDA mode 7.
+// Memory is filled behind the frontends' backs so the two systems start from
+// the same bytes; a few CPU writes and reads go through both frontends in
+// vertical blank (no race with the beam, so the result has to be the same).
 //
 `timescale 1ns/1ps
 `default_nettype wire
 
 module ega_sdram_equiv_tb #(
     parameter int LEAD   = 16,     // classic path, dots
-    parameter int EXTRA  = 16,     // private routes, clocks
     parameter int FRAMES = 1,      // frames compared per scenario
     parameter int SETTLE = 5,      // frames to let go before comparing
-    parameter int ONLY   = -1,     // one scenario (0..5 classic, 200..202 private, 100 CPU), -2 the private ones, -1 all
+    parameter int ONLY   = -1,     // one scenario (0..5 classic, 100 CPU), -1 all
     parameter int CPU_LAT_MAX = 22,
     parameter int VID_LAT_MAX = 22
 );
@@ -60,7 +57,6 @@ module ega_sdram_equiv_tb #(
     logic [7:0]  bus_d = 8'h00;
     logic        bus_ior_l = 1'b1, bus_iow_l = 1'b1, bus_aen = 1'b0;
     logic [1:0]  monitor_profile = 2'b00;
-    logic        vga_enabled = 1'b0;
     logic        cpu_mem_select = 1'b0, cpu_mem_write = 1'b0;
 
     // ============================================================ REF system
@@ -68,12 +64,10 @@ module ega_sdram_equiv_tb #(
     wire [7:0]  r_p0, r_p1, r_p2, r_p3;  wire r_fetch_valid;
     wire [15:0] r_cell_addr, r_font_addr;  wire r_text_en;
     wire [7:0]  r_t_char, r_t_attr, r_t_glyph;  wire r_t_valid;
-    wire [15:0] r_fb_addr;  wire r_fb_en;  wire [7:0] r_fb_pixel;  wire r_fb_valid;
     wire r_cfg_toggle;  wire [3:0] r_wmask;  wire r_oe, r_c2w, r_c2r, r_ext, r_page, r_cpu_slot;
     wire [1:0] r_mms, r_wmode, r_rmode, r_rps, r_rop;  wire [7:0] r_cc, r_cdc, r_bm, r_sr;
     wire [3:0] r_esr;  wire [2:0] r_rot;
     wire r_hs, r_vs, r_hb, r_vb, r_de;  wire [5:0] r_red, r_green, r_blue;
-    wire r_mode13_active;
     wire [7:0] r_cpu_dout;  wire r_cpu_ready;
     logic cpu_read_r = 1'b0, cpu_write_r = 1'b0;
 
@@ -87,8 +81,6 @@ module ega_sdram_equiv_tb #(
         .ega_text_cell_addr(r_cell_addr), .ega_text_font_addr(r_font_addr), .ega_text_fetch_en(r_text_en),
         .ega_text_char(r_t_char), .ega_text_attr(r_t_attr), .ega_text_glyph(r_t_glyph),
         .ega_text_data_valid(r_t_valid),
-        .vga_framebuffer_addr(r_fb_addr), .vga_framebuffer_read_en(r_fb_en),
-        .vga_framebuffer_pixel(r_fb_pixel), .vga_framebuffer_data_valid(r_fb_valid),
         .cpu_mem_select(cpu_mem_select), .cpu_mem_write(cpu_mem_write),
         .ega_cfg_toggle(r_cfg_toggle), .ega_plane_write_mask_out(r_wmask), .ega_odd_even_mode_out(r_oe),
         .ega_cpu_access_slot_out(r_cpu_slot), .ega_chain2_write_out(r_c2w), .ega_chain2_read_out(r_c2r),
@@ -104,10 +96,7 @@ module ega_sdram_equiv_tb #(
         .ega_vmode_toggle_out(),
         .prebios_video(1'b0), .splashscreen(1'b0), .ext_splash_pixel_index(4'd0), .ext_splash_pixel_valid(1'b0),
         .thin_font(1'b0), .scandouble_en(1'b0),
-        .ega_enabled(1'b1), .ega_monitor_profile(monitor_profile), .vga_enabled(vga_enabled),
-        .vga_mode13_native(1'b0), .vga_mode13_set(1'b0), .vga_mode13_clear(1'b0),
-        .vga_mode13_active_out(r_mode13_active), .vga_unchained256_active_out(),
-        .vga_mode13_wide_clock_out(), .vga_planar_memory_active_out(), .vga_mode13_pixel_toggle_out(),
+        .ega_enabled(1'b1), .ega_monitor_profile(monitor_profile),
         .crt_h_offset(4'd6), .crt_v_offset(3'd4), .vsync_width_osd(3'd0), .hsync_width_osd(3'd0)
     );
 
@@ -127,29 +116,21 @@ module ega_sdram_equiv_tb #(
         .set_reset(r_sr), .enable_set_reset(r_esr), .rop_select(r_rop), .rotate_count(r_rot)
     );
 
-    ref_vga_framebuffer ref_fb (
-        .clk_cpu(clk), .reset_cpu(reset), .cpu_addr(16'd0), .cpu_din(8'd0), .cpu_read(1'b0),
-        .cpu_write(1'b0), .cpu_dout(), .cpu_ready(),
-        .clk_video(clk), .video_addr(r_fb_addr), .video_read_en(r_fb_en),
-        .video_pixel(r_fb_pixel), .video_data_valid(r_fb_valid)
-    );
-
     // ============================================================ NEW system
     wire [15:0] n_fetch_addr;  wire n_fetch_en;
     wire [7:0]  n_p0, n_p1, n_p2, n_p3;  wire n_fetch_valid;
     wire [15:0] n_cell_addr;  wire [4:0] n_scan;  wire n_tag, n_text_en;
     wire [7:0]  n_t_char, n_t_attr, n_t_glyph;  wire n_t_tag_in, n_t_valid;
-    wire [15:0] n_fb_addr;  wire n_fb_en;  wire [7:0] n_fb_pixel;  wire n_fb_valid;
     wire n_cfg_toggle;  wire [3:0] n_wmask;  wire n_oe, n_c2w, n_c2r, n_ext, n_page, n_cpu_slot;
     wire [1:0] n_mms, n_wmode, n_rmode, n_rps, n_rop;  wire [7:0] n_cc, n_cdc, n_bm, n_sr;
     wire [3:0] n_esr;  wire [2:0] n_rot;
-    wire [1:0] n_cma, n_cmb;  wire n_ce_pix, n_priv;
+    wire [1:0] n_cma, n_cmb;  wire n_ce_pix;
     wire n_hs, n_vs, n_hb, n_vb, n_de;  wire [5:0] n_red, n_green, n_blue;
     wire [7:0] n_cpu_dout;  wire n_cpu_ready;
     logic cpu_read_n = 1'b0, cpu_write_n = 1'b0;
     logic [15:0] cpu_addr = 16'd0;  logic cpu_a16 = 1'b0;  logic [7:0] cpu_din = 8'd0;
 
-    ega_top #(.SDRAM_LEAD_DOTS(LEAD), .SDRAM_PRIV_EXTRA(EXTRA)) new_top (
+    ega_top #(.SDRAM_LEAD_DOTS(LEAD)) new_top (
         .clk(clk), .reset(reset),
         .bus_a(bus_a), .bus_ior_l(bus_ior_l), .bus_iow_l(bus_iow_l), .bus_d(bus_d),
         .bus_out(), .bus_dir(), .bus_aen(bus_aen),
@@ -161,9 +142,6 @@ module ega_sdram_equiv_tb #(
         .ega_text_char(n_t_char), .ega_text_attr(n_t_attr), .ega_text_glyph(n_t_glyph),
         .ega_text_tag_in(n_t_tag_in), .ega_text_data_valid(n_t_valid),
         .ega_char_map_a_out(n_cma), .ega_char_map_b_out(n_cmb), .ega_ce_pix_out(n_ce_pix),
-        .ega_priv_route_out(n_priv),
-        .vga_framebuffer_addr(n_fb_addr), .vga_framebuffer_read_en(n_fb_en),
-        .vga_framebuffer_pixel(n_fb_pixel), .vga_framebuffer_data_valid(n_fb_valid),
         .cpu_mem_select(cpu_mem_select), .cpu_mem_write(cpu_mem_write),
         .ega_cfg_toggle(n_cfg_toggle), .ega_plane_write_mask_out(n_wmask), .ega_odd_even_mode_out(n_oe),
         .ega_cpu_access_slot_out(n_cpu_slot), .ega_chain2_write_out(n_c2w), .ega_chain2_read_out(n_c2r),
@@ -180,10 +158,7 @@ module ega_sdram_equiv_tb #(
         .prebios_video(1'b0), .splashscreen(1'b0), .ext_splash_pixel_index(4'd0), .ext_splash_pixel_valid(1'b0),
         .ext_splash_ce_pix(), .ext_splash_display_enable(), .ext_splash_scanline(),
         .thin_font(1'b0), .scandouble_en(1'b0),
-        .ega_enabled(1'b1), .ega_monitor_profile(monitor_profile), .vga_enabled(vga_enabled),
-        .vga_mode13_native(1'b0), .vga_mode13_set(1'b0), .vga_mode13_clear(1'b0),
-        .vga_mode13_active_out(), .vga_unchained256_active_out(),
-        .vga_mode13_wide_clock_out(), .vga_planar_memory_active_out(), .vga_mode13_pixel_toggle_out(),
+        .ega_enabled(1'b1), .ega_monitor_profile(monitor_profile),
         .crt_h_offset(4'd6), .crt_v_offset(3'd4), .vsync_width_osd(3'd0), .hsync_width_osd(3'd0)
     );
 
@@ -202,7 +177,7 @@ module ega_sdram_equiv_tb #(
         .cpu_read(cpu_read_n), .cpu_write(cpu_write_n), .cpu_dout(n_cpu_dout), .cpu_ready(n_cpu_ready),
         .m_start(m_start), .m_we(m_we), .m_addr(m_addr), .m_len(m_len), .m_wdata(m_wdata), .m_wbe(m_wbe),
         .m_busy(m_busy), .m_done(m_done), .m_rdata(m_rdata),
-        .clk_video(clk), .reset_video(reset), .dot_tick(n_ce_pix), .priv_route(n_priv),
+        .clk_video(clk), .reset_video(reset), .dot_tick(n_ce_pix),
         .video_addr(n_fetch_addr), .video_read_en(n_fetch_en),
         .video_plane0(n_p0), .video_plane1(n_p1), .video_plane2(n_p2), .video_plane3(n_p3),
         .video_data_valid(n_fetch_valid),
@@ -210,7 +185,6 @@ module ega_sdram_equiv_tb #(
         .char_map_a(n_cma), .char_map_b(n_cmb),
         .text_char(n_t_char), .text_attr(n_t_attr), .text_glyph(n_t_glyph),
         .text_tag_out(n_t_tag_in), .text_data_valid(n_t_valid),
-        .fb_addr(n_fb_addr), .fb_read_en(n_fb_en), .fb_pixel(n_fb_pixel), .fb_data_valid(n_fb_valid),
         .cfg_toggle(n_cfg_toggle), .plane_write_mask(n_wmask), .odd_even_mode(n_oe),
         .cpu_access_en(n_cpu_slot), .chain2_write(n_c2w), .chain2_read(n_c2r), .extended_memory(n_ext),
         .mem_map_sel(n_mms), .page_select(n_page), .write_mode(n_wmode), .read_mode(n_rmode),
@@ -365,9 +339,7 @@ module ega_sdram_equiv_tb #(
     endfunction
 
     localparam int PLANE_REL = 0;            // word 0 of the array is PLANE_BASE
-    localparam int FB_REL    = 24'h20000;    // VGA13_BASE - PLANE_BASE
 
-    logic [7:0] fb_lo, prev_fb;
     task automatic fill_memory(input int seed, input int density);
         begin
             for (int a = 0; a < 65536; a++) begin
@@ -380,14 +352,6 @@ module ega_sdram_equiv_tb #(
                 ref_fe.u_ega_vram.plane2[a] = b2;  ref_fe.u_ega_vram.plane3[a] = b3;
                 pm.poke(PLANE_REL + 2*a,     {b1, b0});
                 pm.poke(PLANE_REL + 2*a + 1, {b3, b2});
-            end
-            for (int a = 0; a < 65536; a++) begin
-                logic [7:0] p;
-                p = hashb(7, a, seed) & ((a % 5 == 0) ? 8'h0F : 8'hFF);
-                ref_fb.mem[a] = p;
-                fb_lo = p;
-                if (a % 2 == 1) pm.poke(FB_REL + a/2, {p, prev_fb});
-                prev_fb = p;
             end
         end
     endtask
@@ -464,17 +428,15 @@ module ega_sdram_equiv_tb #(
     endtask
 
     // ------------------------------------------------------- the comparison
-    // History of the reference samples, one entry per dot (classic) or per
-    // clock (private), compared with the new sample at several shifts.
+    // History of the reference samples, one entry per dot, compared with the
+    // new sample at several shifts.
     localparam int NSH = 7;
     localparam int HIST = 64;
     logic [22:0] rh_dot [0:HIST-1];
-    logic [22:0] rh_clk [0:HIST-1];
-    int  hd_ptr = 0, hc_ptr = 0;
+    int  hd_ptr = 0;
     longint mism_dot [0:NSH-1];
-    longint mism_clk [0:NSH-1];
-    longint cmp_dots = 0, cmp_clks = 0;
-    logic   cmp_dot_en = 1'b0, cmp_clk_en = 1'b0;
+    longint cmp_dots = 0;
+    logic   cmp_dot_en = 1'b0;
     int     first_shown = 0;
 
     longint nz_pixels = 0, de_pixels = 0, distinct = 0;
@@ -484,24 +446,6 @@ module ega_sdram_equiv_tb #(
     wire        ref_ce = ref_top.ce_pix;
 
     always @(posedge clk) if (!reset) begin
-        // per clock
-        if (cmp_clk_en) begin
-            cmp_clks <= cmp_clks + 1;
-            if (r_de) begin
-                de_pixels <= de_pixels + 1;
-                if (|{r_red, r_green, r_blue}) nz_pixels <= nz_pixels + 1;
-                if ({r_red, r_green, r_blue} != last_rgb) distinct <= distinct + 1;
-                last_rgb <= {r_red, r_green, r_blue};
-            end
-            for (int s = 0; s < NSH; s++) begin
-                int sh;  sh = EXTRA - 3 + s;
-                if (n_sample !== rh_clk[(hc_ptr - sh + HIST) % HIST]) mism_clk[s] <= mism_clk[s] + 1;
-            end
-        end
-        rh_clk[hc_ptr % HIST] <= r_sample;
-        hc_ptr <= (hc_ptr + 1) % HIST;
-
-        // per dot
         if (ref_ce) begin
             if (cmp_dot_en && r_de) begin
                 de_pixels <= de_pixels + 1;
@@ -549,30 +493,28 @@ module ega_sdram_equiv_tb #(
     endtask
 
     int total_fail = 0;
-    task automatic compare_window(input string what, input logic dot_mode, input int nframes);
+    task automatic compare_window(input string what, input int nframes);
         longint base_m [0:NSH-1];
         longint nn;
         int expect_shift;
         begin
-            for (int s = 0; s < NSH; s++) begin mism_dot[s] = 0; mism_clk[s] = 0; end
-            cmp_dots = 0; cmp_clks = 0; first_shown = 0; nz_pixels = 0; de_pixels = 0; distinct = 0;
+            for (int s = 0; s < NSH; s++) mism_dot[s] = 0;
+            cmp_dots = 0; first_shown = 0; nz_pixels = 0; de_pixels = 0; distinct = 0;
             repeat (100) @(posedge clk);
-            cmp_dot_en = dot_mode;
-            cmp_clk_en = ~dot_mode;
+            cmp_dot_en = 1'b1;
             wait_frames(nframes);
-            cmp_dot_en = 1'b0; cmp_clk_en = 1'b0;
+            cmp_dot_en = 1'b0;
             @(posedge clk);
-            nn = dot_mode ? cmp_dots : cmp_clks;
-            $write("  %-44s %0d %s compared; mismatches by shift ", what, nn, dot_mode ? "dots" : "clks");
+            nn = cmp_dots;
+            $write("  %-44s %0d dots compared; mismatches by shift ", what, nn);
             for (int s = 0; s < NSH; s++)
-                $write(" [%0d]=%0d", (dot_mode ? LEAD : EXTRA) - 3 + s, dot_mode ? mism_dot[s] : mism_clk[s]);
+                $write(" [%0d]=%0d", LEAD - 3 + s, mism_dot[s]);
             $write("\n");
-            $display("      picture: %0d active %s, %0d not black, %0d colour changes",
-                     de_pixels, dot_mode ? "dots" : "clocks", nz_pixels, distinct);
-            if ((dot_mode ? mism_dot[3] : mism_clk[3]) != 0) begin
+            $display("      picture: %0d active dots, %0d not black, %0d colour changes",
+                     de_pixels, nz_pixels, distinct);
+            if (mism_dot[3] != 0) begin
                 total_fail++;
-                $display("FAIL %s: %0d mismatches at the expected shift", what,
-                         dot_mode ? mism_dot[3] : mism_clk[3]);
+                $display("FAIL %s: %0d mismatches at the expected shift", what, mism_dot[3]);
             end
         end
     endtask
@@ -583,55 +525,12 @@ module ega_sdram_equiv_tb #(
             fill_memory(seed, mode % 3);
             program_mode(mode);
             wait_frames(SETTLE);
-            compare_window(mname[mode], 1'b1, FRAMES);
-        end
-    endtask
-
-    // The private VGA routes: their raster is not driven by the CRTC and asks
-    // for data on every clock, so they are compared clock by clock.
-    task automatic run_private(input int kind, input int seed);
-        string nm;
-        begin
-            vga_enabled = 1'b1;
-            fill_memory(seed, 5);
-            program_mode(5);
-            case (kind)
-                0: begin
-                    nm = "VGA 13h packed (private raster)";
-                    io_write(15'h03CD, 8'h13);
-                end
-                1: begin
-                    nm = "VGA Mode X unchained 320x200";
-                    seq_write(8'h04, 8'h06);          // chain 4 off
-                    gfx_write(8'h05, 8'h40);          // 256-colour shift
-                    gfx_write(8'h06, 8'h05);
-                    crtc_write(8'h01, 8'h4F);
-                    crtc_write(8'h09, 8'h40);
-                    crtc_write(8'h07, 8'h11);
-                    crtc_write(8'h18, 8'hFF);         // line compare 3FFh: no split
-                    crtc_write(8'h0C, 8'h00);
-                    crtc_write(8'h0D, 8'h00);
-                    crtc_write(8'h13, 8'h28);
-                    io_write(15'h03CD, 8'h13);
-                end
-                default: begin
-                    nm = "VGA planar 16 colours 0Dh (private raster)";
-                    crtc_write(8'h0C, 8'h00);
-                    crtc_write(8'h0D, 8'h00);
-                    crtc_write(8'h13, 8'h14);
-                    io_write(15'h03CD, 8'h0D);
-                end
-            endcase
-            wait_frames(3);
-            compare_window(nm, 1'b0, FRAMES);
-            io_write(15'h03CD, 8'h00);
-            vga_enabled = 1'b0;
-            wait_frames(2);
+            compare_window(mname[mode], FRAMES);
         end
     endtask
 
     initial begin
-        for (int s = 0; s < NSH; s++) begin mism_dot[s] = 0; mism_clk[s] = 0; end
+        for (int s = 0; s < NSH; s++) mism_dot[s] = 0;
         load_tables();
         repeat (40) @(posedge clk);
         reset = 1'b0;
@@ -639,9 +538,6 @@ module ega_sdram_equiv_tb #(
 
         for (int m = 0; m < MODES; m++)
             if (ONLY == -1 || ONLY == m) run_classic(m, 11 + m);
-
-        for (int k = 0; k < 3; k++)
-            if (ONLY == -1 || ONLY == -2 || ONLY == 200 + k) run_private(k, 31 + k);
 
         // CPU path (vertical blank is not needed: the picture is not compared)
         if (ONLY == -1 || ONLY == 100) begin

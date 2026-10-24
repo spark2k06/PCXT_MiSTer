@@ -1,13 +1,13 @@
-// REFERENCE COPY for ega_sdram_equiv_tb: the reconciled EGA/VGA core as it was
-// before the SDRAM retiming, modules renamed ref_*. Do not edit.
+// REFERENCE COPY for ega_sdram_equiv_tb: the EGA core as it was before the SDRAM
+// retiming, modules renamed ref_*. Do not edit.
 //============================================================================
 //
 //  PCXT MiSTer EGA top level
 //
 //============================================================================
 
-// PCAT_EGA_ONLY builds the EGA device without the optional VGA renderers and
-// DAC (spec R-43, ENABLE_VGA13=0). Keep vga_enabled low when using this build.
+// Strictly an IBM EGA: modes 0-7, 0Dh, 0Eh, 0Fh and 10h through the attribute
+// controller, with no VGA extension (no mode 13h, Mode X, DAC or VGA readbacks).
 //
 // Shared library version (see vendor/pc_common/PINNED). The boot splash is not
 // part of the common core: a core that wants one drives splashscreen and feeds
@@ -39,10 +39,6 @@ module ref_ega_top(
     input [7:0] ega_text_attr,
     input [7:0] ega_text_glyph,
     input ega_text_data_valid,
-    output [15:0] vga_framebuffer_addr,
-    output vga_framebuffer_read_en,
-    input [7:0] vga_framebuffer_pixel,
-    input vga_framebuffer_data_valid,
     input cpu_mem_select,
     input cpu_mem_write,
     output reg ega_cfg_toggle,
@@ -105,15 +101,6 @@ module ref_ega_top(
     input scandouble_en,
     input ega_enabled,
     input [1:0] ega_monitor_profile,
-    input vga_enabled,
-    input vga_mode13_native,
-    input vga_mode13_set,
-    input vga_mode13_clear,
-    output vga_mode13_active_out,
-    output vga_unchained256_active_out,
-    output vga_mode13_wide_clock_out,
-    output vga_planar_memory_active_out,
-    output vga_mode13_pixel_toggle_out,
     input [3:0] crt_h_offset,
     input [2:0] crt_v_offset,
     input [2:0] vsync_width_osd,
@@ -217,12 +204,8 @@ module ref_ega_top(
     // video_io_data from internal_data_bus while either strobe is low, and on a
     // read internal_data_bus carries what this module is driving back, so our
     // own read data returns on bus_d a few clocks later. Gating a read on
-    // bus_d == bus_d_q therefore gates it on its own result: the strobe drops,
-    // ref_vga_dac_io drives 8'h00 (its io_data_out is combinational on these
-    // strobes), that 00h comes round again, and the byte oscillates for the
-    // whole cycle while data_read_evt re-fires and walks read_component off its
-    // R/G/B phase. That is what broke DAC readback - palette fades and the
-    // write-index probe every VGA-aware game uses to detect the DAC.
+    // bus_d == bus_d_q therefore gates it on its own result: the byte would
+    // oscillate for the whole cycle.
     reg [14:0] bus_a_q = 15'd0;
     reg [7:0]  bus_d_q = 8'd0;
     reg        bus_iow_l_q = 1'b1;
@@ -234,7 +217,7 @@ module ref_ega_top(
 
     // Everything derived from these two carries the qualifier, so the
     // sequencer, graphics controller, attribute controller, Miscellaneous
-    // Output, the CRTC and the DAC are all covered at once.
+    // Output and the CRTC are all covered at once.
     wire ega_io_we = ~bus_iow_l & ~bus_aen & ega_enabled & bus_write_settled;
     wire ega_io_re = ~bus_ior_l & ~bus_aen & ega_enabled & bus_addr_settled;
     reg [7:0] ega_misc_output_reg = 8'h63;
@@ -253,85 +236,18 @@ module ref_ega_top(
     // qualifier either, for the same reason ega_io_re does not.
     wire ega_crtc_cs = (ega_color_io_select ? ega_color_crtc_cs : ega_mono_crtc_cs) & ~bus_aen & ega_enabled & bus_addr_settled;
     wire ega_status_cs = (ega_color_io_select ? ega_color_status_cs : ega_mono_status_cs) & ~bus_aen & ega_enabled;
-    wire ega_seq_data_cs = ((bus_a == 15'h03C5) || (bus_a == 15'h02C5)) & ~bus_aen & ega_enabled;
-    wire ega_attr_read_cs = ((bus_a == 15'h03C1) || (bus_a == 15'h02C1)) & ~bus_aen & ega_enabled;
     wire ega_misc_write_cs = ((bus_a == 15'h03C2) || (bus_a == 15'h02C2)) & ~bus_aen & ega_enabled;
     // 3C2h is write-only here. Reading it returns Input Status Register 0, and
-    // that byte is produced in the ISA clock domain by ref_ega_switch_sense_host in
+    // that byte is produced in the ISA clock domain by ega_switch_sense_host in
     // Peripherals.sv. Answering it from here as well would race: the selector
     // this side owns is ega_misc_output_reg, which is several clocks behind the
     // OUT that set it, and the ROM reads the switches immediately after writing
     // the selector. See the note on the instance in Peripherals.sv.
-    wire ega_misc_read_cs = ((bus_a == 15'h03CC) || (bus_a == 15'h02CC)) & ~bus_aen & ega_enabled;
-    wire ega_gfx_data_cs = ((bus_a == 15'h03CF) || (bus_a == 15'h02CF)) & ~bus_aen & ega_enabled;
-    // 3C7-3C9 belong to the VGA mode 13h DAC, which a real IBM EGA does not have
-    // at all: its palette lives in the attribute controller. Leaving them answering
-    // with mode 13h switched off makes the card read as a VGA to anything probing
-    // the DAC, so gate them on the OSD option. Gate on vga_enabled rather than
-    // mode13_active, so software can still load the palette before setting the mode.
-    wire ega_dac_read_index_cs = ((bus_a == 15'h03C7) || (bus_a == 15'h02C7)) & ~bus_aen & ega_enabled & vga_enabled;
-    wire ega_dac_write_index_cs = ((bus_a == 15'h03C8) || (bus_a == 15'h02C8)) & ~bus_aen & ega_enabled & vga_enabled;
-    wire ega_dac_data_cs = ((bus_a == 15'h03C9) || (bus_a == 15'h02C9)) & ~bus_aen & ega_enabled & vga_enabled;
-    wire vga_mode13_bios_ctrl_cs = (bus_a == 15'h03CD) & ~bus_aen & ega_enabled;
-    // Readback on the same port: guest software cannot otherwise tell whether the
-    // OSD has VGA mode 13h available, and must not claim VGA on a machine that
-    // will never render it. 0x13 echoes the value used to enter the mode.
-    wire [7:0] vga_mode13_status = vga_enabled ? 8'h13 : 8'h00;
-    wire vga_mode13_bios_set = vga_mode13_bios_ctrl_cs & ega_io_we & (bus_d == 8'h13);
-    wire vga_mode13_bios_clear = vga_mode13_bios_ctrl_cs & ega_io_we & (bus_d != 8'h13);
-    wire vga_mode12_bios_set = vga_mode13_bios_ctrl_cs & ega_io_we & (bus_d == 8'h12);
-    wire vga_mode12_bios_clear = vga_mode13_bios_ctrl_cs & ega_io_we & (bus_d != 8'h12);
-    wire vga_planar16_bios_set = vga_mode13_bios_ctrl_cs & ega_io_we & (bus_d == 8'h0D);
-    wire vga_planar16_bios_clear = vga_mode13_bios_ctrl_cs & ega_io_we & (bus_d != 8'h0D);
-    wire vga_mode13_enter = vga_mode13_set | vga_mode13_bios_set;
-    wire vga_mode13_exit = vga_mode13_clear | vga_mode13_bios_clear;
-    wire vga_mode12_exit = vga_mode13_clear | vga_mode12_bios_clear;
-    wire vga_planar16_exit = vga_mode13_clear | vga_planar16_bios_clear;
-    wire [7:0] vga_dac_io_data_out;
-    wire [7:0] vga_dac_sample_index;
-    wire [7:0] vga_renderer_dac_index;
-    wire       vga_dac_sample_valid;
-    wire [5:0] vga_dac_sample_red;
-    wire [5:0] vga_dac_sample_green;
-    wire [5:0] vga_dac_sample_blue;
-    wire [7:0] vga_dac_sample_red_8;
-    wire [7:0] vga_dac_sample_green_8;
-    wire [7:0] vga_dac_sample_blue_8;
-    // Covered by the qualifier on ega_io_we: without it a momentary 0x3C8
-    // would reseat the write index and smear the rest of a palette load across
-    // the wrong entries.
-    wire vga_dac_read_index_write_raw = ega_dac_read_index_cs & ega_io_we;
-    wire vga_dac_write_index_write_raw = ega_dac_write_index_cs & ega_io_we;
-    wire vga_dac_data_write_raw = ega_dac_data_cs & ega_io_we;
-    wire vga_dac_read_index_read_raw = ega_dac_read_index_cs & ega_io_re;
-    wire vga_dac_write_index_read_raw = ega_dac_write_index_cs & ega_io_re;
-    wire vga_dac_data_read_raw = ega_dac_data_cs & ega_io_re;
-    reg vga_dac_read_index_write_q = 1'b0;
-    reg vga_dac_write_index_write_q = 1'b0;
-    reg vga_dac_data_write_q = 1'b0;
-    wire vga_dac_read_index_write_evt = vga_dac_read_index_write_raw & ~vga_dac_read_index_write_q;
-    wire vga_dac_write_index_write_evt = vga_dac_write_index_write_raw & ~vga_dac_write_index_write_q;
-    wire vga_dac_data_write_evt = vga_dac_data_write_raw & ~vga_dac_data_write_q;
     wire ega_cfg_we = ega_enabled && ega_io_we && ((ega_io_addr == 16'h03C5) || (ega_io_addr == 16'h02C5) || (ega_io_addr == 16'h03CF) || (ega_io_addr == 16'h02CF));
 
     reg ega_video_active = 1'b0;
     reg ega_video_pending = 1'b0;
     reg ega_write_seen_since_vblank = 1'b0;
-    wire vga_mode13_active;
-    wire vga_mode12_tweak_pending;
-    wire vga_mode12_tweaked_active;
-    // vga_planar16_active is the planar 16-colour route: the private mode 0Dh
-    // raster (vga_planar16_bios_active) or the 640x480 mode 12h profile.
-    wire vga_planar16_bios_active;
-    wire vga_planar640_active;
-    wire vga_planar16_active = vga_planar16_bios_active | vga_planar640_active;
-    wire vga_256color_active = (vga_mode13_active & ~vga_planar640_active) |
-                               vga_mode12_tweaked_active;
-    wire vga_private_active = vga_256color_active | vga_planar16_active;
-    wire vga_mode13_packed_active;
-    wire vga_unchained256_route;
-    wire [2:0] vga_unchained_profile;
-    wire vga_unchained256_active = vga_unchained256_route;
     reg ega_vblank_q = 1'b0;
     wire ega_splash_active = ega_enabled & splashscreen;
     // During a BIOS hold, keep the power-on CRTC geometry active for video
@@ -363,14 +279,9 @@ module ref_ega_top(
     wire [3:0] ega_vslines_debug;
     wire [7:0] ega_crtc_r10_debug;
     wire [7:0] ega_crtc_r11_debug;
-    wire [7:0] ega_crtc_r12_debug;
-    wire [7:0] ega_crtc_r13_debug;
     wire [7:0] ega_crtc_r14_debug;
-    wire [7:0] ega_crtc_r17_debug;
     wire [7:0] ega_crtc_r15_debug;
     wire [7:0] ega_crtc_r16_debug;
-    wire [7:0] ega_crtc_r19_debug;
-    wire [9:0] ega_crtc_line_compare_debug;
     wire [13:0] ega_crtc_addr;
     wire [15:0] ega_crtc_addr_full;
     wire [4:0] ega_row_addr;
@@ -379,10 +290,7 @@ module ref_ega_top(
     wire [9:0] ega_scanline_addr;
     wire [7:0] ega_h_displayed;
     wire [9:0] ega_v_displayed;
-    wire [4:0] ega_v_maxscan;
-    wire       ega_v_double_scan;
     wire [3:0] ega_hsync_width_crtc;
-    wire [7:0] ega_seq_data_out;
     wire [7:0] ega_seq_map_mask_debug;
     wire [7:0] ega_seq_memory_mode_debug;
     wire [1:0] ega_char_map_a;
@@ -390,17 +298,14 @@ module ref_ega_top(
     wire ega_char_9dot;
     wire [3:0] ega_plane_write_mask;
     wire ega_chain2_write;
-    wire ega_chain4;
     wire ega_extended_memory;
     wire ega_ce_crt_fetch;
     wire ega_ce_crt_fetch_early;
     wire ega_ce_cpu_access_unused;
     wire ega_dot_clock_div2;
-    wire [7:0] ega_gfx_data_out;
     wire [7:0] ega_gfx_mode_debug;
     wire ega_graphics_mode;
     wire ega_compat_2bpp_mode;
-    wire ega_shift256;
     wire [1:0] ega_write_mode;
     wire [1:0] ega_read_mode;
     wire [1:0] ega_read_plane_sel;
@@ -414,20 +319,10 @@ module ref_ega_top(
     wire ega_odd_even_mode;
     wire ega_chain2_read;
     wire [1:0] ega_mem_map_sel;
-    wire [7:0] ega_attr_data_out;
     wire [3:0] ega_attr_pixel_pan;
-    wire ega_attr_split_panning_suppress;
     wire [5:0] ega_red_compat;
     wire [5:0] ega_green_compat;
     wire [5:0] ega_blue_compat;
-    wire [5:0] vga_red;
-    wire [5:0] vga_green;
-    wire [5:0] vga_blue;
-    wire       vga_de;
-    wire       vga_hsync;
-    wire       vga_vsync;
-    wire       vga_hblank;
-    wire       vga_vblank;
     wire [5:0] ega_color_raw;
     wire ega_display_enable_raw;
     wire ega_attr_video_enable;
@@ -618,83 +513,11 @@ module ref_ega_top(
     // decode landing here between an ATC index write and its data write turns
     // the data write into an index write, which is one way attributes come out
     // wrong. The bus_out mux keeps using the unqualified select, so only the
-    // side effect moves, never the read data - which holds here because
-    // ega_status_reg does not depend on the strobe, unlike ref_vga_dac_io.
+    // side effect moves, never the read data.
     wire       ega_status_read = ega_status_cs & ~bus_ior_l & bus_addr_settled;
     wire       ega_blink_advance = ega_crtc_fetch_tick & ega_vert_blank_active_crtc & ~ega_vblank_crtc_q;
     wire       ega_blink_state = ega_blink_counter[4];
 
-`ifndef PCAT_EGA_ONLY
-    ref_vga_mode13_ctrl vga_mode13_state (
-        .clk(clk),
-        .reset(reset),
-        .vga_enabled(vga_enabled),
-        .mode13_set(vga_mode13_enter),
-        .mode13_clear(vga_mode13_exit),
-        .vga_mode13_active(vga_mode13_active)
-    );
-`else
-    assign vga_mode13_active = '0;
-`endif
-
-    // Mode 12h is only a staging mode for Dyna Blaster's direct-register
-    // 256x232 tweak. Keep the ordinary EGA path until its full signature is
-    // present; the private port does not claim general 640x480 VGA support.
-`ifndef PCAT_EGA_ONLY
-    ref_vga_mode13_ctrl vga_mode12_tweak_state (
-        .clk(clk),
-        .reset(reset),
-        .vga_enabled(vga_enabled),
-        .mode13_set(vga_mode12_bios_set),
-        .mode13_clear(vga_mode12_exit),
-        .vga_mode13_active(vga_mode12_tweak_pending)
-    );
-`else
-    assign vga_mode12_tweak_pending = '0;
-`endif
-
-    // The same small state gate selects a private fixed VGA mode 0Dh raster.
-    // The EGA BIOS and planar VRAM remain responsible for register state and
-    // memory semantics; only the VGA-rate display fetch is replaced.
-`ifndef PCAT_EGA_ONLY
-    ref_vga_mode13_ctrl vga_planar16_state (
-        .clk(clk),
-        .reset(reset),
-        .vga_enabled(vga_enabled),
-        .mode13_set(vga_planar16_bios_set),
-        .mode13_clear(vga_planar16_exit),
-        .vga_mode13_active(vga_planar16_bios_active)
-    );
-`else
-    assign vga_planar16_bios_active = '0;
-`endif
-
-`ifndef PCAT_EGA_ONLY
-    ref_vga_unchained256_ctrl vga_route_state (
-        .mode13_active    (vga_mode13_active),
-        .mode12_tweak_pending(vga_mode12_tweak_pending),
-        .chain4           (ega_chain4),
-        .shift256         (ega_shift256),
-        .graphics_mode    (ega_graphics_mode),
-        .mem_map_sel      (ega_mem_map_sel),
-        .crtc_h_displayed (ega_h_displayed),
-        .crtc_v_displayed (ega_v_displayed),
-        .crtc_offset      (ega_crtc_r19_debug),
-        .crtc_underline_loc(ega_crtc_r14_debug),
-        .crtc_mode_control(ega_crtc_r17_debug),
-        .packed_active    (vga_mode13_packed_active),
-        .planar640_active (vga_planar640_active),
-        .unchained_active (vga_unchained256_route),
-        .unchained_profile(vga_unchained_profile)
-    );
-`else
-    assign vga_mode13_packed_active = '0;
-    assign vga_planar640_active = '0;
-    assign vga_unchained256_route = '0;
-    assign vga_unchained_profile = '0;
-`endif
-    assign vga_mode12_tweaked_active = vga_mode12_tweak_pending &
-                                       vga_unchained256_active;
 
     ref_UM6845R ega_crtc (
         .CLOCK(clk),
@@ -722,14 +545,9 @@ module ref_ega_top(
         .vslines_debug(ega_vslines_debug),
         .crtc_r10_debug(ega_crtc_r10_debug),
         .crtc_r11_debug(ega_crtc_r11_debug),
-        .crtc_r12_debug(ega_crtc_r12_debug),
-        .crtc_r13_debug(ega_crtc_r13_debug),
         .crtc_r14_debug(ega_crtc_r14_debug),
-        .crtc_r17_debug(ega_crtc_r17_debug),
         .crtc_r15_debug(ega_crtc_r15_debug),
         .crtc_r16_debug(ega_crtc_r16_debug),
-        .crtc_r19_debug(ega_crtc_r19_debug),
-        .crtc_line_compare_debug(ega_crtc_line_compare_debug),
         .CURSOR(ega_cursor_active),
         .MA(ega_crtc_addr),
         .MA_FULL(ega_crtc_addr_full),
@@ -739,8 +557,6 @@ module ref_ega_top(
         .VSCAN(ega_scanline_addr),
         .H_DISP_REG(ega_h_displayed),
         .V_DISP_REG(ega_v_displayed),
-        .V_MAXSCAN_REG(ega_v_maxscan),
-        .V_DOUBLE_SCAN_REG(ega_v_double_scan),
         .hsync_width(ega_hsync_width_crtc),
         .crt_h_offset(crt_h_offset),
         .crt_v_offset(crt_v_offset),
@@ -783,12 +599,10 @@ module ref_ega_top(
         .ce_pix_early(ce_pix_early),
         .io_addr(ega_io_addr),
         .io_data_in(bus_d),
-        .io_data_out(ega_seq_data_out),
         .io_we(ega_io_we),
         .io_re(ega_io_re),
         .plane_write_mask(ega_plane_write_mask),
         .chain2_write(ega_chain2_write),
-        .chain4(ega_chain4),
         .extended_memory(ega_extended_memory),
         .ce_crt_fetch(ega_ce_crt_fetch),
         .ce_crt_fetch_early(ega_ce_crt_fetch_early),
@@ -806,7 +620,6 @@ module ref_ega_top(
         .reset(reset),
         .io_addr(ega_io_addr),
         .io_data_in(bus_d),
-        .io_data_out(ega_gfx_data_out),
         .io_we(ega_io_we),
         .io_re(ega_io_re),
         .write_mode(ega_write_mode),
@@ -823,7 +636,6 @@ module ref_ega_top(
         .chain2_read(ega_chain2_read),
         .graphics_mode(ega_graphics_mode),
         .compat_2bpp_mode(ega_compat_2bpp_mode),
-        .shift256(ega_shift256),
         .mem_map_sel(ega_mem_map_sel),
         .mode_debug(ega_gfx_mode_debug)
     );
@@ -881,298 +693,33 @@ module ref_ega_top(
     assign ext_splash_display_enable = ega_display_enable_visible;
     assign ext_splash_scanline = ega_scanline_addr;
 
-    wire [15:0] vga_planar16_vram_addr;
-    wire        vga_planar16_vram_read_en;
-    wire [3:0]  vga_planar16_plane_index;
-    wire        vga_planar16_pixel_valid;
-    wire        vga_planar16_de;
-    wire        vga_planar16_hsync;
-    wire        vga_planar16_vsync;
-    wire        vga_planar16_hblank;
-    wire        vga_planar16_vblank;
-    wire        vga_planar16_status_blank;
-    wire        vga_planar16_pixel_toggle;
-
     ref_ega_attrib_ctrl ega_attr (
         .clk(clk),
         .reset(reset),
-        .ce_pix(vga_planar16_active ? 1'b1 : ce_pix),
+        .ce_pix(ce_pix),
         .io_addr(ega_io_addr),
         .io_data_in(bus_d),
-        .io_data_out(ega_attr_data_out),
         .io_we(ega_io_we),
         .io_re(ega_io_re),
         .status_re(ega_status_read),
-        .plane_index(vga_planar16_active ? vga_planar16_plane_index :
-                                           ega_plane_index_panned),
-        .pixel_valid(vga_planar16_active ? vga_planar16_pixel_valid :
-                                          ega_pixel_valid_panned),
-        .display_enable(vga_planar16_active ? vga_planar16_de :
-                                             ega_display_enable_panned),
+        .plane_index(ega_plane_index_panned),
+        .pixel_valid(ega_pixel_valid_panned),
+        .display_enable(ega_display_enable_panned),
         .text_mode(~ega_graphics_mode_active),
         .blink_state(ega_blink_state),
         .blink_enable_out(ega_attr_blink_enable),
         .mono_attributes_out(ega_attr_mono_attributes),
         .line_graphics_enable_out(ega_attr_line_graphics_enable),
         .pixel_pan_out(ega_attr_pixel_pan),
-        .split_panning_suppress_out(ega_attr_split_panning_suppress),
         .palette_64_mode(ega_misc_output_reg[7]),
-        .vga_extensions(vga_enabled),
         .color_out(ega_color_raw),
         .display_enable_out(ega_display_enable_raw),
         .video_enable_out(ega_attr_video_enable)
     );
 
-`ifndef PCAT_EGA_ONLY
-    ref_vga_dac_io vga_dac_io_inst (
-        .clock              (clk),
-        .reset              (reset),
-        .load_defaults      (vga_mode13_enter),
-        .invalidate         (vga_mode13_exit),
-        .palette_64_mode    (ega_misc_output_reg[7]),
-        .read_index_write   (vga_dac_read_index_write_evt),
-        .write_index_write  (vga_dac_write_index_write_evt),
-        .data_write         (vga_dac_data_write_evt),
-        .read_index_read    (vga_dac_read_index_read_raw),
-        .write_index_read   (vga_dac_write_index_read_raw),
-        .data_read          (vga_dac_data_read_raw),
-        .io_data_in         (bus_d),
-        .io_data_out        (vga_dac_io_data_out),
-        .sample_index       (vga_dac_sample_index),
-        .sample_red         (vga_dac_sample_red),
-        .sample_green       (vga_dac_sample_green),
-        .sample_blue        (vga_dac_sample_blue),
-        .sample_red_8       (vga_dac_sample_red_8),
-        .sample_green_8     (vga_dac_sample_green_8),
-        .sample_blue_8      (vga_dac_sample_blue_8),
-        .sample_valid       (vga_dac_sample_valid)
-    );
-`else
-    assign vga_dac_io_data_out = '0;
-    assign vga_dac_sample_red = '0;
-    assign vga_dac_sample_green = '0;
-    assign vga_dac_sample_blue = '0;
-    assign vga_dac_sample_red_8 = '0;
-    assign vga_dac_sample_green_8 = '0;
-    assign vga_dac_sample_blue_8 = '0;
-    assign vga_dac_sample_valid = '0;
-`endif
-
-    // VGA mode 13h renders through its own dedicated index into the shared
-    // DAC; every other mode reuses the same 256-entry DAC to let a VGA-aware
-    // EGA program page its 16/256-colour palette through the same ports,
-    // falling back to the classic EGA DAC-less palette (ref_ega_vgaport) for any
-    // entry the program never touched. See docs/vga-vga-palette.md. The mux
-    // source for the non-mode13h case (ega_video_selected) is only available
-    // after the scandoubler below, so this wire is driven further down.
-    wire ega_dac_hit = vga_enabled & ~vga_256color_active & vga_dac_sample_valid;
-
-    wire [7:0] vga_packed_dac_index;
-    wire [5:0] vga_packed_red;
-    wire [5:0] vga_packed_green;
-    wire [5:0] vga_packed_blue;
-    wire vga_packed_de;
-    wire vga_packed_hsync;
-    wire vga_packed_vsync;
-    wire vga_packed_hblank;
-    wire vga_packed_vblank;
-    wire vga_packed_status_blank;
-    wire vga_packed_pixel_toggle;
-
-    wire [15:0] vga_unchained_vram_addr;
-    wire vga_unchained_vram_read_en;
-    wire [7:0] vga_unchained_dac_index;
-    wire [5:0] vga_unchained_red;
-    wire [5:0] vga_unchained_green;
-    wire [5:0] vga_unchained_blue;
-    wire vga_unchained_de;
-    wire vga_unchained_hsync;
-    wire vga_unchained_vsync;
-    wire vga_unchained_hblank;
-    wire vga_unchained_vblank;
-    wire vga_unchained_status_blank;
-    wire vga_unchained_pixel_toggle;
-    wire vga_mode13_pixel_toggle = vga_planar16_active ?
-                                   vga_planar16_pixel_toggle :
-                                   vga_unchained256_active ?
-                                   vga_unchained_pixel_toggle :
-                                   vga_packed_pixel_toggle;
-
-`ifndef PCAT_EGA_ONLY
-    ref_vga_mode13_renderer vga_renderer (
-        .clock                  (clk),
-        .reset                  (reset),
-        .enable                 (vga_mode13_packed_active),
-        .native_70hz            (vga_mode13_native),
-        .crt_h_offset           (crt_h_offset),
-        .crt_v_offset           (crt_v_offset),
-        .framebuffer_addr       (vga_framebuffer_addr),
-        .framebuffer_read_en    (vga_framebuffer_read_en),
-        .framebuffer_pixel      (vga_framebuffer_pixel),
-        .framebuffer_data_valid (vga_framebuffer_data_valid),
-        .dac_index              (vga_packed_dac_index),
-        .dac_red                (vga_dac_sample_red),
-        .dac_green              (vga_dac_sample_green),
-        .dac_blue               (vga_dac_sample_blue),
-        .red                    (vga_packed_red),
-        .green                  (vga_packed_green),
-        .blue                   (vga_packed_blue),
-        .de                     (vga_packed_de),
-        .hsync                  (vga_packed_hsync),
-        .vsync                  (vga_packed_vsync),
-        .hblank                 (vga_packed_hblank),
-        .vblank                 (vga_packed_vblank),
-        .status_blank           (vga_packed_status_blank),
-        .pixel_toggle           (vga_packed_pixel_toggle)
-    );
-`else
-    assign vga_framebuffer_addr = '0;
-    assign vga_framebuffer_read_en = '0;
-    assign vga_packed_dac_index = '0;
-    assign vga_packed_red = '0;
-    assign vga_packed_green = '0;
-    assign vga_packed_blue = '0;
-    assign vga_packed_de = '0;
-    assign vga_packed_hsync = '0;
-    assign vga_packed_vsync = '0;
-    assign vga_packed_hblank = '0;
-    assign vga_packed_vblank = '0;
-    assign vga_packed_status_blank = '0;
-    assign vga_packed_pixel_toggle = '0;
-`endif
-
-`ifndef PCAT_EGA_ONLY
-    ref_vga_unchained256_renderer vga_unchained_renderer (
-        .clock              (clk),
-        .reset              (reset),
-        .enable             (vga_unchained256_active),
-        .native_70hz        (vga_mode13_native),
-        .mode_x_profile     (vga_unchained_profile),
-        .crt_h_offset       (crt_h_offset),
-        .crt_v_offset       (crt_v_offset),
-        .crtc_start_address ({ega_crtc_r12_debug, ega_crtc_r13_debug}),
-        .crtc_offset        (ega_crtc_r19_debug),
-        .crtc_line_compare  (ega_crtc_line_compare_debug),
-        .crtc_max_scan      (ega_v_maxscan),
-        .crtc_double_scan   (ega_v_double_scan),
-        .attr_pixel_pan     (ega_attr_pixel_pan),
-        .split_panning_suppress(ega_attr_split_panning_suppress),
-        .vram_addr          (vga_unchained_vram_addr),
-        .vram_read_en       (vga_unchained_vram_read_en),
-        .vram_plane0        (ega_plane0_data),
-        .vram_plane1        (ega_plane1_data),
-        .vram_plane2        (ega_plane2_data),
-        .vram_plane3        (ega_plane3_data),
-        .vram_data_valid    (ega_fetch_data_valid),
-        .dac_index          (vga_unchained_dac_index),
-        .dac_red            (vga_dac_sample_red),
-        .dac_green          (vga_dac_sample_green),
-        .dac_blue           (vga_dac_sample_blue),
-        .red                (vga_unchained_red),
-        .green              (vga_unchained_green),
-        .blue               (vga_unchained_blue),
-        .de                 (vga_unchained_de),
-        .hsync              (vga_unchained_hsync),
-        .vsync              (vga_unchained_vsync),
-        .hblank             (vga_unchained_hblank),
-        .vblank             (vga_unchained_vblank),
-        .status_blank       (vga_unchained_status_blank),
-        .pixel_toggle       (vga_unchained_pixel_toggle)
-    );
-`else
-    assign vga_unchained_vram_addr = '0;
-    assign vga_unchained_vram_read_en = '0;
-    assign vga_unchained_dac_index = '0;
-    assign vga_unchained_red = '0;
-    assign vga_unchained_green = '0;
-    assign vga_unchained_blue = '0;
-    assign vga_unchained_de = '0;
-    assign vga_unchained_hsync = '0;
-    assign vga_unchained_vsync = '0;
-    assign vga_unchained_hblank = '0;
-    assign vga_unchained_vblank = '0;
-    assign vga_unchained_status_blank = '0;
-    assign vga_unchained_pixel_toggle = '0;
-`endif
-
-`ifndef PCAT_EGA_ONLY
-    ref_vga_planar16_renderer vga_planar16_renderer_inst (
-        .clock              (clk),
-        .reset              (reset),
-        .enable             (vga_planar16_active),
-        .native_70hz        (vga_mode13_native),
-        .wide_640           (vga_planar640_active),
-        .crt_h_offset       (crt_h_offset),
-        .crt_v_offset       (crt_v_offset),
-        .crtc_start_address ({ega_crtc_r12_debug, ega_crtc_r13_debug}),
-        .crtc_offset        (ega_crtc_r19_debug),
-        .crtc_line_compare  (ega_crtc_line_compare_debug),
-        .crtc_max_scan      (ega_v_maxscan),
-        .crtc_double_scan   (ega_v_double_scan),
-        .attr_pixel_pan     (ega_attr_pixel_pan),
-        .split_panning_suppress(ega_attr_split_panning_suppress),
-        .vram_addr          (vga_planar16_vram_addr),
-        .vram_read_en       (vga_planar16_vram_read_en),
-        .vram_plane0        (ega_plane0_data),
-        .vram_plane1        (ega_plane1_data),
-        .vram_plane2        (ega_plane2_data),
-        .vram_plane3        (ega_plane3_data),
-        .vram_data_valid    (ega_fetch_data_valid),
-        .plane_index        (vga_planar16_plane_index),
-        .pixel_valid        (vga_planar16_pixel_valid),
-        .de                 (vga_planar16_de),
-        .hsync              (vga_planar16_hsync),
-        .vsync              (vga_planar16_vsync),
-        .hblank             (vga_planar16_hblank),
-        .vblank             (vga_planar16_vblank),
-        .status_blank       (vga_planar16_status_blank),
-        .pixel_toggle       (vga_planar16_pixel_toggle)
-    );
-`else
-    assign vga_planar16_vram_addr = '0;
-    assign vga_planar16_vram_read_en = '0;
-    assign vga_planar16_plane_index = '0;
-    assign vga_planar16_pixel_valid = '0;
-    assign vga_planar16_de = '0;
-    assign vga_planar16_hsync = '0;
-    assign vga_planar16_vsync = '0;
-    assign vga_planar16_hblank = '0;
-    assign vga_planar16_vblank = '0;
-    assign vga_planar16_status_blank = '0;
-    assign vga_planar16_pixel_toggle = '0;
-`endif
-
-    assign vga_renderer_dac_index = vga_unchained256_active ?
-                                    vga_unchained_dac_index : vga_packed_dac_index;
-    assign vga_red = vga_unchained256_active ? vga_unchained_red : vga_packed_red;
-    assign vga_green = vga_unchained256_active ? vga_unchained_green : vga_packed_green;
-    assign vga_blue = vga_unchained256_active ? vga_unchained_blue : vga_packed_blue;
-    assign vga_de = vga_unchained256_active ? vga_unchained_de : vga_packed_de;
-    assign vga_hsync = vga_unchained256_active ? vga_unchained_hsync : vga_packed_hsync;
-    assign vga_vsync = vga_unchained256_active ? vga_unchained_vsync : vga_packed_vsync;
-    assign vga_hblank = vga_unchained256_active ? vga_unchained_hblank : vga_packed_hblank;
-    assign vga_vblank = vga_unchained256_active ? vga_unchained_vblank : vga_packed_vblank;
-
-    // While the private VGA path owns the raster, Input Status #1 must report
-    // that same raster. VGA sets bit 3 for the vertical-retrace interval
-    // (86Box raises it at Vertical Retrace Start; MartyPC's status.vblank is
-    // raised at that same point), which Mode-X programs use as the transaction
-    // boundary for Start Address and pel-panning updates. Returning the dormant
-    // EGA CRTC's retrace makes those updates land in different displayed
-    // frames. EGA continues to use its native status signals outside VGA 13h.
-    wire video_status_vretrace_active = vga_planar16_active ? vga_planar16_vsync :
-                                       vga_256color_active ? vga_vsync :
-                                                           ega_status_vretrace_active;
-    // Bit 0 follows the physical VGA scanline, not the output line: software
-    // that counts its transitions per frame (Pinball Fantasies' raster-timer
-    // calibration) must see 400/480/350 lines even on the 15 kHz raster.
-    wire video_blanking_active = vga_planar16_active ? vga_planar16_status_blank :
-                                 vga_unchained256_active ? vga_unchained_status_blank :
-                                 vga_256color_active ? vga_packed_status_blank :
-                                                       ega_blanking_active;
     wire [7:0] ega_status_reg = {2'b00, ega_status_toggle,
-                                 video_status_vretrace_active, 2'b00,
-                                 video_blanking_active};
+                                 ega_status_vretrace_active, 2'b00,
+                                 ega_blanking_active};
 
     wire [5:0] ega_dbl_color;
     wire ega_dbl_hsync;
@@ -1210,8 +757,6 @@ module ref_ega_top(
     wire [5:0] ega_video_selected = ega_scandouble_active ? ega_dbl_color : ega_color_raw;
     wire ega_vblank_rise = ~ega_vblank_q & ega_visible_vblank;
     reg ega_vmode_pending;
-    assign vga_dac_sample_index = vga_256color_active ? vga_renderer_dac_index
-                                                       : {2'b00, ega_video_selected};
 
     ref_ega_vgaport ega_rgb_conv (
         .color(ega_video_selected),
@@ -1228,8 +773,7 @@ module ref_ega_top(
     // two physical 5151 levels here instead: the six-bit equivalents of
     // classic normal and bright white (two-thirds and full scale).
     wire [5:0] ega_5151_luma;
-    wire ega_5151_active = ~vga_planar16_active &
-                           (ega_monitor_profile_effective == 2'd2);
+    wire ega_5151_active = (ega_monitor_profile_effective == 2'd2);
 
     ref_ega_5151_output ega_5151_monitor (
         .color(ega_video_selected),
@@ -1239,40 +783,18 @@ module ref_ega_top(
     reg [7:0] ega_bus_out_mux;
     // IBM EGA only reads status, display start/cursor and light-pen registers.
     // Sequencer, attributes, graphics and miscellaneous output are write-only.
-    // Keep extended readback available to the optional VGA implementation.
-    wire ega_crtc_readable = vga_enabled ||
-                            (ega_crtc_index_shadow >= 5'h0C && ega_crtc_index_shadow <= 5'h11);
+    wire ega_crtc_readable = (ega_crtc_index_shadow >= 5'h0C && ega_crtc_index_shadow <= 5'h11);
     wire ega_crtc_read_cs = ega_crtc_cs & ~bus_ior_l & bus_a[0] & ega_crtc_readable;
     wire ega_bus_dir_sel = (ega_status_cs & ~bus_ior_l)
-                         | (ega_seq_data_cs & ~bus_ior_l & vga_enabled)
-                         | (ega_attr_read_cs & ~bus_ior_l & vga_enabled)
-                         | (ega_misc_read_cs & ~bus_ior_l & vga_enabled)
-                         | (ega_gfx_data_cs & ~bus_ior_l & vga_enabled)
-                         | (ega_dac_read_index_cs & ~bus_ior_l)
-                         | (ega_dac_write_index_cs & ~bus_ior_l)
-                         | (ega_dac_data_cs & ~bus_ior_l)
-                         | (vga_mode13_bios_ctrl_cs & ~bus_ior_l & vga_enabled)
                          | ega_crtc_read_cs;
 
     always @(*) begin
         if (ega_status_cs & ~bus_ior_l)
             ega_bus_out_mux = ega_status_reg;
-        else if (ega_seq_data_cs & ~bus_ior_l & vga_enabled)
-            ega_bus_out_mux = ega_seq_data_out;
-        else if (ega_attr_read_cs & ~bus_ior_l & vga_enabled)
-            ega_bus_out_mux = ega_attr_data_out;
-        else if (ega_misc_read_cs & ~bus_ior_l & vga_enabled)
-            ega_bus_out_mux = ega_misc_output_reg;
-        else if (ega_gfx_data_cs & ~bus_ior_l & vga_enabled)
-            ega_bus_out_mux = ega_gfx_data_out;
-        else if ((ega_dac_read_index_cs | ega_dac_write_index_cs | ega_dac_data_cs) & ~bus_ior_l)
-            ega_bus_out_mux = vga_dac_io_data_out;
-        else if (vga_mode13_bios_ctrl_cs & ~bus_ior_l & vga_enabled)
-            ega_bus_out_mux = vga_mode13_status;
         else if (ega_crtc_read_cs)
             // No light pen is connected. EGA reads 10h/11h as the light-pen
             // position, not the retrace registers written at those indices.
-            ega_bus_out_mux = (!vga_enabled && ega_crtc_index_shadow >= 5'h10) ?
+            ega_bus_out_mux = (ega_crtc_index_shadow >= 5'h10) ?
                               8'h00 : ega_crtc_data_out;
         else
             ega_bus_out_mux = 8'hFF;
@@ -1295,9 +817,6 @@ module ref_ega_top(
             ega_crtc_index_shadow <= 5'd0;
             ega_crtc_h_timing_seen <= 1'b0;
             ega_crtc_v_timing_seen <= 1'b0;
-            vga_dac_read_index_write_q <= 1'b0;
-            vga_dac_write_index_write_q <= 1'b0;
-            vga_dac_data_write_q <= 1'b0;
             bus_a_q <= 15'd0;
             bus_d_q <= 8'd0;
             bus_iow_l_q <= 1'b1;
@@ -1324,9 +843,6 @@ module ref_ega_top(
 
             ega_vblank_q <= ega_visible_vblank;
             ega_status_read_q <= ega_status_read;
-            vga_dac_read_index_write_q <= vga_dac_read_index_write_raw;
-            vga_dac_write_index_write_q <= vga_dac_write_index_write_raw;
-            vga_dac_data_write_q <= vga_dac_data_write_raw;
             ega_vblank_crtc_q <= ega_crtc_fetch_tick ? ega_vert_blank_active_crtc : ega_vblank_crtc_q;
             cpu_mem_write_evt_d <= cpu_mem_write_evt;
             if (ega_misc_write_cs && ega_io_we) begin
@@ -1351,8 +867,6 @@ module ref_ega_top(
                     end
                 endcase
             end
-            if (vga_mode13_enter || vga_mode13_exit)
-                ega_vmode_pending <= 1'b1;
             if (ega_cfg_we)
                 ega_cfg_toggle <= ~ega_cfg_toggle;
             if (ega_status_read && !ega_status_read_q)
@@ -1402,18 +916,14 @@ module ref_ega_top(
     // Match 86Box more closely: writes to CRTC start address update the
     // latch immediately, but the visible fetch base only changes for the
     // next frame after vertical blank has completed.
-    assign ega_fetch_addr = vga_planar16_active ? vga_planar16_vram_addr :
-                            vga_unchained256_active ? vga_unchained_vram_addr :
-                                                    ega_crtc_addr_full;
+    assign ega_fetch_addr = ega_crtc_addr_full;
     // Issued one clock ahead of the character dot: the plane data has a fixed
     // two clock latency, and on the 16.257 MHz enable the next dot can be one
     // clock away, in which case data launched on the tick itself would arrive
     // a dot late and shift that character by one pixel.
-    assign ega_fetch_en = vga_planar16_active ? vga_planar16_vram_read_en :
-                          vga_unchained256_active ? vga_unchained_vram_read_en :
-                          ((!vga_private_active && ega_display_sel) ?
-                           (ega_graphics_mode_active & ega_ce_crt_fetch_early & ega_display_enable_render) : 1'b0);
-    assign ega_text_fetch_en = !vga_private_active & ega_display_sel & ega_text_mode_active &
+    assign ega_fetch_en = ega_display_sel ?
+                          (ega_graphics_mode_active & ega_ce_crt_fetch_early & ega_display_enable_render) : 1'b0;
+    assign ega_text_fetch_en = ega_display_sel & ega_text_mode_active &
                                !ega_splash_active & ega_text_fetch_en_raw;
     assign ega_plane_write_mask_out = ega_plane_write_mask;
     assign ega_odd_even_mode_out = ega_odd_even_mode;
@@ -1435,56 +945,26 @@ module ref_ega_top(
     assign ega_rotate_count_out = ega_rotate_count;
     assign ega_blink_counter_out = ega_blink_counter;
     assign ega_blink_state_out = ega_blink_state;
-    // This legacy output means that a private VGA raster owns the connector;
-    // consumers use it to select the VGA pixel toggle and direct video path.
-    assign vga_mode13_active_out = vga_private_active;
-    assign vga_unchained256_active_out = vga_unchained256_active;
-    // The 360-pixel profile needs 720 active output clocks, so its Native
-    // raster retains the 28.636 MHz / 912-clock timing.
-    assign vga_mode13_wide_clock_out = vga_unchained256_active &&
-                                       (vga_unchained_profile == 3'd1);
-    assign vga_planar_memory_active_out = vga_unchained256_active |
-                                          vga_planar16_active;
-    assign vga_mode13_pixel_toggle_out = vga_mode13_pixel_toggle;
-    assign ega_display_sel_out = vga_planar16_active ? ega_display_enable_raw :
-                                 vga_256color_active ? vga_de : ega_display_sel;
+    assign ega_display_sel_out = ega_display_sel;
 
     assign bus_out = ega_bus_out_mux;
     assign bus_dir = ega_enabled ? ega_bus_dir_sel : 1'b0;
     assign ega_red   = ega_prebios_black ? 6'd0 :
-                       vga_256color_active ? vga_red
-                     : ega_5151_active    ? ega_5151_luma
-                     : ega_dac_hit        ? vga_dac_sample_red   : ega_red_compat;
+                       ega_5151_active    ? ega_5151_luma : ega_red_compat;
     assign ega_green = ega_prebios_black ? 6'd0 :
-                       vga_256color_active ? vga_green
-                     : ega_5151_active    ? ega_5151_luma
-                     : ega_dac_hit        ? vga_dac_sample_green : ega_green_compat;
+                       ega_5151_active    ? ega_5151_luma : ega_green_compat;
     assign ega_blue  = ega_prebios_black ? 6'd0 :
-                       vga_256color_active ? vga_blue
-                     : ega_5151_active    ? ega_5151_luma
-                     : ega_dac_hit        ? vga_dac_sample_blue  : ega_blue_compat;
-    assign hsync = ega_enabled ? (vga_planar16_active ? vga_planar16_hsync :
-                                  vga_256color_active ? vga_hsync : ega_hsync_out) : 1'b1;
-    assign dbl_hsync = ega_enabled ? (vga_planar16_active ? vga_planar16_hsync :
-                                      vga_256color_active ? vga_hsync : ega_dbl_hsync) : 1'b1;
-    assign hblank = ega_enabled ? (vga_planar16_active ? vga_planar16_hblank :
-                                   vga_256color_active ? vga_hblank :
-                                   (ega_scandouble_active ? ~ega_display_enable_sd : ega_hblank_out)) : 1'b1;
-    assign vsync = ega_enabled ? (vga_planar16_active ? vga_planar16_vsync :
-                                  vga_256color_active ? vga_vsync :
-                                  (ega_scandouble_active ? ~ega_vsync_sd_l : ega_vsync)) : 1'b1;
-    assign vblank = ega_enabled ? (vga_planar16_active ? vga_planar16_vblank :
-                                   vga_256color_active ? vga_vblank :
-                                   (ega_scandouble_active ? ega_vblank_sd : ega_vblank_out)) : 1'b1;
-    assign vblank_border = ega_enabled ? (vga_planar16_active ? vga_planar16_vblank :
-                                          vga_256color_active ? vga_vblank :
-                                          (ega_scandouble_active ? ega_vblank_sd : ega_vborder_out)) : 1'b1;
+                       ega_5151_active    ? ega_5151_luma : ega_blue_compat;
+    assign hsync = ega_enabled ? ega_hsync_out : 1'b1;
+    assign dbl_hsync = ega_enabled ? ega_dbl_hsync : 1'b1;
+    assign hblank = ega_enabled ? (ega_scandouble_active ? ~ega_display_enable_sd : ega_hblank_out) : 1'b1;
+    assign vsync = ega_enabled ? (ega_scandouble_active ? ~ega_vsync_sd_l : ega_vsync) : 1'b1;
+    assign vblank = ega_enabled ? (ega_scandouble_active ? ega_vblank_sd : ega_vblank_out) : 1'b1;
+    assign vblank_border = ega_enabled ? (ega_scandouble_active ? ega_vblank_sd : ega_vborder_out) : 1'b1;
     assign std_hsyncwidth = ega_enabled
                           ? (ega_hsync_width_crtc == (ega_dot_clock_div2_active ? EGA_STD_HSYNC_W_LO : EGA_STD_HSYNC_W_HI))
                           : 1'b0;
-    assign de_o = vga_planar16_active ? ega_display_enable_raw :
-                  vga_256color_active ? vga_de :
-                  (ega_display_sel ? (ega_scandouble_active ? ega_display_enable_sd : ega_display_enable_raw) : 1'b0);
+    assign de_o = ega_display_sel ? (ega_scandouble_active ? ega_display_enable_sd : ega_display_enable_raw) : 1'b0;
 
     assign ega_dot_toggle_out = ega_dot_toggle;
     assign ega_dot_clock_sel_out = ega_hifreq_mode;
@@ -1522,17 +1002,13 @@ module ref_ega_top(
     // television can show progressively. No BIOS mode number, no monitor
     // switch, so a program that programs its own 350 line raster is caught
     // the same as the ones the option ROM sets up.
-    //
-    // Mode 13h is excluded outright. It does not draw through this CRTC at
-    // all - ref_vga_mode13_timing.v generates its raster - but the registers left
-    // behind by its mode set still describe a 400 line frame.
     always @(posedge clk) begin
         if (reset) begin
             ega_mode350      <= 1'b0;
             ega_active_dots  <= 12'd0;
             ega_active_lines <= 10'd0;
         end else if (ega_vblank_rise) begin
-            ega_mode350      <= ~vga_private_active && (ega_v_displayed > 10'd240);
+            ega_mode350      <= (ega_v_displayed > 10'd240);
             ega_active_dots  <= ega_active_dots_now;
             ega_active_lines <= ega_v_displayed;
         end

@@ -118,7 +118,7 @@ module ega_io_stretch
     // Only accesses aimed at the video card need any of this. The crossing
     // this module protects - two synchroniser stages out at 28.636 MHz, the
     // two-identical-samples qualifier in ega_top, and two stages back at
-    // 50 MHz - exists for the EGA/VGA register file and for nothing else. The
+    // 50 MHz - exists for the EGA register file and for nothing else. The
     // 8253, 8255, 8259, 8237, FDC, IDE, UART, RTC and OPL2 all answer inside
     // the 50 MHz chipset domain through short fixed pipelines, so holding them
     // for the video round trip buys nothing and costs a great deal: 12 clocks

@@ -43,15 +43,12 @@
 `ifndef ENABLE_MIDI
 `define ENABLE_MIDI 1
 `endif
-// Video cards built into this image. ENABLE_EGA adds the EGA/VGA 13h card next
+// Video cards built into this image. ENABLE_EGA adds the EGA card next
 // to the CGA/HGC pair; with ENABLE_CGA and ENABLE_HGC both 0 it is the only
 // card. LAYOUT_EGA selects the status-bit layout of the menu (the EGA core's);
 // without it the menu is the CGA core's, bit for bit.
 `ifndef ENABLE_EGA
 `define ENABLE_EGA 0
-`endif
-`ifndef ENABLE_VGA13
-`define ENABLE_VGA13 1
 `endif
 `ifndef ENABLE_SB
 `define ENABLE_SB 0
@@ -151,7 +148,7 @@ module emu
     //    would read the CGA/Hercules graphics bits), and no two options may
     //    share a bit within a layout. The options of the EGA layout that have
     //    no counterpart at the same bit in the CGA layout sit above 79:
-    //      81:80 monitor  82 UMB off  83 VGA 13h+ TV 60 Hz  85:84 audio 220h
+    //      81:80 monitor  82 UMB off  83 (free)  85:84 audio 220h
     //      86 swap joysticks  87 Tandy sound  88 MPU-401 off
     //      96 machine (PCXT / Tandy 1000), ENABLE_MODEL_TANDY builds
     //      91:89 VSync width  94:92 HSync width
@@ -208,7 +205,7 @@ module emu
     localparam CONF_STR_MACHINE = HAS_PCJR_MODEL ? "P1O[97:96],Machine,IBM PCXT,Tandy 1000,IBM PCjr;P1-;"
                                 : (HAS_MODEL ? "P1O[96],Machine,IBM PCXT,Tandy 1000;P1-;" : "");
     localparam CONF_STR_CARD = CARD_SELECTABLE
-        ? (HAS_MODEL ? "hAP1O[78],PCXT Video,CGA/HGC,EGA/VGA;hAP1-;" : "P1O[78],PCXT Video,CGA/HGC,EGA/VGA;P1-;")
+        ? (HAS_MODEL ? "hAP1O[78],PCXT Video,CGA/HGC,EGA;hAP1-;" : "P1O[78],PCXT Video,CGA/HGC,EGA;P1-;")
         : "";
     localparam CONF_STR_HGC = (`ENABLE_HGC && `ENABLE_CGA)
         ? (HAS_MODEL ? "hDP1O[76],PCXT CGA Graphics,Yes,No;hDP1O[77],PCXT Hercules Graphics,Yes,No;hDP1O[75],PCXT 1st Video,CGA,Hercules;hDP1-;"
@@ -227,7 +224,6 @@ module emu
         ? (HAS_MODEL ? "hAP2O[87],Tandy Sound,Disabled,Enabled;" : "P2O[87],Tandy Sound,Disabled,Enabled;")
         : "";
     localparam CONF_STR_VIDEO_CGA = (HAS_CGA_HGC ? "h7P2O[72],Border,No,Yes;h9P2O[73],Border CRT offsets,No,Yes;h7P2O[74],CRTC Frame Stacking,Native,Rebuilt;h7P2O[71],Composite video,Off,On;" : "");
-    localparam CONF_STR_VIDEO_EGA = (HAS_EGA ? "h8P2O[83],VGA 13h+ CRT,Native 70Hz,TV 60Hz;" : "");
     localparam CONF_STR_MONITOR = (HAS_EGA ? "h8P3O[81:80],Monitor,5154/ECD,5153/CGA,5151/MDA;P3-;" : "");
     // h7 is "the CGA card"; with the PCjr to choose, h1 is "the CGA card, on a PCXT or Tandy"
     localparam CONF_STR_A000 = ((`ENABLE_A000_UMB && HAS_CGA_HGC) ? {HAS_PCJR_MODEL ? "h1" : "h7", "P3O[79],A000 UMB,Enabled,Disabled;P3-;"} : "");
@@ -362,9 +358,6 @@ module emu
         "P2O89,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
         CONF_STR_VIDEO_CGA,
         "P2OEG,Display,Full Color,Green,Amber,B&W,Red,Blue,Fuchsia,Purple;",
-`ifdef LAYOUT_EGA
-        CONF_STR_VIDEO_EGA,
-`endif
         CONF_STR_CRT,
         "P2-;",
         "P3,Hardware;",
@@ -431,9 +424,6 @@ module emu
     wire        ega_mode350;
     wire [11:0] ega_active_dots;
     wire [9:0]  ega_active_lines;
-    wire        vga_mode13_active_video;
-    wire        vga_mode13_pixel_toggle;
-    wire        vga_mode13_wide_clock;
 
     // Pending options. Everything that depends on the layout is gathered here.
     wire        composite_osd   = L_EGA ? status[71] : status[95];
@@ -444,9 +434,6 @@ module emu
     wire        cga_absent_osd  = L_EGA ? status[76] : status[44];
     wire        hgc_absent_osd  = L_EGA ? status[77] : status[45];
     wire        a000_off_osd    = L_EGA ? status[79] : status[69];
-    // The EGA card has no use for Native/TV 60 Hz outside Mode 13h and no
-    // physical-monitor switches in the CGA layout, where they stay at zero.
-    wire        vga_mode13_native_osd = L_EGA ? ~status[83] : 1'b1;
     // Status bits 81:80 are the pending physical-monitor switch selection.
     // ega_monitor_profile_applied is only updated while the machine is held
     // in reset, just as a real EGA card samples its switches during POST.
@@ -466,20 +453,19 @@ module emu
     wire [7:0]  xtctl;
     wire [7:0]  uart_mode;
     wire [1:0]  id_video_card;
-    wire        id_vga13_active;
 
     // XTEGACTL. The register file is decoded down in the chipset; what the
     // fields mean is resolved here, where the menu status lives. Every field
     // reads zero as "leave it to the OSD", so with nothing written the machine
     // behaves exactly as the menu says.
-    wire [7:0]  xtegactl_cpu, xtegactl_exp, xtegactl_vid, xtegactl_inp, xtegactl_midi, xtegactl_exp2;
+    wire [7:0]  xtegactl_cpu, xtegactl_exp, xtegactl_inp, xtegactl_midi, xtegactl_exp2;
     wire [7:0]  xtegactl_crt, xtegactl_sync;
     wire [39:0] xtegactl_status_effective;
     wire [17:0] xtegactl_status_osd_match;
     wire [1:0]  eff_speed;
     wire        eff_fake286;
     wire [1:0]  eff_opl2;
-    wire        eff_cms, eff_ems, eff_umb, eff_vga13;
+    wire        eff_cms, eff_ems, eff_umb;
     wire        eff_sb;
     // What the menu and XTEGACTL ask for, before the PCjr takes away what it has not
     wire [1:0]  res_speed, res_opl2;
@@ -510,7 +496,6 @@ module emu
     xtegactl_resolve xtegactl_apply (
         .reg_cpu          (xtegactl_cpu),
         .reg_exp          (xtegactl_exp),
-        .reg_vid          (xtegactl_vid),
         .reg_inp          (xtegactl_inp),
         .reg_midi         (xtegactl_midi),
         .reg_exp2         (xtegactl_exp2),
@@ -547,7 +532,6 @@ module emu
         .eff_sb_irq       (eff_sb_irq),
         .eff_ems          (res_ems),
         .eff_umb          (res_umb),
-        .eff_vga13        (eff_vga13),
         .eff_joy1_digital (eff_joy1_digital),
         .eff_joy1_disable (eff_joy1_disable),
         .eff_joy2_digital (eff_joy2_digital),
@@ -1277,9 +1261,9 @@ module emu
 
     //
     // Video memory (F2): CGA and HGC read their VRAM from SDRAM through vram_fetch
-    // engines; the EGA/VGA card reads its planes
-    // and the packed Mode 13h region through the frontend of the pc_common
-    // library, which has its own engines and is the third client of vid_mux.
+    // engines; the EGA card reads its planes
+    // through the frontend of the pc_common library, which has its own engines
+    // and is the third client of vid_mux.
     // Everything here is in clk_sdram; the CGA (28.636 MHz) and HGC (57.27 MHz)
     // sequencers come from the same PLL and are sampled by the adapters.
     //
@@ -1291,10 +1275,9 @@ module emu
     //
     localparam logic [23:0] CGA_WORD_BASE = sdram_pkg::PHYS_CGA[24:1];
     localparam logic [23:0] HGC_WORD_BASE = sdram_pkg::PHYS_HGC[24:1];
-    // The EGA planes (256 KiB) and the packed 13h region (64 KiB) are one
-    // contiguous 320 KiB that ends where the CGA window starts.
+    // The EGA planes: 256 KiB, ending where the CGA window starts.
     localparam logic [23:0] EGA_WORD_BASE  = 24'h400000;
-    localparam logic [23:0] EGA_WORD_COUNT = 24'd163840;
+    localparam logic [23:0] EGA_WORD_COUNT = 24'd131072;
 
     localparam bit E_CGA = (`ENABLE_CGA != 0);
     localparam bit E_HGC = (`ENABLE_HGC != 0);
@@ -1310,7 +1293,7 @@ module emu
     // built its regions are cleared as well.
     localparam int CLR_NREG = E_EGA ? 3 : 2;
     localparam logic [71:0] CLR_BASES_ALL = {EGA_WORD_BASE, HGC_WORD_BASE, CGA_WORD_BASE};
-    localparam logic [71:0] CLR_WORDS_ALL = {EGA_WORD_COUNT, 24'd32768, 24'd16384};   // 64 KiB, 32 KiB, 320 KiB
+    localparam logic [71:0] CLR_WORDS_ALL = {EGA_WORD_COUNT, 24'd32768, 24'd16384};   // 64 KiB, 32 KiB, 256 KiB
 
     ram_clear #(
         .NREG   (CLR_NREG),
@@ -2056,12 +2039,7 @@ module emu
 		.ega_mode350                        (ega_mode350),
 		.ega_active_dots                    (ega_active_dots),
 		.ega_active_lines                   (ega_active_lines),
-		.vga_mode13_osd                     (eff_vga13),
-		.vga_mode13_native                  (vga_mode13_native_osd),
 		.ega_monitor_profile                (ega_monitor_profile_applied),
-		.vga_mode13_active_out              (vga_mode13_active_video),
-		.vga_mode13_wide_clock_out          (vga_mode13_wide_clock),
-		.vga_mode13_pixel_toggle_out        (vga_mode13_pixel_toggle),
 	//	.de_o                               (VGA_DE),
 		.VGA_R                              (r),
 		.VGA_G                              (g),
@@ -2210,7 +2188,6 @@ module emu
 		.xtctl                              (xtctl),
 		.xtegactl_cpu                       (xtegactl_cpu),
 		.xtegactl_exp                       (xtegactl_exp),
-		.xtegactl_vid                       (xtegactl_vid),
 		.xtegactl_inp                       (xtegactl_inp),
 		.xtegactl_midi                      (xtegactl_midi),
 		.xtegactl_exp2                      (xtegactl_exp2),
@@ -2219,7 +2196,6 @@ module emu
 		.xtegactl_status_effective          (xtegactl_status_effective),
 		.xtegactl_status_osd_match          (xtegactl_status_osd_match),
 		.id_video_card                      (id_video_card),
-		.id_vga13_active                    (id_vga13_active),
 		.enable_a000h                       (a000h),
 		.wait_count_clk_en                  (cpu_ce_negedge),
 		.ram_read_wait_cycle                (ram_read_wait_cycle),
@@ -2686,7 +2662,6 @@ module emu
 
     // Identification block (XTCTL 8990h..8997h): which card is in use
     assign id_video_card    = ega_active ? 2'd3 : ((`ENABLE_HGC && hgc_mode) ? 2'd2 : 2'd1);
-    assign id_vga13_active  = HAS_EGA & vga_mode13_active_video;
 
     //
     ///////////////////////   VIDEO   ///////////////////////
@@ -2991,35 +2966,21 @@ module emu
     // end of the short dots of the 16.257 MHz pattern.
     reg         ega_dot_toggle_d = 1'b0;
     reg         ega_dot_toggle_dd = 1'b0;
-    // vga_mode13_active_video drives either the Native VGA or 15 kHz CRT-TV
-    // raster (rtl/video/vga_mode13_timing.v), whose real pixel rate is one
-    // flip per displayed pixel, not per video-clock cycle.
-    reg         vga_mode13_pixel_toggle_d = 1'b0;
-    reg         vga_mode13_pixel_toggle_dd = 1'b0;
 
     always @(posedge clk_57_272)
     begin
         ega_dot_toggle_d           <= ega_dot_toggle;
         ega_dot_toggle_dd          <= ega_dot_toggle_d;
-        vga_mode13_pixel_toggle_d  <= vga_mode13_pixel_toggle;
-        vga_mode13_pixel_toggle_dd <= vga_mode13_pixel_toggle_d;
     end
 
     wire        ce_pixel_dot    = ega_dot_toggle_d ^ ega_dot_toggle_dd;
-    wire        ce_pixel_mode13 = vga_mode13_pixel_toggle_d ^ vga_mode13_pixel_toggle_dd;
-    wire        vga_video_direct = vga_mode13_active_video;
-    wire        ce_pixel_ega = ega_scandouble_active ? ce_pixel_cga_2x
-                             : vga_video_direct      ? ce_pixel_mode13
-                             : ce_pixel_dot;
+    wire        ce_pixel_ega = ega_scandouble_active ? ce_pixel_cga_2x : ce_pixel_dot;
 
-    wire LHBL_ega = (ega_scandouble_active || vga_video_direct) ? EGA_HBlank : ~EGA_de_o;
+    wire LHBL_ega = ega_scandouble_active ? EGA_HBlank : ~EGA_de_o;
     wire LVBL_ega = EGA_VBlank;
 
     // Sync and blanking go through the converter with the colour so they come
-    // out of it with the same delay.  Mode 13h only takes the undelayed pair
-    // below in Full Color: once a monochrome Display option is picked it has
-    // to run through the converter like every other mode, both for the tint
-    // and to stay time-aligned with it, or the picture is full colour again.
+    // out of it with the same delay.
     video_monochrome_converter video_mono_ega
 	(
 		.clk_vid(CLK_VIDEO_MAIN),
@@ -3045,15 +3006,6 @@ module emu
 		.HBlank_OUT(hbaux_ega),
 		.VBlank_OUT(vbaux_ega)
 	);
-
-    wire vga_video_direct_color = vga_video_direct && color;
-    wire [7:0] bypass_r = vga_video_direct_color ? {EGA_R, EGA_R[5:4]} : raux_ega;
-    wire [7:0] bypass_g = vga_video_direct_color ? {EGA_G, EGA_G[5:4]} : gaux_ega;
-    wire [7:0] bypass_b = vga_video_direct_color ? {EGA_B, EGA_B[5:4]} : baux_ega;
-    wire bypass_hs = vga_video_direct_color ? EGA_HSYNC : haux_ega;
-    wire bypass_vs = vga_video_direct_color ? EGA_VSYNC : vaux_ega;
-    wire bypass_hb = vga_video_direct_color ? LHBL_ega  : hbaux_ega;
-    wire bypass_vb = vga_video_direct_color ? LVBL_ega  : vbaux_ega;
 
     // The detector runs in the 28.636 MHz video domain and these change once a
     // frame. Two stages across to the 57.272 MHz clock, which is the same PLL at
@@ -3137,11 +3089,11 @@ module emu
                                     : (swap_video_eff & crt480i_osd);
 
     wire        cap_ce      = ega_active_vid ? ce_pixel_ega : ce_pixel_hgc_fb;
-    wire [7:0]  cap_r       = ega_active_vid ? bypass_r : raux_hgc;
-    wire [7:0]  cap_g       = ega_active_vid ? bypass_g : gaux_hgc;
-    wire [7:0]  cap_b       = ega_active_vid ? bypass_b : baux_hgc;
-    wire        cap_de      = ega_active_vid ? (~bypass_hb & ~bypass_vb) : hgc_fb_de;
-    wire        cap_vblank  = ega_active_vid ? bypass_vb : vbaux_hgc;
+    wire [7:0]  cap_r       = ega_active_vid ? raux_ega : raux_hgc;
+    wire [7:0]  cap_g       = ega_active_vid ? gaux_ega : gaux_hgc;
+    wire [7:0]  cap_b       = ega_active_vid ? baux_ega : baux_hgc;
+    wire        cap_de      = ega_active_vid ? (~hbaux_ega & ~vbaux_ega) : hgc_fb_de;
+    wire        cap_vblank  = ega_active_vid ? vbaux_ega : vbaux_hgc;
     wire [11:0] cap_dots    = ega_active_vid ? adots_s2  : HGC_FB_DOTS;
     wire [9:0]  cap_lines   = ega_active_vid ? alines_s2 : hgc_fb_active_lines;
 
@@ -3258,8 +3210,8 @@ module emu
         .clock(CLK_VIDEO_MAIN),
         .reset(video_retime_reset_57),
         .select_alt(fb_enable & fb_frame_valid),
-        .primary_hsync(ega_active_vid ? bypass_hs : haux_hgc),
-        .primary_vblank(ega_active_vid ? bypass_vb : vbaux_hgc),
+        .primary_hsync(ega_active_vid ? haux_ega : haux_hgc),
+        .primary_vblank(ega_active_vid ? vbaux_ega : vbaux_hgc),
         .alt_hsync(fb_hs),
         .alt_vblank(fb_vb),
         .alt_active(crt480i_active)
@@ -3267,13 +3219,13 @@ module emu
 
     // The main mixer carries the EGA picture, the CGA picture and, when the
     // captured 15 kHz raster is on the wire, the HGC picture too.
-    wire [7:0] main_r  = crt480i_active ? fb_r  : (ega_active_vid ? bypass_r  : raux_cga);
-    wire [7:0] main_g  = crt480i_active ? fb_g  : (ega_active_vid ? bypass_g  : gaux_cga);
-    wire [7:0] main_b  = crt480i_active ? fb_b  : (ega_active_vid ? bypass_b  : baux_cga);
-    wire       main_hs = crt480i_active ? fb_hs : (ega_active_vid ? bypass_hs : haux_cga);
-    wire       main_vs = crt480i_active ? fb_vs : (ega_active_vid ? bypass_vs : vaux_cga);
-    wire       main_hb = crt480i_active ? fb_hb : (ega_active_vid ? bypass_hb : hbaux_cga);
-    wire       main_vb = crt480i_active ? fb_vb : (ega_active_vid ? bypass_vb : vbaux_cga);
+    wire [7:0] main_r  = crt480i_active ? fb_r  : (ega_active_vid ? raux_ega  : raux_cga);
+    wire [7:0] main_g  = crt480i_active ? fb_g  : (ega_active_vid ? gaux_ega  : gaux_cga);
+    wire [7:0] main_b  = crt480i_active ? fb_b  : (ega_active_vid ? baux_ega  : baux_cga);
+    wire       main_hs = crt480i_active ? fb_hs : (ega_active_vid ? haux_ega : haux_cga);
+    wire       main_vs = crt480i_active ? fb_vs : (ega_active_vid ? vaux_ega : vaux_cga);
+    wire       main_hb = crt480i_active ? fb_hb : (ega_active_vid ? hbaux_ega : hbaux_cga);
+    wire       main_vb = crt480i_active ? fb_vb : (ega_active_vid ? vbaux_ega : vbaux_cga);
     wire       ce_pixel_main = crt480i_active ? fb_ce_pix
                              : (ega_active_vid ? ce_pixel_ega : ce_pixel_cga_vid);
 

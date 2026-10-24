@@ -22,12 +22,12 @@
 //  that wrong in a bench produces failures that look like RTL bugs.
 //
 //  With loop_enable = 1 the read return path is modelled, so a read qualified
-//  on bus_d == bus_d_q gates itself on its own result: the strobe drops,
-//  vga_dac_io drives 8'h00 (its io_data_out is combinational on those
-//  strobes), that 00h comes round again, and the byte oscillates while
-//  data_read_evt re-fires and walks read_component off its R/G/B phase. That
-//  is what broke DAC readback - palette fades, and the write-index probe a
-//  VGA-aware game uses to decide whether a DAC is there at all.
+//  on bus_d == bus_d_q gates itself on its own result: the strobe drops, the
+//  card drives a different byte (its read data is combinational on those
+//  strobes), that byte comes round again, and the value oscillates. The CRTC
+//  data port (3D5h, registers 0Ch-11h) is the readback the EGA has to keep
+//  right through it; it is what the cursor and start-address probes of DOS
+//  programs read.
 //  loop_enable = 0 models Peripherals.sv with the return path removed.
 //
 //  Transients are injected on the synchronised address feeding ega_top, not on
@@ -40,8 +40,8 @@
 //  it does not model bit-level skew on the return path itself.
 //
 //  Run (from the repo root):
-//    iverilog -g2012 -o tb rtl/video/TESTBENCH/ega_io_qualifier_tb.v \
-//      rtl/video/ega_top.v <the rest of video.qip>
+//    iverilog -g2012 -o tb TESTBENCH/ega_io_qualifier_tb.v \
+//      rtl/ega/ega_top.v <the rest of pc_common.qip>
 //    vvp tb
 //
 //============================================================================
@@ -79,13 +79,10 @@ module ega_io_qualifier_tb;
 
     wire [7:0] bus_out;
     wire       bus_dir;
-    wire       vga_mode13_active_out;
-    wire       vga_planar_memory_active_out;
     wire       video_de;
     wire [5:0] video_red;
     wire [5:0] video_green;
     wire [5:0] video_blue;
-    reg        vga_enabled = 1'b1;
 
     reg [7:0] planar_plane0 = 8'h00;
     reg [7:0] planar_plane1 = 8'h00;
@@ -178,8 +175,6 @@ module ega_io_qualifier_tb;
         .ega_text_attr             (8'h00),
         .ega_text_glyph            (8'h00),
         .ega_text_data_valid       (1'b0), .ega_text_tag_in(1'b0),
-        .vga_framebuffer_pixel     (8'h00),
-        .vga_framebuffer_data_valid(1'b0),
         .cpu_mem_select            (1'b0),
         .cpu_mem_write             (1'b0),
         .splashscreen              (1'b0), .ext_splash_pixel_index(4'd0), .ext_splash_pixel_valid(1'b0), .prebios_video(1'b0),
@@ -187,12 +182,6 @@ module ega_io_qualifier_tb;
         .scandouble_en             (1'b0),
         .ega_enabled               (1'b1),
         .ega_monitor_profile       (2'b00),
-        .vga_enabled               (vga_enabled),
-        .vga_mode13_native         (1'b0),
-        .vga_mode13_set            (1'b0),
-        .vga_mode13_clear          (1'b0),
-        .vga_mode13_active_out     (vga_mode13_active_out),
-        .vga_planar_memory_active_out(vga_planar_memory_active_out),
         .de_o                      (video_de),
         .ega_red                  (video_red),
         .ega_green                (video_green),
@@ -213,17 +202,11 @@ module ega_io_qualifier_tb;
         end
     endtask
 
-    // Clocks the strobe stays high between one cycle and the next. The DAC
-    // edge-detects, so it needs to see the strobe deassert to count a second
-    // access; a gap too short to survive the synchronisers merges two cycles
-    // into one. Back-to-back `in al, dx` in the TSR's read_one_dac is about as
-    // tight as this gets on real code.
+    // Clocks the strobe stays high between one cycle and the next. A gap too
+    // short to survive the synchronisers merges two cycles into one.
     integer gap_clks = PIPE_CLKS + 2;
 
-    // Clocks the strobe is held low, CPU side. Kept as a variable rather than
-    // the fixed PIPE_CLKS + CYCLE_CLKS it defaults to, because
-    // run_write_burst_sweep narrows it to find how tight a palette-block write
-    // burst can get.
+    // Clocks the strobe is held low, CPU side.
     integer strobe_clks = PIPE_CLKS + CYCLE_CLKS;
 
     task automatic io_write(input [14:0] addr, input [7:0] data);
@@ -304,144 +287,47 @@ module ega_io_qualifier_tb;
     //------------------------------------------------------------------
     // Scenarios
     //------------------------------------------------------------------
-    task automatic dac_write_entry(input [7:0] idx,
-                                   input [7:0] r,
-                                   input [7:0] g,
-                                   input [7:0] b);
+    // CRTC registers 0Ch-11h read back through 3D5h. Written with the index
+    // at 3D4h, read back the way a program reads the cursor position or the
+    // start address.
+    task automatic run_crtc_readback_tests(input string tag);
+        reg [7:0] v;
         begin
-            io_write(15'h03C8, idx);
-            io_write(15'h03C9, r);
-            io_write(15'h03C9, g);
-            io_write(15'h03C9, b);
-        end
-    endtask
+            io_write(15'h03D4, 8'h0E);
+            io_write(15'h03D5, 8'h5A);
+            io_write(15'h03D4, 8'h0F);
+            io_write(15'h03D5, 8'hC3);
 
-    task automatic run_dac_tests(input string tag);
-        reg [7:0] r, g, b, probe;
-        begin
-            // The VGA-presence probe a DAC-aware program does: write the write
-            // index, read it back, believe the DAC only if it matches.
-            io_write(15'h03C8, 8'h5A);
-            io_read(15'h03C8, probe);
-            check8({tag, "3C8 write-index readback (VGA probe)"}, probe, 8'h5A);
+            io_write(15'h03D4, 8'h0E);
+            io_read(15'h03D5, v);
+            // R14 is six bits wide: bits 7:6 read back as zero
+            check8({tag, "3D5 cursor location high readback"}, v, 8'h1A);
+            io_write(15'h03D4, 8'h0F);
+            io_read(15'h03D5, v);
+            check8({tag, "3D5 cursor location low readback"}, v, 8'hC3);
 
-            // Load one entry, then read it back the way a fade does.
-            dac_write_entry(8'h20, 8'h2A, 8'h15, 8'h3F);
-            io_write(15'h03C7, 8'h20);
-            io_read(15'h03C9, r);
-            io_read(15'h03C9, g);
-            io_read(15'h03C9, b);
-            check8({tag, "3C9 readback red"},   r, 8'h2A);
-            check8({tag, "3C9 readback green"}, g, 8'h15);
-            check8({tag, "3C9 readback blue"},  b, 8'h3F);
+            io_write(15'h03D4, 8'h0C);
+            io_write(15'h03D5, 8'h12);
+            io_write(15'h03D4, 8'h0D);
+            io_write(15'h03D5, 8'h34);
+            io_write(15'h03D4, 8'h0C);
+            io_read(15'h03D5, v);
+            check8({tag, "3D5 start address high readback"}, v, 8'h12);
+            io_write(15'h03D4, 8'h0D);
+            io_read(15'h03D5, v);
+            check8({tag, "3D5 start address low readback"}, v, 8'h34);
 
-            // The index must auto-advance exactly once per RGB triple, not
-            // once per glitch on the read strobe.
-            dac_write_entry(8'h21, 8'h01, 8'h02, 8'h03);
-            io_write(15'h03C7, 8'h20);
-            io_read(15'h03C9, r);
-            io_read(15'h03C9, g);
-            io_read(15'h03C9, b);
-            io_read(15'h03C9, r);
-            io_read(15'h03C9, g);
-            io_read(15'h03C9, b);
-            check8({tag, "3C9 next entry red after auto-advance"},   r, 8'h01);
-            check8({tag, "3C9 next entry green after auto-advance"}, g, 8'h02);
-            check8({tag, "3C9 next entry blue after auto-advance"},  b, 8'h03);
-
-            // 3CD readback: how the TSR decides whether to claim VGA.
-            io_read(15'h03CD, probe);
-            check8({tag, "3CD mode13 availability readback"}, probe, 8'h13);
-        end
-    endtask
-
-    // Little Game Engine's first LOADING/CARGANDO box exposes an important
-    // distinction between storing a palette in system RAM and actually
-    // programming the VGA DAC. Its mode-X startup clears the hardware DAC,
-    // LT_Load_Font only fills LT_tileset_palette[252..255] in RAM, and the
-    // first DAC upload does not happen until LT_Fade_in, after the logo has
-    // finished loading and the display page has changed. Keep the core side
-    // of that sequence explicit: a cleared high palette entry must stay black
-    // until software writes it, and the later write must land normally.
-    task automatic run_ltdemo_loading_palette_test;
-        reg [7:0] r, g, b, status_probe;
-        integer timeout;
-        begin
-            io_write(15'h03CD, 8'h13);
-
-            // Representative of VGA_ClearPalette for the font's first DAC
-            // entry. The real routine repeats this for all 256 entries.
-            dac_write_entry(8'hFC, 8'h00, 8'h00, 8'h00);
-
-            // LT_Load_Font performs no OUT to 3C8h/3C9h. Reading the entry at
-            // the point where the loading box is drawn must therefore still
-            // return black.
-            io_write(15'h03C7, 8'hFC);
-            io_read(15'h03C9, r);
-            io_read(15'h03C9, g);
-            io_read(15'h03C9, b);
-            check8("LT demo font entry red before first fade",   r, 8'h00);
-            check8("LT demo font entry green before first fade", g, 8'h00);
-            check8("LT demo font entry blue before first fade",  b, 8'h00);
-
-            // LT_Fade_in eventually uploads LT_tileset_palette. Confirm that
-            // the same entry becomes visible once software really writes it.
-            dac_write_entry(8'hFC, 8'h3F, 8'h2A, 8'h15);
-            io_write(15'h03C7, 8'hFC);
-            io_read(15'h03C9, r);
-            io_read(15'h03C9, g);
-            io_read(15'h03C9, b);
-            check8("LT demo font entry red after first fade",   r, 8'h3F);
-            check8("LT demo font entry green after first fade", g, 8'h2A);
-            check8("LT demo font entry blue after first fade",  b, 8'h15);
-
-            // Entering planar 0Dh invalidates the mode-13h DAC defaults. That
-            // path consequently falls back to the normal EGA palette and is
-            // not affected by the high-index mode-X font-palette problem.
-            io_write(15'h03CD, 8'h0D);
-            check1("LT demo mode0D invalidates DAC entry FC",
-                   dut.vga_dac_io_inst.dac.entry_valid[8'hFC], 1'b0);
-
-            // The EGA BIOS terminates a mode set by restoring Palette Address
-            // Source. Reproduce that final write; an earlier transient test
-            // deliberately left PAS cleared.
-            io_read(15'h03DA, status_probe);
-            io_write(15'h03C0, 8'h20);
-
-            // Unlike mode X, the 16-colour route uses the ordinary attribute
-            // palette. Feed a white planar pixel and prove that the private
-            // 0Dh raster can display it immediately, before any VGA DAC fade.
-            planar_plane0 = 8'hFF;
-            planar_plane1 = 8'hFF;
-            planar_plane2 = 8'hFF;
-            planar_plane3 = 8'hFF;
-            planar_data_valid = 1'b1;
-            timeout = 0;
-            while ((video_de !== 1'b1) && timeout < 1000000) begin
-                clks(1);
-                timeout = timeout + 1;
-            end
-            check1("LT demo mode0D reaches active video before a DAC fade",
-                   video_de, 1'b1);
-            if (video_de) begin
-                // Attribute lookup and RGB conversion trail the renderer's
-                // first DE edge by a couple of video clocks.
-                clks(4);
-                check8("LT demo mode0D initial white red",
-                       {2'b00, video_red}, 8'h3F);
-                check8("LT demo mode0D initial white green",
-                       {2'b00, video_green}, 8'h3F);
-                check8("LT demo mode0D initial white blue",
-                       {2'b00, video_blue}, 8'h3F);
-            end
-            planar_data_valid = 1'b0;
-            io_write(15'h03CD, 8'h00);
+            // Registers 00h-0Bh are write-only on the EGA: nothing drives the
+            // bus, which floats high.
+            io_write(15'h03D4, 8'h00);
+            io_read(15'h03D5, v);
+            check8({tag, "3D5 write-only register floats high"}, v, 8'hFF);
         end
     endtask
 
     task automatic run_transient_tests;
         reg [7:0] misc_before;
-        reg [7:0] probe;
+        reg [7:0] v;
         begin
             // Misc Output must survive a one-clock 0x3C2 landing during a
             // write to the attribute controller: bit 2 is the dot clock and
@@ -459,132 +345,18 @@ module ega_io_qualifier_tb;
                    dut.ega_misc_output_reg, 8'h67);
             io_write(15'h03C2, 8'h63);
 
-            // A transient 0x3CD carrying 0x13 must not enter mode 13h.
-            check1("mode13 inactive before transient", vga_mode13_active_out, 1'b0);
-            io_write_with_transient(15'h03C5, 8'h13, 15'h03CD, 8'h13);
-            check1("mode13 ignores one-clock 3CD transient",
-                   vga_mode13_active_out, 1'b0);
+            // A transient 3D5h write must not reach the CRTC register the
+            // index points at.
+            io_write(15'h03D4, 8'h0E);
+            io_write(15'h03D5, 8'h11);
+            io_write_with_transient(15'h03C0, 8'h00, 15'h03D5, 8'hEE);
+            io_read(15'h03D5, v);
+            check8("CRTC data ignores one-clock 3D5 transient", v, 8'h11);
 
-            // A genuine write to 3CD still enters, and still leaves.
-            io_write(15'h03CD, 8'h13);
-            check1("mode13 enters on a genuine 3CD write",
-                   vga_mode13_active_out, 1'b1);
-            check1("packed mode13 uses packed framebuffer memory",
-                   vga_planar_memory_active_out, 1'b0);
-
-            // Ctrl+Alt+Del clears XTEGACTL's VGA enable. The private raster
-            // must then release the connector even though software did not
-            // write the usual 3CD exit value.
-            vga_enabled = 1'b0;
-            clks(2);
-            check1("disabling VGA13 releases the private raster",
-                   vga_mode13_active_out, 1'b0);
-            io_read(15'h03CD, probe);
-            // Reconciliation PCXT-EGA / PCAT-286: with the VGA
-            // extension off the port is not decoded and the bus floats high,
-            // as on a real EGA, where PCXT-EGA used to answer 00h. Either
-            // value is "not 13h", which is all the DOS tools test.
-            check8("disabled VGA13 reports unavailable", probe, 8'hFF);
-            vga_enabled = 1'b1;
-            clks(2);
-            io_write(15'h03CD, 8'h13);
-
-            io_write(15'h03CD, 8'h0D);
-            check1("VGA planar mode0D owns the private raster",
-                   vga_mode13_active_out, 1'b1);
-            check1("VGA planar mode0D keeps planar VRAM active",
-                   vga_planar_memory_active_out, 1'b1);
-            io_write(15'h03CD, 8'h00);
-            check1("private VGA raster leaves on a genuine 3CD clear",
-                   vga_mode13_active_out, 1'b0);
-        end
-    endtask
-
-    // How tight can consecutive DAC accesses get before the core stops
-    // counting them separately? The TSR reads a palette entry as three
-    // back-to-back `in al, dx`, so this is the shape of a fade, and at the
-    // fastest CPU setting the virtual 8088 runs at 25 MHz against a 35 ns
-    // video clock. Informational rather than pass/fail: the answer is a
-    // property of the synchronisers, and what matters is whether it leaves
-    // margin over what real code produces.
-    task automatic run_burst_sweep;
-        reg [7:0] r, g, b;
-        integer gap;
-        integer narrowest_ok;
-        begin
-            narrowest_ok = -1;
-            for (gap = 12; gap >= 1; gap = gap - 1) begin
-                gap_clks = PIPE_CLKS + 2;
-                dac_write_entry(8'h30, 8'h11, 8'h22, 8'h33);
-                io_write(15'h03C7, 8'h30);
-                gap_clks = gap;
-                io_read(15'h03C9, r);
-                io_read(15'h03C9, g);
-                io_read(15'h03C9, b);
-                gap_clks = PIPE_CLKS + 2;
-                if (r === 8'h11 && g === 8'h22 && b === 8'h33) begin
-                    $display("  gap %2d clk: ok    (%02h %02h %02h)", gap, r, g, b);
-                    narrowest_ok = gap;
-                end else begin
-                    $display("  gap %2d clk: BAD   (%02h %02h %02h)", gap, r, g, b);
-                end
-            end
-            $display("  narrowest inter-cycle gap that still reads back: %0d clk",
-                     narrowest_ok);
-        end
-    endtask
-
-    // Titus the Fox never reads the DAC - no AX=1015h, no AX=1017h, no 3C7h
-    // anywhere in MTF.COM. It loads its palette with AX=1012h, which lands in
-    // the TSR's set_dac_block: one OUT to 3C8h then a tight loop of three OUTs
-    // to 3C9h per entry, up to 768 of them back to back with only a mov and an
-    // inc between. So the fade is a write burst, and this sweep is the one that
-    // matters for it. Writes carry the full qualifier including bus_d ==
-    // bus_d_q, and consecutive entries change the data every cycle, so each
-    // write spends a clock or two settling out of a budget that is only about
-    // five video clocks wide at the PC/AT 3.5MHz setting.
-    //
-    // Readback afterwards is done at wide timing, so a failure here means the
-    // write was genuinely dropped, not that the read could not keep up.
-    task automatic run_write_burst_sweep;
-        reg [7:0] r, g, b;
-        integer w;
-        integer min_ok;
-        integer bad;
-        begin
-            min_ok = -1;
-            $display("   width  palette block write, read back wide");
-            for (w = 30; w >= 3; w = w - 1) begin
-                // Load four consecutive entries the way set_dac_block does.
-                strobe_clks = w;
-                gap_clks = 3;
-                io_write(15'h03C8, 8'h50);
-                io_write(15'h03C9, 8'h01); io_write(15'h03C9, 8'h02); io_write(15'h03C9, 8'h03);
-                io_write(15'h03C9, 8'h04); io_write(15'h03C9, 8'h05); io_write(15'h03C9, 8'h06);
-                io_write(15'h03C9, 8'h07); io_write(15'h03C9, 8'h08); io_write(15'h03C9, 8'h09);
-                io_write(15'h03C9, 8'h0A); io_write(15'h03C9, 8'h0B); io_write(15'h03C9, 8'h0C);
-
-                strobe_clks = PIPE_CLKS + CYCLE_CLKS;
-                gap_clks = PIPE_CLKS + 2;
-                bad = 0;
-                io_write(15'h03C7, 8'h50);
-                io_read(15'h03C9, r); io_read(15'h03C9, g); io_read(15'h03C9, b);
-                if (r !== 8'h01 || g !== 8'h02 || b !== 8'h03) bad = bad + 1;
-                io_read(15'h03C9, r); io_read(15'h03C9, g); io_read(15'h03C9, b);
-                if (r !== 8'h04 || g !== 8'h05 || b !== 8'h06) bad = bad + 1;
-                io_read(15'h03C9, r); io_read(15'h03C9, g); io_read(15'h03C9, b);
-                if (r !== 8'h07 || g !== 8'h08 || b !== 8'h09) bad = bad + 1;
-                io_read(15'h03C9, r); io_read(15'h03C9, g); io_read(15'h03C9, b);
-                if (r !== 8'h0A || g !== 8'h0B || b !== 8'h0C) bad = bad + 1;
-
-                if (bad == 0) begin
-                    $display("   %2d clk  ok    all 4 entries landed", w);
-                    min_ok = w;
-                end else begin
-                    $display("   %2d clk  BAD   %0d of 4 entries wrong", w, bad);
-                end
-            end
-            $display("   narrowest cycle that loads a palette block: %0d clk", min_ok);
+            // A genuine write still lands.
+            io_write(15'h03D5, 8'h22);
+            io_read(15'h03D5, v);
+            check8("CRTC data takes a genuine write", v, 8'h22);
         end
     endtask
 
@@ -600,7 +372,7 @@ module ega_io_qualifier_tb;
 
         $display("-- read path, Peripherals.sv return path modelled --");
         loop_enable = 1'b1;
-        run_dac_tests("loop: ");
+        run_crtc_readback_tests("loop: ");
 
         $display("");
         $display("-- transient-address rejection must still hold --");
@@ -610,24 +382,7 @@ module ega_io_qualifier_tb;
         $display("-- read path, return path removed at source --");
         loop_enable = 1'b0;
         clks(8);
-        run_dac_tests("noloop: ");
-
-        $display("");
-        $display("-- how tight can back-to-back DAC reads get --");
-        loop_enable = 1'b1;
-        clks(8);
-        run_burst_sweep();
-
-        $display("");
-        $display("-- palette block write burst, the shape of a Titus fade --");
-        run_write_burst_sweep();
-
-        $display("");
-        $display("-- Little Game Engine initial loading palette sequence --");
-        strobe_clks = PIPE_CLKS + CYCLE_CLKS;
-        gap_clks = PIPE_CLKS + 2;
-        loop_enable = 1'b0;
-        run_ltdemo_loading_palette_test();
+        run_crtc_readback_tests("noloop: ");
 
         $display("");
         $display("%0d passed, %0d failed", pass_count, fail_count);

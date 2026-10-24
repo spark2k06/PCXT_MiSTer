@@ -7,7 +7,7 @@
 module CHIPSET #(
         parameter clk_rate = 28'd50000000,
         parameter bit ROM_TANDY = 1'b0,       // F000 maps the Tandy BIOS slot
-        parameter bit ENABLE_EGA = 1'b0)      // the EGA/VGA card and its memory map are built
+        parameter bit ENABLE_EGA = 1'b0)      // the EGA card and its memory map are built
         (
         input   logic           clock,
         input   logic           cpu_ce_posedge,
@@ -27,7 +27,7 @@ module CHIPSET #(
         output  logic           interrupt_to_cpu,
         // SplashScreen
         input   logic           splashscreen,
-        // Video card chosen at reset: 1 = EGA/VGA, 0 = CGA/Hercules
+        // Video card chosen at reset: 1 = EGA, 0 = CGA/Hercules
         input   logic           ega_active,
         // VGA
         output  logic           std_hsyncwidth,
@@ -50,7 +50,7 @@ module CHIPSET #(
         output  logic           VGA_VBlank_border,
         output  logic           VGA_HSYNC_REF,
         output  logic           VGA_VSYNC_REF,
-        // EGA/VGA card outputs (clk_vga_cga domain)
+        // EGA card outputs (clk_vga_cga domain)
         output  logic   [5:0]   EGA_R,
         output  logic   [5:0]   EGA_G,
         output  logic   [5:0]   EGA_B,
@@ -68,12 +68,7 @@ module CHIPSET #(
         output  logic           ega_mode350,
         output  logic   [11:0]  ega_active_dots,
         output  logic   [9:0]   ega_active_lines,
-        input   logic           vga_mode13_osd,
-        input   logic           vga_mode13_native,
         input   logic   [1:0]   ega_monitor_profile,
-        output  logic           vga_mode13_active_out,
-        output  logic           vga_mode13_wide_clock_out,
-        output  logic           vga_mode13_pixel_toggle_out,
         // I/O Ports
         output  logic   [19:0]  address,
         input   logic   [19:0]  address_ext,
@@ -249,7 +244,6 @@ module CHIPSET #(
         // XTEGACTL register file
         output  logic   [7:0]   xtegactl_cpu,
         output  logic   [7:0]   xtegactl_exp,
-        output  logic   [7:0]   xtegactl_vid,
         output  logic   [7:0]   xtegactl_inp,
         output  logic   [7:0]   xtegactl_midi,
         output  logic   [7:0]   xtegactl_exp2,
@@ -261,7 +255,6 @@ module CHIPSET #(
         input   logic   [17:0]  xtegactl_status_osd_match,
         // Identification block (8990h..8997h)
         input   logic   [1:0]   id_video_card,
-        input   logic           id_vga13_active,
         // Optional flags
         input   logic           enable_a000h,
         // RAM wait mode
@@ -340,7 +333,6 @@ module CHIPSET #(
     // CPU memory port <-> EGA frontend (sdram_txn_mux) and the EGA map
     logic           video_memory_access_ready;
     logic           video_io_access_ready;
-    logic           vga13_packed_cpu;
     logic           vram_m_start;
     logic           vram_m_we;
     logic   [23:0]  vram_m_addr;
@@ -364,12 +356,6 @@ module CHIPSET #(
     logic           map_select_ega;
     logic   [24:0]  map_phys_ega;
     logic           map_protect_ega;
-
-    // IBM-compatible BIOSes announce a warm reboot by writing 1234h to the
-    // BIOS Data Area at 0040:0072.  Detect that bus transaction here, where
-    // both the ordinary 8088 byte bus and the 8086 private word path are
-    // visible, before handing the event to the peripheral register file.
-    logic           warm_boot_marker_event;
 
     //
     // I/O settle guard (EGA card only)
@@ -517,18 +503,6 @@ module CHIPSET #(
         .terminal_count_n                   (terminal_count_n)
     );
 
-    warm_boot_marker_detector u_warm_boot_marker_detector (
-        .clock              (clock),
-        .reset              (reset),
-        .address            (address),
-        .address_enable_n   (address_enable_n),
-        .memory_write_n     (memory_write_n),
-        .byte_data          (internal_data_bus),
-        .word_write_request (word_write_request),
-        .word_data          (data_bus_word_in),
-        .warm_boot_event    (warm_boot_marker_event)
-    );
-
     PERIPHERALS #(.clk_rate(clk_rate)) u_PERIPHERALS
     (
         .clock                              (clock),
@@ -585,13 +559,7 @@ module CHIPSET #(
         .ega_mode350                        (ega_mode350),
         .ega_active_dots                    (ega_active_dots),
         .ega_active_lines                   (ega_active_lines),
-        .vga_mode13_osd                     (vga_mode13_osd),
-        .vga_mode13_native                  (vga_mode13_native),
         .ega_monitor_profile                (ega_monitor_profile),
-        .vga_mode13_active_out              (vga_mode13_active_out),
-        .vga_mode13_wide_clock_out          (vga_mode13_wide_clock_out),
-        .vga_mode13_pixel_toggle_out        (vga_mode13_pixel_toggle_out),
-        .warm_boot_marker_event             (warm_boot_marker_event),
         .video_memory_access_ready          (video_memory_access_ready),
         .video_io_access_ready              (video_io_access_ready),
         .vram_m_start                       (vram_m_start),
@@ -618,7 +586,6 @@ module CHIPSET #(
         .snoop_len                          (snoop_len),
         .snoop_wdata                        (snoop_wdata),
         .snoop_wbe                          (snoop_wbe),
-        .vga13_packed_cpu                   (vga13_packed_cpu),
         .address                            (address),
 	    .latch_address                      (latch_address),
         .internal_data_bus                  (internal_data_bus),
@@ -714,7 +681,6 @@ module CHIPSET #(
         .xtctl                              (xtctl),
         .xtegactl_cpu                       (xtegactl_cpu),
         .xtegactl_exp                       (xtegactl_exp),
-        .xtegactl_vid                       (xtegactl_vid),
         .xtegactl_inp                       (xtegactl_inp),
         .xtegactl_midi                      (xtegactl_midi),
         .xtegactl_exp2                      (xtegactl_exp2),
@@ -723,7 +689,6 @@ module CHIPSET #(
         .xtegactl_status_effective          (xtegactl_status_effective),
         .xtegactl_status_osd_match          (xtegactl_status_osd_match),
         .id_video_card                      (id_video_card),
-        .id_vga13_active                    (id_vga13_active),
         .id_cpu_latency_max                 (id_cpu_latency_max),
         .pause_core                         (pause_core),
         .cga_hw                             (cga_hw),
@@ -788,8 +753,7 @@ module CHIPSET #(
     );
 
     // The EGA map replaces the CGA one when that card is chosen. It has no
-    // CGA/HGC video memory: the EGA aperture has its own frontend, and the
-    // 13h image is ordinary memory to the CPU port.
+    // CGA/HGC video memory: the EGA aperture has its own frontend.
     generate
     if (ENABLE_EGA) begin : EGA_MAP
         mem_map_ega u_mem_map_ega
@@ -801,7 +765,6 @@ module CHIPSET #(
             .ems_b3                         (ems_b3),
             .ems_b4                         (ems_b4),
             .umb_enabled                    (umb_enabled),
-            .vga13_packed                   (vga13_packed_cpu),
             .bios_protect_flag              (bios_protect_flag),
             .ec00_loaded                    (ec00_loaded),
             .select                         (map_select_ega),

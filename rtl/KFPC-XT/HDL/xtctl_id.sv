@@ -7,11 +7,11 @@
 //
 //   8990h  model              00h = PCXT, 01h = Tandy 1000, 02h = PCjr
 //   8991h  video card         [1:0] 1 = CGA, 2 = Hercules/MDA, 3 = EGA
-//                             [7]   VGA 13h+ extension is switched on
+//                             [7]   0 (it was the VGA 13h+ flag of the earlier cores)
 //   8992h  block version      01h
 //   8993h  RTC port, low byte
 //   8994h  RTC port, high byte
-//   8995h  capabilities       [0] EGA built    [1] VGA 13h+ built
+//   8995h  capabilities       [0] EGA built    [1] 0 (was VGA 13h+ built)
 //                             [2] CGA built    [3] Hercules/MDA built
 //                             [4] Sound Blaster [5] OPL2  [6] C/MS  [7] Tandy sound
 //   8996h  video underruns    video fetch underruns of the active card, saturating
@@ -40,7 +40,6 @@ module xtctl_id #(
     input  wire        tandy_machine,
     input  wire        pcjr_machine,
     input  wire  [1:0] video_card,
-    input  wire        vga13_active,
     input  wire [15:0] rtc_port,
     input  wire [15:0] video_underruns,
     input  wire  [7:0] cpu_latency_max
@@ -53,7 +52,7 @@ module xtctl_id #(
     always @(*) begin
         case (address[2:0])
             3'd0:    read_mux = {6'd0, pcjr_machine, tandy_machine & ~pcjr_machine};
-            3'd1:    read_mux = {vga13_active, 5'd0, video_card};
+            3'd1:    read_mux = {6'd0, video_card};
             3'd2:    read_mux = VERSION;
             3'd3:    read_mux = rtc_port[7:0];
             3'd4:    read_mux = rtc_port[15:8];

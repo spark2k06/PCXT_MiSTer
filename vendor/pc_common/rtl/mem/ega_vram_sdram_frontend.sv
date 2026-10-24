@@ -1,12 +1,11 @@
 //
-// EGA/VGA video memory in SDRAM: the replacement for
+// EGA video memory in SDRAM: the replacement for
 // ega_vram_bram_frontend. The ports towards the CPU, the register copy and the
 // video-side fetch ports keep their meaning; what is new is that the planes
-// and the packed 13h framebuffer are not in this module but in the SDRAM:
+// are not in this module but in the SDRAM:
 //
 //   plane p, address a (16 bits)   word  PLANE_BASE + 2a + (p >> 1),
 //                                  byte lane p & 1
-//   packed 13h byte b (16 bits)    word  VGA13_BASE + (b >> 1), lane b & 1
 //
 // CPU side (clock domain `clock`, the chipset clock)
 //   A read is one burst of two words that loads the four latches and answers
@@ -28,15 +27,8 @@
 //                            glyph, text_data_valid, LEAD_CELL + LEAD_GLYPH dots
 //                            later. The glyph address depends on the character,
 //                            so the frontend chains the second read itself.
-//     private VGA routes     the same video_* ports, but timed in clocks
-//     (Mode X, 0Dh, 12h)     (EXTRA_PRIV more than the BRAM version) because
-//                            their raster is not driven by the CRTC and asks for
-//                            data on every clock
-//     packed 13h             fb_read_en / fb_addr -> fb_pixel, fb_data_valid,
-//                            EXTRA_FB clocks more than the BRAM version
-//   The consumers (ega_top and its renderers) are built with the matching
-//   delays, and the display side of ega_top is retimed by the same amount so
-//   the picture only moves as a whole.
+//   The consumer (ega_top) is built with the matching delays, and its display
+//   side is retimed by the same amount so the picture only moves as a whole.
 //
 // Request sequencing. Within one engine the answers come back in request order
 // and are taken in the same order. Text needs two engines because the glyph
@@ -47,12 +39,9 @@
 //
 module ega_vram_sdram_frontend #(
     parameter logic [23:0] PLANE_BASE = 24'h400000,  // word address of plane byte 0 (byte 0x080_0000)
-    parameter logic [23:0] VGA13_BASE = 24'h420000,  // word address of packed byte 0 (byte 0x084_0000)
     parameter int LEAD_GFX    = 16,    // dots, graphics request -> answer
     parameter int LEAD_CELL   = 9,     // dots, text cell request -> answer
     parameter int LEAD_GLYPH  = 10,    // dots, glyph request -> answer
-    parameter int EXTRA_PRIV  = 16,    // clocks added to the BRAM latency of the private routes
-    parameter int EXTRA_FB    = 16,    // clocks added to the BRAM latency of packed 13h
     parameter int DOT_SDRAM   = 7,     // sdram clocks in the shortest dot, for deadlines
     parameter int MAIN_DEPTH  = 4,     // entries of the main engine (>= requests in flight + 1)
     parameter int SYNC        = 2
@@ -85,7 +74,6 @@ module ega_vram_sdram_frontend #(
     input  logic         clk_video,
     input  logic         reset_video,
     input  logic         dot_tick,          // ega_top ce_pix
-    input  logic         priv_route,        // a private VGA route owns the fetch port
 
     input  logic [15:0]  video_addr,
     input  logic         video_read_en,
@@ -106,11 +94,6 @@ module ega_vram_sdram_frontend #(
     output logic [7:0]   text_glyph,
     output logic         text_tag_out,
     output logic         text_data_valid,
-
-    input  logic [15:0]  fb_addr,
-    input  logic         fb_read_en,
-    output logic [7:0]   fb_pixel,
-    output logic         fb_data_valid,
 
     // ---------------- Register copy, as in the BRAM frontend
     input  logic         cfg_toggle,
@@ -417,8 +400,8 @@ module ega_vram_sdram_frontend #(
     wire  [15:0] mf_ur, gf_ur;
     wire  [3:0]  mf_occ, gf_occ;
 
-    // Cells, graphics, private routes and 13h: one request in flight per
-    // character or block, at most one per video clock.
+    // Cells and graphics: one request in flight per character or block, at most
+    // one per video clock.
     vram_fetch_x #(.DEPTH(MAIN_DEPTH), .MAX_WORDS(2), .SYNC_STAGES(SYNC)) u_fetch_main (
         .clk_v(clk_video), .reset_v(reset_video),
         .rq_valid(mf_rq_valid), .rq_addr(mf_rq_addr), .rq_len(mf_rq_len), .rq_deadline(mf_rq_dl),
@@ -477,18 +460,14 @@ module ega_vram_sdram_frontend #(
     // ---------------------------------------------------------------------
     // What kind of fetch is going on; a change flushes everything in flight
     // ---------------------------------------------------------------------
-    typedef enum logic [2:0] {K_NONE, K_GFX, K_TEXT, K_PRIV, K_FB} kind_t;
+    typedef enum logic [1:0] {K_NONE, K_GFX, K_TEXT} kind_t;
     kind_t kind;
-    wire   want_gfx  = video_read_en & ~priv_route;
-    wire   want_priv = video_read_en &  priv_route;
+    wire   want_gfx  = video_read_en;
     wire   want_text = text_fetch_en;
-    wire   want_fb   = fb_read_en;
     kind_t want_kind;
     always_comb begin
         want_kind = K_NONE;
-        if      (want_fb)   want_kind = K_FB;
-        else if (want_priv) want_kind = K_PRIV;
-        else if (want_text) want_kind = K_TEXT;
+        if      (want_text) want_kind = K_TEXT;
         else if (want_gfx)  want_kind = K_GFX;
     end
     assign mode_flush = (want_kind != K_NONE) && (kind != K_NONE) && (want_kind != kind);
@@ -500,32 +479,12 @@ module ega_vram_sdram_frontend #(
     // ---------------------------------------------------------------------
     // Request to the main engine
     // ---------------------------------------------------------------------
-    logic [15:0] priv_last_addr;
-    logic        priv_last_valid;
-    logic [13:0] fb_last_blk;
-    logic        fb_last_valid;
-
-    wire priv_new   = want_priv & (~priv_last_valid | (video_addr != priv_last_addr));
-    wire fb_blk_new = want_fb & (~fb_last_valid | (fb_addr[15:2] != fb_last_blk));
-
     always_comb begin
         mf_rq_valid = 1'b0;
         mf_rq_addr  = 24'd0;
         mf_rq_len   = LEN_2;
         mf_rq_dl    = 16'd0;
-        if (want_fb) begin
-            mf_rq_valid = fb_blk_new;
-            mf_rq_addr  = VGA13_BASE + {9'd0, fb_addr[15:2], 1'b0};
-            mf_rq_len   = LEN_2;
-            mf_rq_dl    = 16'(EXTRA_FB * 4);
-        end
-        else if (want_priv) begin
-            mf_rq_valid = priv_new;
-            mf_rq_addr  = PLANE_BASE + {7'd0, video_addr, 1'b0};
-            mf_rq_len   = LEN_2;
-            mf_rq_dl    = 16'(EXTRA_PRIV * 4);
-        end
-        else if (want_text) begin
+        if (want_text) begin
             mf_rq_valid = 1'b1;
             mf_rq_addr  = PLANE_BASE + {7'd0, text_cell_addr, 1'b0};
             mf_rq_len   = LEN_1;
@@ -539,26 +498,11 @@ module ega_vram_sdram_frontend #(
         end
     end
 
-    always_ff @(posedge clk_video) begin
-        if (reset_video) begin
-            priv_last_valid <= 1'b0;
-            fb_last_valid   <= 1'b0;
-        end
-        else begin
-            if (want_priv) begin priv_last_addr <= video_addr; priv_last_valid <= 1'b1; end
-            else if (~video_read_en) priv_last_valid <= 1'b0;
-            if (want_fb) begin fb_last_blk <= fb_addr[15:2]; fb_last_valid <= 1'b1; end
-            else if (~fb_read_en) fb_last_valid <= 1'b0;
-        end
-    end
-
     // ---------------------------------------------------------------------
     // Token lines. Payloads:
     //   gfx   none
     //   cell  {scanline(5), tag}
     //   glyph {tag, attr(8), char(8)}
-    //   priv  {ren, new}
-    //   fb    {ren, new, 0, byte offset(2)}   (one token per read, not per block)
     // ---------------------------------------------------------------------
     logic gfx_exit;
     pc_token_delay #(.N(LEAD_GFX), .PW(1), .ANCHOR(0)) u_tok_gfx (
@@ -593,73 +537,34 @@ module ega_vram_sdram_frontend #(
         .tok_in(glyph_go), .pay_in({cell_pay[0], cell_attr, cell_char}),
         .exit_now(glyph_exit), .exit_pay(glyph_pay));
 
-    logic        priv_exit;
-    logic [1:0]  priv_pay;
-    pc_token_delay #(.N(EXTRA_PRIV), .PW(2), .ANCHOR(2)) u_tok_priv (
-        .clk(clk_video), .reset(reset_video), .clear(mode_flush), .adv(1'b1),
-        .tok_in(want_priv), .pay_in({1'b1, priv_new}),
-        .exit_now(priv_exit), .exit_pay(priv_pay));
-
-    logic        fb_exit;
-    logic [4:0]  fb_pay;
-    pc_token_delay #(.N(EXTRA_FB), .PW(5), .ANCHOR(2)) u_tok_fb (
-        .clk(clk_video), .reset(reset_video), .clear(mode_flush), .adv(1'b1),
-        .tok_in(want_fb), .pay_in({1'b1, fb_blk_new, 1'b0, fb_addr[1:0]}),
-        .exit_now(fb_exit), .exit_pay(fb_pay));
-
     // ---------------------------------------------------------------------
     // Pops and outputs
     // ---------------------------------------------------------------------
     wire gfx_pop   = gfx_exit;
     wire cell_pop  = cell_exit;
-    wire priv_pop  = priv_exit & priv_pay[0];
-    wire fb_pop    = fb_exit & fb_pay[3];
-    assign mf_pop = gfx_pop | cell_pop | priv_pop | fb_pop;
+    assign mf_pop = gfx_pop | cell_pop;
     assign gf_pop = glyph_exit;
 
     logic [31:0] gfx_planes;
     logic        gfx_valid_q;
-    logic [31:0] priv_planes;
-    logic        priv_valid_q, priv_valid_q2;
-    logic [31:0] fb_blk;
-    logic        fb_valid_q;
-    logic [7:0]  fb_byte;
 
     always_ff @(posedge clk_video) begin
         if (reset_video) begin
             gfx_valid_q   <= 1'b0;
-            priv_valid_q  <= 1'b0;
-            priv_valid_q2 <= 1'b0;
-            fb_valid_q    <= 1'b0;
             gfx_planes    <= 32'd0;
-            priv_planes   <= 32'd0;
-            fb_blk        <= 32'd0;
-            fb_byte       <= 8'd0;
         end
         else begin
             // An underrun leaves the previous data in place; the engine counts it.
             gfx_valid_q <= gfx_exit;
             if (gfx_pop & mf_hd_valid) gfx_planes <= mf_hd_data[31:0];
-
-            if (priv_pop & mf_hd_valid) priv_planes <= mf_hd_data[31:0];
-            priv_valid_q  <= priv_exit & priv_pay[1];
-            priv_valid_q2 <= priv_valid_q;
-
-            if (fb_pop & mf_hd_valid) fb_blk <= mf_hd_data[31:0];
-            fb_valid_q <= fb_exit & fb_pay[4];
-            if (fb_exit & fb_pay[4]) begin
-                fb_byte <= ((fb_pay[3] & mf_hd_valid) ? mf_hd_data[31:0] : fb_blk) >> (8 * fb_pay[1:0]);
-            end
         end
     end
 
-    assign video_plane0 = priv_route ? priv_planes[7:0]   : gfx_planes[7:0];
-    assign video_plane1 = priv_route ? priv_planes[15:8]  : gfx_planes[15:8];
-    assign video_plane2 = priv_route ? priv_planes[23:16] : gfx_planes[23:16];
-    assign video_plane3 = priv_route ? priv_planes[31:24] : gfx_planes[31:24];
-    assign video_data_valid = priv_route ? priv_valid_q2 : gfx_valid_q;
-    assign fb_pixel      = fb_byte;
-    assign fb_data_valid = fb_valid_q;
+    assign video_plane0 = gfx_planes[7:0];
+    assign video_plane1 = gfx_planes[15:8];
+    assign video_plane2 = gfx_planes[23:16];
+    assign video_plane3 = gfx_planes[31:24];
+    assign video_data_valid = gfx_valid_q;
 
     // Text: coincident with the step, like the cell/glyph pair of the BRAM version
     assign text_data_valid = glyph_exit;

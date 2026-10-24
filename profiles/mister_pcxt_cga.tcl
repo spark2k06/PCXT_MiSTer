@@ -10,11 +10,10 @@ set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_VIDEO=0"
 set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_AUDIO=0"
 set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_KBD=0"
 
-# Video: CGA and Hercules, no EGA card (and therefore no VGA 13h)
+# Video: CGA and Hercules, no EGA card
 set_global_assignment -name VERILOG_MACRO "ENABLE_CGA=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_HGC=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_EGA=0"
-set_global_assignment -name VERILOG_MACRO "ENABLE_VGA13=0"
 
 # Memory
 set_global_assignment -name VERILOG_MACRO "ENABLE_EMS=1"

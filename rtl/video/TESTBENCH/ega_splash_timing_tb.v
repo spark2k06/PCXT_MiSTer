@@ -11,10 +11,7 @@
 //    iverilog -g2012 -o splash_tb TESTBENCH/ega_splash_timing_tb.v \
 //      UM6845R.v video_scandoubler.v ega_dot_clock.v ega_gfx_ctrl.v \
 //      ega_sequencer.v ega_attrib_ctrl.v ega_pixel.v ega_text.v \
-//      ega_splash_renderer.v ega_vgaport.v vga_mode13_ctrl.v \
-//      vga_framebuffer.v vga_a000_cpu_frontend.v vga_mode13_address.v \
-//      vga_dac.v vga_dac_io.v vga_mode13_timing.v \
-//      vga_mode13_renderer.v ega_top.v
+//      ega_splash_renderer.v ega_vgaport.v ega_top.v
 //    vvp splash_tb
 //
 //============================================================================
@@ -72,10 +69,6 @@ module ega_splash_timing_tb;
         .ega_text_glyph(8'h00),
         .ega_text_data_valid(1'b0),
         .ega_text_tag_in(1'b0),
-        .vga_framebuffer_addr(),
-        .vga_framebuffer_read_en(),
-        .vga_framebuffer_pixel(8'h00),
-        .vga_framebuffer_data_valid(1'b0),
         .cpu_mem_select(1'b0),
         .cpu_mem_write(1'b0),
         .ega_cfg_toggle(),
@@ -126,10 +119,6 @@ module ega_splash_timing_tb;
         .scandouble_en(1'b0),
         .ega_enabled(1'b1),
         .ega_monitor_profile(2'b00),
-        .vga_enabled(1'b0),
-        .vga_mode13_set(1'b0),
-        .vga_mode13_clear(1'b0),
-        .vga_mode13_active_out(),
         .crt_h_offset(4'd0),
         .crt_v_offset(3'd0),
         .vsync_width_osd(3'd0),

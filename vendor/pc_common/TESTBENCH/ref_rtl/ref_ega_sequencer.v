@@ -1,5 +1,5 @@
-// REFERENCE COPY for ega_sdram_equiv_tb: the reconciled EGA/VGA core as it was
-// before the SDRAM retiming, modules renamed ref_*. Do not edit.
+// REFERENCE COPY for ega_sdram_equiv_tb: the EGA core as it was
+// before the SDRAM retiming, modules renamed *. Do not edit.
 //============================================================================
 //
 //  PCXT MiSTer EGA sequencer
@@ -20,7 +20,6 @@ module ref_ega_sequencer (
     input  wire        io_re,
     output reg  [3:0]  plane_write_mask,
     output reg         chain2_write,
-    output reg         chain4,
     output reg         extended_memory,
     output reg         ce_crt_fetch,
     output reg         ce_crt_fetch_early,
@@ -129,7 +128,6 @@ module ref_ega_sequencer (
 
         plane_write_mask = map_mask_reg[3:0];
         chain2_write = ~memory_mode_reg[2];
-        chain4 = memory_mode_reg[3];
         extended_memory = memory_mode_reg[1];
         ce_crt_fetch = fetch_pending & ce_pix;
         ce_crt_fetch_early = fetch_req_issue;

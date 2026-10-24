@@ -1,4 +1,4 @@
-# pc_common: EGA/VGA core and its SDRAM frontend (vendor/pc_common/README.md).
+# pc_common: EGA core and its SDRAM frontend (vendor/pc_common/README.md).
 # The packages go first. vram_fetch, vid_mux and sdram_pkg belong to the core's
 # memory subsystem (rtl/mem/mem.qip) and have to be in the project as well.
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) ega/ega_vram_fns_pkg.sv]
@@ -19,16 +19,6 @@ set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) ega/ega
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) ega/video_monochrome_converter.sv]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) ega/video_scandoubler.v]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) ega/video_source_switch.v]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/pc_delay.v]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/vga_dac.v]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/vga_dac_io.v]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/vga_mode13_address.v]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/vga_mode13_ctrl.v]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/vga_mode13_renderer.v]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/vga_mode13_timing.v]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/vga_planar16_renderer.v]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/vga_unchained256_ctrl.v]
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) vga/vga_unchained256_renderer.v]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) mem/pc_token_delay.sv]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) mem/vram_fetch_x.sv]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) mem/ega_vram_sdram_frontend.sv]

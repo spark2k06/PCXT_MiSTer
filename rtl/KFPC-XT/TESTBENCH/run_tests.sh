@@ -62,7 +62,6 @@ declare -A SOURCES=(
     [rom_presence_latch_tb]="HDL/rom_presence_latch.sv"
     [reset_pending_notice_tb]="HDL/reset_pending_notice.sv"
     [keyboard_warm_reset_tb]="HDL/keyboard_warm_reset.sv"
-    [warm_boot_marker_detector_tb]="HDL/warm_boot_marker_detector.sv"
     [xtegactl_tb]="HDL/xtegactl.sv HDL/xtegactl_resolve.sv"
     [xtctl_id_tb]="HDL/xtctl_id.sv"
     [pcjr_ir_kbd_tb]="HDL/pcjr_ir_kbd.sv"

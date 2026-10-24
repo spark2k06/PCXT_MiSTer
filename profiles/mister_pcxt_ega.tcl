@@ -1,4 +1,4 @@
-# Profile mister_pcxt_ega: PCXT with the EGA card and VGA 13h+, and a Sound
+# Profile mister_pcxt_ega: PCXT with the EGA card, and a Sound
 # Blaster Pro. Reproduces the PCXT-EGA core (EGA layout of the OSD).
 # Sourced by config.tcl; see scripts/config_check.tcl for the valid combinations.
 
@@ -13,11 +13,10 @@ set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_VIDEO=0"
 set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_AUDIO=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_KBD=0"
 
-# Video: the EGA card alone, with the VGA 13h+ extension
+# Video: the EGA card alone
 set_global_assignment -name VERILOG_MACRO "ENABLE_CGA=0"
 set_global_assignment -name VERILOG_MACRO "ENABLE_HGC=0"
 set_global_assignment -name VERILOG_MACRO "ENABLE_EGA=1"
-set_global_assignment -name VERILOG_MACRO "ENABLE_VGA13=1"
 
 # Memory
 set_global_assignment -name VERILOG_MACRO "ENABLE_EMS=1"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run the pc_common testbenches (EGA/VGA core, VRAM frontends).
+# Run the pc_common testbenches (EGA core, VRAM frontends).
 #
 #   ./run_tests.sh                 every bench, Icarus
 #   ./run_tests.sh -v              every bench, Verilator
@@ -17,7 +17,8 @@
 # The suite is the union of the PCXT-EGA and PCAT-286 video benches, reconciled
 # against the shared core (see ../PINNED), plus the benches of the SDRAM path.
 # Benches that need an XT-specific module (ega_io_stretch, the splash renderer)
-# stay with the core that owns the module.
+# stay with the core that owns the module. The VGA benches were removed with the
+# VGA extension (this copy is strictly an EGA).
 #
 set -uo pipefail
 
@@ -47,7 +48,7 @@ mkdir -p "$BUILD_DIR"
 # video_monochrome_converter is left out on purpose: it assigns whole arrays,
 # which Icarus 12 cannot elaborate, and ega_top does not need it.
 SOURCES=("rtl/ega/ega_vram_fns_pkg.sv")
-for f in rtl/ega/*.v rtl/vga/*.v rtl/mem/*.sv rtl/mem/*.v; do
+for f in rtl/ega/*.v rtl/mem/*.sv rtl/mem/*.v; do
     [ -f "$f" ] || continue
     case "$f" in *video_monochrome_converter*|*ega_vram_fns_pkg*) continue ;; esac
     SOURCES+=("$f")

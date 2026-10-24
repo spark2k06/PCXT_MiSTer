@@ -62,7 +62,6 @@ set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/ega_bios_loaded_
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/keyboard_warm_reset.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/pcjr_ir_kbd.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/pcjr_cold_boot.sv"
-set_global_assignment -name SYSTEMVERILOG_FILE "rtl/KFPC-XT/HDL/warm_boot_marker_detector.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/hps_ext.v"
 # Keep the HDMI PLL where every MiSTer core has it. sys/pll_cfg/pll_cfg_hdmi.v
 # reprograms a fixed physical output counter; if the fitter moves pll_hdmi to

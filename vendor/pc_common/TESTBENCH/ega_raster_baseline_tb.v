@@ -86,8 +86,6 @@ module ega_raster_baseline_tb;
         .ega_text_fetch_en(text_fetch_en),
         .ega_text_char(text_char), .ega_text_attr(text_attr), .ega_text_glyph(text_glyph),
         .ega_text_data_valid(text_valid), .ega_text_tag_in(text_tag_back),
-        .vga_framebuffer_addr(), .vga_framebuffer_read_en(),
-        .vga_framebuffer_pixel(8'h00), .vga_framebuffer_data_valid(1'b0),
         .cpu_mem_select(cpu_mem_select), .cpu_mem_write(cpu_mem_write),
         .ega_cfg_toggle(), .ega_plane_write_mask_out(), .ega_odd_even_mode_out(),
         .ega_cpu_access_slot_out(), .ega_chain2_write_out(), .ega_chain2_read_out(),
@@ -104,8 +102,7 @@ module ega_raster_baseline_tb;
         .ega_mode350_out(mode350), .ega_active_dots_out(active_dots),
         .ega_active_lines_out(active_lines),
         .prebios_video(1'b0), .splashscreen(1'b0), .ext_splash_pixel_index(4'd0), .ext_splash_pixel_valid(1'b0), .thin_font(1'b0), .scandouble_en(1'b0),
-        .ega_enabled(1'b1), .ega_monitor_profile(monitor_profile), .vga_enabled(1'b0),
-        .vga_mode13_set(1'b0), .vga_mode13_clear(1'b0), .vga_mode13_active_out(),
+        .ega_enabled(1'b1), .ega_monitor_profile(monitor_profile),
         .crt_h_offset(4'd6), .crt_v_offset(3'd4),
         .vsync_width_osd(3'd0), .hsync_width_osd(3'd0)
     );
@@ -538,9 +535,6 @@ module ega_raster_baseline_tb;
         $display("");
         $display("  what this means for the converter");
         $display("    720x480i target: 15.734 kHz line, 59.94 Hz frame, 525 lines, 262.5 per field");
-        $display("    VGA mode 13h is a separate generator (vga_mode13_timing.v) and is");
-        $display("    fixed by construction: 1824 clocks/line = 15.700 kHz, 262 lines = 59.92 Hz,");
-        $display("    1280 active clocks = 640 dots, 200 active lines. It stays on the bypass.");
         $display("");
 
         if (errors == 0) $display("[ega_raster_baseline_tb] RESULT: PASS");

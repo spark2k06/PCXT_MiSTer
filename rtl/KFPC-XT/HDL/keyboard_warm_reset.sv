@@ -1,6 +1,5 @@
 // Detect the XT keyboard sequence used by BIOS Ctrl+Alt+Del handling and hold
-// a hardware-side indication long enough to reset the OPL2. VGA 13h+ clearing
-// is handled separately from the BIOS warm-boot marker on the memory bus.
+// a hardware-side indication long enough to reset the OPL2.
 module keyboard_warm_reset #(
     parameter logic [15:0] HOLD_CYCLES = 16'd5000
 ) (

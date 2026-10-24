@@ -16,7 +16,6 @@ set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_KBD=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_CGA=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_HGC=0"
 set_global_assignment -name VERILOG_MACRO "ENABLE_EGA=0"
-set_global_assignment -name VERILOG_MACRO "ENABLE_VGA13=0"
 
 # Memory
 set_global_assignment -name VERILOG_MACRO "ENABLE_EMS=1"

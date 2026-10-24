@@ -55,7 +55,6 @@ BENCHES=(
     # (an 8088 bus cycle at Max is about 18 clocks). The CPU latency limit is checked here.
     "arbiter_pcxt_egatext|sdram_arbiter_tb|-GSAME_BANK=0 -GVID_PERIOD=28 -GVID_LEN=0 -GVID_LEAD=112 -GCPU_GAP_MIN=10 -GCPU_GAP_MAX=20|$PKG $CTRL $ARB $MODEL $TB/sdram_arbiter_tb.sv"
     "arbiter_pcxt_cgahgc|sdram_arbiter_tb|-GSAME_BANK=0 -GVID_PERIOD=32 -GVID_LEN=1 -GVID_LEAD=128 -GCPU_GAP_MIN=10 -GCPU_GAP_MAX=20|$PKG $CTRL $ARB $MODEL $TB/sdram_arbiter_tb.sv"
-    "arbiter_pcxt_vga13|sdram_arbiter_tb|-GSAME_BANK=0 -GVID_PERIOD=73 -GVID_LEN=2 -GVID_LEAD=146 -GCPU_GAP_MIN=10 -GCPU_GAP_MAX=20|$PKG $CTRL $ARB $MODEL $TB/sdram_arbiter_tb.sv"
     "arbiter_shared_tandy|sdram_arbiter_tb|-GSAME_BANK=1 -GVID_PERIOD=128 -GVID_LEN=1 -GVID_LEAD=256 -GCPU_GAP_MIN=10 -GCPU_GAP_MAX=20|$PKG $CTRL $ARB $MODEL $TB/sdram_arbiter_tb.sv"
     "arbiter_shared_cgatext|sdram_arbiter_tb|-GSAME_BANK=1 -GVID_PERIOD=64 -GVID_LEN=0 -GVID_LEAD=128 -GCPU_GAP_MIN=10 -GCPU_GAP_MAX=20|$PKG $CTRL $ARB $MODEL $TB/sdram_arbiter_tb.sv"
     # Stress: a CPU that never lets go, plus LDR and AUX. Correctness, VID latency,
@@ -65,7 +64,6 @@ BENCHES=(
     # Rows with address bits 12:11 set (the chip's DQM pins on XS/XSDS boards):
     # correctness only. Run with and without VFLAGS=-DDQM_XS.
     "arbiter_highrows|sdram_arbiter_tb|-GSAME_BANK=1 -GVID_PERIOD=64 -GVID_LEN=0 -GVID_LEAD=128 -GCPU_GAP_MAX=0 -GEXTRA=1 -GLIMIT_CPU=64 -GHIGH_ROWS=1|$PKG $CTRL $ARB $MODEL $TB/sdram_arbiter_tb.sv"
-    "arbiter_highrows_vga13|sdram_arbiter_tb|-GSAME_BANK=0 -GVID_PERIOD=73 -GVID_LEN=2 -GVID_LEAD=146 -GCPU_GAP_MIN=10 -GCPU_GAP_MAX=20 -GLIMIT_CPU=64 -GHIGH_ROWS=1|$PKG $CTRL $ARB $MODEL $TB/sdram_arbiter_tb.sv"
     "cpu_mem_port|cpu_mem_port_tb||$PKG $CTRL $ARB $BRIDGE $PORT $MAP $MODEL $TB/cpu_mem_port_tb.sv"
     # Whole CPU on the old and the new memory path side by side.
     "e2e_optB_8088|cpu_sdram_e2e_tb|-GOPTION_A=0 -GIS8086=0|$E2E"

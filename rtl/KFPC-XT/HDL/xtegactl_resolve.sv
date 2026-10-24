@@ -18,7 +18,6 @@ module xtegactl_resolve (
     // Raw registers from the port block.
     input  wire  [7:0] reg_cpu,
     input  wire  [7:0] reg_exp,
-    input  wire  [7:0] reg_vid,
     input  wire  [7:0] reg_inp,
     input  wire  [7:0] reg_midi,
     input  wire  [7:0] reg_exp2,
@@ -64,7 +63,6 @@ module xtegactl_resolve (
     output wire  [2:0] eff_sb_irq,
     output wire        eff_ems,
     output wire        eff_umb,
-    output wire        eff_vga13,
     output wire        eff_joy1_digital,
     output wire        eff_joy1_disable,
     output wire        eff_joy2_digital,
@@ -79,9 +77,7 @@ module xtegactl_resolve (
     output wire  [2:0] eff_vsync_w,
     output wire  [2:0] eff_hsync_w,
 
-    // Effective status bytes, packed as documented by xtegactl.sv. The
-    // effective VGA 13h+ bit is included, but has no OSD match bit because
-    // VGATSR owns that enable rather than an OSD option.
+    // Effective status bytes, packed as documented by xtegactl.sv.
     output wire [39:0] status_effective,
     // Match bits: speed, fake FLAGS, OPL2, Audio 220h, EMS, UMB, joystick 1,
     // joystick 2, swap, joy sync, MT32-pi, MPU-401, Tandy, SB IRQ, CRT H,
@@ -97,7 +93,6 @@ module xtegactl_resolve (
     wire [1:0] f_cms     = reg_exp[3:2];
     wire [1:0] f_ems     = reg_exp[5:4];
     wire [1:0] f_umb     = reg_exp[7:6];
-    wire [1:0] f_vga13   = reg_vid[1:0];
     wire [1:0] f_joy1    = reg_inp[1:0];
     wire [1:0] f_joy2    = reg_inp[3:2];
     wire [1:0] f_swap    = reg_inp[5:4];
@@ -148,11 +143,6 @@ module xtegactl_resolve (
     assign eff_cms     = cms_selected & ~eff_sb;
     assign eff_ems     = (f_ems     == 2'd0) ? osd_ems      : (f_ems   == 2'd1);
     assign eff_umb     = (f_umb     == 2'd0) ? osd_umb      : (f_umb   == 2'd1);
-    // VGA 13h+ deliberately has no OSD master switch. The extension starts
-    // absent after reset and VGATSR selects value 2 (vga13) before it installs
-    // its INT 10h hook. Keep value 1 as the legacy novga13 spelling, so old
-    // launchers still explicitly disable the extension.
-    assign eff_vga13   = (f_vga13 == 2'd2);
     assign eff_joy_swap= (f_swap    == 2'd0) ? osd_joy_swap : (f_swap  == 2'd2);
     assign eff_joy_sync= (f_sync    == 2'd0) ? osd_joy_sync : (f_sync  == 2'd2);
     assign eff_mt32_gm = (f_mt32    == 2'd0) ? osd_mt32_gm  : (f_mt32  == 2'd2);
@@ -191,14 +181,14 @@ module xtegactl_resolve (
 
     // Five compact effective-value bytes:
     //   8989: speed[1:0], fake286[3], OPL2[5:4], Audio 220h[7:6]
-    //   898A: EMS[0], UMB[1], VGA13[2], joy1[4:3], joy2[6:5], swap[7]
+    //   898A: EMS[0], UMB[1], (bit 2 was VGA 13h+: always 0), joy1[4:3], joy2[6:5], swap[7]
     //   898B: joy sync[0], MT32[1], MPU[2], Tandy[4:3], SB IRQ7[5]
     //   898C: CRT H[3:0], CRT V[6:4]
     //   898D: VSync[2:0], HSync[5:3]
     assign status_effective[7:0]   = {effective_audio220, eff_opl2, eff_fake286,
                                       1'b0, eff_speed};
     assign status_effective[15:8]  = {eff_joy_swap, effective_joy2,
-                                      effective_joy1, eff_vga13, eff_umb, eff_ems};
+                                      effective_joy1, 1'b0, eff_umb, eff_ems};
     assign status_effective[23:16] = {2'b00, (eff_sb_irq == 3'd7),
                                        1'b0, eff_tandy, eff_mpu401,
                                        eff_mt32_gm, eff_joy_sync};
@@ -208,7 +198,7 @@ module xtegactl_resolve (
     // Compare effective values with the live OSD values, not raw override
     // fields. An explicit override that happens to select the same value as
     // the OSD is therefore still marked as matching, as users expect from a
-    // status display. VGA 13h+ is intentionally absent from this mask.
+    // status display.
     assign status_osd_match[0]  = (eff_speed == osd_speed);
     assign status_osd_match[1]  = (eff_fake286 == osd_fake286);
     assign status_osd_match[2]  = (eff_opl2 == osd_opl2);

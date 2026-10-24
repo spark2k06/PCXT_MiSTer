@@ -15,7 +15,7 @@ LIB=$ROOT/vendor/pc_common
 VIDTB=$ROOT/rtl/video/TESTBENCH
 
 LIBSRC=("$LIB/rtl/ega/ega_vram_fns_pkg.sv")
-for f in "$LIB"/rtl/ega/*.v "$LIB"/rtl/vga/*.v; do
+for f in "$LIB"/rtl/ega/*.v; do
     case "$f" in *video_monochrome_converter*) continue ;; esac
     LIBSRC+=("$f")
 done

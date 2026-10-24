@@ -61,8 +61,6 @@ module ega_switch_sense_tb;
         .ega_text_attr               (8'h00),
         .ega_text_glyph              (8'h00),
         .ega_text_data_valid         (1'b0), .ega_text_tag_in(1'b0),
-        .vga_framebuffer_pixel       (8'h00),
-        .vga_framebuffer_data_valid  (1'b0),
         .cpu_mem_select              (1'b0),
         .cpu_mem_write               (1'b0),
         .prebios_video               (1'b0),
@@ -71,9 +69,6 @@ module ega_switch_sense_tb;
         .scandouble_en               (1'b0),
         .ega_enabled                 (1'b1),
         .ega_monitor_profile         (ega_monitor_profile),
-        .vga_enabled                 (1'b0),
-        .vga_mode13_set              (1'b0),
-        .vga_mode13_clear            (1'b0),
         .crt_h_offset                (4'd0),
         .crt_v_offset                (3'd0),
         .vsync_width_osd             (3'd0),
@@ -208,7 +203,6 @@ module ega_switch_sense_tb;
             $display("FAIL: splash switch pattern=%04b, expected the selected MDA 1011", pattern);
         end
 
-        force dut.vga_mode13_active = 1'b0;
         force dut.ega_video_selected = 6'b00_0001;
         #1;
         if ({ega_red, ega_green, ega_blue} !== {6'd0, 6'd0, 6'd42}) begin
@@ -217,14 +211,12 @@ module ega_switch_sense_tb;
                      ega_red, ega_green, ega_blue);
         end
         release dut.ega_video_selected;
-        release dut.vga_mode13_active;
         splashscreen <= 1'b0;
         repeat (4) @(posedge clk);
 
         // In 5151 mode, connector bit 3 is Mono Video and bit 4 is its
         // intensity signal. Full Color must therefore still receive neutral
         // white, leaving the later OSD monochrome selector free to tint it.
-        force dut.vga_mode13_active = 1'b0;
         force dut.ega_video_selected = 6'b00_1000;
         #1;
         if ({ega_red, ega_green, ega_blue} !== {6'd42, 6'd42, 6'd42}) begin
@@ -249,7 +241,6 @@ module ega_switch_sense_tb;
                      ega_red, ega_green, ega_blue);
         end
         release dut.ega_video_selected;
-        release dut.vga_mode13_active;
 
         if (errors == 0)
             $display("PASS: reset-time monitor profiles, EGA splash override and 5151 white levels are correct");

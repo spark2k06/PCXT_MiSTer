@@ -17,7 +17,7 @@
 //   8980h  R   signature, 'E'
 //   8981h  R/W CPU        [2:0] speed  [4:3] fake 286 FLAGS
 //   8982h  R/W expansion  [1:0] OPL2  [3:2] CMS  [5:4] EMS  [7:6] UMB
-//   8983h  R/W video      [1:0] VGA 13h+ (0/1 off, 2 on; warm boot clears)
+//   8983h  -   reserved (the VGA 13h+ control of the earlier cores; there is no VGA now)
 //   8984h  R/W input      [1:0] joy 1  [3:2] joy 2  [5:4] swap  [7:6] joy sync
 //   8985h  R/W MIDI       [1:0] MT32-pi mode  [3:2] MPU-401
 //   8986h  R/W expansion 2 [1:0] Tandy sound  [3:2] Sound Blaster
@@ -54,10 +54,9 @@
 //
 // The status extension is read-only. Its five effective bytes deliberately
 // use the same compact menu ordering as the DOS status output, while the
-// match flags say whether each value equals the current OSD value. The VGA
-// 13h+ bit has no match flag because that extension is controlled by VGATSR,
-// not by an OSD enable setting. The high two bits of 898Bh identify the
-// extension so a newer tool can fall back cleanly on an older core.
+// match flags say whether each value equals the current OSD value. The high
+// two bits of 898Bh identify the extension so a newer tool can fall back
+// cleanly on an older core.
 
 `default_nettype none
 
@@ -66,10 +65,6 @@ module xtegactl #(
 ) (
     input  wire        clock,
     input  wire        reset,
-    // A BIOS warm boot returns the machine to its native EGA hardware. Other
-    // per-program overrides remain intact, but VGATSR must be run again.
-    input  wire        clear_vga13,
-
     // Host bus
     input  wire [15:0] address,
     input  wire        address_enable_n,
@@ -82,7 +77,6 @@ module xtegactl #(
     // Raw register file, for xtegactl_resolve to interpret.
     output reg   [7:0] reg_cpu  = 8'h00,
     output reg   [7:0] reg_exp  = 8'h00,
-    output reg   [7:0] reg_vid  = 8'h00,
     output reg   [7:0] reg_inp  = 8'h00,
     output reg   [7:0] reg_midi = 8'h00,
     output reg   [7:0] reg_exp2 = 8'h00,
@@ -103,21 +97,16 @@ module xtegactl #(
         if (reset) begin
             reg_cpu  <= 8'h00;
             reg_exp  <= 8'h00;
-            reg_vid  <= 8'h00;
             reg_inp  <= 8'h00;
             reg_midi <= 8'h00;
             reg_exp2 <= 8'h00;
             reg_crt  <= 8'h00;
             reg_sync <= 8'h00;
         end
-        else if (clear_vga13) begin
-            reg_vid <= 8'h00;
-        end
         else if (block_hit & ~io_write_n) begin
             case (address[3:0])
                 4'h1: reg_cpu  <= data_in;
                 4'h2: reg_exp  <= data_in;
-                4'h3: reg_vid  <= data_in;
                 4'h4: reg_inp  <= data_in;
                 4'h5: reg_midi <= data_in;
                 4'h6: reg_exp2 <= data_in;
@@ -134,7 +123,6 @@ module xtegactl #(
             4'h0:    read_mux = SIGNATURE;
             4'h1:    read_mux = reg_cpu;
             4'h2:    read_mux = reg_exp;
-            4'h3:    read_mux = reg_vid;
             4'h4:    read_mux = reg_inp;
             4'h5:    read_mux = reg_midi;
             4'h6:    read_mux = reg_exp2;

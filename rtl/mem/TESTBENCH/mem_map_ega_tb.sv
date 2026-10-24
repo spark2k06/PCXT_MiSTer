@@ -5,8 +5,7 @@
 //        (umb_enabled || (address[19:14] != 110001 && != 110010 && != 110011)) &&
 //        (~ems_page_frame || ems_bank_select));
 //
-// The select has to be that, with two differences that are meant: A0000-AFFFF
-// is memory while the packed 13h framebuffer is the CPU's window, and EC000-EFFFF
+// The select has to be that, with one difference that is meant: EC000-EFFFF
 // with no EC00 ROM and no EMS bank is open bus (as in mem_map, F1). The physical
 // address is checked against the memory map, region by region.
 //
@@ -18,7 +17,7 @@ module mem_map_ega_tb;
     logic [19:0] address;
     logic [6:0]  map_ems [0:3];
     logic        ems_b1, ems_b2, ems_b3, ems_b4;
-    logic        umb_enabled, vga13_packed, ec00_loaded;
+    logic        umb_enabled, ec00_loaded;
     logic [2:0]  bios_protect_flag;
     wire         select;
     wire [24:0]  phys;
@@ -27,11 +26,9 @@ module mem_map_ega_tb;
     mem_map_ega dut (
         .address(address), .map_ems(map_ems), .ems_b1(ems_b1), .ems_b2(ems_b2),
         .ems_b3(ems_b3), .ems_b4(ems_b4), .umb_enabled(umb_enabled),
-        .vga13_packed(vga13_packed), .bios_protect_flag(bios_protect_flag),
+        .bios_protect_flag(bios_protect_flag),
         .ec00_loaded(ec00_loaded), .select(select), .phys(phys), .protect(protect)
     );
-
-    localparam logic [24:0] VGA13 = 25'h084_0000;
 
     int errors = 0, checks = 0;
 
@@ -39,14 +36,14 @@ module mem_map_ega_tb;
         begin
             errors++;
             if (errors < 20)
-                $display("FAIL %s: addr %05h umb %b ems %b%b%b%b vga13 %b ec00 %b -> sel %b phys %07h prot %b",
-                         what, address, umb_enabled, ems_b1, ems_b2, ems_b3, ems_b4, vga13_packed,
+                $display("FAIL %s: addr %05h umb %b ems %b%b%b%b ec00 %b -> sel %b phys %07h prot %b",
+                         what, address, umb_enabled, ems_b1, ems_b2, ems_b3, ems_b4,
                          ec00_loaded, select, phys, protect);
         end
     endtask
 
     function automatic logic golden_select(input logic [19:0] a, input logic umb, input logic [3:0] eb,
-                                           input logic v13, input logic ec);
+                                           input logic ec);
         logic ems_page_frame, ems_bank, base;
         begin
             ems_page_frame = (a[19:16] == 4'b1101);
@@ -54,8 +51,7 @@ module mem_map_ega_tb;
             base = ~(a[19:17] == 3'b101) &&
                    (umb || (a[19:14] != 6'b110001 && a[19:14] != 6'b110010 && a[19:14] != 6'b110011)) &&
                    (~ems_page_frame || ems_bank);
-            // the two intended differences
-            if (a[19:16] == 4'hA && v13) base = 1'b1;
+            // the intended difference
             if (a[19:14] == 6'b111011 && ~ems_bank && ~ec) base = 1'b0;
             golden_select = base;
         end
@@ -64,12 +60,11 @@ module mem_map_ega_tb;
     initial begin
         for (int i = 0; i < 4; i++) map_ems[i] = 7'(i * 13 + 5);
         bios_protect_flag = 3'b101;
-        for (int cfg = 0; cfg < 64; cfg++) begin
+        for (int cfg = 0; cfg < 32; cfg++) begin
             umb_enabled  = cfg[0];
-            vga13_packed = cfg[1];
-            ec00_loaded  = cfg[2];
+            ec00_loaded  = cfg[1];
             {ems_b1, ems_b2, ems_b3, ems_b4} = 4'b0000;
-            case (cfg[5:3])
+            case (cfg[4:2])
                 3'd1: ems_b1 = 1'b1;
                 3'd2: ems_b2 = 1'b1;
                 3'd3: ems_b3 = 1'b1;
@@ -94,7 +89,7 @@ module mem_map_ega_tb;
                 #1;
                 checks++;
                 if (select !== golden_select(address, umb_enabled, {ems_b1, ems_b2, ems_b3, ems_b4},
-                                             vga13_packed, ec00_loaded))
+                                             ec00_loaded))
                     fail("select");
                 if (select) begin
                     if (ems_b1 | ems_b2 | ems_b3 | ems_b4) begin
@@ -114,10 +109,6 @@ module mem_map_ega_tb;
                     else if (address[19:14] == 6'b110000) begin
                         if (phys !== PHYS_ROM_BANK + 25'h3_4000 + {11'd0, address[13:0]}) fail("EGA BIOS phys");
                         if (protect !== bios_protect_flag[2]) fail("EGA BIOS protect");
-                    end
-                    else if (address[19:16] == 4'hA) begin
-                        if (phys !== VGA13 + {9'd0, address[15:0]}) fail("13h phys");
-                        if (protect) fail("13h protect");
                     end
                     else begin
                         if (phys !== PHYS_CPU_IMAGE + {5'd0, address}) fail("image phys");

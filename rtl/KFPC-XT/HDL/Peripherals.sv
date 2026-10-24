@@ -37,13 +37,10 @@
 `ifndef ENABLE_SB
 `define ENABLE_SB 0
 `endif
-// The EGA/VGA card is built into the RBF, and with it the VGA 13h+ extension
-//. Without ENABLE_EGA nothing of the EGA is instantiated.
+// The EGA card is built into the RBF. Without ENABLE_EGA nothing of
+// the EGA is instantiated.
 `ifndef ENABLE_EGA
 `define ENABLE_EGA 0
-`endif
-`ifndef ENABLE_VGA13
-`define ENABLE_VGA13 1
 `endif
 
 module PERIPHERALS #(
@@ -65,7 +62,7 @@ module PERIPHERALS #(
         output  logic           dma_page_chip_select_n,
         // SplashScreen
         input   logic           splashscreen,
-        // Video card chosen at reset: 1 = EGA/VGA, 0 = CGA/Hercules. Static for
+        // Video card chosen at reset: 1 = EGA, 0 = CGA/Hercules. Static for
         // as long as the machine runs; the card that is not chosen is held in
         // reset and kept off the bus.
         input   logic           ega_active,
@@ -92,7 +89,7 @@ module PERIPHERALS #(
         output  logic           VGA_VSYNC_REF,
         output  logic           cga_memory_ready,
         output  logic           cga_memory_write_wait,
-        // EGA/VGA card outputs (clk_vga_cga domain), zero without ENABLE_EGA
+        // EGA card outputs (clk_vga_cga domain), zero without ENABLE_EGA
         output  logic   [5:0]   EGA_R,
         output  logic   [5:0]   EGA_G,
         output  logic   [5:0]   EGA_B,
@@ -113,12 +110,7 @@ module PERIPHERALS #(
         output  logic           ega_mode350,
         output  logic   [11:0]  ega_active_dots,
         output  logic   [9:0]   ega_active_lines,
-        input   logic           vga_mode13_osd,
-        input   logic           vga_mode13_native,
         input   logic   [1:0]   ega_monitor_profile,
-        output  logic           vga_mode13_active_out,
-        output  logic           vga_mode13_wide_clock_out,
-        output  logic           vga_mode13_pixel_toggle_out,
         // I/O Ports
         input   logic   [19:0]  address,
         output  logic   [19:0]  latch_address,
@@ -131,11 +123,9 @@ module PERIPHERALS #(
         input   logic           memory_read_n,
         input   logic           memory_write_n,
         input   logic           address_enable_n,
-        input   logic           warm_boot_marker_event,
         // EGA video memory in SDRAM (F3). The frontend's side of the CPU memory
         // port (chipset clock), its client end of the arbiter's video port and
-        // the captured writes it snoops (sdram clock), and whether the packed
-        // 13h framebuffer is the CPU's A0000 window (served by cpu_mem_port).
+        // the captured writes it snoops (sdram clock).
         output  logic           video_memory_access_ready,
         output  logic           video_io_access_ready,
         output  logic           vram_m_start,
@@ -162,7 +152,6 @@ module PERIPHERALS #(
         input   logic   [1:0]   snoop_len,
         input   logic   [63:0]  snoop_wdata,
         input   logic   [7:0]   snoop_wbe,
-        output  logic           vga13_packed_cpu,
         // Peripherals
         output  logic   [2:0]   timer_counter_out,
         output  logic           speaker_out,
@@ -264,7 +253,6 @@ module PERIPHERALS #(
         // up top. Common to every video card.
         output  logic   [7:0]   xtegactl_cpu,
         output  logic   [7:0]   xtegactl_exp,
-        output  logic   [7:0]   xtegactl_vid,
         output  logic   [7:0]   xtegactl_inp,
         output  logic   [7:0]   xtegactl_midi,
         output  logic   [7:0]   xtegactl_exp2,
@@ -276,7 +264,6 @@ module PERIPHERALS #(
         input   logic   [17:0]  xtegactl_status_osd_match,
         // Identification block (8990h..8997h)
         input   logic   [1:0]   id_video_card,
-        input   logic           id_vga13_active,
         input   logic   [7:0]   id_cpu_latency_max,
         // Others
         output  logic           pause_core,
@@ -406,7 +393,6 @@ module PERIPHERALS #(
     wire        ega_mem_select_raw;
     wire        ega_mem_select;
     wire  [1:0] ega_mem_map_sel_cfg;
-    wire        vga13_packed_cpu_w;
     wire        ega_io_oe_sys;
     wire  [7:0] ega_io_dout_sys;
     wire        ega_switch_sense_oe;
@@ -515,11 +501,7 @@ module PERIPHERALS #(
     wire [15:0] rtc_port            = ega_active ? 16'h0340 : 16'h02C0;
     wire    rtc_chip_select         = (iorq && ~address_enable_n && address[15:1] == rtc_port[15:1]); // 0x2C0 or 0x340, two ports
 
-    // The packed 13h framebuffer is ordinary memory in SDRAM now (mem_map_ega,
-    // cpu_mem_port); all that is left here is keeping the EGA aperture out of
-    // its way while it owns A0000-AFFFF.
-    wire    vga_a000_select         = vga13_packed_cpu_w && ~iorq && ~address_enable_n && (address[19:16] == 4'hA);
-    assign  ega_mem_select          = ega_mem_select_raw && !vga_a000_select;
+    assign  ega_mem_select          = ega_mem_select_raw;
 
     // Every CGA byte write carries the Tw marked "+WS" in cycle-counted
     // software.  CGA_BUS_WAIT also ties completion to the next of the two
@@ -1339,7 +1321,6 @@ end
     xtegactl xtegactl_ports (
         .clock            (clock),
         .reset            (reset),
-        .clear_vga13      (warm_boot_marker_event),
         .address          (address[15:0]),
         .address_enable_n (address_enable_n),
         .io_read_n        (io_read_n),
@@ -1349,7 +1330,6 @@ end
         .output_enable    (xtegactl_oe),
         .reg_cpu          (xtegactl_cpu),
         .reg_exp          (xtegactl_exp),
-        .reg_vid          (xtegactl_vid),
         .reg_inp          (xtegactl_inp),
         .reg_midi         (xtegactl_midi),
         .reg_exp2         (xtegactl_exp2),
@@ -1367,7 +1347,7 @@ end
         `ENABLE_SB          ? 1'b1 : 1'b0,
         `ENABLE_HGC         ? 1'b1 : 1'b0,
         `ENABLE_CGA         ? 1'b1 : 1'b0,
-        (`ENABLE_EGA && `ENABLE_VGA13) ? 1'b1 : 1'b0,
+        1'b0,                 // VGA 13h+: not part of the card (strictly an EGA)
         `ENABLE_EGA         ? 1'b1 : 1'b0
     };
     wire [7:0] xtctl_id_data;
@@ -1386,7 +1366,6 @@ end
         .tandy_machine    (`ENABLE_TANDY_VIDEO ? tandy_video : 1'b0),
         .pcjr_machine     (pcjr_en),
         .video_card       (id_video_card),
-        .vga13_active     (id_vga13_active),
         .rtc_port         (rtc_port),
         .video_underruns  (id_video_underruns),
         .cpu_latency_max  (id_cpu_latency_max)
@@ -1904,7 +1883,7 @@ end
     assign hgc_page_sys = hgc_page_meta[1];
 
     //
-    // EGA / VGA 13h+ card
+    // EGA card
     //
     // Built only when ENABLE_EGA is set, and then only the machine that came
     // out of reset with ega_active drives anything: the card is held in reset
@@ -1943,33 +1922,6 @@ end
                 ega_monitor_profile_sync <= ega_monitor_profile_meta;
             end
         end
-
-        // The packed 13h framebuffer is the CPU's A0000 window while VGA 13h
-        // is packed (not Mode X or 0Dh, whose planes the frontend serves).
-        wire vga_mode13_active_video;
-        wire vga_planar_memory_active_video;
-        logic vga_mode13_active_sync1;
-        logic vga_mode13_active_sync2;
-        logic vga_planar_memory_active_sync1;
-        logic vga_planar_memory_active_sync2;
-
-        always_ff @(posedge clock or posedge reset) begin
-            if (reset) begin
-                vga_mode13_active_sync1        <= 1'b0;
-                vga_mode13_active_sync2        <= 1'b0;
-                vga_planar_memory_active_sync1 <= 1'b0;
-                vga_planar_memory_active_sync2 <= 1'b0;
-            end else begin
-                vga_mode13_active_sync1        <= vga_mode13_active_video;
-                vga_mode13_active_sync2        <= vga_mode13_active_sync1;
-                vga_planar_memory_active_sync1 <= vga_planar_memory_active_video;
-                vga_planar_memory_active_sync2 <= vga_planar_memory_active_sync1;
-            end
-        end
-
-        assign vga_mode13_active_out = vga_mode13_active_video;
-        assign vga13_packed_cpu_w    = vga_mode13_active_sync2 & ~vga_planar_memory_active_sync2;
-        assign vga13_packed_cpu      = vga13_packed_cpu_w;
 
         assign ega_mem_select_raw = ~iorq && ~address_enable_n && ega_active
                                   && ega_memory_window_select(address, ega_mem_map_sel_cfg);
@@ -2096,10 +2048,6 @@ end
             end
         end
 
-        wire [15:0] VGA_FRAMEBUFFER_ADDR;
-        wire        VGA_FRAMEBUFFER_READ_EN;
-        wire [7:0]  VGA_FRAMEBUFFER_PIXEL;
-        wire        VGA_FRAMEBUFFER_DATA_VALID;
         wire        hsync_ega_raw;
         wire        hsync_ega_sd;
         wire        video_display_active;
@@ -2126,7 +2074,6 @@ end
         wire [1:0]  EGA_CHAR_MAP_A;
         wire [1:0]  EGA_CHAR_MAP_B;
         wire        EGA_CE_PIX;
-        wire        EGA_PRIV_ROUTE;
         wire        EGA_SPLASH_CE;
         wire        EGA_SPLASH_DE;
         wire [9:0]  EGA_SPLASH_SCAN;
@@ -2196,11 +2143,6 @@ end
             .ega_char_map_a_out         (EGA_CHAR_MAP_A),
             .ega_char_map_b_out         (EGA_CHAR_MAP_B),
             .ega_ce_pix_out             (EGA_CE_PIX),
-            .ega_priv_route_out         (EGA_PRIV_ROUTE),
-            .vga_framebuffer_addr       (VGA_FRAMEBUFFER_ADDR),
-            .vga_framebuffer_read_en    (VGA_FRAMEBUFFER_READ_EN),
-            .vga_framebuffer_pixel      (VGA_FRAMEBUFFER_PIXEL),
-            .vga_framebuffer_data_valid (VGA_FRAMEBUFFER_DATA_VALID),
             .cpu_mem_select             (ega_mem_select_2),
             .cpu_mem_write              (ega_mem_write_2),
             .ega_cfg_toggle             (ega_cfg_toggle),
@@ -2254,15 +2196,6 @@ end
             .scandouble_en              (cga_scandouble_en),
             .ega_enabled                (1'b1),
             .ega_monitor_profile        (ega_monitor_profile_sync),
-            .vga_enabled                (`ENABLE_VGA13 ? vga_mode13_osd : 1'b0),
-            .vga_mode13_native          (vga_mode13_native),
-            .vga_mode13_set             (1'b0),
-            .vga_mode13_clear           (1'b0),
-            .vga_mode13_active_out      (vga_mode13_active_video),
-            .vga_unchained256_active_out(),
-            .vga_mode13_wide_clock_out  (vga_mode13_wide_clock_out),
-            .vga_planar_memory_active_out(vga_planar_memory_active_video),
-            .vga_mode13_pixel_toggle_out(vga_mode13_pixel_toggle_out),
             .crt_h_offset               (crt_h_offset),
             .crt_v_offset               (crt_v_offset),
             .vsync_width_osd            (vsync_width_osd),
@@ -2285,7 +2218,6 @@ end
         // display side is retimed to match; the same numbers are given to the
         // frontend below.
         defparam ega1.SDRAM_LEAD_DOTS  = 16;
-        defparam ega1.SDRAM_PRIV_EXTRA = 16;
 
         // The boot picture of the EGA card is the core's own
         ega_splash_renderer ega_splash_renderer_inst (
@@ -2312,9 +2244,7 @@ end
         #(
             .LEAD_GFX                   (16),
             .LEAD_CELL                  (9),
-            .LEAD_GLYPH                 (10),
-            .EXTRA_PRIV                 (16),
-            .EXTRA_FB                   (16)
+            .LEAD_GLYPH                 (10)
         )
         ega_vram_frontend
         (
@@ -2339,7 +2269,6 @@ end
             .clk_video                  (clk_vga_cga),
             .reset_video                (video_reset_video),
             .dot_tick                   (EGA_CE_PIX),
-            .priv_route                 (EGA_PRIV_ROUTE),
             .video_addr                 (EGA_FETCH_ADDR),
             .video_read_en              (EGA_FETCH_EN),
             .video_plane0               (EGA_PLANE0_DOUT),
@@ -2358,10 +2287,6 @@ end
             .text_glyph                 (EGA_TEXT_GLYPH),
             .text_tag_out               (EGA_TEXT_TAG_IN),
             .text_data_valid            (EGA_TEXT_DATA_VALID),
-            .fb_addr                    (VGA_FRAMEBUFFER_ADDR),
-            .fb_read_en                 (VGA_FRAMEBUFFER_READ_EN),
-            .fb_pixel                   (VGA_FRAMEBUFFER_PIXEL),
-            .fb_data_valid              (VGA_FRAMEBUFFER_DATA_VALID),
             .cfg_toggle                 (ega_cfg_toggle),
             .plane_write_mask           (ega_plane_write_mask_cfg),
             .odd_even_mode              (ega_odd_even_mode_cfg),
@@ -2406,11 +2331,6 @@ end
         assign video_io_access_ready     = 1'b1;
         assign video_memory_access_ready = 1'b1;
         assign id_video_underruns        = 16'd0;
-        assign vga13_packed_cpu          = 1'b0;
-        assign vga13_packed_cpu_w        = 1'b0;
-        assign vga_mode13_active_out     = 1'b0;
-        assign vga_mode13_wide_clock_out = 1'b0;
-        assign vga_mode13_pixel_toggle_out = 1'b0;
         assign ega_mem_select_raw        = 1'b0;
         assign ega_mem_map_sel_cfg       = 2'b00;
         assign ega_io_oe_sys             = 1'b0;

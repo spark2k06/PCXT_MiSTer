@@ -1,5 +1,5 @@
-// REFERENCE COPY for ega_sdram_equiv_tb: the reconciled EGA/VGA core as it was
-// before the SDRAM retiming, modules renamed ref_*. Do not edit.
+// REFERENCE COPY for ega_sdram_equiv_tb: the EGA core as it was
+// before the SDRAM retiming, modules renamed *. Do not edit.
 //============================================================================
 //
 //  PCXT MiSTer EGA attribute controller
@@ -24,14 +24,10 @@ module ref_ega_attrib_ctrl (
     input  wire        text_mode,
     input  wire        blink_state,
     input  wire        palette_64_mode,
-    // VGA adds Mode Control bit 7 (P5,P4 Select) and the Color Select
-    // register 14h. An EGA has neither, so they act only with VGA enabled.
-    input  wire        vga_extensions,
     output wire        blink_enable_out,
     output wire        mono_attributes_out,
     output wire        line_graphics_enable_out,
     output wire [3:0]  pixel_pan_out,
-    output wire        split_panning_suppress_out,
     output reg  [5:0]  color_out,
     output reg         display_enable_out,
     output reg         video_enable_out
@@ -50,7 +46,6 @@ module ref_ega_attrib_ctrl (
     reg [7:0] overscan_reg = 8'h00;
     reg [7:0] plane_enable_reg = 8'h0F;
     reg [7:0] pixel_panning_reg = 8'h00;
-    reg [7:0] color_select_reg = 8'h00;
     reg       attr_write_q = 1'b0;
     reg       status_re_q = 1'b0;
 
@@ -76,25 +71,13 @@ module ref_ega_attrib_ctrl (
         graphics_blink_mask;
     wire [3:0] text_index = plane_index & plane_enable_reg[3:0];
     wire [3:0] palette_index_effective = text_mode ? text_index : graphics_blink_index;
-    // Match 86Box IBM EGA behavior: Color Select (0x14) is latched/readable,
-    // but does not alter the effective 6-bit EGA palette on the base IBM card.
-    wire [5:0] palette_color_code = raw_palette[palette_index_effective][5:0];
-    // P54S replaces palette bits 5:4 by Color Select bits 1:0. Bits 3:2 of
-    // Color Select would drive DAC index bits 7:6, which this six-bit path
-    // does not carry; they stay zero, which is their BIOS default.
-    wire       p54_select = vga_extensions & mode_control_reg[7];
-    wire [5:0] pixel_color_code = p54_select ?
-                                  {color_select_reg[1:0], palette_color_code[3:0]} :
-                                  palette_color_code;
+    wire [5:0] pixel_color_code = raw_palette[palette_index_effective][5:0];
     wire [5:0] border_color_code = palette_64_mode ? overscan_reg[5:0] : {2'b00, overscan_reg[3:0]};
     assign blink_enable_out = attr_blink_enable;
     assign mono_attributes_out = attr_mono_attributes;
     assign line_graphics_enable_out = attr_line_graphics_enable;
     // Horizontal Pel Panning (index 13h), for the renderer to act on.
     assign pixel_pan_out = pixel_panning_reg[3:0];
-    // Attribute Mode Control bit 5 makes the lower half of a Line Compare
-    // split start aligned, instead of inheriting the upper half's pel pan.
-    assign split_panning_suppress_out = mode_control_reg[5];
 
     integer palette_index;
 
@@ -102,9 +85,9 @@ module ref_ega_attrib_ctrl (
         if (reset) begin
             // Power-on palette must be the IBM EGA 200-line/CGA-compatible set:
             // 0x00-0x07 for 0-7, 0x10-0x17 for 8-15. In the 16-colour DAC path
-            // ref_ega_vgaport uses bit 4 as the shared intensity and ignores bit 3,
+            // ega_vgaport uses bit 4 as the shared intensity and ignores bit 3,
             // so a plain identity mapping would render 8-15 exactly like 0-7.
-            // Index 6 stays 0x06 to keep ref_ega_vgaport's brown special case.
+            // Index 6 stays 0x06 to keep ega_vgaport's brown special case.
             for (palette_index = 0; palette_index < 16; palette_index = palette_index + 1)
                 raw_palette[palette_index] <= (palette_index < 8) ? palette_index[5:0]
                                                                   : {3'b010, palette_index[2:0]};
@@ -115,7 +98,6 @@ module ref_ega_attrib_ctrl (
             overscan_reg <= 8'h00;
             plane_enable_reg <= 8'h0F;
             pixel_panning_reg <= 8'h00;
-            color_select_reg <= 8'h00;
             attr_write_q <= 1'b0;
             status_re_q <= 1'b0;
             color_out <= 6'h00;
@@ -142,7 +124,6 @@ module ref_ega_attrib_ctrl (
                         5'h11: overscan_reg <= io_data_in;
                         5'h12: plane_enable_reg <= io_data_in;
                         5'h13: pixel_panning_reg <= io_data_in;
-                        5'h14: color_select_reg <= io_data_in;
                         default: begin
                         end
                     endcase
@@ -194,7 +175,6 @@ module ref_ega_attrib_ctrl (
             5'h11: io_data_out = overscan_reg;
             5'h12: io_data_out = plane_enable_reg;
             5'h13: io_data_out = pixel_panning_reg;
-            5'h14: io_data_out = color_select_reg;
             default: io_data_out = 8'h00;
         endcase
 

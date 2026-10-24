@@ -1,11 +1,6 @@
 # Profile mister_pcxt_full: one PCXT core with both video families, CGA+Hercules
-# and EGA+VGA 13h+. The card is chosen in the OSD and applied at the next reset.
+# and EGA. The card is chosen in the OSD and applied at the next reset.
 # Sourced by config.tcl; see scripts/config_check.tcl for the valid combinations.
-#
-# The trimmed variant mister_pcxt_full_novga13 sets this before sourcing this
-# file; a VERILOG_MACRO cannot be redefined once it has been assigned, so the
-# variant has to pick the value up front.
-if {![info exists pcxt_enable_vga13]} { set pcxt_enable_vga13 1 }
 
 # Option layout of the OSD: the EGA one (it carries the card selector)
 set_global_assignment -name VERILOG_MACRO "LAYOUT_EGA=1"
@@ -25,11 +20,10 @@ set_global_assignment -name VERILOG_MACRO "ENABLE_TANDY_KBD=1"
 # Tandy 1000 it has only the CGA, and its own BIOS slot.
 set_global_assignment -name VERILOG_MACRO "ENABLE_PCJR=1"
 
-# Video: both families, the EGA with the VGA 13h+ extension (unless trimmed)
+# Video: both families
 set_global_assignment -name VERILOG_MACRO "ENABLE_CGA=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_HGC=1"
 set_global_assignment -name VERILOG_MACRO "ENABLE_EGA=1"
-set_global_assignment -name VERILOG_MACRO "ENABLE_VGA13=$pcxt_enable_vga13"
 
 # Memory
 set_global_assignment -name VERILOG_MACRO "ENABLE_EMS=1"

@@ -144,16 +144,6 @@ vendor/pc_common/rtl/ega/ega_top.v
 vendor/pc_common/rtl/ega/ega_vgaport.v
 vendor/pc_common/rtl/ega/video_monochrome_converter.sv
 vendor/pc_common/rtl/ega/video_scandoubler.v
-vendor/pc_common/rtl/vga/pc_delay.v
-vendor/pc_common/rtl/vga/vga_dac.v
-vendor/pc_common/rtl/vga/vga_dac_io.v
-vendor/pc_common/rtl/vga/vga_mode13_address.v
-vendor/pc_common/rtl/vga/vga_mode13_ctrl.v
-vendor/pc_common/rtl/vga/vga_mode13_renderer.v
-vendor/pc_common/rtl/vga/vga_mode13_timing.v
-vendor/pc_common/rtl/vga/vga_planar16_renderer.v
-vendor/pc_common/rtl/vga/vga_unchained256_ctrl.v
-vendor/pc_common/rtl/vga/vga_unchained256_renderer.v
 vendor/pc_common/rtl/mem/pc_token_delay.sv
 vendor/pc_common/rtl/mem/vram_fetch_x.sv
 vendor/pc_common/rtl/mem/ega_vram_sdram_frontend.sv
@@ -173,4 +163,3 @@ rtl/KFPC-XT/HDL/ega_bios_loaded_latch.sv
 rtl/KFPC-XT/HDL/keyboard_warm_reset.sv
 rtl/KFPC-XT/HDL/pcjr_ir_kbd.sv
 rtl/KFPC-XT/HDL/pcjr_cold_boot.sv
-rtl/KFPC-XT/HDL/warm_boot_marker_detector.sv

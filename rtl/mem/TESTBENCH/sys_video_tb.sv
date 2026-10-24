@@ -165,11 +165,11 @@ module sys_video_tb #(
         .opl2_io(2'b11), .cms_en(1'b0), .tandy_video(1'b0), .pcjr(1'b0),
         // The CGA family only: no EGA card, no Sound Blaster, Tandy sound and MPU-401 as before
         .ega_active(1'b0), .sb_en(1'b0), .sb_irq7(1'b0), .tandy_en(1'b1), .mpu401_enabled(1'b1),
-        .umb_enabled(1'b0), .vga_mode13_osd(1'b0), .vga_mode13_native(1'b0), .ega_monitor_profile(2'b00),
+        .umb_enabled(1'b0), .ega_monitor_profile(2'b00),
         .sdram_clk(1'b0), .vid_ack(1'b0), .vid_rvalid(1'b0), .vid_rlast(1'b0), .vid_rdata(16'd0),
         .snoop_valid(1'b0), .snoop_addr(24'd0), .snoop_len(2'd0), .snoop_wdata(64'd0), .snoop_wbe(8'd0),
         .xtegactl_status_effective(40'd0), .xtegactl_status_osd_match(18'd0),
-        .id_video_card(2'd1), .id_vga13_active(1'b0),
+        .id_video_card(2'd1),
         .clk_uart(1'b0), .uart2_rx(1'b1), .uart2_cts_n(1'b1), .uart2_dcd_n(1'b1), .uart2_dsr_n(1'b1),
         .clk_midi(1'b0), .midi_rx(1'b1),
         .mem_start(mem_start), .mem_we(mem_we), .mem_addr(mem_addr), .mem_len(mem_len),

@@ -85,8 +85,6 @@ module ega_cursor_range_tb;
         .ega_text_fetch_en(text_fetch_en),
         .ega_text_char(text_char), .ega_text_attr(text_attr), .ega_text_glyph(text_glyph),
         .ega_text_data_valid(text_valid), .ega_text_tag_in(text_tag_back),
-        .vga_framebuffer_addr(), .vga_framebuffer_read_en(),
-        .vga_framebuffer_pixel(8'h00), .vga_framebuffer_data_valid(1'b0),
         .cpu_mem_select(1'b0), .cpu_mem_write(1'b0),
         .ega_cfg_toggle(), .ega_plane_write_mask_out(), .ega_odd_even_mode_out(),
         .ega_cpu_access_slot_out(), .ega_chain2_write_out(), .ega_chain2_read_out(),
@@ -101,8 +99,7 @@ module ega_cursor_range_tb;
         .ega_display_sel_out(), .ega_dot_toggle_out(), .ega_dot_clock_sel_out(),
         .ega_scandouble_active_out(),
         .prebios_video(1'b0), .splashscreen(1'b0), .ext_splash_pixel_index(4'd0), .ext_splash_pixel_valid(1'b0), .thin_font(1'b0), .scandouble_en(1'b0),
-        .ega_enabled(1'b1), .ega_monitor_profile(2'b00), .vga_enabled(1'b0),
-        .vga_mode13_set(1'b0), .vga_mode13_clear(1'b0), .vga_mode13_active_out(),
+        .ega_enabled(1'b1), .ega_monitor_profile(2'b00),
         .crt_h_offset(4'd0), .crt_v_offset(3'd0),
         .vsync_width_osd(3'd0), .hsync_width_osd(3'd0)
     );

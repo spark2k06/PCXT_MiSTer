@@ -1,4 +1,4 @@
-// REFERENCE COPY for ega_sdram_equiv_tb: the reconciled EGA/VGA core as it was
+// REFERENCE COPY for ega_sdram_equiv_tb: the EGA core as it was
 // before the SDRAM retiming, modules renamed ref_*. Do not edit.
 module ref_ega_vram_bram_frontend (
     input  logic         clock,

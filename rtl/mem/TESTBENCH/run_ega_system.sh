@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# The EGA/VGA equivalence bench of vendor/pc_common (the core on BRAM against the
+# The EGA equivalence bench of vendor/pc_common (the core on BRAM against the
 # core on SDRAM, same stimulus, same picture shifted by the retiming) on the REAL
 # memory stack: frontend -> sdram_txn_mux -> xbridge -> arbiter -> controller ->
 # chip model, with a second master hammering bank 0 like an 8088 at Max.
@@ -23,7 +23,7 @@ SRC=("$MEM/sdram_pkg.sv" "$MEM/sdram_arbiter.sv" "$MEM/sdram_xbridge.sv" "$MEM/s
      "$MEM/vram_fetch.sv" "$MEM/vid_mux.sv" "$ROOT/platform/mister/sdram_ctrl.sv"
      "$TB/sdram_model.sv" "$TB/ega_real_stack.sv"
      "$LIB/rtl/ega/ega_vram_fns_pkg.sv")
-for f in "$LIB"/rtl/ega/*.v "$LIB"/rtl/vga/*.v "$LIB"/rtl/mem/*.sv; do
+for f in "$LIB"/rtl/ega/*.v "$LIB"/rtl/mem/*.sv; do
     case "$f" in *video_monochrome_converter*) continue ;; esac
     SRC+=("$f")
 done

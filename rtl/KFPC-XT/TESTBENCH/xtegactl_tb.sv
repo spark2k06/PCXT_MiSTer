@@ -4,9 +4,8 @@
 //
 //  Two properties matter.  The block must sit clear of the on-board chip
 //  select decoder, which ignores address[15:10] and would otherwise let a
-//  write here reach the DMA page registers. Every field except VGA 13h+ must
-//  treat zero as "leave it to the OSD"; VGA 13h+ deliberately starts absent
-//  and is enabled by VGATSR through its raw XTEGACTL field.
+//  write here reach the DMA page registers. Every field must treat zero as
+//  "leave it to the OSD".
 //
 //    iverilog -g2012 -o xtegactl_tb TESTBENCH/xtegactl_tb.sv HDL/xtegactl.sv
 //    vvp xtegactl_tb
@@ -19,7 +18,6 @@ module xtegactl_tb;
 
     logic clock = 1'b0;
     logic reset = 1'b1;
-    logic clear_vga13 = 1'b0;
     always #5 clock = ~clock;
 
     logic [15:0] address          = 16'h0000;
@@ -59,7 +57,7 @@ module xtegactl_tb;
     wire [1:0] eff_speed;
     wire       eff_fake286;
     wire [1:0] eff_opl2;
-    wire       eff_cms, eff_ems, eff_umb, eff_vga13;
+    wire       eff_cms, eff_ems, eff_umb;
     wire       eff_sb;
     wire [2:0] eff_sb_irq;
     wire [3:0] eff_crt_h;
@@ -71,22 +69,22 @@ module xtegactl_tb;
     wire [39:0] status_effective;
     wire [17:0] status_osd_match;
 
-    wire [7:0] reg_cpu, reg_exp, reg_vid, reg_inp, reg_midi, reg_exp2;
+    wire [7:0] reg_cpu, reg_exp, reg_inp, reg_midi, reg_exp2;
     wire [7:0] reg_crt, reg_sync;
 
     xtegactl dut (
-        .clock(clock), .reset(reset), .clear_vga13(clear_vga13),
+        .clock(clock), .reset(reset),
         .address(address), .address_enable_n(address_enable_n),
         .io_read_n(io_read_n), .io_write_n(io_write_n),
         .data_in(data_in), .data_out(data_out), .output_enable(output_enable),
-        .reg_cpu(reg_cpu), .reg_exp(reg_exp), .reg_vid(reg_vid),
+        .reg_cpu(reg_cpu), .reg_exp(reg_exp),
         .reg_inp(reg_inp), .reg_midi(reg_midi), .reg_exp2(reg_exp2),
         .reg_crt(reg_crt), .reg_sync(reg_sync),
         .status_effective(status_effective), .status_osd_match(status_osd_match)
     );
 
     xtegactl_resolve res (
-        .reg_cpu(reg_cpu), .reg_exp(reg_exp), .reg_vid(reg_vid),
+        .reg_cpu(reg_cpu), .reg_exp(reg_exp),
         .reg_inp(reg_inp), .reg_midi(reg_midi), .reg_exp2(reg_exp2),
         .osd_speed(osd_speed), .osd_fake286(osd_fake286), .osd_opl2(osd_opl2),
         .osd_cms(osd_cms), .osd_sb(osd_sb), .osd_sb_irq(osd_sb_irq), .build_sb(build_sb),
@@ -101,7 +99,6 @@ module xtegactl_tb;
         .osd_tandy(osd_tandy), .build_tandy(build_tandy),
         .eff_speed(eff_speed), .eff_fake286(eff_fake286), .eff_opl2(eff_opl2),
         .eff_cms(eff_cms), .eff_sb(eff_sb), .eff_sb_irq(eff_sb_irq), .eff_ems(eff_ems), .eff_umb(eff_umb),
-        .eff_vga13(eff_vga13),
         .eff_joy1_digital(eff_joy1_digital), .eff_joy1_disable(eff_joy1_disable),
         .eff_joy2_digital(eff_joy2_digital), .eff_joy2_disable(eff_joy2_disable),
         .eff_joy_sync(eff_joy_sync), .eff_joy_swap(eff_joy_swap),
@@ -182,7 +179,6 @@ module xtegactl_tb;
         chk ("cms defers",        eff_cms,          1'b1);
         chk ("ems defers",        eff_ems,          1'b1);
         chk ("umb defers",        eff_umb,          1'b1);
-        chk ("vga13 starts disabled", eff_vga13,     1'b0);
         chk ("joy1 type defers",  eff_joy1_digital, 1'b1);
         chk ("joy2 dis defers",   eff_joy2_disable, 1'b1);
         chk ("joy sync defers",   eff_joy_sync,     1'b1);
@@ -276,24 +272,12 @@ module xtegactl_tb;
         io_write(16'h8982, 8'h00);
         chk("cms defers again", eff_cms, 1'b1);
 
-        // ---- video -----------------------------------------------------------
-        io_write(16'h8983, 8'h01); chk("vga13 1 remains off", eff_vga13, 1'b0);
-        io_write(16'h8983, 8'h02); chk("vga13 2 enables",    eff_vga13, 1'b1);
-        io_write(16'h8983, 8'h03); chk("vga13 3 is reserved/off", eff_vga13, 1'b0);
-        io_write(16'h8983, 8'h00); chk("vga13 0 disables again", eff_vga13, 1'b0);
-
-        // A BIOS warm-boot marker clears only the extension VGATSR enabled. A
-        // launcher may have left other overrides in place, and a warm boot
-        // must not silently rewrite them.
-        io_write(16'h8981, 8'h0A);
+        // ---- 8983h is reserved: no register behind it, it reads zero -------------
         io_write(16'h8983, 8'h02);
-        @(negedge clock); clear_vga13 = 1'b1;
-        @(posedge clock);
-        @(negedge clock); clear_vga13 = 1'b0;
-        chk("warm reset disables vga13", eff_vga13, 1'b0);
-        if (reg_vid !== 8'h00) fail("warm reset did not clear video register");
-        if (reg_cpu !== 8'h0A) fail("warm reset disturbed another override");
-        io_write(16'h8981, 8'h00);
+        io_read(16'h8983, rd);
+        if (rd !== 8'h00) fail($sformatf("reserved 8983h read back %02h", rd));
+        io_read(16'h898A, rd);
+        if (rd[2] !== 1'b0) fail("898A bit 2 (VGA 13h+) is not zero");
 
         // ---- input ------------------------------------------------------------
         io_write(16'h8984, 8'h01);
@@ -436,12 +420,12 @@ module xtegactl_tb;
         io_read_n = 1'b1;
 
         // A write must not be taken while the DMA controller owns the bus.
-        io_write(16'h8983, 8'h02);
+        io_write(16'h8982, 8'h20);          // ems=2: off, against an OSD that has it on
         @(negedge clock);
         address_enable_n = 1'b1;
-        io_write(16'h8983, 8'h01);
+        io_write(16'h8982, 8'h10);          // would turn it on
         address_enable_n = 1'b0;
-        chk("ignored a write made during a DMA cycle", eff_vga13, 1'b1);
+        chk("ignored a write made during a DMA cycle", eff_ems, 1'b0);
 
         // ---- reset returns every override to its default ----------------------------------
         io_write(16'h8982, 8'hAA);
@@ -452,12 +436,11 @@ module xtegactl_tb;
         chk("reset returns umb to the OSD", eff_umb, 1'b1);
         chk("reset returns tandy to the OSD", eff_tandy, 1'b0);
         chk3("reset returns sb irq to the OSD", eff_sb_irq, 3'd5);
-        chk("reset disables vga13", eff_vga13, 1'b0);
         io_read(16'h8982, rd);
         if (rd !== 8'h00) fail($sformatf("expansion register survived reset as %02h", rd));
 
         if (errors == 0)
-            $display("RESULT: PASS (XTEGACTL decodes clear of the on-board block; VGA13 starts disabled)");
+            $display("RESULT: PASS (XTEGACTL decodes clear of the on-board block)");
         else
             $display("RESULT: FAIL (%0d checks)", errors);
         $finish;

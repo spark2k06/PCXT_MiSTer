@@ -126,11 +126,9 @@ module ega_io_stretch_tb;
         .ega_fetch_data_valid(1'b0), \
         .ega_text_char(8'h00), .ega_text_attr(8'h00), .ega_text_glyph(8'h00), \
         .ega_text_data_valid(1'b0), .ega_text_tag_in(1'b0),         .ext_splash_pixel_index(4'd0), .ext_splash_pixel_valid(1'b0), .prebios_video(1'b0), \
-        .vga_framebuffer_pixel(8'h00), .vga_framebuffer_data_valid(1'b0), \
         .cpu_mem_select(1'b0), .cpu_mem_write(1'b0), \
         .splashscreen(1'b0), .thin_font(1'b0), .scandouble_en(1'b0), \
-        .ega_enabled(1'b1), .ega_monitor_profile(2'b00), .vga_enabled(1'b0), \
-        .vga_mode13_set(1'b0), .vga_mode13_clear(1'b0), \
+        .ega_enabled(1'b1), .ega_monitor_profile(2'b00), \
         .crt_h_offset(4'd0), .crt_v_offset(3'd0), \
         .vsync_width_osd(3'd0), .hsync_width_osd(3'd0)
 

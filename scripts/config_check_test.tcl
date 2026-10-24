@@ -60,12 +60,7 @@ foreach f [lsort [glob -directory $profile_dir *.tcl]] {
     foreach w $warnings { puts "      warning: $w" }
 }
 
-# The trimmed variants differ from mister_pcxt_full in exactly the macros they trim
 lassign [evaluate_profile mister_pcxt_full]          full   _
-lassign [evaluate_profile mister_pcxt_full_novga13]  novga  _
-if {[dict get $novga ENABLE_VGA13] != 0 || [dict get $novga ENABLE_EGA] != 1} {
-    fail "mister_pcxt_full_novga13 must keep the EGA and drop VGA 13h"
-}
 lassign [evaluate_profile mister_pcxt_cga] cga _
 if {[dict get $cga ENABLE_EGA] != 0 || [dict exists $cga LAYOUT_EGA]} {
     fail "mister_pcxt_cga must be the CGA layout without an EGA card"
@@ -86,7 +81,7 @@ if {[dict get $pcjr_prof SYSTEM_VARIANT_PCJR] != 1 || [dict get $pcjr_prof ENABL
     fail "mister_pcjr must be a PCjr machine with the CGA family only and the CGA layout"
 }
 
-foreach p {mister_pcxt_full mister_pcxt_full_novga13} {
+foreach p {mister_pcxt_full} {
     lassign [evaluate_profile $p] pm _
     if {[dict get $pm ENABLE_MODEL_TANDY] != 1 || [dict get $pm ENABLE_TANDY_VIDEO] != 1
         || [dict get $pm ENABLE_TANDY_KBD] != 1} {
@@ -104,7 +99,7 @@ foreach p {mister_pcxt_cga mister_pcxt_ega mister_tandy1000} {
 }
 
 # --- wrong combinations -----------------------------------------------------
-set base [dict create LAYOUT_EGA 1 ENABLE_CGA 1 ENABLE_HGC 1 ENABLE_EGA 1 ENABLE_VGA13 1 ENABLE_SB 1 ENABLE_OPL2 1]
+set base [dict create LAYOUT_EGA 1 ENABLE_CGA 1 ENABLE_HGC 1 ENABLE_EGA 1 ENABLE_SB 1 ENABLE_OPL2 1]
 
 proc expect_error {label macros pattern} {
     lassign [pcxt_check_config $macros] errors warnings
@@ -120,13 +115,11 @@ expect_error "Tandy ROM with the EGA layout" \
     [dict replace $base ROM_VARIANT_TANDY 1] "*LAYOUT_EGA=1 with a Tandy ROM*"
 expect_error "ROM_IS_TANDY with the EGA layout" \
     [dict replace $base ROM_IS_TANDY 1] "*LAYOUT_EGA=1 with a Tandy ROM*"
-expect_error "VGA13 without EGA" \
-    [dict replace $base ENABLE_EGA 0] "*ENABLE_VGA13=1 needs ENABLE_EGA=1*"
 expect_error "no video card" \
-    [dict replace $base ENABLE_CGA 0 ENABLE_HGC 0 ENABLE_EGA 0 ENABLE_VGA13 0] "*without any video card*"
+    [dict replace $base ENABLE_CGA 0 ENABLE_HGC 0 ENABLE_EGA 0] "*without any video card*"
 expect_error "EGA in a Tandy machine" \
     [dict replace $base SYSTEM_VARIANT_TANDY 1] "*SYSTEM_VARIANT_TANDY=1*"
-set tandy_ok [dict create ENABLE_CGA 1 ENABLE_HGC 0 ENABLE_EGA 0 ENABLE_VGA13 0 SYSTEM_VARIANT_TANDY 1 ROM_VARIANT_TANDY 1 ENABLE_TANDY_VIDEO 1]
+set tandy_ok [dict create ENABLE_CGA 1 ENABLE_HGC 0 ENABLE_EGA 0 SYSTEM_VARIANT_TANDY 1 ROM_VARIANT_TANDY 1 ENABLE_TANDY_VIDEO 1]
 expect_error "Tandy video without the CGA"     [dict replace $tandy_ok ENABLE_CGA 0 ENABLE_HGC 1] "*ENABLE_TANDY_VIDEO=1 needs ENABLE_CGA=1*"
 expect_error "Tandy video with Hercules"     [dict replace $tandy_ok ENABLE_HGC 1] "*ENABLE_TANDY_VIDEO=1 with ENABLE_HGC=1*"
 expect_error "Tandy video with the EGA card"     [dict replace $tandy_ok ENABLE_EGA 1 LAYOUT_EGA 1] "*ENABLE_TANDY_VIDEO=1 with ENABLE_EGA=1*"
@@ -144,7 +137,7 @@ expect_error "machine choice with a fixed Tandy"      [dict replace $model_ok RO
 expect_error "Tandy video in a PCXT without a Tandy BIOS slot" \
     [dict create ENABLE_CGA 1 ENABLE_TANDY_VIDEO 1] "*needs a Tandy BIOS slot*"
 # IBM PCjr
-set pcjr_ok [dict create ENABLE_CGA 1 ENABLE_HGC 0 ENABLE_EGA 0 ENABLE_VGA13 0 SYSTEM_VARIANT_PCJR 1 ROM_VARIANT_PCJR 1 \
+set pcjr_ok [dict create ENABLE_CGA 1 ENABLE_HGC 0 ENABLE_EGA 0 SYSTEM_VARIANT_PCJR 1 ROM_VARIANT_PCJR 1 \
     ENABLE_PCJR 1 ENABLE_TANDY_VIDEO 1 ENABLE_TANDY_AUDIO 1]
 lassign [pcxt_check_config $pcjr_ok] errors warnings
 if {[llength $errors]} { fail "PCjr combination rejected: $errors" } else { puts "ok:   PCjr accepted" }

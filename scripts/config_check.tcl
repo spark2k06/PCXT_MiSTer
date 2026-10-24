@@ -20,7 +20,6 @@ proc pcxt_macro_defaults {} {
         ENABLE_CGA           1 \
         ENABLE_HGC           0 \
         ENABLE_EGA           0 \
-        ENABLE_VGA13         1 \
         ENABLE_OPL2          0 \
         ENABLE_CMS           0 \
         ENABLE_SB            0 \
@@ -36,7 +35,7 @@ proc pcxt_switch_macros {} {
         SYSTEM_VARIANT_TANDY ROM_VARIANT_TANDY ROM_IS_TANDY ENABLE_MODEL_TANDY ENABLE_TANDY_VIDEO
         SYSTEM_VARIANT_PCJR ROM_VARIANT_PCJR ROM_IS_PCJR ENABLE_PCJR
         ENABLE_TANDY_AUDIO ENABLE_TANDY_KBD ENABLE_CGA ENABLE_HGC ENABLE_EGA
-        ENABLE_VGA13 ENABLE_OPL2 ENABLE_CMS ENABLE_SB ENABLE_EMS ENABLE_UMB
+        ENABLE_OPL2 ENABLE_CMS ENABLE_SB ENABLE_EMS ENABLE_UMB
         ENABLE_A000_UMB ENABLE_MIDI LAYOUT_EGA
     }
 }
@@ -89,9 +88,6 @@ proc pcxt_check_config {assigned} {
     # Video cards
     if {!$tandy && !$cga && !$hgc && !$ega} {
         lappend errors "PCXT without any video card: set ENABLE_CGA, ENABLE_HGC or ENABLE_EGA"
-    }
-    if {[pcxt_on $m ENABLE_VGA13] && !$ega} {
-        lappend errors "ENABLE_VGA13=1 needs ENABLE_EGA=1 (the VGA 13h+ extension rides on the EGA card); set ENABLE_VGA13=0"
     }
     if {$ega && !$layout_ega} {
         lappend errors "ENABLE_EGA=1 needs LAYOUT_EGA=1: the CGA layout of the OSD has no status bits for the EGA options"
