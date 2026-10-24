@@ -2,7 +2,7 @@
 `define TB_CYCLE        20
 `define TB_FINISH_COUNT 20000
 
-module KFPS2KB_tm();
+module KFPS2KB_tb();
 
     timeunit        1ns;
     timeprecision   10ps;
@@ -67,6 +67,14 @@ module KFPS2KB_tm();
     logic           irq;
     logic   [7:0]   keycode;
     logic           clear_keycode;
+
+    // Peripheral clock enable always on; F12 pause and video swap are not
+    // exercised here (splash_f12_pause_tb covers them)
+    logic           peripheral_ce = 1'b1;
+    logic           video_output  = 1'b0;
+    logic           tandy_video   = 1'b0;
+    logic           pause_core;
+    logic           swap_video;
 
     KFPS2KB #(.over_time (16'd6)
     ) u_KFPS2KB (.*);

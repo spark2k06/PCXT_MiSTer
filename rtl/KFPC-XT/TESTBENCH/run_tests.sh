@@ -17,7 +17,7 @@
 #
 #   The vendored kitune-san ones mostly only run to $finish and leave a
 #   waveform to look at. A pass there means it elaborated and terminated, no
-#   more. KFPS2KB is the exception: its F12 section checks itself.
+#   more.
 #
 # Not run here:
 #

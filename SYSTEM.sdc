@@ -21,7 +21,9 @@ create_generated_clock -name clk_14_318 -source [get_pins $CLOCK_VGA_CGA] -divid
 # serves as the HGC pixel clock: 114.545 MHz (general[2]). The chip's clock
 # leaves through a DDIO register (emu|sdram_clk_ddr): a separate PLL output
 # (general[4]) half a period after the controller clock.
+set ega_card 0
 foreach_in_collection a [get_all_global_assignments -name VERILOG_MACRO] {
+    if {[lindex $a 2] eq "ENABLE_EGA=1"} { set ega_card 1 }
 }
 set SDRAM_DDIO [get_pins -compatibility_mode {*sdram_clk_ddr|*|muxsel}]
 set CLOCK_SDRAM $CLOCK_VIDEO_MDA
@@ -165,15 +167,19 @@ set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERI
 
 # EGA card I/O. The write stretcher posts each cycle with a guaranteed width;
 # the first register on the card's clock may take up to VIDEO_TO_SYSYEM_DELAY.
-# The wildcards skip the EGA_CARD generate scope in the instance path.
-set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_address_sync1[*] \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_data_sync1[*] \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_write_n_sync1 \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_read_n_sync1 \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_address_enable_n_sync1}] $VIDEO_TO_SYSYEM_DELAY
+# The wildcards skip the EGA_CARD generate scope in the instance path. A build
+# without the card has none of these registers: skip the constraints there
+# instead of warning that the wildcards match nothing.
+if {$ega_card} {
+    set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_address_sync1[*] \
+                                        emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_data_sync1[*] \
+                                        emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_write_n_sync1 \
+                                        emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_io_read_n_sync1 \
+                                        emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*ega_address_enable_n_sync1}] $VIDEO_TO_SYSYEM_DELAY
 
-set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*EGA_IO_DOUT_SYNC1[*] \
-                                    emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*EGA_IO_OE_SYNC1}] $VIDEO_TO_SYSYEM_DELAY
+    set_max_delay -to   [get_registers {emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*EGA_IO_DOUT_SYNC1[*] \
+                                        emu:emu|CHIPSET:u_CHIPSET|PERIPHERALS:u_PERIPHERALS|*EGA_IO_OE_SYNC1}] $VIDEO_TO_SYSYEM_DELAY
+}
 
 # The Hercules graphics page crosses to the chipset clock for the memory map
 # (the video memory is in SDRAM now, there is no HGC BRAM to write any more).

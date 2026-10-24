@@ -32,7 +32,7 @@ source $pcxt_profile_file
 # not reach the SDRAM_DQ pins: sdram_ctrl's dq_in_q registers could not go into
 # their I/O cells ("nodes have conflicting location assignments") and the SDRAM
 # I/O paths failed by 4-6 ns. Forcing that clock onto a global line closed them
-# (the EGA vehicle). Freeing vga_tx_clk instead (GLOBAL_SIGNAL OFF) crashes
+# (the EGA builds). Freeing vga_tx_clk instead (GLOBAL_SIGNAL OFF) crashes
 # Quartus 17.0.2's fitter (periph_pcc segfault), so do not add that one.
 # Profiles with the EGA card ask for it with pcxt_global_sdram_clock.
 if {[info exists pcxt_global_sdram_clock] && $pcxt_global_sdram_clock} {

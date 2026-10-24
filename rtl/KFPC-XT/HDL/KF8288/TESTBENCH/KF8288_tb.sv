@@ -24,6 +24,22 @@ module KF8288_tb();
     initial clock = 1'b1;
     always #(`TB_CYCLE / 2) clock = ~clock;
 
+    // The module runs on a system clock twice as fast as the processor clock
+    // `clock`, with enables on the processor clock's edges (as the chipset
+    // drives it)
+    logic   sysclk;
+    initial sysclk = 1'b0;
+    always #(`TB_CYCLE / 4) sysclk = ~sysclk;
+
+    logic   cpu_clock_prev;
+    logic   cpu_ce_posedge;
+    logic   cpu_ce_negedge;
+    always_ff @(posedge sysclk) begin
+        cpu_clock_prev <= clock;
+        cpu_ce_posedge <=  clock & ~cpu_clock_prev;
+        cpu_ce_negedge <= ~clock &  cpu_clock_prev;
+    end
+
     //
     // Generate reset
     //
@@ -87,7 +103,7 @@ module KF8288_tb();
     logic           peripheral_data_enable_n;
     logic           address_latch_enable;
 
-    KF8288 u_KF8288 (.*);
+    KF8288 u_KF8288 (.*, .clock(sysclk));
 
 
     //
