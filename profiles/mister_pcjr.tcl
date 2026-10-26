@@ -36,3 +36,6 @@ set_global_assignment -name VERILOG_MACRO "ENABLE_MIDI=0"
 # config.tcl and mister_tandy1000).
 set pcxt_global_sdram_clock 1
 
+# Fitter seed: the one that closes timing in the four corners with this profile
+# (it replaces the default SEED of PCXT.qsf, which config.tcl follows).
+set_global_assignment -name SEED 1

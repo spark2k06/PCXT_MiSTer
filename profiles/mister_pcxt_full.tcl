@@ -42,3 +42,7 @@ set_global_assignment -name VERILOG_MACRO "ENABLE_MIDI=1"
 # The EGA card's clocks leave the PLL with too many nets for the global lines
 # (see config.tcl): ask for the SDRAM controller clock on one.
 set pcxt_global_sdram_clock 1
+
+# Fitter seed: the one that closes timing in the four corners with this profile
+# (it replaces the default SEED of PCXT.qsf, which config.tcl follows).
+set_global_assignment -name SEED 4

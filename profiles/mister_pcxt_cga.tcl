@@ -27,3 +27,6 @@ set_global_assignment -name VERILOG_MACRO "ENABLE_SB=0"
 # MPU-401 / MT32-pi and HPS USB MIDI support (set to 0 to omit it from the build).
 set_global_assignment -name VERILOG_MACRO "ENABLE_MIDI=1"
 
+# Fitter seed: the one that closes timing in the four corners with this profile
+# (it replaces the default SEED of PCXT.qsf, which config.tcl follows).
+set_global_assignment -name SEED 5

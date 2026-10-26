@@ -153,10 +153,12 @@ configuration must match the selected EMS frame; see the supplied files under
 
 ## OSD configuration
 
-The default `config.tcl` build enables CGA, HGC, OPL2, C/MS, EMS, the A000 UMB
-and MIDI. Tandy video, Tandy keyboard and Tandy audio are disabled in this
-profile; they remain available as build-time variants where the source supports
-them.
+The default `config.tcl` build, the one published in `releases/`, is the
+`mister_pcxt_full` profile: the IBM PCXT, the Tandy 1000 and the IBM PCjr as
+machines, CGA, HGC and EGA as video cards, OPL2, C/MS, the Sound Blaster Pro,
+EMS, the A000 UMB and MIDI. The machine and the video card are chosen in the OSD
+and applied at the next reset. Smaller builds with only part of this can be
+compiled from the other profiles (see [Building](#building)).
 
 The main OSD groups are:
 
@@ -230,6 +232,10 @@ the `PCXT_PROFILE` environment variable (`config.tcl` sources
 `profiles/<profile>.tcl`); the profiles are `mister_pcxt_full` (PCXT, Tandy 1000
 and PCjr, chosen in the OSD), `mister_pcxt_ega`, `mister_pcxt_cga`,
 `mister_tandy1000` and `mister_pcjr`. Each profile sets its own fitter seed.
+Only `mister_pcxt_full`, the default, is published in `releases/`; the other
+profiles are there to build a core with a single machine or video family, for
+instance to free FPGA resources or to keep the OSD of the earlier PCXT and
+PCXT-EGA cores.
 `scripts/build_profiles.sh` compiles them (Docker, `raetro/quartus:17.0`) and
 prints ALM, M10K and the timing slack of the four corners.
 For users of the earlier cores, see

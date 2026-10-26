@@ -1,9 +1,12 @@
 # PCXT configuration. The macros of each build live in profiles/<profile>.tcl:
 #
-#   mister_pcxt_cga           CGA + Hercules (default; the PCXT core)
+#   mister_pcxt_full          PCXT, Tandy 1000 and PCjr, CGA + Hercules and EGA, the
+#                             machine and the card are chosen at reset (default; the
+#                             build in releases/)
+#   mister_pcxt_cga           CGA + Hercules (the PCXT core before the unified tree)
 #   mister_pcxt_ega           EGA + Sound Blaster Pro (the PCXT core with EGA)
-#   mister_pcxt_full          both video families, the card is chosen at reset
 #   mister_tandy1000          Tandy 1000 (CGA + Tandy video, Tandy BIOS), CORE_NAME "Tandy1000"
+#   mister_pcjr               IBM PCjr, CORE_NAME "PCjr"
 #
 # Pick one with the PCXT_PROFILE environment variable before running Quartus,
 # for instance PCXT_PROFILE=mister_pcxt_full quartus_sh --flow compile PCXT
@@ -14,7 +17,7 @@
 # evaluates it repeatedly in one process).
 foreach v [info vars pcxt_*] { unset $v }
 
-set pcxt_profile mister_pcxt_cga
+set pcxt_profile mister_pcxt_full
 if {[info exists ::env(PCXT_PROFILE)] && $::env(PCXT_PROFILE) ne ""} {
     set pcxt_profile $::env(PCXT_PROFILE)
 }
