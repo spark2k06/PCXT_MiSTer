@@ -9,6 +9,7 @@ from MiSTer output plumbing.
 
 * [`report/CORE_REPORT.html`](report/CORE_REPORT.html) — visual technical report covering architecture, CGA, HGC/MDA, 15 kHz output, memory, OSD and startup.
 * [`8086-adaptation.md`](8086-adaptation.md) — source-of-truth notes for the selectable 8088/8086 implementation.
+* [`MIGRACION.md`](MIGRACION.md) — what changes for users coming from the PCXT, PCXT-EGA and PCAT-286 cores.
 * [`../rtl/common/jtframe_credits.md`](../rtl/common/jtframe_credits.md) — credits asset format and the project integration.
 * [`../SW/XTCTL/README.txt`](../SW/XTCTL/README.txt) — legacy XTCTL utility and its runtime overrides.
 

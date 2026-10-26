@@ -217,12 +217,21 @@ IBM 5160 commonly uses 360 KiB media, while Micro8088 commonly uses 720 KiB or
 
 ## Building
 
-The standard Quartus project is `PCXT.qsf`. The feature profile is controlled
-by `config.tcl`. From WSL, the containerised build used by the project is:
+The standard Quartus project is `PCXT.qsf`. The build profile is picked with
+the `PCXT_PROFILE` environment variable (`config.tcl` sources
+`profiles/<profile>.tcl`); the profiles are `mister_pcxt_full` (PCXT, Tandy 1000
+and PCjr, chosen in the OSD), `mister_pcxt_ega`, `mister_pcxt_cga`,
+`mister_tandy1000` and `mister_pcjr`. Each profile sets its own fitter seed.
+`scripts/build_profiles.sh` compiles them (Docker, `raetro/quartus:17.0`) and
+prints ALM, M10K and the timing slack of the four corners.
+For users of the earlier cores, see
+[`docs/MIGRACION.md`](docs/MIGRACION.md). The EGA card is a strict EGA: the VGA
+13h+ extension no longer exists. From WSL, the containerised build of one
+profile is:
 
 ```sh
-docker run --rm -v "$(pwd):/build" -w /build raetro/quartus:mister \
-  quartus_sh --flow compile PCXT.qsf
+docker run --rm -e PCXT_PROFILE=mister_pcxt_full -v "$(pwd):/build" -w /build \
+  raetro/quartus:17.0 quartus_sh --flow compile PCXT
 ```
 
 The repository includes focused RTL testbenches under
