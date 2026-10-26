@@ -35,6 +35,13 @@ create_generated_clock -name SDIO_SPI_CLK -source [get_pins ${SDIO_SPI_REG}|clk]
 # SPLASH
 set_false_path -to [get_registers {emu:emu|splash_off}]
 
+# Configuration latched at reset on the falling chipset edge: the machine model,
+# the PCjr RAM size, the Hercules flag and the video card. They are written only
+# while reset is asserted and the CPU is held, and never change while the
+# machine runs, but the analyser sees them as half-cycle launches into the
+# memory map and CPU port (hundreds of paths, the worst of the full profile).
+set_false_path -from [get_registers {emu:emu|tandy_applied_r                                      emu:emu|pcjr_applied_r                                      emu:emu|pcjr_ram_size_r[*]                                      emu:emu|hgc_mode                                      emu:emu|ega_active_r*}]
+
 # CDC: PLL principal (Chipset) <-> PLL video (CPU/Video) - asynchronous clock domains
 set_false_path -from [get_clocks $CLOCK_CHIP] -to [get_clocks $CLOCK_VGA_CGA]
 set_false_path -from [get_clocks $CLOCK_VGA_CGA] -to [get_clocks $CLOCK_CHIP]
