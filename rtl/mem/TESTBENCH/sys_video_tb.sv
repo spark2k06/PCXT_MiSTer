@@ -597,6 +597,13 @@ module sys_video_tb #(
         w = chip.peek(HGC_WORD_BASE + 24'h4080);      if (w !== 16'h3CC3) err($sformatf("HGC page 1 8100: %04h", w));
         w = chip.peek(CGA_WORD_BASE + 24'h8);         if (w[7:0] !== 8'h5A) err($sformatf("CGA mirror 0010: %04h", w));
 
+        // The teletype section: 160 characters at B800:1000, the first row scrolled over by the second
+        for (int j = 0; j < 160; j++) begin
+            logic [7:0] ch = (j < 80) ? 8'(j + 80) : 8'(j);
+            w = chip.peek(CGA_WORD_BASE + 24'h800 + j);
+            if (w !== {8'h07, ch}) err($sformatf("CGA teletype word %0d: %04h, expected %04h", j, w, {8'h07, ch}));
+        end
+
         // Everything the CPU wrote is in the chip
         begin
             int bad = 0, n = 0;

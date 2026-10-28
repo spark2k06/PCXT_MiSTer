@@ -131,6 +131,59 @@ start:
     inc     bl
     loop    .raw
 
+    ; ---- BIOS-like teletype: cursor index in the BDA, character and attribute
+    ;      into video memory, CRTC cursor out, then a scroll with REP MOVSW ----
+    xor     ax, ax
+    mov     ds, ax
+    mov     word [0x0450], 0
+    mov     ax, 0xB800
+    mov     es, ax
+    mov     cx, 160
+.tty:
+    mov     bx, [0x0450]            ; word read of RAM
+    mov     di, bx
+    shl     di, 1
+    mov     [es:di + 0x1000], bl    ; character
+    mov     byte [es:di + 0x1001], 0x07
+    inc     bx
+    mov     [0x0450], bx            ; word write of RAM
+    mov     dx, 0x3D4
+    mov     al, 0x0E
+    out     dx, al
+    inc     dx
+    mov     al, bh
+    out     dx, al
+    dec     dx
+    mov     al, 0x0F
+    out     dx, al
+    inc     dx
+    mov     al, bl
+    out     dx, al
+    loop    .tty
+
+    mov     ax, 0xB800
+    mov     ds, ax
+    mov     di, 0x1000
+    mov     si, 0x1000 + 160
+    mov     cx, 80
+    rep movsw                       ; scroll one row up
+
+    xor     si, si
+    mov     cx, 80
+    mov     bl, 80
+.scroll_chk:
+    mov     ax, [si + 0x1000]
+    cmp     al, bl
+    jne     .scroll_bad
+    cmp     ah, 0x07
+    je      .scroll_ok
+.scroll_bad:
+    inc     bp
+.scroll_ok:
+    add     si, 2
+    inc     bl
+    loop    .scroll_chk
+
     ; ---- done ----
     xor     ax, ax
     mov     ds, ax
