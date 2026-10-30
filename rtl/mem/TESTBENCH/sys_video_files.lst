@@ -128,6 +128,7 @@ rtl/KFPC-XT/HDL/splash_f12_pause.sv
 rtl/KFPC-XT/HDL/rom_presence_latch.sv
 rtl/KFPC-XT/HDL/bios_hold_notice.sv
 rtl/video/ega_splash_renderer.v
+rtl/video/splash_rom.v
 vendor/pc_common/rtl/ega/UM6845R.v
 vendor/pc_common/rtl/ega/ega_attrib_ctrl.v
 vendor/pc_common/rtl/ega/ega_ddr_arbiter.v

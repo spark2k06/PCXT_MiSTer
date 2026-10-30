@@ -123,7 +123,7 @@ for entry in "${BENCHES[@]}"; do
     verilator --binary --timing --timescale 1ns/1ps -Wno-fatal -Wno-lint -Wno-style ${VFLAGS:-} \
         -Wno-MULTIDRIVEN -Wno-TIMESCALEMOD -Wno-INITIALDLY -Wno-BLKANDNBLK $INCS $DEFS \
         --top-module "$top" $params -Mdir "$out" -o sim $sources > "$blog" 2>&1 \
-        && cp "$CPU8088/mcl86_ucode.mem" "$TB/sys_video_prog.hex" "$VID/cga.hex" "$VID/hgc.hex" "$VID/splash_cga_320x200.hex" "$out/"         && (cd "$out" && ./sim) > "$log" 2>&1
+        && cp "$CPU8088/mcl86_ucode.mem" "$TB/sys_video_prog.hex" "$VID/cga.hex" "$VID/hgc.hex" "$VID/splash_320x200.hex" "$out/"         && (cd "$out" && ./sim) > "$log" 2>&1
     rc=$?
     [ -s "$log" ] || cp "$blog" "$log"
     elapsed=$(( $(date +%s) - start ))

@@ -8,9 +8,11 @@ module cga_splash_renderer_tb;
     reg [4:0] clkdiv = 5'd0;
     reg display_enable = 1'b0;
     reg vblank = 1'b1;
-    reg composite = 1'b0;
     wire [3:0] pixel_index;
+    wire [14:0] rom_addr;
+    wire [7:0] rom_q;
 
+    // Run from rtl/video so splash_rom finds splash_320x200.hex.
     cga_splash_renderer dut (
         .clk(clk),
         .reset(reset),
@@ -18,9 +20,31 @@ module cga_splash_renderer_tb;
         .clkdiv(clkdiv),
         .display_enable(display_enable),
         .vblank(vblank),
-        .composite(composite),
+        .rom_addr(rom_addr),
+        .rom_q(rom_q),
         .pixel_index(pixel_index)
     );
+
+    splash_rom rom (
+        .clk(clk),
+        .addr_a(rom_addr),
+        .q_a(rom_q),
+        .addr_b(15'd0),
+        .q_b()
+    );
+
+    reg [7:0] picture [0:31999];
+    initial $readmemh("splash_320x200.hex", picture);
+
+    function [3:0] expected;
+        input integer line;
+        input integer x;
+        reg [7:0] b;
+        begin
+            b = picture[line * 160 + x / 2];
+            expected = (x % 2) ? b[3:0] : b[7:4];
+        end
+    endfunction
 
     always #5 clk = ~clk;
 
@@ -36,6 +60,7 @@ module cga_splash_renderer_tb;
     integer first_nonblack;
     integer row;
     integer active_pixels;
+    integer mismatches;
     reg [3:0] first_pixel;
     reg [3:0] last_pixel;
     reg [3:0] previous_pixel;
@@ -54,16 +79,16 @@ module cga_splash_renderer_tb;
         previous_pixel = 4'hx;
         first_nonblack = -1;
         active_pixels = 0;
-        // The artwork intentionally has a black top margin.  Run five
-        // complete rows so the check covers both that margin and visible
-        // artwork, while also checking that every line advances normally.
+        mismatches = 0;
+        // Run five complete rows and compare every source pixel with the
+        // picture, while also checking that every line advances normally.
         for (row = 0; row < 5; row = row + 1) begin
             for (i = 0; i < 320 * 4; i = i + 1) begin
                 tick();
-                if (pixel_index !== 4'h0 && pixel_index !== 4'hC &&
-                    pixel_index !== 4'hA && pixel_index !== 4'hE) begin
-                    $display("FAIL: unexpected CGA index %h at row %0d clock %0d", pixel_index, row, i);
-                    $fatal(1);
+                if (pixel_index !== expected(row, i / 4)) begin
+                    if (mismatches < 8)
+                        $display("FAIL: row %0d pixel %0d is %h, expected %h", row, i / 4, pixel_index, expected(row, i / 4));
+                    mismatches = mismatches + 1;
                 end
                 // A source pixel is held for four master clocks.  This
                 // catches a RAM output changing in the middle of a group,
@@ -87,6 +112,8 @@ module cga_splash_renderer_tb;
                 display_enable = 1'b1;
         end
 
+        if (mismatches != 0)
+            $fatal(1, "FAIL: %0d samples differ from the picture", mismatches);
         if (active_pixels != 5 * 1280)
             $fatal(1, "FAIL: wrong active sample count %0d", active_pixels);
         if (first_nonblack < 0)
@@ -96,7 +123,7 @@ module cga_splash_renderer_tb;
         if (dut.scanline !== 9'd5)
             $fatal(1, "FAIL: scanline did not advance (%0d)", dut.scanline);
 
-        $display("PASS: CGA splash renderer emitted 320 pixels over 1280 clocks; first=%h last=%h", first_pixel, last_pixel);
+        $display("PASS: CGA splash renderer emitted the picture's 320 pixels over 1280 clocks on 5 rows; first=%h last=%h", first_pixel, last_pixel);
         $finish;
     end
 

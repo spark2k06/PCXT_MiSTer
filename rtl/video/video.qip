@@ -20,4 +20,5 @@ set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) v
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) cga_border_window.sv ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) cga_pixel_delay.sv ]
 set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) ega_splash_renderer.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) splash_rom.v ]
 set_global_assignment -name QIP_FILE [file join $::quartus(qip_path) .. .. vendor pc_common rtl pc_common.qip ]

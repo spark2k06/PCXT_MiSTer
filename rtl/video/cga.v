@@ -56,6 +56,8 @@ module cga(
     output[6:0] comp_video,
 
     input splashscreen,
+    output[14:0] splash_rom_addr,   // port A of splash_rom, outside the card
+    input[7:0] splash_rom_q,
     input composite,
     input thin_font,
     input tandy_video,     
@@ -571,7 +573,8 @@ module cga(
         .clkdiv(clkdiv),
         .display_enable(display_enable),
         .vblank(vblank_crtc),
-        .composite(composite),
+        .rom_addr(splash_rom_addr),
+        .rom_q(splash_rom_q),
         .pixel_index(splash_video)
     );
 

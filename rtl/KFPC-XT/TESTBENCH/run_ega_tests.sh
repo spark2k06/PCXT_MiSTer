@@ -21,6 +21,7 @@ for f in "$LIB"/rtl/ega/*.v; do
 done
 STRETCH=$ROOT/rtl/KFPC-XT/HDL/ega_io_stretch.sv
 SPLASH=$ROOT/rtl/video/ega_splash_renderer.v
+SPLASH_ROM=$ROOT/rtl/video/splash_rom.v
 CREDITS=$ROOT/rtl/common/jtframe_credits.v
 
 pass=0; fail=0
@@ -38,7 +39,7 @@ run() {   # name, bench dir, workdir, sources...
 run ega_io_read_ready_tb          "$HERE" "$ROOT" "$STRETCH"
 run ega_io_stretch_tb             "$HERE" "$ROOT" "$STRETCH" "${LIBSRC[@]}"
 run ega_switch_sense_io_path_tb   "$HERE" "$ROOT" "$STRETCH" "${LIBSRC[@]}"
-run ega_splash_timing_tb          "$VIDTB" "$ROOT/rtl/video" "$SPLASH" "${LIBSRC[@]}"
+run ega_splash_timing_tb          "$VIDTB" "$ROOT/rtl/video" "$SPLASH" "$SPLASH_ROM" "${LIBSRC[@]}"
 run jtframe_credits_alignment_tb  "$VIDTB" "$ROOT" "$CREDITS"
 run jtframe_credits_pause_tb      "$VIDTB" "$ROOT" "$CREDITS"
 

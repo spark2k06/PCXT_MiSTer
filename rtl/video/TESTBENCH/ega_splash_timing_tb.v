@@ -2,7 +2,8 @@
 //
 //  EGA pre-BIOS splash timing regression.
 //
-//  The splash ROM is 320x200 and doubles every source pixel horizontally.
+//  The splash picture is 320x200 and every source pixel is doubled
+//  horizontally.
 //  The CRTC must therefore expose exactly 640x200 active pixels. In
 //  particular, the EGA CRTC interprets R1 as the last displayed character;
 //  seeding R1 with 80 would expose 81 characters, or 648 pixels.
@@ -11,7 +12,7 @@
 //    iverilog -g2012 -o splash_tb TESTBENCH/ega_splash_timing_tb.v \
 //      UM6845R.v video_scandoubler.v ega_dot_clock.v ega_gfx_ctrl.v \
 //      ega_sequencer.v ega_attrib_ctrl.v ega_pixel.v ega_text.v \
-//      ega_splash_renderer.v ega_vgaport.v ega_top.v
+//      ega_splash_renderer.v splash_rom.v ega_vgaport.v ega_top.v
 //    vvp splash_tb
 //
 //============================================================================
@@ -33,14 +34,21 @@ module ega_splash_timing_tb;
 
     // F3 vehicle version: ega_top comes from vendor/pc_common and the splash is the
     // core's own: the renderer sits outside ega_top and is driven through the
-    // ext_splash_* hooks. Run from the directory with splash_ega_320x200.hex.
+    // ext_splash_* hooks. Run from the directory with splash_320x200.hex.
     wire [3:0] spl_pix;
     wire       spl_valid, spl_ce, spl_de;
     wire [9:0] spl_scan;
+    wire [14:0] spl_rom_addr;
+    wire [7:0]  spl_rom_q;
     ega_splash_renderer splash_renderer (
         .clk(clk), .reset(reset), .ce_pix(spl_ce), .enable(1'b1),
         .display_enable(spl_de), .scanline(spl_scan),
+        .rom_addr(spl_rom_addr), .rom_q(spl_rom_q),
         .pixel_index(spl_pix), .pixel_valid(spl_valid)
+    );
+    splash_rom splash_rom (
+        .clk(clk), .addr_a(15'd0), .q_a(),
+        .addr_b(spl_rom_addr), .q_b(spl_rom_q)
     );
 
     ega_top dut (
@@ -179,6 +187,54 @@ module ega_splash_timing_tb;
         end
     end
 
+    // Content: every source pixel of the picture appears twice, in order, on
+    // each of the 200 lines of a frame.
+    reg [7:0] picture [0:31999];
+    initial $readmemh("splash_320x200.hex", picture);
+
+    function [3:0] expected;
+        input integer line;
+        input integer x;
+        reg [7:0] b;
+        begin
+            b = picture[line * 160 + x / 2];
+            expected = (x % 2) ? b[3:0] : b[7:4];
+        end
+    endfunction
+
+    integer pic_line = -1;
+    integer pic_dot = 0;
+    integer pic_errors = 0;
+    integer pic_lines_done = 0;
+    reg     spl_valid_q = 1'b0;
+    reg     pic_vblank_q = 1'b1;
+
+    always @(posedge clk) begin
+        if (spl_ce) begin
+            if (!pic_vblank_q && vblank) begin
+                if (armed && pic_line >= 0)
+                    pic_lines_done = pic_line + 1;
+                pic_line = -1;
+            end
+            if (spl_valid && !spl_valid_q) begin
+                pic_line = pic_line + 1;
+                pic_dot = 0;
+            end
+            if (spl_valid && armed && pic_line >= 0 && pic_line < 200) begin
+                if (spl_pix !== expected(pic_line, pic_dot / 2)) begin
+                    if (pic_errors < 8)
+                        $display("FAIL: splash line %0d dot %0d is %h, expected %h",
+                                 pic_line, pic_dot, spl_pix, expected(pic_line, pic_dot / 2));
+                    pic_errors = pic_errors + 1;
+                end
+            end
+            if (spl_valid)
+                pic_dot = pic_dot + 1;
+            spl_valid_q = spl_valid;
+            pic_vblank_q = vblank;
+        end
+    end
+
     initial begin
         repeat (16) @(posedge clk);
         reset = 1'b0;
@@ -213,8 +269,13 @@ module ega_splash_timing_tb;
                      vsync_duration);
             errors = errors + 1;
         end
+        if (pic_errors != 0 || pic_lines_done != 200) begin
+            $display("FAIL: %0d dots differ from the picture, %0d picture lines in the frame",
+                     pic_errors, pic_lines_done);
+            errors = errors + 1;
+        end
         if (errors == 0)
-            $display("PASS: splash active area is 640x200 (VSYNC %0d ns)",
+            $display("PASS: splash active area is 640x200 and matches the picture (VSYNC %0d ns)",
                      vsync_duration);
         else
             $display("RESULT: FAIL (%0d errors)", errors);

@@ -1782,7 +1782,22 @@ end
         .display_enable_out(de_o_cga_sd)
     );
 
-    cga cga1 
+    // One boot picture for every card: port A to the CGA renderer, port B to
+    // the EGA one (driven in EGA_CARD below). Both run on clk_vga_cga.
+    wire [14:0] splash_rom_addr_cga;
+    wire [7:0]  splash_rom_q_cga;
+    wire [14:0] splash_rom_addr_ega;
+    wire [7:0]  splash_rom_q_ega;
+
+    splash_rom splash_rom_inst (
+        .clk    (clk_vga_cga),
+        .addr_a (splash_rom_addr_cga),
+        .q_a    (splash_rom_q_cga),
+        .addr_b (splash_rom_addr_ega),
+        .q_b    (splash_rom_q_ega)
+    );
+
+    cga cga1
     (
         .clk                        (clk_vga_cga),
         .reset                      (video_reset_cga | ega_active_cga),
@@ -1815,6 +1830,8 @@ end
         .video                      (video_cga_raw),
         .dbl_video                  (video_cga_sd),
         .splashscreen               (splashscreen),
+        .splash_rom_addr            (splash_rom_addr_cga),
+        .splash_rom_q               (splash_rom_q_cga),
         .composite                  (composite_cga),
         .thin_font                  (thin_font),
         .tandy_video                (tandy_video_cga),
@@ -2227,6 +2244,8 @@ end
             .enable         (splashscreen),
             .display_enable (EGA_SPLASH_DE),
             .scanline       (EGA_SPLASH_SCAN),
+            .rom_addr       (splash_rom_addr_ega),
+            .rom_q          (splash_rom_q_ega),
             .pixel_index    (EGA_SPLASH_PIX),
             .pixel_valid    (EGA_SPLASH_PIX_VALID)
         );
@@ -2365,6 +2384,7 @@ end
         assign vid_addr                  = 24'd0;
         assign vid_len                   = 2'd0;
         assign vid_deadline              = 16'd0;
+        assign splash_rom_addr_ega       = 15'd0;
     end
     endgenerate
 
