@@ -123,6 +123,10 @@ the selected HGC/MDA path is restored when the splash has finished. If the
 required PCXT BIOS is absent, the core holds the splash and reports the exact
 OSD section to use instead of releasing the CPU into an empty F0000h region.
 
+**Splash time** (System & BIOS page) shows it for 5, 10 or 15 seconds, or
+not at all with 0 s. The picture fades in when it appears and out over its last
+second, on the CGA path (RGB and composite) and on the EGA one alike.
+
 F12 pauses the splash countdown and shows the credits. Press F12 again to
 resume. The same credits module is used after boot when the machine is paused.
 

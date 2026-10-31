@@ -329,7 +329,7 @@ module emu
         CONF_STR_CARD,
 `endif
         CONF_STR_HGC,
-        "P1O7,Boot Splash Screen,Yes,No;",
+        "P1O[104:103],Splash time,5 s,10 s,15 s,0 s;",
         CONF_STR_PJ_CPU,
         "P1-;",
         CONF_STR_ROM,
@@ -1751,10 +1751,17 @@ module emu
     //
     // Splash screen
     //
+    // OSD Splash time (status[104:103]): 5, 10 or 15 seconds, or 0 s for no
+    // splash. The picture fades in when it appears and out over its last
+    // second (splash_fade, in the video clock domain). The splash lasts one
+    // second more: splash_fade keeps that first second black while the
+    // scaler and the display lock to the core, then fades the picture in.
     reg splash_off = 1'b1;
+    reg [4:0] splash_seconds = 5'd6;
     reg [24:0] splash_cnt = 0;
-    reg [3:0] splash_cnt2 = 0;
+    reg [4:0] splash_cnt2 = 0;
     reg splash_timed = 1'b0;
+    reg splash_fade_out = 1'b0;
     reg splash_pending = 1'b1;
     reg [23:0] splash_boot_cnt = 24'd0;
     reg splashscreen_sync1 = 0;
@@ -1770,7 +1777,12 @@ module emu
 
     always @ (posedge clk_14_318)
     begin
-        splash_off <= status[7];
+        splash_off <= (status[104:103] == 2'd3);
+        splash_seconds <= (status[104:103] == 2'd2) ? 5'd16 :
+                          (status[104:103] == 2'd1) ? 5'd11 : 5'd6;
+        // Registered: it crosses into the video clock domain.
+        splash_fade_out <= splash_timed && !splash_paused && !splash_off &&
+                           (splash_cnt2 == splash_seconds - 5'd1);
         if (RESET || buttons[1])
         begin
             phys_reset_hold <= 1'b1;
@@ -1815,7 +1827,7 @@ module emu
                 // again. Turning the splash off in the OSD still dismisses it.
                 splash_cnt <= splash_cnt;
             end
-            else if(splash_cnt2 == 5) // 5 seconds delay
+            else if (splash_cnt2 == splash_seconds)
             begin
                 splash_timed <= 0;
             end
@@ -3219,11 +3231,39 @@ module emu
 
     // The main mixer carries the EGA picture, the CGA picture and, when the
     // captured 15 kHz raster is on the wire, the HGC picture too.
-    wire [7:0] main_r  = crt480i_active ? fb_r  : (ega_active_vid ? raux_ega  : raux_cga);
-    wire [7:0] main_g  = crt480i_active ? fb_g  : (ega_active_vid ? gaux_ega  : gaux_cga);
-    wire [7:0] main_b  = crt480i_active ? fb_b  : (ega_active_vid ? baux_ega  : baux_cga);
+    wire [7:0] main_r_src = crt480i_active ? fb_r  : (ega_active_vid ? raux_ega  : raux_cga);
+    wire [7:0] main_g_src = crt480i_active ? fb_g  : (ega_active_vid ? gaux_ega  : gaux_cga);
+    wire [7:0] main_b_src = crt480i_active ? fb_b  : (ega_active_vid ? baux_ega  : baux_cga);
     wire       main_hs = crt480i_active ? fb_hs : (ega_active_vid ? haux_ega : haux_cga);
     wire       main_vs = crt480i_active ? fb_vs : (ega_active_vid ? vaux_ega : vaux_cga);
+
+    // The splash fades in and out on this path: it is drawn by the CGA or the
+    // EGA raster, both carried here (never by HGC, whose path it replaces).
+    reg splash_vid_sync1 = 1'b0, splash_vid_sync2 = 1'b0;
+    reg splash_fade_sync1 = 1'b0, splash_fade_sync2 = 1'b0;
+
+    always @(posedge CLK_VIDEO_MAIN) begin
+        splash_vid_sync1  <= splashscreen;
+        splash_vid_sync2  <= splash_vid_sync1;
+        splash_fade_sync1 <= splash_fade_out;
+        splash_fade_sync2 <= splash_fade_sync1;
+    end
+
+    wire [7:0] main_r, main_g, main_b;
+
+    splash_fade splash_fade_main (
+        .clock    (CLK_VIDEO_MAIN),
+        .reset    (1'b0),
+        .active   (splash_vid_sync2),
+        .fade_out (splash_fade_sync2),
+        .vsync    (main_vs),
+        .r_in     (main_r_src),
+        .g_in     (main_g_src),
+        .b_in     (main_b_src),
+        .r_out    (main_r),
+        .g_out    (main_g),
+        .b_out    (main_b)
+    );
     wire       main_hb = crt480i_active ? fb_hb : (ega_active_vid ? hbaux_ega : hbaux_cga);
     wire       main_vb = crt480i_active ? fb_vb : (ega_active_vid ? vbaux_ega : vbaux_cga);
     wire       ce_pixel_main = crt480i_active ? fb_ce_pix

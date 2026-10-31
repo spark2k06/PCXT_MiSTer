@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Benches of the EGA path that belong to the core and not to the library: the
-# XT I/O stretch, the splash against ega_top and the credits overlay.  They use
-# the sources of this tree and the PC-common library.
+# XT I/O stretch, the splash against ega_top and its fade, and the credits
+# overlay.  They use the sources of this tree and the PC-common library.
 #
 #   ./run_ega_tests.sh
 #
@@ -22,6 +22,7 @@ done
 STRETCH=$ROOT/rtl/KFPC-XT/HDL/ega_io_stretch.sv
 SPLASH=$ROOT/rtl/video/ega_splash_renderer.v
 SPLASH_ROM=$ROOT/rtl/video/splash_rom.v
+SPLASH_FADE=$ROOT/rtl/video/splash_fade.v
 CREDITS=$ROOT/rtl/common/jtframe_credits.v
 
 pass=0; fail=0
@@ -40,6 +41,7 @@ run ega_io_read_ready_tb          "$HERE" "$ROOT" "$STRETCH"
 run ega_io_stretch_tb             "$HERE" "$ROOT" "$STRETCH" "${LIBSRC[@]}"
 run ega_switch_sense_io_path_tb   "$HERE" "$ROOT" "$STRETCH" "${LIBSRC[@]}"
 run ega_splash_timing_tb          "$VIDTB" "$ROOT/rtl/video" "$SPLASH" "$SPLASH_ROM" "${LIBSRC[@]}"
+run splash_fade_tb                "$VIDTB" "$ROOT" "$SPLASH_FADE"
 run jtframe_credits_alignment_tb  "$VIDTB" "$ROOT" "$CREDITS"
 run jtframe_credits_pause_tb      "$VIDTB" "$ROOT" "$CREDITS"
 
