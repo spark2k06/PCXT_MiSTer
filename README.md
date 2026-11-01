@@ -349,10 +349,11 @@ media geometry.
 ## Credits and licence
 
 MiSTer integration and continuing development by **Aitor Gómez García
-(spark2k06)**, with contributions from the MCL86, KFPC-XT, JTFrame, JTOPL,
-Graphics Gremlin, MS mouse, sound and MiSTer communities, including
-**BoogerMann** among the project developers and collaborators. See
-[`credits/msg`](credits/msg) for the in-core credits list.
+(spark2k06)**, with contributions from the MCL86, KFPC-XT, KFPC-PCjr, JTFrame,
+JTOPL, Graphics Gremlin, ao486, MS mouse, sound and MiSTer communities,
+including **BoogerMann** among the project developers and collaborators, the
+boot splash art by **Mills** and the COM2 fixes by **manfredi90**. See
+[`credits/msg`](credits/msg) for the in-core credits list (F12 shows it).
 
 BoogerMann contributed to the integration of the newer SystemVerilog MCL86
 organisation: separate BIU and EU implementations, microcode support and

@@ -59,13 +59,46 @@ int main( int argc, char *argv[] ) {
     return 0;
 }
 
-void parse_line( int *buf, ifstream& fin ) {    
+// Block characters, written in the msg file as UTF-8, and the font codes
+// (0x60-0x72) that jtframe_credits draws for them: the 15 quadrant blocks,
+// in the order of their 2x2 bit pattern (bit 0 top left, 1 top right,
+// 2 bottom left, 3 bottom right), then the light, medium and dark shades.
+static const int block_cp[] = {
+    0x2598, 0x259D, 0x2580, 0x2596, 0x258C, 0x259E, 0x259B, 0x2597,
+    0x259A, 0x2590, 0x259C, 0x2584, 0x2599, 0x259F, 0x2588,
+    0x2591, 0x2592, 0x2593
+};
+
+static int block_code( int cp ) {
+    for( int k=0; k<(int)(sizeof(block_cp)/sizeof(block_cp[0])); k++ )
+        if( block_cp[k]==cp ) return k<15 ? 0x61+k : 0x70+(k-15);
+    return -1;
+}
+
+void parse_line( int *buf, ifstream& fin ) {
     string line;
     getline( fin, line );
+    if( !line.empty() && line.back()=='\r' ) line.pop_back();
     int pal=3;
     bool brk=false;
     int cnt=0;
-    for( int i : line ) {
+    for( size_t n=0; n<line.size(); n++ ) {
+        int i = (unsigned char)line[n];
+        if( i>=0x80 ) {
+            // a three-byte UTF-8 sequence: one of the block characters
+            if( (i&0xF0)!=0xE0 || n+2>=line.size() )
+                throw "character code out of range ";
+            int cp = ((i&0x0F)<<12) | (((unsigned char)line[n+1]&0x3F)<<6)
+                   | ((unsigned char)line[n+2]&0x3F);
+            n += 2;
+            int v = block_code( cp );
+            if( v<0 ) throw "character code out of range ";
+            if( cnt++ == 64 ) {
+                throw "line is longer than 64 characters, ";
+            }
+            *buf++ = v | pal<<7;
+            continue;
+        }
         if( brk ) {
             if( i=='\\' ) {
                 brk = false;

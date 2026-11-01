@@ -63,3 +63,10 @@ R                   | RED   palette (index 0)
 G                   | GREEN palette (index 1)
 B                   | BLUE  palette (index 2)
 W                   | WHITE palette (index 3)
+
+PCXT addition: besides ASCII, the msg file can use the Unicode block
+characters `▘▝▀▖▌▞▛▗▚▐▜▄▙▟█` (the 15 quadrant blocks) and the shades
+`░▒▓`, written in UTF-8. msg2hex turns them into font codes 0x61-0x6F and
+0x70-0x72, whose glyphs are in `rtl/common/font0.hex`; each one counts as one
+of the 64 characters of a line. The title art of the credits is drawn with
+them, two by two pixels per character. msg2hex also accepts CRLF lines.
