@@ -22,6 +22,14 @@
 // lost track of) the word of the current character cannot be there: the turn
 // is skipped ("prime") and the next one is in step.
 //
+// In step the queue holds exactly one word at ev_req, the current character's.
+// More means it still holds words of characters already gone: a reset of the
+// card, or a change of the 40/80-column timing, between the request of a word
+// and its pop. The display would then stay that many characters to the right,
+// across resets too, since the engine and this module are only reset with the
+// SDRAM. The oldest word is dropped right after ev_req, one per character,
+// until the queue is back in step.
+//
 module crtc_vram_if (
     input  logic        clk,
     input  logic        reset,
@@ -55,6 +63,8 @@ module crtc_vram_if (
     logic        req_pend;
     logic [23:0] req_addr_r;
     logic [15:0] req_dl_r;
+    logic [3:0]  queued;        // words accepted by the engine and not popped
+    logic        trim;          // drop the head: a word of a character already gone
 
     assign req_len      = 2'd0;
     assign req_valid    = req_pend;
@@ -63,7 +73,7 @@ module crtc_vram_if (
 
     wire have_head = rsp_pending && !prime;
 
-    assign rsp_pop = ev_pop && have_head;
+    assign rsp_pop = (ev_pop && have_head) || (trim && rsp_pending);
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -71,6 +81,8 @@ module crtc_vram_if (
             req_pend       <= 1'b0;
             req_addr_r     <= 24'd0;
             req_dl_r       <= 16'd0;
+            queued         <= 4'd0;
+            trim           <= 1'b0;
             vram_d         <= 8'hFF;
             mismatch_count <= 16'd0;
             late_count     <= 16'd0;
@@ -79,6 +91,9 @@ module crtc_vram_if (
         else begin
             if (req_pend && req_ready)
                 req_pend <= 1'b0;
+
+            queued <= queued + {3'd0, req_pend && req_ready} - {3'd0, rsp_pop};
+            trim   <= ev_req && (queued > 4'd1);
 
             if (ev_req) begin
                 prime <= !rsp_pending;

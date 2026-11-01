@@ -20,6 +20,10 @@
 // Phases drive the card through the standard BIOS modes (text 80x25 and 40x25,
 // graphics 320x200 and 640x200 for the CGA; text and Hercules graphics, both
 // pages, for the HGC), one frame each plus a start-address change per frame.
+// The last phase leaves the adapter's queue with words it will not pop (the
+// CGA reset twice just after it asked for a word, as the core's reset can; the
+// HGC set to text in mid-character), and it must be back in step with
+// the CRTC.
 // Reported: samples compared, data mismatches, address mismatches of the
 // adapter (the head was not the word being addressed), late bytes, underruns.
 //
@@ -535,6 +539,27 @@ module video_fetch_chain_tb #(
         crtc(13, sa & 255);
     endtask
 
+    // A reset of the card (the core's reset) while the sequencer is at slot p:
+    // the word asked for at that slot is never popped, so the queue of the
+    // adapter is left with one word more than the CRTC is addressing
+    task automatic reset_at_slot(input logic [4:0] p);
+        @(posedge cclk iff c_phase == p - 5'd1);
+        repeat (2) @(posedge clk);
+        #1 card_reset = 1'b1;
+        repeat (3) @(posedge cclk);
+        card_reset = 1'b0;
+        repeat (40) @(posedge cclk);
+    endtask
+
+    // HGC: text mode set at slot p of a graphics character. The text sequence
+    // wraps at slot 17, so the pop at slot 18 of the word asked for at slot 2
+    // never comes
+    task automatic text_at_slot(input logic [4:0] p);
+        @(posedge cclk iff c_phase == p);
+        io_write(15'h3B8, 8'h28);
+        repeat (40) @(posedge cclk);
+    endtask
+
     // ------------------------------------------------------------------
     int bios80[10] = '{8'h71, 8'h50, 8'h5A, 8'h0A, 8'h1F, 8'h06, 8'h19, 8'h1C, 8'h02, 8'h07};
     int bios40[10] = '{8'h38, 8'h28, 8'h2D, 8'h0A, 8'h1F, 8'h06, 8'h19, 8'h1C, 8'h02, 8'h07};
@@ -578,6 +603,10 @@ module video_fetch_chain_tb #(
             ph++; if (ph <= PHASES) begin if (TANDY) t_page = 6'o06;
                   io_write(15'h3D8, 8'h0B); crtc_regs(bios80); new_start(12'h080);
                   phase("CGA graphics, 80-column timing", FRAMES); end
+            ph++; if (ph <= PHASES) begin if (TANDY) t_page = 6'o01;
+                  reset_at_slot(5'd18); reset_at_slot(5'd2);
+                  io_write(15'h3D8, 8'h29); crtc_regs(bios80); new_start(0);
+                  phase("CGA text 80x25, resets in mid-character", FRAMES); end
         end
         else begin
             io_write(15'h3BF, 8'h03);                 // allow graphics and page 1
@@ -589,6 +618,8 @@ module video_fetch_chain_tb #(
                   phase("HGC graphics 720x348, page 1", FRAMES); end
             ph++; if (ph <= PHASES) begin new_start(12'h200);
                   phase("HGC graphics, new start address", FRAMES); end
+            ph++; if (ph <= PHASES) begin text_at_slot(5'd3); crtc_regs(hgctxt); new_start(0);
+                  phase("HGC text, set in mid-character", FRAMES); end
         end
 
         stop = 1'b1;
