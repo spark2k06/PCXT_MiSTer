@@ -37,4 +37,4 @@ set pcxt_global_sdram_clock 1
 
 # Fitter seed: the one that closes timing in the four corners with this profile
 # (it replaces the default SEED of PCXT.qsf, which config.tcl follows).
-set_global_assignment -name SEED 11
+set_global_assignment -name SEED 2
