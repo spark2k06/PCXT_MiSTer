@@ -80,7 +80,7 @@ module cpu_sdram_e2e_tb #(
     wire        biu_done_r, biu_done_n;
 
     // --- shared clock generator (both CPUs see identical CE) -----------
-    wire cpu_clock, cpu_ce_posedge, cpu_ce_negedge;
+    wire cpu_clock, cpu_ce_posedge, cpu_ce_negedge, cpu_ce_negedge_next;
     wire cycle_accurate, shift_read_timing;
     wire [7:0] counter_division, counter_decrement;
     wire [1:0] ram_read_wait_cycle, ram_write_wait_cycle;
@@ -90,6 +90,7 @@ module cpu_sdram_e2e_tb #(
         .clock(ram_clock), .reset(ram_reset), .clk_select_load(1'b1),
         .clk_select(requested_clk), .cpu_clk_pin(cpu_clock),
         .cpu_ce_posedge(cpu_ce_posedge), .cpu_ce_negedge(cpu_ce_negedge),
+        .cpu_ce_negedge_next(cpu_ce_negedge_next),
         .peripheral_ce(), .cycle_accrate(cycle_accurate),
         .clock_cycle_counter_division_ratio(counter_division),
         .clock_cycle_counter_decrement_value(counter_decrement),
@@ -244,7 +245,8 @@ module cpu_sdram_e2e_tb #(
         .memory_access_ready(n_mready),
         .map_select(n_select), .map_phys(n_phys), .map_protect(n_protect),
         .map_vclass(n_vclass), .map_phys2(n_phys2), .map_phys2_valid(n_phys2_valid),
-        .cpu_ce_posedge(cpu_ce_posedge), .wait_count_clk_en(cpu_ce_negedge),
+        .cpu_ce_posedge(cpu_ce_posedge), .cpu_ce_negedge_next(cpu_ce_negedge_next),
+        .wait_count_clk_en(cpu_ce_negedge),
         .ram_read_wait_cycle(ram_read_wait_cycle), .ram_write_wait_cycle(ram_write_wait_cycle),
         .clk_select(selected_clk), .flush(1'b0), .early_read(n_early),
         .m_start(m_start), .m_we(m_we), .m_addr(m_addr), .m_len(m_len),

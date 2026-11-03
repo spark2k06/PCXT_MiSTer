@@ -51,6 +51,7 @@ module cpu_mem_port_tb #(
     wire [3:0] period = (clk_select == 2'd0) ? 4'd10 : (clk_select == 2'd1) ? 4'd7 : 4'd5;
     wire ce_p = (ph == 0);
     wire ce_n = (ph == int'(period) / 2);
+    wire ce_n_next = (ph + 1 == int'(period) / 2);
     always @(posedge clk) ph <= (ph + 1 >= int'(period)) ? 0 : ph + 1;
     logic [1:0]  protect_flags = 2'b00;
     wire  [7:0]  dout;
@@ -85,7 +86,7 @@ module cpu_mem_port_tb #(
         .memory_read_n(memr_n), .memory_write_n(memw_n), .memory_access_ready(ready),
         .map_select(sel), .map_phys(phys), .map_protect(prot),
         .map_vclass(vclass), .map_phys2(phys2), .map_phys2_valid(phys2_valid),
-        .cpu_ce_posedge(ce_p), .wait_count_clk_en(ce_n), .ram_read_wait_cycle(2'd2), .ram_write_wait_cycle(2'd2),
+        .cpu_ce_posedge(ce_p), .cpu_ce_negedge_next(ce_n_next), .wait_count_clk_en(ce_n), .ram_read_wait_cycle(2'd2), .ram_write_wait_cycle(2'd2),
         .clk_select(clk_select), .flush(flush), .early_read(early),
         .m_start(m_start), .m_we(m_we), .m_addr(m_addr), .m_len(m_len), .m_wdata(m_wdata),
         .m_wbe(m_wbe), .m_busy(m_busy), .m_done(m_done), .m_rdata(m_rdata),

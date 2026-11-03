@@ -771,6 +771,7 @@ module emu
     wire clk_cpu;
     logic cpu_ce_posedge;
     logic cpu_ce_negedge;
+    logic cpu_ce_negedge_next;
     logic peripheral_ce;
     wire clk_chipset;
 
@@ -890,6 +891,7 @@ module emu
         .cpu_clk_pin                        (clk_cpu),
         .cpu_ce_posedge                     (cpu_ce_posedge),
         .cpu_ce_negedge                     (cpu_ce_negedge),
+        .cpu_ce_negedge_next                (cpu_ce_negedge_next),
         .peripheral_ce                      (peripheral_ce),
         .cycle_accrate                      (cycle_accrate),
         .clock_cycle_counter_division_ratio (clock_cycle_counter_division_ratio),
@@ -2011,6 +2013,7 @@ module emu
 		.clock                              (clk_chipset),
 		.cpu_ce_posedge                     (cpu_ce_posedge),
 		.cpu_ce_negedge                     (cpu_ce_negedge),
+		.cpu_ce_negedge_next                (cpu_ce_negedge_next),
 		.clk_sys                            (clk_chipset),
 		.peripheral_ce                      (peripheral_ce),
 		.clk_select                         (clk_select),

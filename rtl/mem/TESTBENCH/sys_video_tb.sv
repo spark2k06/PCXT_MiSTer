@@ -13,7 +13,10 @@
 //   - at every sampling event of each card, the byte the adapter gives the card
 //     is the byte an ideal memory would give.
 //
-// SPEED is clk_select: 0 4.77, 1 7.16, 2 9.54, 3 Max.
+// SPEED is clk_select: 0 4.77, 1 7.16, 2 9.54, 3 Max. At 7.16 and 9.54 MHz some
+// reads are answered after READY has decided (at 7.16, the code fetches right
+// after the dual write to B8100): the readiness has to dip in time for it, see
+// dip_ok in cpu_mem_port.
 //
 `timescale 1ns / 1ps
 
@@ -97,7 +100,7 @@ module sys_video_tb #(
     // ------------------------------------------------------------------
     // CPU and chipset
     // ------------------------------------------------------------------
-    wire        cpu_ce_posedge, cpu_ce_negedge, peripheral_ce, clk_cpu;
+    wire        cpu_ce_posedge, cpu_ce_negedge, cpu_ce_negedge_next, peripheral_ce, clk_cpu;
     wire        cycle_accrate, shift_read_timing, biu_done;
     wire [7:0]  clock_cycle_counter_division_ratio, clock_cycle_counter_decrement_value;
     wire [1:0]  ram_read_wait_cycle, ram_write_wait_cycle;
@@ -112,7 +115,7 @@ module sys_video_tb #(
         .clock(clk_chip), .reset(reset_cpu),
         .clk_select_load(biu_done), .clk_select(clk_select_next),
         .cpu_clk_pin(clk_cpu), .cpu_ce_posedge(cpu_ce_posedge), .cpu_ce_negedge(cpu_ce_negedge),
-        .peripheral_ce(peripheral_ce), .cycle_accrate(cycle_accrate),
+        .cpu_ce_negedge_next(cpu_ce_negedge_next), .peripheral_ce(peripheral_ce), .cycle_accrate(cycle_accrate),
         .clock_cycle_counter_division_ratio(clock_cycle_counter_division_ratio),
         .clock_cycle_counter_decrement_value(clock_cycle_counter_decrement_value),
         .shift_read_timing(shift_read_timing),
@@ -144,6 +147,7 @@ module sys_video_tb #(
 
     CHIPSET #(.clk_rate(28'd50000000), .ROM_TANDY(1'b0)) u_chipset (
         .clock(clk_chip), .cpu_ce_posedge(cpu_ce_posedge), .cpu_ce_negedge(cpu_ce_negedge),
+        .cpu_ce_negedge_next(cpu_ce_negedge_next),
         .clk_sys(clk_chip), .peripheral_ce(peripheral_ce), .clk_select(clk_select),
         .reset(reset_cpu), .sdram_reset(reset_sdram),
         .cpu_address(cpu_address), .cpu_data_bus(cpu_data_bus), .processor_status(processor_status),

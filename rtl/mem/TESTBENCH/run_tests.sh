@@ -96,6 +96,8 @@ BENCHES=(
     "video_chain_hgc_busy|video_fetch_chain_tb|-GCARD=1 -GWR_GAP=2 -GTARGET=1 -GPHASES=2|$PKG $CTRL $ARB $MODEL $VFETCH $VCARDS $TB/video_fetch_chain_tb.sv"
     # The whole machine around the video memory: CPU program, chipset, CGA, HGC, SDRAM.
     "sys_video_4_77|sys_video_tb|-GSPEED=0|$SYSV"
+    "sys_video_7_16|sys_video_tb|-GSPEED=1|$SYSV"
+    "sys_video_9_54|sys_video_tb|-GSPEED=2|$SYSV"
     "sys_video_max|sys_video_tb|-GSPEED=3|$SYSV"
     "vram_fetch_busy|vram_fetch_tb|-GWR_GAP=3 -GB_PERIOD=32 -GLATE_PCT=10|$PKG $CTRL $ARB $MODEL $VFETCH $TB/vram_fetch_tb.sv"
     # F3: the EGA card's memory map and the second master of the CPU port

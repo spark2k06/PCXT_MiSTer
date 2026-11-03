@@ -18,8 +18,8 @@
 //    whole wait state, so a dip at the strobe (when the data is not yet in
 //    data_reg, even a clock before it arrives) costs the CPU a clock on every
 //    read. Below Max the readiness therefore stays high until the last chipset
-//    clocks in which a wait state can still be requested (the half clock after
-//    the first CPU clock edge inside the strobe, see dip_ok) and only dips
+//    clock in which a wait state can still be requested (the one before the
+//    CPU clock falling edge at which READY decides, see dip_ok) and only dips
 //    then if the access has still not been accepted (write) or answered
 //    (read). RAM.sv gave no wait states there either; at Max it is closed loop
 //    from the strobe, as RAM.sv was. This is what keeps 4.77 and 7.16 MHz
@@ -88,6 +88,7 @@ module cpu_mem_port (
 
     // Wait profile and speed (0 4.77, 1 7.16, 2 9.54, 3 Max)
     input  logic        cpu_ce_posedge,
+    input  logic        cpu_ce_negedge_next,  // cpu_ce_negedge in the next clock
     input  logic        wait_count_clk_en,    // cpu_ce_negedge
     input  logic [1:0]  ram_read_wait_cycle,
     input  logic [1:0]  ram_write_wait_cycle,
@@ -391,10 +392,16 @@ module cpu_mem_port (
     end
 
     // Where a wait state can still be requested. The strobe starts one chipset
-    // clock after a CPU clock rising edge; the READY logic samples the first
-    // edge after that one (the bus cycle's last chance at 4.77 MHz) and the next
-    // one decides. A dip after the half clock that follows the first edge is
-    // the last that still reaches the second.
+    // clock after the CPU clock falling edge in T2. READY decides at the next
+    // falling edge (T3), from its ready_n_or_wait register, which takes the
+    // readiness one clock earlier: a dip has to be there in the clock before
+    // that edge, the one with cpu_ce_negedge_next after the rising edge of T3.
+    // A dip any later comes after the decision. There is no wait state then:
+    // a read gives the CPU data_reg as it was (the previous answer), a write
+    // not yet taken is lost when its strobe ends, and READY puts the wait
+    // state into the next bus cycle instead. sys_video_tb at 7.16 and 9.54 MHz
+    // had code fetches answered a clock late, behind the two posts of a
+    // CGA + HGC page 1 write: the CPU ran the previous byte as an opcode.
     logic pos_seen, dip_ok;
     always_ff @(posedge clock) begin
         if (reset || !cmd_active) begin
@@ -404,16 +411,17 @@ module cpu_mem_port (
         else begin
             if (cpu_ce_posedge)
                 pos_seen <= 1'b1;
-            if (wait_count_clk_en && pos_seen)
+            if (cpu_ce_negedge_next && pos_seen)
                 dip_ok <= 1'b1;
         end
     end
+    wire dip_now = dip_ok | (pos_seen & cpu_ce_negedge_next);
 
     // The READY logic turns even one clock of "not ready" into a whole wait
     // state, so below Max readiness only dips when the answer is really late
     // (see the header). At Max it dips from the strobe, as RAM.sv did.
     wire strict  = (clk_select == 2'b11);
-    wire may_dip = strict | dip_ok;
+    wire may_dip = strict | dip_now;
     wire access_ready = read_command  ? ((accept_hit & ~strict) | (owned & rd_valid) | ~may_dip)
                       : write_command ? (owned | accept_write | accept_defer | ~may_dip)
                       :                 1'b1;

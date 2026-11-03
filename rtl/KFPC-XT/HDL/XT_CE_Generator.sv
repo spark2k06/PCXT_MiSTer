@@ -13,6 +13,7 @@ module XT_CE_Generator (
     output  logic           cpu_clk_pin,
     output  logic           cpu_ce_posedge,
     output  logic           cpu_ce_negedge,
+    output  logic           cpu_ce_negedge_next,    // cpu_ce_negedge in the next clock
     output  logic           peripheral_ce,
 
     output  logic           cycle_accrate,
@@ -35,6 +36,12 @@ module XT_CE_Generator (
     logic   [9:0]   peripheral_phase_sum;
 
     wire speed_change = clk_select_load && (clk_select != active_clk_select);
+
+    // The pulses are registered: this is the condition that raises
+    // cpu_ce_negedge at the next clock edge, for logic that has to act one
+    // clock before it (cpu_mem_port's readiness, through READY's register).
+    assign cpu_ce_negedge_next = ~reset & ~speed_change & cpu_clk_pin
+                               & (cpu_phase_sum >= {1'b0, cpu_edge_den});
 
     always_comb
     begin

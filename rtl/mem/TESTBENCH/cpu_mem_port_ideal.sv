@@ -26,6 +26,7 @@ module cpu_mem_port (
     input  logic [24:0] map_phys2,
     input  logic        map_phys2_valid,
     input  logic        cpu_ce_posedge,
+    input  logic        cpu_ce_negedge_next,
     input  logic        wait_count_clk_en,
     input  logic [1:0]  ram_read_wait_cycle,
     input  logic [1:0]  ram_write_wait_cycle,
