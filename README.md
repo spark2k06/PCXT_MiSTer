@@ -275,11 +275,33 @@ Open or redistributable BIOS choices in the repository include:
 * `pcxt_xtsergey.rom`, the Micro8088 / Xi 8088 BIOS from [skiselev/8088_bios](https://github.com/skiselev/8088_bios)
 * `ide_xtl.rom`, from the [XTIDE Universal BIOS project](https://www.xtideuniversalbios.org/)
 
-The scripts in `SW/ROMs/` prepare compatible images from the IBM 5160, Juko
-ST and Tandy 1000 sources. Original copyrighted ROM dumps are not distributed
-by this repository: the PCjr and EGA BIOS have to come from your own dumps. Not every BIOS has the same floppy geometry or video assumptions;
-IBM 5160 commonly uses 360 KiB media, while Micro8088 commonly uses 720 KiB or
-1.44 MiB media.
+`SW/ROMs/BASICA/` holds the same images with XTIDE in full operating mode,
+which BASICA needs and several games in Tandy mode do not like.
+
+### BIOS Builder
+
+[`SW/ROMs/BIOS_Builder.html`](SW/ROMs/BIOS_Builder.html) prepares every image
+above in the browser, with nothing to install: download the file and open it.
+It works offline, and your files are never uploaded.
+
+* **PC/XT:** the Micro8088 and Turbo XT BIOS images, built from the open
+  firmware embedded in the page, or `pcxt_ibm5160.rom` and `pcxt_jukost.rom`
+  from your IBM 5160 (U18/U19) and Juko ST dumps. The XTIDE they carry can be
+  standard or full operating mode (`*_basica.rom`).
+* **Tandy 1000:** `tandy.rom` from `TANDY1T1.010`.
+* **PCjr:** `pcjr.rom` from one 64 KiB dump or the two 32 KiB chips, and
+  `.jrc` cartridges from raw cartridge dumps.
+* **EGA:** `ega_bios.rom` from the IBM 6277356 ROM, fetched in one click from a
+  pinned revision of the 86Box ROM archive or built from your own dump.
+* **EC00:** `ide_xtl.rom`, in either XTIDE mode.
+
+The archives linked by the page (`BIOS_5160_08NOV82.zip`, the Juko ST ZIP,
+`T1K_0101.ZIP`) can be selected as they are. The built-in images and the EGA
+ROM are checked by SHA-256 against the images tested on the core; your own
+dumps are checked for size and reset vector. Original copyrighted ROM dumps are
+not distributed by this repository. Not every BIOS has the same floppy geometry
+or video assumptions; IBM 5160 commonly uses 360 KiB media, while Micro8088
+commonly uses 720 KiB or 1.44 MiB media.
 
 ## Audio, input and storage
 
@@ -331,7 +353,7 @@ and the missing-BIOS startup hold.
 * `rtl/KFPC-XT/` — chipset, CPU-facing bus, memory, peripherals and testbenches
 * `rtl/common/` — MiSTer/common support, credits and shared memory blocks
 * `rtl/sound/` — OPL2 and C/MS/Tandy-related sound cores
-* `SW/ROMs/` — BIOS and XTIDE preparation scripts
+* `SW/ROMs/` — open BIOS and XTIDE images and the BIOS Builder
 * `SW/8088_bios/` — Micro8088 BIOS sources and build instructions
 * `SW/XTCTL/` — legacy runtime-control utility and its port-level notes
 * `credits/` — source text and converter for the JTFrame credits image
