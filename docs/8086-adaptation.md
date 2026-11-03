@@ -95,7 +95,7 @@ and the split case subtly wrong is exactly how the M24 failed.
 ## 2. Reference implementation: 86Box
 
 86Box implements the 8086 as a flag, `is8086`, set once at
-`src/cpu/cpu.c:529` (checkout at `D:\GitHub\86Box`):
+`src/cpu/cpu.c:529`:
 
 ```c
 is8086 = (cpu_s->cpu_type > CPU_8088) && (cpu_s->cpu_type != CPU_V20)
@@ -702,7 +702,7 @@ and data-latch circuits for word transactions on **sheets 13-14**.
 
 ### Code
 
-* 86Box, `src/cpu/vx0_biu.c` and `src/cpu/808x.c` — at `D:\GitHub\86Box`
+* [86Box](https://github.com/86Box/86Box), `src/cpu/vx0_biu.c` and `src/cpu/808x.c`
 * This core, `rtl/8088/mcl86_biu_max.sv`, `rtl/KFPC-XT/HDL/RAM.sv`
 
 ### Not yet consulted

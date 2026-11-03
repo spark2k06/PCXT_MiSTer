@@ -16,11 +16,12 @@ AdLib hidden and the legacy AT 4 MHz selection would be:
 
 This would restore normal operation:
 
-    sysctl menu
+    xtctl menu
     
 It is not cumulative. Each execution first clears the previous overrides; any
 option that is not selected follows the current OSD configuration. The speed
 names are historical XTCTL names and do not replace the current OSD labels of
 4.77 MHz, 7.16 MHz, 9.54 MHz and Max.
 
-A warm restart (CTRL+ALT+SUPR) does not restore the initial state, but a cold restart does (restart from the menu).
+A warm restart (CTRL+ALT+DEL) does not restore the initial state, but a cold
+restart does (Reset & apply settings in the OSD).
