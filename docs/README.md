@@ -7,7 +7,7 @@ from MiSTer output plumbing.
 
 ## Documents
 
-* [`report/CORE_REPORT.html`](report/CORE_REPORT.html) — visual technical report covering architecture, CGA, HGC/MDA, 15 kHz output, memory, OSD and startup.
+* [`report/CORE_REPORT.html`](report/CORE_REPORT.html) — visual technical report of the whole core: the machines, architecture, CGA/Tandy/PCjr, HGC/MDA and EGA video, 15 kHz output, memory, OSD and startup.
 * [`8086-adaptation.md`](8086-adaptation.md) — source-of-truth notes for the selectable 8088/8086 implementation.
 * [`../vendor/pc_common/README.md`](../vendor/pc_common/README.md) — the EGA card: origin, SDRAM retiming and benches.
 * [`../rtl/common/jtframe_credits.md`](../rtl/common/jtframe_credits.md) — credits asset format and the project integration.
@@ -18,8 +18,8 @@ quick start, ROM, video, memory, build and repository notes.
 
 ## Scope of the technical report
 
-The report documents the IBM PC/XT side of the design: MCL86/KFPC-XT
-integration, CGA and HGC/MDA video, composite colour, HGC/MDA 480i/240p
-conversion, optional memory and audio features, and the startup splash. The
-Tandy 1000, the PCjr and the EGA card are described in the root README and
-in `vendor/pc_common/README.md`.
+The report documents the unified core: the IBM PC/XT, the Tandy 1000 and the
+IBM PCjr, MCL86/KFPC-XT integration, the memory system, CGA/Tandy/PCjr, HGC/MDA
+and EGA video, composite colour, 480i/240p conversion, memory and audio
+features, and the startup splash. The EGA card has its own notes in
+`vendor/pc_common/README.md`.

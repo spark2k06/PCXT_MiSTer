@@ -38,9 +38,12 @@ support.
 For the implementation notes behind the CPU and bus work, see
 [`docs/8086-adaptation.md`](docs/8086-adaptation.md).
 
-For an architectural overview of the PC/XT with CGA and HGC/MDA, see the
-[PCXT technical report](https://aitorgomez.net/pcxt-cga/core-report) (source in
-[`docs/report/`](docs/report/CORE_REPORT.html)).
+A detailed [technical report](https://spark2k06.github.io/PCXT_MiSTer/report/) (architecture of the
+PC/XT, Tandy 1000 and PCjr in one core, their video, 15 kHz output, memory
+map, OSD and startup; source in [docs/report](docs/report/CORE_REPORT.html)) complements this
+README, and the [BIOS Builder](https://spark2k06.github.io/PCXT_MiSTer/BIOS_Builder) prepares the
+firmware the core needs. Both are published at
+[spark2k06.github.io/PCXT_MiSTer](https://spark2k06.github.io/PCXT_MiSTer/).
 
 ## Key features
 
@@ -258,7 +261,9 @@ something else: separate RBFs with only part of the hardware.
    8086) and the CPU speed.
 5. Mount a floppy or hard-disk image.
 6. Load the BIOS of that machine into its slot under **System & BIOS** (PCXT,
-   Tandy or PCjr BIOS; the EGA card also needs an EGA BIOS).
+   Tandy or PCjr BIOS; the EGA card also needs an EGA BIOS). The
+   [BIOS Builder](https://spark2k06.github.io/PCXT_MiSTer/BIOS_Builder) prepares them (see
+   [ROM instructions](#rom-instructions)).
 7. Select **Reset & apply settings**.
 
 For the first test, the PC/XT with the Micro8088 BIOS (`pcxt_xtsergey.rom`) and
@@ -291,25 +296,30 @@ which BASICA needs and several games in Tandy mode do not like.
 
 ### BIOS Builder
 
-[`SW/ROMs/BIOS_Builder.html`](SW/ROMs/BIOS_Builder.html) prepares every image
-above in the browser, with nothing to install: download the file and open it.
-It works offline, and your files are never uploaded.
+The [BIOS Builder](https://spark2k06.github.io/PCXT_MiSTer/BIOS_Builder) (source:
+[`SW/ROMs/BIOS_Builder.html`](SW/ROMs/BIOS_Builder.html), which also runs
+offline from a local copy) prepares every image above in the browser, with
+nothing to install, and your files are never uploaded.
 
 * **PC/XT:** the Micro8088 and Turbo XT BIOS images, built from the open
-  firmware embedded in the page, or `pcxt_ibm5160.rom` and `pcxt_jukost.rom`
+  firmware embedded in the page, or `pcxt_ibm5160.rom` and `pcxt_jukost.rom`,
+  fetched in one click from a pinned revision of the 86Box ROM archive or built
   from your IBM 5160 (U18/U19) and Juko ST dumps. The XTIDE they carry can be
   standard or full operating mode (`*_basica.rom`).
-* **Tandy 1000:** `tandy.rom` from `TANDY1T1.010`.
-* **PCjr:** `pcjr.rom` from one 64 KiB dump or the two 32 KiB chips, and
-  `.jrc` cartridges from raw cartridge dumps.
+* **Tandy 1000:** `tandy.rom` from `TANDY1T1.010`, which has no source a browser
+  may download from, so the ZIP is selected as it is.
+* **PCjr:** `pcjr.rom`, fetched in one click from the same archive or built from
+  one 64 KiB dump or the two 32 KiB chips, and `.jrc` cartridges from raw
+  cartridge dumps.
 * **EGA:** `ega_bios.rom` from the IBM 6277356 ROM, fetched in one click from a
   pinned revision of the 86Box ROM archive or built from your own dump.
 * **EC00:** `ide_xtl.rom`, in either XTIDE mode.
 
 The archives linked by the page (`BIOS_5160_08NOV82.zip`, the Juko ST ZIP,
 `T1K_0101.ZIP`) can be selected as they are. The built-in images and the EGA
-ROM are checked by SHA-256 against the images tested on the core; your own
-dumps are checked for size and reset vector. Original copyrighted ROM dumps are
+ROM are checked by SHA-256 against the images tested on the core, every
+downloaded chip is checked by SHA-256 before it is used, and your own dumps are
+checked for size and reset vector. Original copyrighted ROM dumps are
 not distributed by this repository. Not every BIOS has the same floppy geometry
 or video assumptions; IBM 5160 commonly uses 360 KiB media, while Micro8088
 commonly uses 720 KiB or 1.44 MiB media.

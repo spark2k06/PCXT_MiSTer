@@ -1,0 +1,53 @@
+name: Publish documentation site
+
+# Publishes the documentation to GitHub Pages
+# (https://spark2k06.github.io/PCXT_MiSTer/):
+#   /             docs/index.html
+#   /report/      docs/report/CORE_REPORT.html
+#   /<Name>/      every SW/ROMs/<Name>.html, e.g. /BIOS_Builder/
+# Only spark2k06/PCXT_MiSTer publishes it; in a copy of the repository the
+# job is skipped.
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/index.html
+      - docs/report/*.html
+      - SW/ROMs/*.html
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'spark2k06/PCXT_MiSTer'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage the site
+        run: |
+          mkdir -p _site/report
+          cp docs/index.html _site/index.html
+          cp docs/report/CORE_REPORT.html _site/report/index.html
+          for page in SW/ROMs/*.html; do
+            name=$(basename "$page" .html)
+            mkdir "_site/$name"
+            cp "$page" "_site/$name/index.html"
+          done
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
