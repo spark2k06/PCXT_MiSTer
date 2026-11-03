@@ -27,6 +27,14 @@ USE IEEE.numeric_std.all;
 
 -- Serial UART receiver
 entity uart_receiver is
+    generic (
+        -- 0: original behaviour, the stop bit is checked at the end of its
+        --    16-sample window before returning to IDLE.
+        -- 1: the stop bit is sampled at its centre and the receiver returns to
+        --    IDLE there, like a real 8250/16550. This keeps back-to-back
+        --    characters from a slightly faster transmitter in sync.
+        MIDSTOP     : natural := 0
+    );
     port (
         CLK         : in std_logic;                                 -- Clock
         RST         : in std_logic;                                 -- Reset
@@ -87,6 +95,8 @@ architecture rtl of uart_receiver is
     -- Signals
     signal iBaudCountClear     : std_logic;                         -- Baud counter clear
     signal iBaudStep           : std_logic;                         -- Next symbol pulse
+    signal iBaudCount          : std_logic_vector(3 downto 0);      -- Sample position within the symbol
+    signal iStopMid            : std_logic;                         -- Centre of the stop bit (MIDSTOP = 1)
     signal iBaudStepD          : std_logic;                         -- Next symbol pulse delayed by one clock
     signal iFilterClear        : std_logic;                         -- Reset input filter
     signal iFSIN               : std_logic;                         -- Filtered SIN
@@ -114,8 +124,12 @@ begin
                                 ENABLE      => RXCLK,
                                 DOWN        => '0',
                                 D           => x"0",
+                                Q           => iBaudCount,
                                 OVERFLOW    => iBaudStep
                          );
+
+    -- 8th sample of the stop bit (counter goes 7 -> 8 on this RXCLK)
+    iStopMid <= '1' when MIDSTOP /= 0 and RXCLK = '1' and iBaudCount = "0111" else '0';
 
     -- Input filter
     RX_MVF: slib_mv_filter generic map (
@@ -183,7 +197,7 @@ begin
     end process;
 
     -- RX FSM
-    RX_FSM: process (CState, SIN, iFSIN, iBaudStep, iDataCountFinish, PEN, WLS, STB)
+    RX_FSM: process (CState, SIN, iFSIN, iBaudStep, iStopMid, iDataCountFinish, PEN, WLS, STB)
     begin
         -- Defaults
         NState          <= IDLE;
@@ -219,7 +233,18 @@ begin
                             else
                                 NState <= PAR;
                             end if;
-            when STOP   =>  if (iBaudStep = '1') then           -- Wait for stop bit
+            when STOP   =>  if (MIDSTOP /= 0) then
+                                if (iStopMid = '1') then        -- Centre of the stop bit
+                                    iRXFinished <= '1';
+                                    if (SIN = '0') then         -- No stop bit received
+                                        NState <= MWAIT;
+                                    else
+                                        NState <= IDLE;
+                                    end if;
+                                else
+                                    NState <= STOP;
+                                end if;
+                            elsif (iBaudStep = '1') then        -- Wait for stop bit
                                 if (iFSIN = '0') then           -- No stop bit received
                                     iRXFinished <= '1';
                                     NState <= MWAIT;
@@ -268,7 +293,8 @@ begin
     end process;
 
     -- Framing error and break interrupt
-    iNoStopReceived <= '1' when iFSIN = '0' and (CState = STOP) else '0';
+    iNoStopReceived <= '1' when (CState = STOP) and
+                                ((MIDSTOP = 0 and iFSIN = '0') or (MIDSTOP /= 0 and SIN = '0')) else '0';
     iBI <= '1' when iDOUT = "00000000" and
                     iParityReceived = '0' and
                     iNoStopReceived = '1' else '0';

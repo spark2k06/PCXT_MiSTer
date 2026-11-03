@@ -1,4 +1,7 @@
 module uart
+#(
+	parameter RX_MIDSTOP = 0    // 1: receiver returns to idle at the centre of the stop bit
+)
 (
 	input            clk,
 	input            reset,
@@ -28,7 +31,7 @@ wire [7:0] data;
 
 always @(posedge clk) if(read & cs) readdata <= data;
 
-uart_16750 uart_16750
+uart_16750 #(.RX_MIDSTOP(RX_MIDSTOP)) uart_16750
 (
 	.CLK(clk),
 	.RST(reset),

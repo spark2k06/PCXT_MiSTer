@@ -34,6 +34,9 @@ USE IEEE.numeric_std.all;
 
 -- Serial UART
 entity uart_16750 is
+    generic (
+        RX_MIDSTOP  : natural := 0                              -- See uart_receiver MIDSTOP
+    );
     port (
         CLK         : in std_logic;                             -- Clock
         RST         : in std_logic;                             -- Reset
@@ -85,6 +88,9 @@ architecture rtl of uart_16750 is
     end component;
     -- UART receiver
     component uart_receiver is
+    generic (
+        MIDSTOP     : natural := 0
+    );
     port (
         CLK         : in std_logic;                             -- Clock
         RST         : in std_logic;                             -- Reset
@@ -856,7 +862,8 @@ begin
     iTXClear <= '0';
 
     -- Receiver
-    UART_RX: uart_receiver    port map (CLK         => CLK,
+    UART_RX: uart_receiver    generic map (MIDSTOP => RX_MIDSTOP)
+                              port map (CLK         => CLK,
                                         RST         => RST,
                                         RXCLK       => iRCLK,
                                         RXCLEAR     => iRXClear,

@@ -1149,6 +1149,7 @@ module emu
 		.tandy_16_gfx                       (tandy_16_gfx),
 		.tandy_color_16                     (tandy_color_16),
 		.clk_uart                           (clk_uart2_en),
+		.clk_uart_com2                      (clk_com2_en),
 		.uart2_rx                           (uart_rx),
 		.uart2_tx                           (uart_tx),
 		.uart2_cts_n                        (uart_cts),
@@ -1406,6 +1407,29 @@ module emu
         end
     end
 
+    // COM2 baud reference: a real 8250/16550 card runs from a 1.8432 MHz
+    // crystal and DOS divisors assume it. 14.318/8 = 1.7898 MHz made every
+    // COM2 rate 2.9% slow, enough to garble data coming from the HPS (modem,
+    // PPP). 1.8432/50 = 576/15625, so this fractional accumulator gives an
+    // exact 1.8432 MHz average from the 50 MHz clk_chipset (pulses every 27 or
+    // 28 cycles, 20 ns jitter). COM1 (internal mouse) keeps clk_uart2_en.
+    logic [13:0] clk_com2_acc = 14'd0;
+    logic        clk_com2_en  = 1'b0;
+
+    always @(posedge clk_chipset)
+    begin
+        if (clk_com2_acc >= 14'd15049)      // 15625 - 576
+        begin
+            clk_com2_acc <= clk_com2_acc - 14'd15049;
+            clk_com2_en  <= 1'b1;
+        end
+        else
+        begin
+            clk_com2_acc <= clk_com2_acc + 14'd576;
+            clk_com2_en  <= 1'b0;
+        end
+    end
+
     wire uart_tx, uart_rts, uart_dtr;
 
     // Selecting MIDI in the MiSTer UART menu hands these pins to the HPS, which
@@ -1428,7 +1452,12 @@ module emu
     wire uart_rx  = hps_midi | UART_RXD;
     wire uart_cts = hps_midi | UART_CTS;
     wire uart_dsr = hps_midi | UART_DSR;
-    wire uart_dcd = hps_midi | UART_DTR;
+    // DCD comes from the HPS side as well, like ao486: sys_top crosses the
+    // lines null-modem style, so UART_DSR is the Linux UART's DTR, raised by
+    // the soft modem / pppd / getty. It used to be UART_DTR, the core's own
+    // DTR output, so the guest saw "carrier" whenever it raised DTR itself and
+    // never saw a hang-up.
+    wire uart_dcd = hps_midi | UART_DSR;
 
 
     /// UART2
