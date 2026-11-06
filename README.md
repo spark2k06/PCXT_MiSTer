@@ -1,6 +1,6 @@
 # [IBM PC/XT](https://en.wikipedia.org/wiki/IBM_Personal_Computer_XT) for [MiSTer FPGA](https://mister-devel.github.io/MkDocs_MiSTer/)
 
-PCXT port for MiSTer by [@spark2k06](https://github.com/spark2k06/).
+PCXT port for MiSTer by [@spark2k06](https://github.com/aitorgomez-net/).
 
 Discussion and development take place in the
 [MiSTerFPGA PCXT forum section](https://misterfpga.org/viewforum.php?f=40).
@@ -38,12 +38,12 @@ support.
 For the implementation notes behind the CPU and bus work, see
 [`docs/8086-adaptation.md`](docs/8086-adaptation.md).
 
-A detailed [technical report](https://spark2k06.github.io/PCXT_MiSTer/report/) (architecture of the
+A detailed [technical report](https://aitorgomez-net.github.io/PCXT_MiSTer/report/) (architecture of the
 PC/XT, Tandy 1000 and PCjr in one core, their video, 15 kHz output, memory
 map, OSD and startup; source in [docs/report](docs/report/CORE_REPORT.html)) complements this
-README, and the [BIOS Builder](https://spark2k06.github.io/PCXT_MiSTer/BIOS_Builder) prepares the
+README, and the [BIOS Builder](https://aitorgomez-net.github.io/PCXT_MiSTer/BIOS_Builder) prepares the
 firmware the core needs. Both are published at
-[spark2k06.github.io/PCXT_MiSTer](https://spark2k06.github.io/PCXT_MiSTer/).
+[aitorgomez-net.github.io/PCXT_MiSTer](https://aitorgomez-net.github.io/PCXT_MiSTer/).
 
 ## Key features
 
@@ -262,7 +262,7 @@ something else: separate RBFs with only part of the hardware.
 5. Mount a floppy or hard-disk image.
 6. Load the BIOS of that machine into its slot under **System & BIOS** (PCXT,
    Tandy or PCjr BIOS; the EGA card also needs an EGA BIOS). The
-   [BIOS Builder](https://spark2k06.github.io/PCXT_MiSTer/BIOS_Builder) prepares them (see
+   [BIOS Builder](https://aitorgomez-net.github.io/PCXT_MiSTer/BIOS_Builder) prepares them (see
    [ROM instructions](#rom-instructions)).
 7. Select **Reset & apply settings**.
 
@@ -296,7 +296,7 @@ which BASICA needs and several games in Tandy mode do not like.
 
 ### BIOS Builder
 
-The [BIOS Builder](https://spark2k06.github.io/PCXT_MiSTer/BIOS_Builder) (source:
+The [BIOS Builder](https://aitorgomez-net.github.io/PCXT_MiSTer/BIOS_Builder) (source:
 [`SW/ROMs/BIOS_Builder.html`](SW/ROMs/BIOS_Builder.html), which also runs
 offline from a local copy) prepares every image above in the browser, with
 nothing to install, and your files are never uploaded.

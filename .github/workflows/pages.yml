@@ -1,11 +1,11 @@
 name: Publish documentation site
 
 # Publishes the documentation to GitHub Pages
-# (https://spark2k06.github.io/PCXT_MiSTer/):
+# (https://aitorgomez-net.github.io/PCXT_MiSTer/):
 #   /             docs/index.html
 #   /report/      docs/report/CORE_REPORT.html
 #   /<Name>/      every SW/ROMs/<Name>.html, e.g. /BIOS_Builder/
-# Only spark2k06/PCXT_MiSTer publishes it; in a copy of the repository the
+# Only aitorgomez-net/PCXT_MiSTer publishes it; in a copy of the repository the
 # job is skipped.
 on:
   push:
@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.repository == 'spark2k06/PCXT_MiSTer'
+    if: github.repository == 'aitorgomez-net/PCXT_MiSTer'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
